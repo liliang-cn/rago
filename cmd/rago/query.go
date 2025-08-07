@@ -1,0 +1,231 @@
+package rago
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/liliang-cn/rago/internal/chunker"
+	"github.com/liliang-cn/rago/internal/domain"
+	"github.com/liliang-cn/rago/internal/embedder"
+	"github.com/liliang-cn/rago/internal/llm"
+	"github.com/liliang-cn/rago/internal/processor"
+	"github.com/liliang-cn/rago/internal/store"
+	"github.com/spf13/cobra"
+)
+
+var (
+	topK        int
+	temperature float64
+	maxTokens   int
+	stream      bool
+	interactive bool
+	queryFile   string
+)
+
+var queryCmd = &cobra.Command{
+	Use:   "query [question]",
+	Short: "Query knowledge base",
+	Long: `Perform semantic search and Q&A based on imported documents.
+You can provide a question as an argument or use interactive mode.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		vectorStore, err := store.NewSQLiteStore(
+			cfg.Sqvect.DBPath,
+			cfg.Sqvect.VectorDim,
+			cfg.Sqvect.MaxConns,
+			cfg.Sqvect.BatchSize,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create vector store: %w", err)
+		}
+		defer func() {
+			if closeErr := vectorStore.Close(); closeErr != nil {
+				fmt.Printf("Warning: failed to close vector store: %v\n", closeErr)
+			}
+		}()
+
+		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
+
+		embedService, err := embedder.NewOllamaService(
+			cfg.Ollama.BaseURL,
+			cfg.Ollama.EmbeddingModel,
+			cfg.Ollama.Timeout,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create embedder: %w", err)
+		}
+
+		llmService, err := llm.NewOllamaService(
+			cfg.Ollama.BaseURL,
+			cfg.Ollama.LLMModel,
+			cfg.Ollama.Timeout,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create LLM service: %w", err)
+		}
+
+		chunkerService := chunker.New()
+
+		processor := processor.New(
+			embedService,
+			llmService,
+			chunkerService,
+			vectorStore,
+			docStore,
+		)
+
+		ctx := context.Background()
+
+		if interactive || len(args) == 0 {
+			return runInteractive(ctx, processor)
+		}
+
+		if queryFile != "" {
+			return processQueryFile(ctx, processor)
+		}
+
+		query := strings.Join(args, " ")
+		return processQuery(ctx, processor, query)
+	},
+}
+
+func runInteractive(ctx context.Context, p *processor.Service) error {
+	scanner := bufio.NewScanner(os.Stdin)
+	fmt.Println("RAGO Interactive Query Mode")
+	fmt.Println("Type 'exit' or 'quit' to exit, 'help' for commands")
+	fmt.Println()
+
+	for {
+		fmt.Print("rago> ")
+		if !scanner.Scan() {
+			break
+		}
+
+		input := strings.TrimSpace(scanner.Text())
+		if input == "" {
+			continue
+		}
+
+		switch strings.ToLower(input) {
+		case "exit", "quit", "q":
+			fmt.Println("Goodbye!")
+			return nil
+		case "help", "h":
+			printHelp()
+			continue
+		case "clear", "cls":
+			fmt.Print("\033[2J\033[H")
+			continue
+		}
+
+		if err := processQuery(ctx, p, input); err != nil {
+			fmt.Printf("Error: %v\n", err)
+		}
+		fmt.Println()
+	}
+
+	return scanner.Err()
+}
+
+func processQueryFile(ctx context.Context, p *processor.Service) error {
+	file, err := os.Open(queryFile)
+	if err != nil {
+		return fmt.Errorf("failed to open query file: %w", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close query file: %v\n", closeErr)
+		}
+	}()
+
+	scanner := bufio.NewScanner(file)
+	lineNum := 0
+
+	for scanner.Scan() {
+		lineNum++
+		query := strings.TrimSpace(scanner.Text())
+		if query == "" || strings.HasPrefix(query, "#") {
+			continue
+		}
+
+		fmt.Printf("Query %d: %s\n", lineNum, query)
+		if err := processQuery(ctx, p, query); err != nil {
+			fmt.Printf("Error processing query %d: %v\n", lineNum, err)
+		}
+		fmt.Println(strings.Repeat("-", 50))
+	}
+
+	return scanner.Err()
+}
+
+func processQuery(ctx context.Context, p *processor.Service, query string) error {
+	req := domain.QueryRequest{
+		Query:       query,
+		TopK:        topK,
+		Temperature: temperature,
+		MaxTokens:   maxTokens,
+		Stream:      stream,
+	}
+
+	if stream {
+		return processStreamQuery(ctx, p, req)
+	}
+
+	resp, err := p.Query(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Answer: %s\n", resp.Answer)
+
+	if verbose && len(resp.Sources) > 0 {
+		fmt.Printf("\nSources (%d):\n", len(resp.Sources))
+		for i, source := range resp.Sources {
+			fmt.Printf("  [%d] Score: %.4f\n", i+1, source.Score)
+			fmt.Printf("      Content: %s...\n", truncateText(source.Content, 100))
+		}
+	}
+
+	if verbose {
+		fmt.Printf("\nElapsed: %s\n", resp.Elapsed)
+	}
+
+	return nil
+}
+
+func processStreamQuery(ctx context.Context, p *processor.Service, req domain.QueryRequest) error {
+	fmt.Print("Answer: ")
+
+	err := p.StreamQuery(ctx, req, func(token string) {
+		fmt.Print(token)
+	})
+
+	fmt.Println()
+	return err
+}
+
+func printHelp() {
+	fmt.Println("Available commands:")
+	fmt.Println("  help, h     - Show this help message")
+	fmt.Println("  clear, cls  - Clear the screen")
+	fmt.Println("  exit, quit  - Exit the program")
+	fmt.Println("  <question>  - Ask a question to the knowledge base")
+}
+
+func truncateText(text string, maxLen int) string {
+	if len(text) <= maxLen {
+		return text
+	}
+	return text[:maxLen] + "..."
+}
+
+func init() {
+	queryCmd.Flags().IntVar(&topK, "top-k", 5, "number of documents to retrieve")
+	queryCmd.Flags().Float64Var(&temperature, "temperature", 0.7, "generation temperature")
+	queryCmd.Flags().IntVar(&maxTokens, "max-tokens", 500, "maximum generation length")
+	queryCmd.Flags().BoolVar(&stream, "stream", false, "streaming output")
+	queryCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "interactive mode")
+	queryCmd.Flags().StringVar(&queryFile, "file", "", "batch query from file")
+}

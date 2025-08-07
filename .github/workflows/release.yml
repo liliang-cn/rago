@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Run tests
+        run: make test
+
+      - name: Build binaries
+        run: |
+          # Extract version from tag
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+          # Create build directory
+          mkdir -p dist
+
+          # Build for multiple platforms
+          PLATFORMS="darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64"
+          for platform in $PLATFORMS; do
+            os=$(echo $platform | cut -d'/' -f1)
+            arch=$(echo $platform | cut -d'/' -f2)
+            
+            output_name="rago-$VERSION-$os-$arch"
+            if [ "$os" = "windows" ]; then
+              output_name="$output_name.exe"
+            fi
+            
+            echo "Building for $os/$arch..."
+            GOOS=$os GOARCH=$arch go build -ldflags="-X main.version=$VERSION" -o "dist/$output_name" .
+            
+            # Create archive
+            if [ "$os" = "windows" ]; then
+              (cd dist && zip "rago-$VERSION-$os-$arch.zip" "$output_name")
+            else
+              (cd dist && tar -czf "rago-$VERSION-$os-$arch.tar.gz" "$output_name")
+            fi
+          done
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Simple changelog generation
+          echo "## What's Changed" > CHANGELOG.md
+          git log --pretty=format:"* %s (%h)" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> CHANGELOG.md || echo "* Initial release" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo 'HEAD')...v$VERSION" >> CHANGELOG.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

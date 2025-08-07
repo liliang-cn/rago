@@ -1,0 +1,140 @@
+package llm
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/liliang-cn/ollama-go"
+	"github.com/liliang-cn/rago/internal/domain"
+)
+
+type OllamaService struct {
+	client  *ollama.Client
+	model   string
+	baseURL string
+}
+
+func NewOllamaService(baseURL, model string, timeout time.Duration) (*OllamaService, error) {
+	client, err := ollama.NewClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ollama client: %w", err)
+	}
+
+	return &OllamaService{
+		client:  client,
+		model:   model,
+		baseURL: baseURL,
+	}, nil
+}
+
+func (s *OllamaService) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
+	if prompt == "" {
+		return "", fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
+	}
+
+	stream := false
+	req := &ollama.GenerateRequest{
+		Model:  s.model,
+		Prompt: prompt,
+		Stream: &stream,
+	}
+
+	if opts != nil {
+		options := &ollama.Options{}
+		if opts.Temperature >= 0 {
+			options.Temperature = &opts.Temperature
+		}
+		if opts.MaxTokens > 0 {
+			numPredict := opts.MaxTokens
+			options.NumPredict = &numPredict
+		}
+		req.Options = options
+	}
+
+	resp, err := s.client.Generate(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+	}
+
+	return resp.Response, nil
+}
+
+func (s *OllamaService) Stream(ctx context.Context, prompt string, opts *domain.GenerationOptions, callback func(string)) error {
+	if prompt == "" {
+		return fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
+	}
+
+	if callback == nil {
+		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
+	}
+
+	stream := true
+	req := &ollama.GenerateRequest{
+		Model:  s.model,
+		Prompt: prompt,
+		Stream: &stream,
+	}
+
+	if opts != nil {
+		options := &ollama.Options{}
+		if opts.Temperature >= 0 {
+			options.Temperature = &opts.Temperature
+		}
+		if opts.MaxTokens > 0 {
+			numPredict := opts.MaxTokens
+			options.NumPredict = &numPredict
+		}
+		req.Options = options
+	}
+
+	respCh, err := s.client.GenerateStream(ctx, req)
+	if err != nil {
+		return fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+	}
+
+	for resp := range respCh {
+		if resp.Response != "" {
+			callback(resp.Response)
+		}
+		
+		if resp.Done {
+			break
+		}
+	}
+
+	return nil
+}
+
+func (s *OllamaService) Health(ctx context.Context) error {
+	_, err := s.client.Version(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %v", domain.ErrServiceUnavailable, err)
+	}
+	return nil
+}
+
+func ComposePrompt(chunks []domain.Chunk, query string) string {
+	if len(chunks) == 0 {
+		return fmt.Sprintf("请回答以下问题：\n\n%s", query)
+	}
+
+	var contextParts []string
+	for i, chunk := range chunks {
+		contextParts = append(contextParts, fmt.Sprintf("[文档片段 %d]\n%s", i+1, chunk.Content))
+	}
+
+	context := strings.Join(contextParts, "\n\n")
+
+	prompt := fmt.Sprintf(`基于以下文档内容，请回答用户的问题。如果文档中没有相关信息，请说明无法从提供的文档中找到答案。
+
+文档内容：
+%s
+
+用户问题：%s
+
+请根据文档内容给出详细、准确的回答：`, context, query)
+
+	return prompt
+}
