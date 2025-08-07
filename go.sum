@@ -55,6 +55,10 @@ github.com/liliang-cn/ollama-go v0.1.0 h1:J0V38Xo15dLCRGPVMzJKhk19Ei9KijHs3COJmm
 github.com/liliang-cn/ollama-go v0.1.0/go.mod h1:BwwhnboYEbj8EqrjBDMqwXNSnYeFarbm+FQocY3T5Wk=
 github.com/liliang-cn/sqvect v0.1.0 h1:ji5NCQPmd7Ef6fdDhC1YahSWAhmbXJP0PavDTjzSRh0=
 github.com/liliang-cn/sqvect v0.1.0/go.mod h1:Y9LAEV33POJG6LW7JV5tb5aaqkraEtOp/JV+T3qs64A=
+github.com/liliang-cn/sqvect v0.2.0 h1:l9sMjLQNc5yh26JK2HJsC6/yV4ioBz+n5gu/9OYcQp8=
+github.com/liliang-cn/sqvect v0.2.0/go.mod h1:Y9LAEV33POJG6LW7JV5tb5aaqkraEtOp/JV+T3qs64A=
+github.com/liliang-cn/sqvect v0.3.0 h1:ROKOAoUTbYIbtDu4gQByWV1sVANYfIQbb/uKg4n0lSo=
+github.com/liliang-cn/sqvect v0.3.0/go.mod h1:Y9LAEV33POJG6LW7JV5tb5aaqkraEtOp/JV+T3qs64A=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/mattn/go-sqlite3 v1.14.30 h1:bVreufq3EAIG1Quvws73du3/QgdeZ3myglJlrzSYYCY=
