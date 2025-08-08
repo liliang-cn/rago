@@ -70,41 +70,49 @@ func (s *OllamaService) Stream(ctx context.Context, prompt string, opts *domain.
 		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
 	}
 
-	stream := true
-	req := &ollama.GenerateRequest{
-		Model:  s.model,
-		Prompt: prompt,
-		Stream: &stream,
-	}
+	// Use the functional API like in your working example
+	options := []func(*ollama.GenerateRequest){}
 
 	if opts != nil {
-		options := &ollama.Options{}
 		if opts.Temperature >= 0 {
-			options.Temperature = &opts.Temperature
+			options = append(options, func(req *ollama.GenerateRequest) {
+				if req.Options == nil {
+					req.Options = &ollama.Options{}
+				}
+				req.Options.Temperature = &opts.Temperature
+			})
 		}
 		if opts.MaxTokens > 0 {
-			numPredict := opts.MaxTokens
-			options.NumPredict = &numPredict
-		}
-		req.Options = options
-	}
-
-	respCh, err := s.client.GenerateStream(ctx, req)
-	if err != nil {
-		return fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
-	}
-
-	for resp := range respCh {
-		if resp.Response != "" {
-			callback(resp.Response)
-		}
-		
-		if resp.Done {
-			break
+			options = append(options, func(req *ollama.GenerateRequest) {
+				if req.Options == nil {
+					req.Options = &ollama.Options{}
+				}
+				req.Options.NumPredict = &opts.MaxTokens
+			})
 		}
 	}
 
-	return nil
+	// Use the functional API that works correctly
+	respCh, errCh := ollama.GenerateStream(ctx, s.model, prompt, options...)
+
+	for {
+		select {
+		case resp, ok := <-respCh:
+			if !ok {
+				// Channel closed, streaming is done
+				return nil
+			}
+			if resp != nil && resp.Response != "" {
+				callback(resp.Response)
+			}
+		case err := <-errCh:
+			if err != nil {
+				return fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
 
 func (s *OllamaService) Health(ctx context.Context) error {

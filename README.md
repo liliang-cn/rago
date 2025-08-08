@@ -186,6 +186,106 @@ Content-Type: application/json
 }
 ```
 
+### Library Usage
+
+RAGO can be used as a Go library in your projects. This allows you to integrate RAGO's RAG functionality directly into your applications without running it as a separate CLI tool.
+
+#### Installation
+
+```bash
+go get github.com/liliang-cn/rago
+```
+
+#### Import the library
+
+```go
+import "github.com/liliang-cn/rago/lib"
+```
+
+#### Create a client
+
+```go
+// Using default config file (config.toml in current directory)
+client, err := rago.New("config.toml")
+if err != nil {
+    log.Fatal(err)
+}
+defer client.Close()
+
+// Or using a custom config
+cfg := &config.Config{
+    // ... your config here
+}
+client, err := rago.NewWithConfig(cfg)
+```
+
+#### Basic operations
+
+```go
+// Ingest text content
+err = client.IngestText("Your text content here", "source_name")
+
+// Ingest a file
+err = client.IngestFile("/path/to/your/file.txt")
+
+// Query the knowledge base
+response, err := client.Query("Your question here")
+fmt.Println("Answer:", response.Answer)
+
+// Stream query with callback
+err = client.StreamQuery("Your question", func(chunk string) {
+    fmt.Print(chunk)
+})
+
+// List documents
+docs, err := client.ListDocuments()
+
+// Delete a document
+err = client.DeleteDocument(documentID)
+
+// Reset the database
+err = client.Reset()
+```
+
+#### Library Configuration
+
+The library uses the same configuration format as the CLI tool. You can either:
+
+1. Pass a config file path to `rago.New(configPath)`
+2. Load config yourself and pass it to `rago.NewWithConfig(config)`
+
+The library will read configuration from:
+
+- Specified config file path
+- `./config.toml` (current directory)
+- `./config/config.toml`
+- `$HOME/.rago/config.toml`
+
+#### Example
+
+See `examples/library_usage.go` for a complete example of how to use RAGO as a library.
+
+```bash
+cd examples
+go run library_usage.go
+```
+
+#### API Reference
+
+**Client Methods**
+
+- `New(configPath string) (*Client, error)` - Create client with config file
+- `NewWithConfig(cfg *config.Config) (*Client, error)` - Create client with config struct
+- `IngestFile(filePath string) error` - Ingest a file
+- `IngestText(text, source string) error` - Ingest text content
+- `Query(query string) (domain.QueryResponse, error)` - Query knowledge base
+- `StreamQuery(query string, callback func(string)) error` - Stream query response
+- `ListDocuments() ([]domain.Document, error)` - List all documents
+- `DeleteDocument(documentID string) error` - Delete a document
+- `Reset() error` - Reset the database
+- `Close() error` - Close the client and cleanup
+- `GetConfig() *config.Config` - Get current configuration
+
 ## ⚙️ Configuration
 
 ### Configuration File
@@ -340,7 +440,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 For questions or suggestions, please contact through:
 
 - GitHub Issues: [https://github.com/liliang-cn/rago/issues](https://github.com/liliang-cn/rago/issues)
-- Email: your.email@example.com
+- Email: liliang.imut@gmail.com
 
 ---
 

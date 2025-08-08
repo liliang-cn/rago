@@ -184,6 +184,106 @@ Content-Type: application/json
 }
 ```
 
+### 作为库使用
+
+RAGO 可以作为 Go 库在您的项目中使用。这允许您将 RAGO 的 RAG 功能直接集成到您的应用程序中，而无需将其作为单独的 CLI 工具运行。
+
+#### 安装
+
+```bash
+go get github.com/liliang-cn/rago
+```
+
+#### 导入库
+
+```go
+import "github.com/liliang-cn/rago/lib"
+```
+
+#### 创建客户端
+
+```go
+// 使用默认配置文件（当前目录下的 config.toml）
+client, err := rago.New("config.toml")
+if err != nil {
+    log.Fatal(err)
+}
+defer client.Close()
+
+// 或使用自定义配置
+cfg := &config.Config{
+    // ... 您的配置
+}
+client, err := rago.NewWithConfig(cfg)
+```
+
+#### 基本操作
+
+```go
+// 导入文本内容
+err = client.IngestText("您的文本内容", "来源名称")
+
+// 导入文件
+err = client.IngestFile("/path/to/your/file.txt")
+
+// 查询知识库
+response, err := client.Query("您的问题")
+fmt.Println("答案:", response.Answer)
+
+// 流式查询
+err = client.StreamQuery("您的问题", func(chunk string) {
+    fmt.Print(chunk)
+})
+
+// 列出文档
+docs, err := client.ListDocuments()
+
+// 删除文档
+err = client.DeleteDocument(documentID)
+
+// 重置数据库
+err = client.Reset()
+```
+
+#### 库配置
+
+库使用与 CLI 工具相同的配置格式。您可以：
+
+1. 将配置文件路径传递给 `rago.New(configPath)`
+2. 自己加载配置并传递给 `rago.NewWithConfig(config)`
+
+库将从以下位置读取配置：
+
+- 指定的配置文件路径
+- `./config.toml`（当前目录）
+- `./config/config.toml`
+- `$HOME/.rago/config.toml`
+
+#### 示例
+
+查看 `examples/library_usage.go` 以获取如何将 RAGO 用作库的完整示例。
+
+```bash
+cd examples
+go run library_usage.go
+```
+
+#### API 参考
+
+**客户端方法**
+
+- `New(configPath string) (*Client, error)` - 使用配置文件创建客户端
+- `NewWithConfig(cfg *config.Config) (*Client, error)` - 使用配置结构创建客户端
+- `IngestFile(filePath string) error` - 导入文件
+- `IngestText(text, source string) error` - 导入文本内容
+- `Query(query string) (domain.QueryResponse, error)` - 查询知识库
+- `StreamQuery(query string, callback func(string)) error` - 流式查询响应
+- `ListDocuments() ([]domain.Document, error)` - 列出所有文档
+- `DeleteDocument(documentID string) error` - 删除文档
+- `Reset() error` - 重置数据库
+- `Close() error` - 关闭客户端并清理
+- `GetConfig() *config.Config` - 获取当前配置
+
 ## ⚙️ 配置
 
 ### 配置文件
