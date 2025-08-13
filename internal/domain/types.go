@@ -24,11 +24,12 @@ type Chunk struct {
 }
 
 type QueryRequest struct {
-	Query       string  `json:"query"`
-	TopK        int     `json:"top_k"`
-	Temperature float64 `json:"temperature"`
-	MaxTokens   int     `json:"max_tokens"`
-	Stream      bool    `json:"stream"`
+	Query       string                 `json:"query"`
+	TopK        int                    `json:"top_k"`
+	Temperature float64                `json:"temperature"`
+	MaxTokens   int                    `json:"max_tokens"`
+	Stream      bool                   `json:"stream"`
+	Filters     map[string]interface{} `json:"filters,omitempty"`
 }
 
 type QueryResponse struct {
@@ -80,6 +81,7 @@ type ChunkOptions struct {
 type VectorStore interface {
 	Store(ctx context.Context, chunks []Chunk) error
 	Search(ctx context.Context, vector []float64, topK int) ([]Chunk, error)
+	SearchWithFilters(ctx context.Context, vector []float64, topK int, filters map[string]interface{}) ([]Chunk, error)
 	Delete(ctx context.Context, documentID string) error
 	List(ctx context.Context) ([]Document, error)
 	Reset(ctx context.Context) error

@@ -23,6 +23,7 @@ var (
 	stream      bool
 	interactive bool
 	queryFile   string
+	filterBy    []string
 )
 
 var queryCmd = &cobra.Command{
@@ -161,12 +162,24 @@ func processQueryFile(ctx context.Context, p *processor.Service) error {
 }
 
 func processQuery(ctx context.Context, p *processor.Service, query string) error {
+	// Parse filters from filterBy flag
+	filters := make(map[string]interface{})
+	for _, filter := range filterBy {
+		parts := strings.SplitN(filter, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			filters[key] = value
+		}
+	}
+
 	req := domain.QueryRequest{
 		Query:       query,
 		TopK:        topK,
 		Temperature: temperature,
 		MaxTokens:   maxTokens,
 		Stream:      stream,
+		Filters:     filters,
 	}
 
 	if stream {
@@ -185,6 +198,9 @@ func processQuery(ctx context.Context, p *processor.Service, query string) error
 		for i, source := range resp.Sources {
 			fmt.Printf("  [%d] Score: %.4f\n", i+1, source.Score)
 			fmt.Printf("      Content: %s...\n", truncateText(source.Content, 100))
+			if len(source.Metadata) > 0 {
+				fmt.Printf("      Metadata: %v\n", source.Metadata)
+			}
 		}
 	}
 
@@ -212,6 +228,7 @@ func printHelp() {
 	fmt.Println("  clear, cls  - Clear the screen")
 	fmt.Println("  exit, quit  - Exit the program")
 	fmt.Println("  <question>  - Ask a question to the knowledge base")
+	fmt.Println("  --filter key=value  - Filter results by metadata (can be used multiple times)")
 }
 
 func truncateText(text string, maxLen int) string {
@@ -228,4 +245,5 @@ func init() {
 	queryCmd.Flags().BoolVar(&stream, "stream", false, "streaming output")
 	queryCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "interactive mode")
 	queryCmd.Flags().StringVar(&queryFile, "file", "", "batch query from file")
+	queryCmd.Flags().StringSliceVar(&filterBy, "filter", []string{}, "filter by metadata (key=value format, can be used multiple times)")
 }

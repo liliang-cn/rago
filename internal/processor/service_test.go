@@ -74,6 +74,16 @@ func (m *mockVectorStore) Search(ctx context.Context, vector []float64, topK int
 	return m.chunks, nil
 }
 
+func (m *mockVectorStore) SearchWithFilters(ctx context.Context, vector []float64, topK int, filters map[string]interface{}) ([]domain.Chunk, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if len(m.chunks) > topK {
+		return m.chunks[:topK], nil
+	}
+	return m.chunks, nil
+}
+
 func (m *mockVectorStore) Delete(ctx context.Context, documentID string) error {
 	if m.err != nil {
 		return m.err

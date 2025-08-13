@@ -132,6 +132,58 @@ func (s *SQLiteStore) Search(ctx context.Context, vector []float64, topK int) ([
 	return chunks, nil
 }
 
+func (s *SQLiteStore) SearchWithFilters(ctx context.Context, vector []float64, topK int, filters map[string]interface{}) ([]domain.Chunk, error) {
+	// Get more results than needed to account for filtering
+	searchTopK := topK * 3
+	if searchTopK > 100 {
+		searchTopK = 100
+	}
+	
+	// First, get all results without filters
+	allChunks, err := s.Search(ctx, vector, searchTopK)
+	if err != nil {
+		return nil, err
+	}
+
+	// If no filters, return original results
+	if filters == nil || len(filters) == 0 {
+		if len(allChunks) > topK {
+			return allChunks[:topK], nil
+		}
+		return allChunks, nil
+	}
+
+	// Apply filters
+	var filteredChunks []domain.Chunk
+	for _, chunk := range allChunks {
+		if matchesFilters(chunk.Metadata, filters) {
+			filteredChunks = append(filteredChunks, chunk)
+			if len(filteredChunks) >= topK {
+				break
+			}
+		}
+	}
+
+	return filteredChunks, nil
+}
+
+// Helper function to check if metadata matches filters
+func matchesFilters(metadata map[string]interface{}, filters map[string]interface{}) bool {
+	for key, expectedValue := range filters {
+		if actualValue, exists := metadata[key]; !exists {
+			return false
+		} else {
+			// Convert both to strings for comparison
+			expectedStr := fmt.Sprintf("%v", expectedValue)
+			actualStr := fmt.Sprintf("%v", actualValue)
+			if expectedStr != actualStr {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (s *SQLiteStore) Delete(ctx context.Context, documentID string) error {
 	if documentID == "" {
 		return fmt.Errorf("%w: empty document ID", domain.ErrInvalidInput)

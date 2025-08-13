@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/liliang-cn/rago/internal/chunker"
 	"github.com/liliang-cn/rago/internal/config"
@@ -124,6 +125,19 @@ func (c *Client) Query(query string) (domain.QueryResponse, error) {
 	return c.processor.Query(ctx, req)
 }
 
+func (c *Client) QueryWithFilters(query string, filters map[string]interface{}) (domain.QueryResponse, error) {
+	ctx := context.Background()
+	req := domain.QueryRequest{
+		Query:       query,
+		TopK:        c.config.Sqvect.TopK,
+		Temperature: 0.7,
+		MaxTokens:   500,
+		Filters:     filters,
+	}
+
+	return c.processor.Query(ctx, req)
+}
+
 func (c *Client) StreamQuery(query string, callback func(string)) error {
 	ctx := context.Background()
 	req := domain.QueryRequest{
@@ -161,4 +175,34 @@ func (c *Client) Close() error {
 
 func (c *Client) GetConfig() *config.Config {
 	return c.config
+}
+
+type StatusResult struct {
+	OllamaAvailable bool
+	BaseURL         string
+	LLMModel        string
+	EmbeddingModel  string
+	Timeout         time.Duration
+	Error           error
+}
+
+func (c *Client) CheckStatus() StatusResult {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result := StatusResult{
+		BaseURL:        c.config.Ollama.BaseURL,
+		LLMModel:       c.config.Ollama.LLMModel,
+		EmbeddingModel: c.config.Ollama.EmbeddingModel,
+		Timeout:        c.config.Ollama.Timeout,
+	}
+
+	if err := c.llm.Health(ctx); err != nil {
+		result.OllamaAvailable = false
+		result.Error = err
+	} else {
+		result.OllamaAvailable = true
+	}
+
+	return result
 }

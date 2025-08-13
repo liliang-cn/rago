@@ -130,7 +130,13 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 		return domain.QueryResponse{}, fmt.Errorf("failed to generate query embedding: %w", err)
 	}
 
-	chunks, err := s.vectorStore.Search(ctx, queryVector, req.TopK)
+	var chunks []domain.Chunk
+	if req.Filters != nil && len(req.Filters) > 0 {
+		chunks, err = s.vectorStore.SearchWithFilters(ctx, queryVector, req.TopK, req.Filters)
+	} else {
+		chunks, err = s.vectorStore.Search(ctx, queryVector, req.TopK)
+	}
+	
 	if err != nil {
 		return domain.QueryResponse{}, fmt.Errorf("failed to search vectors: %w", err)
 	}
@@ -187,7 +193,13 @@ func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, call
 		return fmt.Errorf("failed to generate query embedding: %w", err)
 	}
 
-	chunks, err := s.vectorStore.Search(ctx, queryVector, req.TopK)
+	var chunks []domain.Chunk
+	if req.Filters != nil && len(req.Filters) > 0 {
+		chunks, err = s.vectorStore.SearchWithFilters(ctx, queryVector, req.TopK, req.Filters)
+	} else {
+		chunks, err = s.vectorStore.Search(ctx, queryVector, req.TopK)
+	}
+	
 	if err != nil {
 		return fmt.Errorf("failed to search vectors: %w", err)
 	}

@@ -20,17 +20,26 @@ var (
 	overlap   int
 	batchSize int
 	recursive bool
+	textInput string
+	source    string
 )
 
 var ingestCmd = &cobra.Command{
 	Use:   "ingest [file/directory]",
 	Short: "Import documents into vector database",
 	Long: `Chunk document content, vectorize and store into local vector database.
-Supports text format files like .txt, .md, etc.`,
-	Args: cobra.ExactArgs(1),
+Supports text format files like .txt, .md, etc.
+You can also use --text flag to ingest text directly.`,
+	Args: func(cmd *cobra.Command, args []string) error {
+		if textInput != "" {
+			if len(args) > 0 {
+				return fmt.Errorf("cannot specify both file path and --text flag")
+			}
+			return nil
+		}
+		return cobra.ExactArgs(1)(cmd, args)
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		path := args[0]
-
 		vectorStore, err := store.NewSQLiteStore(
 			cfg.Sqvect.DBPath,
 			cfg.Sqvect.VectorDim,
@@ -68,6 +77,17 @@ Supports text format files like .txt, .md, etc.`,
 		)
 
 		ctx := context.Background()
+
+		// Handle text input
+		if textInput != "" {
+			return processText(ctx, processor, textInput)
+		}
+
+		// Handle file path
+		if len(args) == 0 {
+			return fmt.Errorf("no file path provided")
+		}
+		path := args[0]
 
 		if err := processPath(ctx, processor, path); err != nil {
 			return err
@@ -153,9 +173,36 @@ func processFile(ctx context.Context, p *processor.Service, filePath string) err
 	return nil
 }
 
+func processText(ctx context.Context, p *processor.Service, text string) error {
+	sourceValue := source
+	if sourceValue == "" {
+		sourceValue = "text-input"
+	}
+
+	req := domain.IngestRequest{
+		Content:   text,
+		ChunkSize: chunkSize,
+		Overlap:   overlap,
+		Metadata: map[string]interface{}{
+			"source": sourceValue,
+			"type":   "text",
+		},
+	}
+
+	resp, err := p.Ingest(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to ingest text: %w", err)
+	}
+
+	fmt.Printf("Successfully ingested text: %d chunks (ID: %s)\n", resp.ChunkCount, resp.DocumentID)
+	return nil
+}
+
 func init() {
 	ingestCmd.Flags().IntVar(&chunkSize, "chunk-size", 300, "text chunk size")
 	ingestCmd.Flags().IntVar(&overlap, "overlap", 50, "chunk overlap size")
 	ingestCmd.Flags().IntVar(&batchSize, "batch-size", 10, "batch processing size")
 	ingestCmd.Flags().BoolVar(&recursive, "recursive", false, "process directory recursively")
+	ingestCmd.Flags().StringVar(&textInput, "text", "", "ingest text directly instead of from file")
+	ingestCmd.Flags().StringVar(&source, "source", "", "source name for text input (default: text-input)")
 }
