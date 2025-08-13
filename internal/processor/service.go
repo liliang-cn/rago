@@ -131,7 +131,7 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 	}
 
 	var chunks []domain.Chunk
-	if req.Filters != nil && len(req.Filters) > 0 {
+	if len(req.Filters) > 0 {
 		chunks, err = s.vectorStore.SearchWithFilters(ctx, queryVector, req.TopK, req.Filters)
 	} else {
 		chunks, err = s.vectorStore.Search(ctx, queryVector, req.TopK)
@@ -194,7 +194,7 @@ func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, call
 	}
 
 	var chunks []domain.Chunk
-	if req.Filters != nil && len(req.Filters) > 0 {
+	if len(req.Filters) > 0 {
 		chunks, err = s.vectorStore.SearchWithFilters(ctx, queryVector, req.TopK, req.Filters)
 	} else {
 		chunks, err = s.vectorStore.Search(ctx, queryVector, req.TopK)

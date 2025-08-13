@@ -13,7 +13,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create rago client: %v", err)
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			fmt.Printf("Warning: failed to close client: %v\n", err)
+		}
+	}()
 
 	// Example 1: Ingest text content
 	fmt.Println("1. Ingesting text content...")

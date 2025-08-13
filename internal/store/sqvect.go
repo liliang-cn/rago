@@ -146,7 +146,7 @@ func (s *SQLiteStore) SearchWithFilters(ctx context.Context, vector []float64, t
 	}
 
 	// If no filters, return original results
-	if filters == nil || len(filters) == 0 {
+	if len(filters) == 0 {
 		if len(allChunks) > topK {
 			return allChunks[:topK], nil
 		}

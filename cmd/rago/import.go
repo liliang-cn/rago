@@ -35,7 +35,11 @@ var importCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to open input file: %w", err)
 		}
-		defer file.Close()
+		defer func() {
+			if err := file.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to close file: %v\n", err)
+			}
+		}()
 
 		var exportData ExportData
 		decoder := json.NewDecoder(file)

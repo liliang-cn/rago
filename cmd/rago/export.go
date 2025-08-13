@@ -108,7 +108,11 @@ var exportCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create output file: %w", err)
 		}
-		defer file.Close()
+		defer func() {
+			if err := file.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to close file: %v\n", err)
+			}
+		}()
 
 		encoder := json.NewEncoder(file)
 		encoder.SetIndent("", "  ")
