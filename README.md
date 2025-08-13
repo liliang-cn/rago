@@ -7,7 +7,7 @@ RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system writte
 ## 🎯 Features
 
 - **Fully Offline** - No external APIs required, protecting data privacy
-- **Multi-format Support** - Supports TXT, Markdown, PDF and other formats
+- **Multi-format Support** - Supports TXT and Markdown formats
 - **Local Vector Database** - SQLite-based sqvect vector storage
 - **Local LLM** - Call local models through Ollama
 - **Dual Interface Design** - Both CLI tool and HTTP API usage modes
@@ -85,9 +85,6 @@ rago ingest ./document.txt
 
 # Batch ingestion
 rago ingest ./docs/ --recursive --chunk-size 500 --overlap 100
-
-# Import from URL (planned)
-rago ingest --url "https://example.com/doc.html"
 ```
 
 #### Query Functions
