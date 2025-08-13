@@ -41,7 +41,10 @@ make build
 #### 方式二：使用 go install 安装
 
 ```bash
-go install github.com/liliang-cn/rago/cmd/rago@latest
+go install github.com/liliang-cn/rago/cmd/rago-cli@latest
+
+# 二进制文件名为 'rago-cli'
+rago-cli --help
 ```
 
 ### 基本使用

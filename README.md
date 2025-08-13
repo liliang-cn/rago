@@ -43,7 +43,10 @@ make build
 #### Option 2: Install using go install
 
 ```bash
-go install github.com/liliang-cn/rago/cmd/rago@latest
+go install github.com/liliang-cn/rago/cmd/rago-cli@latest
+
+# The binary will be named 'rago-cli'
+rago-cli --help
 ```
 
 ### Basic Usage
