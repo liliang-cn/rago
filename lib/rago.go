@@ -151,6 +151,20 @@ func (c *Client) StreamQuery(query string, callback func(string)) error {
 	return c.processor.StreamQuery(ctx, req, callback)
 }
 
+func (c *Client) StreamQueryWithFilters(query string, filters map[string]interface{}, callback func(string)) error {
+	ctx := context.Background()
+	req := domain.QueryRequest{
+		Query:       query,
+		TopK:        c.config.Sqvect.TopK,
+		Temperature: 0.7,
+		MaxTokens:   500,
+		Stream:      true,
+		Filters:     filters,
+	}
+
+	return c.processor.StreamQuery(ctx, req, callback)
+}
+
 func (c *Client) ListDocuments() ([]domain.Document, error) {
 	ctx := context.Background()
 	return c.processor.ListDocuments(ctx)

@@ -46,8 +46,9 @@ func (h *QueryHandler) Handle(c *gin.Context) {
 
 func (h *QueryHandler) SearchOnly(c *gin.Context) {
 	var req struct {
-		Query string `json:"query"`
-		TopK  int    `json:"top_k"`
+		Query   string                 `json:"query"`
+		TopK    int                    `json:"top_k"`
+		Filters map[string]interface{} `json:"filters,omitempty"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -65,8 +66,9 @@ func (h *QueryHandler) SearchOnly(c *gin.Context) {
 
 	// Create a simple search request using the processor
 	queryReq := domain.QueryRequest{
-		Query: req.Query,
-		TopK:  req.TopK,
+		Query:   req.Query,
+		TopK:    req.TopK,
+		Filters: req.Filters,
 	}
 
 	// Use processor's search functionality - we'll need to add a search-only method

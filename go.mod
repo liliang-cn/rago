@@ -6,7 +6,7 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
 	github.com/liliang-cn/ollama-go v0.1.0
-	github.com/liliang-cn/sqvect v0.4.0
+	github.com/liliang-cn/sqvect v0.5.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 )

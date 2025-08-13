@@ -133,55 +133,59 @@ func (s *SQLiteStore) Search(ctx context.Context, vector []float64, topK int) ([
 }
 
 func (s *SQLiteStore) SearchWithFilters(ctx context.Context, vector []float64, topK int, filters map[string]interface{}) ([]domain.Chunk, error) {
-	// Get more results than needed to account for filtering
-	searchTopK := topK * 3
-	if searchTopK > 100 {
-		searchTopK = 100
-	}
-	
-	// First, get all results without filters
-	allChunks, err := s.Search(ctx, vector, searchTopK)
-	if err != nil {
-		return nil, err
+	if len(vector) == 0 {
+		return nil, fmt.Errorf("%w: empty query vector", domain.ErrInvalidInput)
 	}
 
-	// If no filters, return original results
-	if len(filters) == 0 {
-		if len(allChunks) > topK {
-			return allChunks[:topK], nil
+	if topK <= 0 {
+		topK = 5
+	}
+
+	// Convert []float64 to []float32 for sqvect
+	queryVector := make([]float32, len(vector))
+	for i, v := range vector {
+		queryVector[i] = float32(v)
+	}
+
+	// Use sqvect's native SearchWithFilter method if filters are provided
+	if len(filters) > 0 {
+		results, err := s.sqvect.SearchWithFilter(ctx, queryVector, sqvect.SearchOptions{
+			TopK:      topK,
+			Threshold: 0.0, // Return all results, let caller filter
+		}, filters)
+		if err != nil {
+			return nil, fmt.Errorf("%w: search with filter failed: %v", domain.ErrVectorStoreFailed, err)
 		}
-		return allChunks, nil
-	}
 
-	// Apply filters
-	var filteredChunks []domain.Chunk
-	for _, chunk := range allChunks {
-		if matchesFilters(chunk.Metadata, filters) {
-			filteredChunks = append(filteredChunks, chunk)
-			if len(filteredChunks) >= topK {
-				break
+		chunks := make([]domain.Chunk, len(results))
+		for i, result := range results {
+			// Convert []float32 back to []float64
+			resultVector := make([]float64, len(result.Vector))
+			for j, v := range result.Vector {
+				resultVector[j] = float64(v)
+			}
+
+			// Convert metadata back to interface{}
+			metadata := make(map[string]interface{})
+			for k, v := range result.Metadata {
+				metadata[k] = v
+			}
+
+			chunks[i] = domain.Chunk{
+				ID:         result.ID,
+				DocumentID: result.DocID,
+				Content:    result.Content,
+				Vector:     resultVector,
+				Score:      float64(result.Score),
+				Metadata:   metadata,
 			}
 		}
+
+		return chunks, nil
 	}
 
-	return filteredChunks, nil
-}
-
-// Helper function to check if metadata matches filters
-func matchesFilters(metadata map[string]interface{}, filters map[string]interface{}) bool {
-	for key, expectedValue := range filters {
-		if actualValue, exists := metadata[key]; !exists {
-			return false
-		} else {
-			// Convert both to strings for comparison
-			expectedStr := fmt.Sprintf("%v", expectedValue)
-			actualStr := fmt.Sprintf("%v", actualValue)
-			if expectedStr != actualStr {
-				return false
-			}
-		}
-	}
-	return true
+	// If no filters, use regular search
+	return s.Search(ctx, vector, topK)
 }
 
 func (s *SQLiteStore) Delete(ctx context.Context, documentID string) error {

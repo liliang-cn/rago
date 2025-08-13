@@ -29,11 +29,19 @@ RAGO（Retrieval-Augmented Generation Offline）是一个完全本地运行的 R
 
 ### 安装 RAGO
 
+#### 方式一：从源码安装
+
 ```bash
 git clone https://github.com/liliang-cn/rago.git
 cd rago
 make setup
 make build
+```
+
+#### 方式二：使用 go install 安装
+
+```bash
+go install github.com/liliang-cn/rago/cmd/rago@latest
 ```
 
 ### 基本使用
@@ -97,6 +105,9 @@ rago query --file questions.txt
 
 # 调整参数
 rago query "什么是深度学习" --top-k 10 --temperature 0.3 --max-tokens 1000
+
+# 使用过滤器查询（需要文档包含元数据）
+rago query "机器学习概念" --filter "source=textbook" --filter "category=ai"
 ```
 
 #### 数据管理
@@ -158,7 +169,11 @@ Content-Type: application/json
   "top_k": 5,
   "temperature": 0.7,
   "max_tokens": 500,
-  "stream": false
+  "stream": false,
+  "filters": {
+    "source": "textbook",
+    "category": "ai"
+  }
 }
 ```
 
@@ -180,9 +195,52 @@ Content-Type: application/json
 
 {
   "query": "人工智能",
-  "top_k": 5
+  "top_k": 5,
+  "filters": {
+    "source": "textbook",
+    "category": "ai"
+  }
 }
 ```
+
+#### 过滤器支持
+
+RAGO 支持基于文档元数据的过滤搜索结果。这允许您在知识库的特定子集中进行搜索：
+
+**CLI 使用：**
+```bash
+# 使用过滤器查询
+rago query "机器学习" --filter "source=textbook" --filter "author=张三"
+
+# 仅搜索（无生成）使用过滤器
+rago search "神经网络" --filter "category=deep-learning" --filter "year=2023"
+```
+
+**API 使用：**
+```bash
+# 使用过滤器查询
+curl -X POST http://localhost:8080/api/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "什么是机器学习？",
+    "filters": {
+      "source": "textbook",
+      "category": "ai"
+    }
+  }'
+
+# 使用过滤器搜索
+curl -X POST http://localhost:8080/api/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "神经网络",
+    "filters": {
+      "category": "deep-learning"
+    }
+  }'
+```
+
+**注意：** 为了使过滤功能有效工作，文档在导入时必须设置适当的元数据字段。
 
 ### 作为库使用
 
@@ -230,8 +288,21 @@ err = client.IngestFile("/path/to/your/file.txt")
 response, err := client.Query("您的问题")
 fmt.Println("答案:", response.Answer)
 
+// 使用过滤器查询
+filters := map[string]interface{}{
+    "source": "textbook",
+    "category": "ai",
+}
+response, err := client.QueryWithFilters("您的过滤问题", filters)
+fmt.Println("过滤答案:", response.Answer)
+
 // 流式查询
 err = client.StreamQuery("您的问题", func(chunk string) {
+    fmt.Print(chunk)
+})
+
+// 使用过滤器的流式查询
+err = client.StreamQueryWithFilters("您的过滤问题", filters, func(chunk string) {
     fmt.Print(chunk)
 })
 
@@ -277,7 +348,9 @@ go run library_usage.go
 - `IngestFile(filePath string) error` - 导入文件
 - `IngestText(text, source string) error` - 导入文本内容
 - `Query(query string) (domain.QueryResponse, error)` - 查询知识库
+- `QueryWithFilters(query string, filters map[string]interface{}) (domain.QueryResponse, error)` - 使用过滤器查询
 - `StreamQuery(query string, callback func(string)) error` - 流式查询响应
+- `StreamQueryWithFilters(query string, filters map[string]interface{}, callback func(string)) error` - 使用过滤器的流式查询
 - `ListDocuments() ([]domain.Document, error)` - 列出所有文档
 - `DeleteDocument(documentID string) error` - 删除文档
 - `Reset() error` - 重置数据库

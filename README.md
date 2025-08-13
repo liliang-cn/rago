@@ -31,11 +31,19 @@ RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system writte
 
 ### Install RAGO
 
+#### Option 1: Install from source
+
 ```bash
 git clone https://github.com/liliang-cn/rago.git
 cd rago
 make setup
 make build
+```
+
+#### Option 2: Install using go install
+
+```bash
+go install github.com/liliang-cn/rago/cmd/rago@latest
 ```
 
 ### Basic Usage
@@ -99,6 +107,9 @@ rago query --file questions.txt
 
 # Adjust parameters
 rago query "What is deep learning" --top-k 10 --temperature 0.3 --max-tokens 1000
+
+# Query with filters (requires documents with metadata)
+rago query "machine learning concepts" --filter "source=textbook" --filter "category=ai"
 ```
 
 #### Data Management
@@ -160,7 +171,11 @@ Content-Type: application/json
   "top_k": 5,
   "temperature": 0.7,
   "max_tokens": 500,
-  "stream": false
+  "stream": false,
+  "filters": {
+    "source": "textbook",
+    "category": "ai"
+  }
 }
 ```
 
@@ -182,9 +197,52 @@ Content-Type: application/json
 
 {
   "query": "artificial intelligence",
-  "top_k": 5
+  "top_k": 5,
+  "filters": {
+    "source": "textbook",
+    "category": "ai"
+  }
 }
 ```
+
+#### Filtering Support
+
+RAGO supports filtering search results based on document metadata. This allows you to search within specific subsets of your knowledge base:
+
+**CLI Usage:**
+```bash
+# Query with filters
+rago query "machine learning" --filter "source=textbook" --filter "author=John Doe"
+
+# Search only (no generation) with filters
+rago search "neural networks" --filter "category=deep-learning" --filter "year=2023"
+```
+
+**API Usage:**
+```bash
+# Query with filters
+curl -X POST http://localhost:8080/api/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "What is machine learning?",
+    "filters": {
+      "source": "textbook",
+      "category": "ai"
+    }
+  }'
+
+# Search with filters
+curl -X POST http://localhost:8080/api/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "neural networks",
+    "filters": {
+      "category": "deep-learning"
+    }
+  }'
+```
+
+**Note:** Documents must have appropriate metadata fields set during ingestion for filtering to work effectively.
 
 ### Library Usage
 
@@ -232,8 +290,21 @@ err = client.IngestFile("/path/to/your/file.txt")
 response, err := client.Query("Your question here")
 fmt.Println("Answer:", response.Answer)
 
+// Query with filters
+filters := map[string]interface{}{
+    "source": "textbook",
+    "category": "ai",
+}
+response, err := client.QueryWithFilters("Your filtered question", filters)
+fmt.Println("Filtered Answer:", response.Answer)
+
 // Stream query with callback
 err = client.StreamQuery("Your question", func(chunk string) {
+    fmt.Print(chunk)
+})
+
+// Stream query with filters
+err = client.StreamQueryWithFilters("Your filtered question", filters, func(chunk string) {
     fmt.Print(chunk)
 })
 
@@ -279,7 +350,9 @@ go run library_usage.go
 - `IngestFile(filePath string) error` - Ingest a file
 - `IngestText(text, source string) error` - Ingest text content
 - `Query(query string) (domain.QueryResponse, error)` - Query knowledge base
+- `QueryWithFilters(query string, filters map[string]interface{}) (domain.QueryResponse, error)` - Query with metadata filters
 - `StreamQuery(query string, callback func(string)) error` - Stream query response
+- `StreamQueryWithFilters(query string, filters map[string]interface{}, callback func(string)) error` - Stream query with filters
 - `ListDocuments() ([]domain.Document, error)` - List all documents
 - `DeleteDocument(documentID string) error` - Delete a document
 - `Reset() error` - Reset the database
