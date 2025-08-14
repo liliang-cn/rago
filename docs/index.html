@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAGO - 本地RAG系统 | 基于Ollama的智能文档检索</title>
+    <meta name="description" content="完全本地化的RAG系统，保护数据隐私，支持多格式文档，提供高效的语义搜索和智能问答功能">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    
+    <!-- GSAP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'DM Sans', sans-serif;
+            line-height: 1.6;
+            color: #1f2937;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+        
+        /* 添加语言切换按钮样式 */
+        .language-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #f3f4f6;
+            border-radius: 0.5rem;
+            padding: 0.25rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .language-toggle:hover {
+            background: #e5e7eb;
+        }
+        
+        .lang-option {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #6b7280;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .lang-option.active {
+            background: #059669;
+            color: white;
+        }
+        
+        /* Header Styles */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid #d1fae5;
+            padding: 1rem 0;
+        }
+        
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        /* 更新导航区域布局，确保语言切换按钮始终可见 */
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .logo-icon {
+            width: 2rem;
+            height: 2rem;
+            background: #059669;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        
+        .nav {
+            display: none;
+            align-items: center;
+            gap: 2rem;
+        }
+        
+        @media (min-width: 768px) {
+            .nav {
+                display: flex;
+            }
+        }
+        
+        .nav-link {
+            color: #6b7280;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .nav-link:hover {
+            color: #059669;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s;
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+        }
+        
+        .btn-primary {
+            background: #059669;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #047857;
+        }
+        
+        .btn-outline {
+            background: transparent;
+            color: #059669;
+            border: 1px solid #059669;
+        }
+        
+        .btn-outline:hover {
+            background: #ecfdf5;
+        }
+        
+        .btn-lg {
+            padding: 0.75rem 2rem;
+            font-size: 1.125rem;
+        }
+        
+        .btn-white {
+            background: white;
+            color: #059669;
+        }
+        
+        .btn-white:hover {
+            background: #f9fafb;
+        }
+        
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 100%);
+            padding: 5rem 1rem;
+            text-align: center;
+        }
+        
+        .badge {
+            display: inline-block;
+            background: #d1fae5;
+            color: #065f46;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+        }
+        
+        .hero-title {
+            font-size: 3rem;
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            opacity: 0;
+            transform: translateY(50px);
+        }
+        
+        @media (min-width: 768px) {
+            .hero-title {
+                font-size: 4rem;
+            }
+        }
+        
+        .hero-highlight {
+            color: #059669;
+            display: block;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: #6b7280;
+            max-width: 48rem;
+            margin: 0 auto 2rem;
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        
+        .hero-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: center;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        
+        @media (min-width: 640px) {
+            .hero-buttons {
+                flex-direction: row;
+                justify-content: center;
+            }
+        }
+        
+        /* Features Section */
+        .features {
+            padding: 5rem 1rem;
+            background: white;
+        }
+        
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+        
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        
+        .section-subtitle {
+            font-size: 1.25rem;
+            color: #6b7280;
+            max-width: 48rem;
+            margin: 0 auto;
+        }
+        
+        .features-grid {
+            display: grid;
+            gap: 2rem;
+            grid-template-columns: 1fr;
+        }
+        
+        @media (min-width: 768px) {
+            .features-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .features-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        .feature-card {
+            background: white;
+            border: 1px solid #d1fae5;
+            border-radius: 1rem;
+            padding: 2rem;
+            transition: all 0.3s;
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        
+        .feature-card:hover {
+            border-color: #a7f3d0;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feature-icon {
+            color: #059669;
+            margin-bottom: 1rem;
+        }
+        
+        .feature-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .feature-description {
+            color: #6b7280;
+        }
+        
+        /* Benefits Section */
+        .benefits {
+            padding: 5rem 1rem;
+            background: linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 100%);
+        }
+        
+        .benefits-grid {
+            display: grid;
+            gap: 3rem;
+            align-items: center;
+            grid-template-columns: 1fr;
+        }
+        
+        @media (min-width: 1024px) {
+            .benefits-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        .benefits-content h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+        }
+        
+        .benefits-content p {
+            font-size: 1.25rem;
+            color: #6b7280;
+            margin-bottom: 2rem;
+        }
+        
+        .benefits-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .benefit-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            opacity: 0;
+            transform: translateX(-30px);
+        }
+        
+        .benefit-icon {
+            color: #059669;
+            margin-top: 0.125rem;
+            flex-shrink: 0;
+        }
+        
+        .terminal {
+            position: relative;
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+            padding: 2rem;
+            border: 1px solid #d1fae5;
+        }
+        
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .terminal-dot {
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 50%;
+        }
+        
+        .terminal-dot.red { background: #ef4444; }
+        .terminal-dot.yellow { background: #eab308; }
+        .terminal-dot.green { background: #22c55e; }
+        
+        .terminal-content {
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+        
+        .terminal-command {
+            color: #059669;
+        }
+        
+        .terminal-output {
+            color: #6b7280;
+        }
+        
+        /* CTA Section */
+        .cta {
+            padding: 5rem 1rem;
+            background: #059669;
+            color: white;
+            text-align: center;
+        }
+        
+        .cta h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+        }
+        
+        .cta p {
+            font-size: 1.25rem;
+            color: #a7f3d0;
+            max-width: 48rem;
+            margin: 0 auto 2rem;
+        }
+        
+        .cta-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        @media (min-width: 640px) {
+            .cta-buttons {
+                flex-direction: row;
+                justify-content: center;
+            }
+        }
+        
+        .btn-outline-white {
+            background: transparent;
+            color: white;
+            border: 1px solid white;
+        }
+        
+        .btn-outline-white:hover {
+            background: white;
+            color: #059669;
+        }
+        
+        /* Footer */
+        .footer {
+            padding: 3rem 1rem;
+            background: #1f2937;
+            color: white;
+        }
+        
+        .footer-grid {
+            display: grid;
+            gap: 2rem;
+            grid-template-columns: 1fr;
+            margin-bottom: 2rem;
+        }
+        
+        @media (min-width: 768px) {
+            .footer-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .footer-brand-icon {
+            width: 2rem;
+            height: 2rem;
+            background: #059669;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        .footer-brand-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+        
+        .footer-description {
+            color: #9ca3af;
+        }
+        
+        .footer-section h3 {
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        
+        .footer-links {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .footer-links a {
+            color: #9ca3af;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .footer-links a:hover {
+            color: white;
+        }
+        
+        .footer-bottom {
+            border-top: 1px solid #374151;
+            padding-top: 2rem;
+            text-align: center;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <i data-lucide="database"></i>
+                    </div>
+                    <span class="logo-text">RAGO</span>
+                </div>
+                <!-- 重新组织头部右侧区域，确保语言切换按钮始终可见 -->
+                <div class="header-right">
+                    <nav class="nav">
+                        <a href="#features" class="nav-link" data-i18n="nav.features">特性</a>
+                        <a href="#benefits" class="nav-link" data-i18n="nav.benefits">优势</a>
+                        <a href="#docs" class="nav-link" data-i18n="nav.docs">文档</a>
+                        <a href="https://github.com/liliang-cn/rago" target="_blank" rel="noopener noreferrer" class="btn btn-outline">
+                            <i data-lucide="github"></i>
+                            GitHub
+                        </a>
+                    </nav>
+                    <!-- 语言切换按钮现在独立于导航菜单 -->
+                    <div class="language-toggle">
+                        <span class="lang-option active" data-lang="zh">中文</span>
+                        <span class="lang-option" data-lang="en">EN</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+        <div class="container">
+            <div class="badge" data-i18n="hero.badge">基于Ollama的本地RAG系统</div>
+            <h1 class="hero-title">
+                <span data-i18n="hero.title.part1">让您的数据拥有</span>
+                <span class="hero-highlight" data-i18n="hero.title.part2">本地化AI能力</span>
+            </h1>
+            <p class="hero-subtitle" data-i18n="hero.subtitle">
+                RAGO是一个完全本地化的RAG系统，通过Ollama提供强大的文档检索和智能问答功能，保护您的数据隐私，提升工作效率
+            </p>
+            <div class="hero-buttons">
+                <a href="#" class="btn btn-primary btn-lg">
+                    <i data-lucide="download"></i>
+                    <span data-i18n="hero.download">立即下载</span>
+                    <i data-lucide="arrow-right"></i>
+                </a>
+                <a href="https://github.com/liliang-cn/rago" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-lg">
+                    <i data-lucide="github"></i>
+                    <span data-i18n="hero.source">查看源码</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title" data-i18n="features.title">核心特性</h2>
+                <p class="section-subtitle" data-i18n="features.subtitle">
+                    RAGO提供完整的本地RAG解决方案，从文档处理到智能问答，一站式满足您的需求
+                </p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i data-lucide="shield" size="32"></i>
+                    </div>
+                    <h3 class="feature-title" data-i18n="features.local.title">完全本地化</h3>
+                    <p class="feature-description" data-i18n="features.local.desc">无需外部API，保护数据隐私安全，所有处理都在本地完成</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i data-lucide="database" size="32"></i>
+                    </div>
+                    <h3 class="feature-title" data-i18n="features.formats.title">多格式支持</h3>
+                    <p class="feature-description" data-i18n="features.formats.desc">支持TXT、Markdown等多种文档格式，轻松构建知识库</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i data-lucide="zap" size="32"></i>
+                    </div>
+                    <h3 class="feature-title" data-i18n="features.performance.title">高性能检索</h3>
+                    <p class="feature-description" data-i18n="features.performance.desc">基于SQLite向量数据库，提供快速准确的语义搜索</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i data-lucide="cpu" size="32"></i>
+                    </div>
+                    <h3 class="feature-title" data-i18n="features.llm.title">本地LLM</h3>
+                    <p class="feature-description" data-i18n="features.llm.desc">通过Ollama调用本地模型，无需依赖云端服务</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i data-lucide="globe" size="32"></i>
+                    </div>
+                    <h3 class="feature-title" data-i18n="features.web.title">Web界面</h3>
+                    <p class="feature-description" data-i18n="features.web.desc">内置现代化Web界面，支持拖拽上传和实时对话</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i data-lucide="file-text" size="32"></i>
+                    </div>
+                    <h3 class="feature-title" data-i18n="features.interface.title">双重接口</h3>
+                    <p class="feature-description" data-i18n="features.interface.desc">同时提供CLI工具和HTTP API，满足不同使用场景</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Benefits Section -->
+    <section id="benefits" class="benefits">
+        <div class="container">
+            <div class="benefits-grid">
+                <div class="benefits-content">
+                    <h2 data-i18n="benefits.title">为什么选择RAGO？</h2>
+                    <p data-i18n="benefits.description">
+                        RAGO不仅仅是一个RAG系统，更是您数据安全和AI能力的完美结合。
+                        我们专注于本地化部署，确保您的敏感数据永远不会离开您的控制范围。
+                    </p>
+                    <div class="benefits-list">
+                        <div class="benefit-item">
+                            <div class="benefit-icon">
+                                <i data-lucide="check-circle" size="24"></i>
+                            </div>
+                            <span data-i18n="benefits.privacy">🔒 数据隐私保护 - 所有数据处理完全在本地进行</span>
+                        </div>
+                        <div class="benefit-item">
+                            <div class="benefit-icon">
+                                <i data-lucide="check-circle" size="24"></i>
+                            </div>
+                            <span data-i18n="benefits.speed">⚡ 高效响应速度 - Go语言实现，低内存占用</span>
+                        </div>
+                        <div class="benefit-item">
+                            <div class="benefit-icon">
+                                <i data-lucide="check-circle" size="24"></i>
+                            </div>
+                            <span data-i18n="benefits.extensible">🔧 易于扩展 - 模块化设计，支持自定义功能</span>
+                        </div>
+                        <div class="benefit-item">
+                            <div class="benefit-icon">
+                                <i data-lucide="check-circle" size="24"></i>
+                            </div>
+                            <span data-i18n="benefits.crossplatform">📱 跨平台支持 - 支持Windows、macOS、Linux</span>
+                        </div>
+                        <div class="benefit-item">
+                            <div class="benefit-icon">
+                                <i data-lucide="check-circle" size="24"></i>
+                            </div>
+                            <span data-i18n="benefits.accurate">🎯 精准检索 - 基于语义理解的智能搜索</span>
+                        </div>
+                        <div class="benefit-item">
+                            <div class="benefit-icon">
+                                <i data-lucide="check-circle" size="24"></i>
+                            </div>
+                            <span data-i18n="benefits.deploy">🚀 快速部署 - Docker支持，一键启动</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="terminal">
+                    <div class="terminal-header">
+                        <div class="terminal-dot red"></div>
+                        <div class="terminal-dot yellow"></div>
+                        <div class="terminal-dot green"></div>
+                    </div>
+                    <div class="terminal-content">
+                        <div class="terminal-command">$ rago ingest ./docs/</div>
+                        <div class="terminal-output" data-i18n="terminal.processing">✓ 处理文档: 15个文件</div>
+                        <div class="terminal-output" data-i18n="terminal.vectors">✓ 生成向量: 1,234个片段</div>
+                        <div class="terminal-command">$ rago query "<span data-i18n="terminal.query">什么是RAG？</span>"</div>
+                        <div class="terminal-output" data-i18n="terminal.answer">🤖 RAG（检索增强生成）是一种结合了信息检索和文本生成的AI技术...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="container">
+            <h2 data-i18n="cta.title">准备开始了吗？</h2>
+            <p data-i18n="cta.description">
+                立即下载RAGO，体验本地化RAG系统的强大功能，让您的文档数据发挥更大价值
+            </p>
+            <div class="cta-buttons">
+                <a href="#" class="btn btn-white btn-lg">
+                    <i data-lucide="download"></i>
+                    <span data-i18n="cta.download">下载RAGO</span>
+                </a>
+                <a href="https://github.com/liliang-cn/rago" target="_blank" rel="noopener noreferrer" class="btn btn-outline-white btn-lg">
+                    <span data-i18n="cta.docs">查看文档</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div>
+                    <div class="footer-brand">
+                        <div class="footer-brand-icon">
+                            <i data-lucide="database"></i>
+                        </div>
+                        <span class="footer-brand-text">RAGO</span>
+                    </div>
+                    <p class="footer-description" data-i18n="footer.description">本地化RAG系统，保护您的数据隐私，提升AI能力</p>
+                </div>
+                <div class="footer-section">
+                    <h3 data-i18n="footer.product">产品</h3>
+                    <ul class="footer-links">
+                        <li><a href="#features" data-i18n="footer.features">特性</a></li>
+                        <li><a href="#benefits" data-i18n="footer.docs">文档</a></li>
+                        <li><a href="#" data-i18n="footer.api">API</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h3 data-i18n="footer.resources">资源</h3>
+                    <ul class="footer-links">
+                        <li><a href="https://github.com/liliang-cn/rago">GitHub</a></li>
+                        <li><a href="#" data-i18n="footer.examples">示例</a></li>
+                        <li><a href="#" data-i18n="footer.community">社区</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h3 data-i18n="footer.contact">联系</h3>
+                    <ul class="footer-links">
+                        <li><a href="mailto:liliang.imut@gmail.com" data-i18n="footer.email">邮箱</a></li>
+                        <li><a href="#" data-i18n="footer.feedback">问题反馈</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 RAGO. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const translations = {
+            zh: {
+                'nav.features': '特性',
+                'nav.benefits': '优势',
+                'nav.docs': '文档',
+                'hero.badge': '基于Ollama的本地RAG系统',
+                'hero.title.part1': '让您的数据拥有',
+                'hero.title.part2': '本地化AI能力',
+                'hero.subtitle': 'RAGO是一个完全本地化的RAG系统，通过Ollama提供强大的文档检索和智能问答功能，保护您的数据隐私，提升工作效率',
+                'hero.download': '立即下载',
+                'hero.source': '查看源码',
+                'features.title': '核心特性',
+                'features.subtitle': 'RAGO提供完整的本地RAG解决方案，从文档处理到智能问答，一站式满足您的需求',
+                'features.local.title': '完全本地化',
+                'features.local.desc': '无需外部API，保护数据隐私安全，所有处理都在本地完成',
+                'features.formats.title': '多格式支持',
+                'features.formats.desc': '支持TXT、Markdown等多种文档格式，轻松构建知识库',
+                'features.performance.title': '高性能检索',
+                'features.performance.desc': '基于SQLite向量数据库，提供快速准确的语义搜索',
+                'features.llm.title': '本地LLM',
+                'features.llm.desc': '通过Ollama调用本地模型，无需依赖云端服务',
+                'features.web.title': 'Web界面',
+                'features.web.desc': '内置现代化Web界面，支持拖拽上传和实时对话',
+                'features.interface.title': '双重接口',
+                'features.interface.desc': '同时提供CLI工具和HTTP API，满足不同使用场景',
+                'benefits.title': '为什么选择RAGO？',
+                'benefits.description': 'RAGO不仅仅是一个RAG系统，更是您数据安全和AI能力的完美结合。我们专注于本地化部署，确保您的敏感数据永远不会离开您的控制范围。',
+                'benefits.privacy': '🔒 数据隐私保护 - 所有数据处理完全在本地进行',
+                'benefits.speed': '⚡ 高效响应速度 - Go语言实现，低内存占用',
+                'benefits.extensible': '🔧 易于扩展 - 模块化设计，支持自定义功能',
+                'benefits.crossplatform': '📱 跨平台支持 - 支持Windows、macOS、Linux',
+                'benefits.accurate': '🎯 精准检索 - 基于语义理解的智能搜索',
+                'benefits.deploy': '🚀 快速部署 - Docker支持，一键启动',
+                'terminal.processing': '✓ 处理文档: 15个文件',
+                'terminal.vectors': '✓ 生成向量: 1,234个片段',
+                'terminal.query': '什么是RAG？',
+                'terminal.answer': '🤖 RAG（检索增强生成）是一种结合了信息检索和文本生成的AI技术...',
+                'cta.title': '准备开始了吗？',
+                'cta.description': '立即下载RAGO，体验本地化RAG系统的强大功能，让您的文档数据发挥更大价值',
+                'cta.download': '下载RAGO',
+                'cta.docs': '查看文档',
+                'footer.description': '本地化RAG系统，保护您的数据隐私，提升AI能力',
+                'footer.product': '产品',
+                'footer.features': '特性',
+                'footer.docs': '文档',
+                'footer.api': 'API',
+                'footer.resources': '资源',
+                'footer.examples': '示例',
+                'footer.community': '社区',
+                'footer.contact': '联系',
+                'footer.email': '邮箱',
+                'footer.feedback': '问题反馈'
+            },
+            en: {
+                'nav.features': 'Features',
+                'nav.benefits': 'Benefits',
+                'nav.docs': 'Docs',
+                'hero.badge': 'Local RAG System Based on Ollama',
+                'hero.title.part1': 'Empower Your Data with',
+                'hero.title.part2': 'Local AI Capabilities',
+                'hero.subtitle': 'RAGO is a fully local RAG system that provides powerful document retrieval and intelligent Q&A through Ollama, protecting your data privacy and improving work efficiency',
+                'hero.download': 'Download Now',
+                'hero.source': 'View Source',
+                'features.title': 'Core Features',
+                'features.subtitle': 'RAGO provides a complete local RAG solution, from document processing to intelligent Q&A, meeting all your needs in one stop',
+                'features.local.title': 'Fully Local',
+                'features.local.desc': 'No external APIs required, protecting data privacy and security, all processing done locally',
+                'features.formats.title': 'Multi-format Support',
+                'features.formats.desc': 'Supports TXT, Markdown and other document formats, easily build knowledge base',
+                'features.performance.title': 'High Performance',
+                'features.performance.desc': 'Based on SQLite vector database, providing fast and accurate semantic search',
+                'features.llm.title': 'Local LLM',
+                'features.llm.desc': 'Call local models through Ollama, no dependence on cloud services',
+                'features.web.title': 'Web Interface',
+                'features.web.desc': 'Built-in modern web interface, supporting drag-and-drop upload and real-time chat',
+                'features.interface.title': 'Dual Interface',
+                'features.interface.desc': 'Provides both CLI tools and HTTP API to meet different usage scenarios',
+                'benefits.title': 'Why Choose RAGO?',
+                'benefits.description': 'RAGO is not just a RAG system, but the perfect combination of your data security and AI capabilities. We focus on local deployment to ensure your sensitive data never leaves your control.',
+                'benefits.privacy': '🔒 Data Privacy Protection - All data processing is done completely locally',
+                'benefits.speed': '⚡ High Response Speed - Go implementation, low memory usage',
+                'benefits.extensible': '🔧 Easy to Extend - Modular design, supports custom functions',
+                'benefits.crossplatform': '📱 Cross-platform Support - Supports Windows, macOS, Linux',
+                'benefits.accurate': '🎯 Accurate Retrieval - Intelligent search based on semantic understanding',
+                'benefits.deploy': '🚀 Quick Deployment - Docker support, one-click startup',
+                'terminal.processing': '✓ Processing documents: 15 files',
+                'terminal.vectors': '✓ Generated vectors: 1,234 chunks',
+                'terminal.query': 'What is RAG?',
+                'terminal.answer': '🤖 RAG (Retrieval-Augmented Generation) is an AI technology that combines information retrieval and text generation...',
+                'cta.title': 'Ready to Get Started?',
+                'cta.description': 'Download RAGO now and experience the powerful features of local RAG system, making your document data more valuable',
+                'cta.download': 'Download RAGO',
+                'cta.docs': 'View Documentation',
+                'footer.description': 'Local RAG system, protecting your data privacy and enhancing AI capabilities',
+                'footer.product': 'Product',
+                'footer.features': 'Features',
+                'footer.docs': 'Documentation',
+                'footer.api': 'API',
+                'footer.resources': 'Resources',
+                'footer.examples': 'Examples',
+                'footer.community': 'Community',
+                'footer.contact': 'Contact',
+                'footer.email': 'Email',
+                'footer.feedback': 'Feedback'
+            }
+        };
+
+        let currentLang = 'zh';
+
+        function updateLanguage(lang) {
+            currentLang = lang;
+            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+            
+            // 更新页面标题和meta描述
+            if (lang === 'en') {
+                document.title = 'RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval';
+                document.querySelector('meta[name="description"]').content = 'Fully local RAG system that protects data privacy, supports multiple document formats, and provides efficient semantic search and intelligent Q&A features';
+            } else {
+                document.title = 'RAGO - 本地RAG系统 | 基于Ollama的智能文档检索';
+                document.querySelector('meta[name="description"]').content = '完全本地化的RAG系统，保护数据隐私，支持多格式文档，提供高效的语义搜索和智能问答功能';
+            }
+            
+            // 更新所有带有data-i18n属性的元素
+            document.querySelectorAll('[data-i18n]').forEach(element => {
+                const key = element.getAttribute('data-i18n');
+                if (translations[lang] && translations[lang][key]) {
+                    element.textContent = translations[lang][key];
+                }
+            });
+            
+            // 更新语言切换按钮状态
+            document.querySelectorAll('.lang-option').forEach(option => {
+                option.classList.remove('active');
+                if (option.getAttribute('data-lang') === lang) {
+                    option.classList.add('active');
+                }
+            });
+            
+            // 保存语言偏好
+            localStorage.setItem('preferred-language', lang);
+        }
+
+        // 初始化Lucide图标
+        lucide.createIcons();
+
+        // GSAP动画
+        gsap.registerPlugin(ScrollTrigger);
+
+        // Hero区域动画
+        gsap.fromTo(".hero-title", 
+            { opacity: 0, y: 50 }, 
+            { opacity: 1, y: 0, duration: 1, ease: "power3.out" }
+        );
+        
+        gsap.fromTo(".hero-subtitle", 
+            { opacity: 0, y: 30 }, 
+            { opacity: 1, y: 0, duration: 1, delay: 0.2, ease: "power3.out" }
+        );
+        
+        gsap.fromTo(".hero-buttons", 
+            { opacity: 0, y: 20 }, 
+            { opacity: 1, y: 0, duration: 1, delay: 0.4, ease: "power3.out" }
+        );
+
+        // 特性卡片动画
+        gsap.fromTo(".feature-card", 
+            { opacity: 0, y: 30 }, 
+            {
+                opacity: 1,
+                y: 0,
+                duration: 0.8,
+                stagger: 0.1,
+                scrollTrigger: {
+                    trigger: ".features",
+                    start: "top 80%",
+                    end: "bottom 20%",
+                }
+            }
+        );
+
+        // 优势区域动画
+        gsap.fromTo(".benefit-item", 
+            { opacity: 0, x: -30 }, 
+            {
+                opacity: 1,
+                x: 0,
+                duration: 0.8,
+                stagger: 0.15,
+                scrollTrigger: {
+                    trigger: ".benefits",
+                    start: "top 80%",
+                }
+            }
+        );
+
+        document.querySelectorAll('.lang-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const lang = option.getAttribute('data-lang');
+                updateLanguage(lang);
+            });
+        });
+
+        // 平滑滚动
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedLang = localStorage.getItem('preferred-language') || 'zh';
+            updateLanguage(savedLang);
+        });
+    </script>
+</body>
+</html>
