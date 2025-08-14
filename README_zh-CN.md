@@ -24,7 +24,7 @@ RAGO（Retrieval-Augmented Generation Offline）是一个完全本地运行的 R
 3. **下载模型**
    ```bash
    ollama pull nomic-embed-text  # 嵌入模型
-   ollama pull gemma3           # 生成模型
+   ollama pull qwen3           # 生成模型
    ```
 
 ### 安装 RAGO
@@ -373,7 +373,7 @@ cors_origins = ["*"]
 
 [ollama]
 embedding_model = "nomic-embed-text"
-llm_model = "gemma3"
+llm_model = "qwen3"
 base_url = "http://localhost:11434"
 timeout = "30s"
 

@@ -27,7 +27,7 @@ RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system writte
 3. **Download Models**
    ```bash
    ollama pull nomic-embed-text  # Embedding model
-   ollama pull gemma3           # Generation model
+   ollama pull qwen3           # Generation model
    ```
 
 ### Install RAGO
@@ -162,6 +162,7 @@ The `--ui` flag enables the built-in web interface that provides:
 #### Web UI Features
 
 **Chat Interface:**
+
 - Real-time streaming responses
 - Toggle AI thinking process visibility
 - Document source citations
@@ -169,6 +170,7 @@ The `--ui` flag enables the built-in web interface that provides:
 - Advanced settings panel
 
 **Document Management:**
+
 - Upload files (TXT, MD, PDF support planned)
 - Paste text content directly
 - View all ingested documents
@@ -177,6 +179,7 @@ The `--ui` flag enables the built-in web interface that provides:
 - Bulk reset functionality
 
 **Configuration:**
+
 - Streaming response control
 - Show/hide AI reasoning
 - Custom metadata filters
@@ -438,7 +441,7 @@ cors_origins = ["*"]
 
 [ollama]
 embedding_model = "nomic-embed-text"
-llm_model = "gemma3"
+llm_model = "qwen3"
 base_url = "http://localhost:11434"
 timeout = "30s"
 

@@ -21,7 +21,7 @@ func TestConfig_Validate(t *testing.T) {
 				Ollama: OllamaConfig{
 					BaseURL:        "http://localhost:11434",
 					EmbeddingModel: "nomic-embed-text",
-					LLMModel:       "gemma3",
+					LLMModel:       "qwen3",
 				},
 				Sqvect: SqvectConfig{
 					DBPath:    "./data/test.db",
@@ -48,7 +48,7 @@ func TestConfig_Validate(t *testing.T) {
 				Ollama: OllamaConfig{
 					BaseURL:        "http://localhost:11434",
 					EmbeddingModel: "nomic-embed-text",
-					LLMModel:       "gemma3",
+					LLMModel:       "qwen3",
 				},
 				Sqvect: SqvectConfig{
 					DBPath: "./data/test.db",
@@ -72,7 +72,7 @@ func TestConfig_Validate(t *testing.T) {
 				Ollama: OllamaConfig{
 					BaseURL:        "http://localhost:11434",
 					EmbeddingModel: "nomic-embed-text",
-					LLMModel:       "gemma3",
+					LLMModel:       "qwen3",
 				},
 				Sqvect: SqvectConfig{
 					DBPath: "./data/test.db",
@@ -96,7 +96,7 @@ func TestConfig_Validate(t *testing.T) {
 				Ollama: OllamaConfig{
 					BaseURL:        "http://localhost:11434",
 					EmbeddingModel: "nomic-embed-text",
-					LLMModel:       "gemma3",
+					LLMModel:       "qwen3",
 				},
 				Sqvect: SqvectConfig{
 					DBPath: "./data/test.db",
@@ -120,7 +120,7 @@ func TestConfig_Validate(t *testing.T) {
 				Ollama: OllamaConfig{
 					BaseURL:        "http://localhost:11434",
 					EmbeddingModel: "nomic-embed-text",
-					LLMModel:       "gemma3",
+					LLMModel:       "qwen3",
 				},
 				Sqvect: SqvectConfig{
 					DBPath: "./data/test.db",
