@@ -67,4 +67,3 @@ node_modules/
 .claude/
 .prompt/
 web/node_modules/
-internal/web/dist/
