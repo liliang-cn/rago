@@ -22,6 +22,13 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
       - name: Cache Go modules
         uses: actions/cache@v3
         with:
@@ -33,6 +40,9 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
+      - name: Build UI
+        run: make build-web
+
       - name: Run tests
         run: make test
 
@@ -42,7 +52,7 @@ jobs:
           version: latest
 
       - name: Build
-        run: make build
+        run: make build-all
 
       - name: Upload coverage reports to Codecov
         if: matrix.go-version == '1.21'
