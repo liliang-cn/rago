@@ -88,8 +88,8 @@ func Load(configPath string) (*Config, error) {
 }
 
 func setDefaults() {
-	viper.SetDefault("server.port", 8080)
-	viper.SetDefault("server.host", "localhost")
+	viper.SetDefault("server.port", 7127)
+	viper.SetDefault("server.host", "0.0.0.0") // 支持局域网访问
 	viper.SetDefault("server.enable_ui", false)
 	viper.SetDefault("server.cors_origins", []string{"*"})
 
@@ -109,7 +109,7 @@ func setDefaults() {
 	viper.SetDefault("chunker.overlap", 50)
 	viper.SetDefault("chunker.method", "sentence")
 
-	viper.SetDefault("ui.title", "RAGO - 本地 RAG 系统")
+	viper.SetDefault("ui.title", "RAGO - Local RAG based on Ollama")
 	viper.SetDefault("ui.theme", "light")
 	viper.SetDefault("ui.max_file_size", "10MB")
 }

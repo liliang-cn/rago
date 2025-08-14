@@ -15,7 +15,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "valid config",
 			config: &Config{
 				Server: ServerConfig{
-					Port: 8080,
+					Port: 7127,
 					Host: "localhost",
 				},
 				Ollama: OllamaConfig{
@@ -90,7 +90,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "empty host",
 			config: &Config{
 				Server: ServerConfig{
-					Port: 8080,
+					Port: 7127,
 					Host: "",
 				},
 				Ollama: OllamaConfig{
@@ -114,7 +114,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid chunker method",
 			config: &Config{
 				Server: ServerConfig{
-					Port: 8080,
+					Port: 7127,
 					Host: "localhost",
 				},
 				Ollama: OllamaConfig{

@@ -28,6 +28,14 @@ func (h *QueryHandler) Handle(c *gin.Context) {
 		return
 	}
 
+	// Validate query before processing
+	if req.Query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid input: empty query",
+		})
+		return
+	}
+
 	if req.Stream {
 		h.handleStream(c, req)
 		return
@@ -39,6 +47,11 @@ func (h *QueryHandler) Handle(c *gin.Context) {
 			"error": "Failed to process query: " + err.Error(),
 		})
 		return
+	}
+
+	// 确保sources总是数组
+	if resp.Sources == nil {
+		resp.Sources = []domain.Chunk{}
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -54,6 +67,14 @@ func (h *QueryHandler) SearchOnly(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid request format: " + err.Error(),
+		})
+		return
+	}
+
+	// Validate query before processing
+	if req.Query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid input: empty query",
 		})
 		return
 	}
@@ -80,11 +101,35 @@ func (h *QueryHandler) SearchOnly(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"query":   req.Query,
-		"results": resp.Sources,
-		"count":   len(resp.Sources),
-	})
+	// 确保总是返回数组，即使为空
+	sources := resp.Sources
+	if sources == nil {
+		sources = []domain.Chunk{}
+	}
+
+	c.JSON(http.StatusOK, sources)
+}
+
+func (h *QueryHandler) HandleStream(c *gin.Context) {
+	var req domain.QueryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request format: " + err.Error(),
+		})
+		return
+	}
+
+	// Validate query before processing
+	if req.Query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid input: empty query",
+		})
+		return
+	}
+
+	// Force streaming mode
+	req.Stream = true
+	h.handleStream(c, req)
 }
 
 func (h *QueryHandler) handleStream(c *gin.Context, req domain.QueryRequest) {

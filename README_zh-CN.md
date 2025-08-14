@@ -66,7 +66,7 @@ rago-cli --help
 3. **启动 API 服务**
 
    ```bash
-   ./build/rago serve --port 8080
+   ./build/rago serve --port 7127
    ```
 
 4. **查看已导入文档**
@@ -131,7 +131,7 @@ rago import ./backup.json
 启动服务器：
 
 ```bash
-rago serve --port 8080 --host 0.0.0.0
+rago serve --port 7127 --host 0.0.0.0
 ```
 
 #### API 端点
@@ -208,6 +208,7 @@ Content-Type: application/json
 RAGO 支持基于文档元数据的过滤搜索结果。这允许您在知识库的特定子集中进行搜索：
 
 **CLI 使用：**
+
 ```bash
 # 使用过滤器查询
 rago query "机器学习" --filter "source=textbook" --filter "author=张三"
@@ -217,9 +218,10 @@ rago search "神经网络" --filter "category=deep-learning" --filter "year=2023
 ```
 
 **API 使用：**
+
 ```bash
 # 使用过滤器查询
-curl -X POST http://localhost:8080/api/query \
+curl -X POST http://localhost:7127/api/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "什么是机器学习？",
@@ -230,7 +232,7 @@ curl -X POST http://localhost:8080/api/query \
   }'
 
 # 使用过滤器搜索
-curl -X POST http://localhost:8080/api/search \
+curl -X POST http://localhost:7127/api/search \
   -H "Content-Type: application/json" \
   -d '{
     "query": "神经网络",
@@ -365,7 +367,7 @@ go run library_usage.go
 
 ```toml
 [server]
-port = 8080
+port = 7127
 host = "localhost"
 cors_origins = ["*"]
 
@@ -393,7 +395,7 @@ max_file_size = "10MB"
 ### 环境变量
 
 ```bash
-export RAGO_SERVER_PORT=8080
+export RAGO_SERVER_PORT=7127
 export RAGO_OLLAMA_BASE_URL=http://localhost:11434
 export RAGO_SQVECT_DB_PATH=./data/custom.sqlite
 ```
@@ -411,7 +413,7 @@ make docker-build
 ```bash
 docker run -d \
   --name rago \
-  -p 8080:8080 \
+  -p 7127:7127 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/config.toml:/app/config.toml \
   rago:latest
@@ -432,7 +434,7 @@ services:
   rago:
     build: .
     ports:
-      - "8080:8080"
+      - "7127:7127"
     volumes:
       - ./data:/app/data
       - ./config.toml:/app/config.toml

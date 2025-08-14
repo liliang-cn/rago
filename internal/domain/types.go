@@ -24,12 +24,13 @@ type Chunk struct {
 }
 
 type QueryRequest struct {
-	Query       string                 `json:"query"`
-	TopK        int                    `json:"top_k"`
-	Temperature float64                `json:"temperature"`
-	MaxTokens   int                    `json:"max_tokens"`
-	Stream      bool                   `json:"stream"`
-	Filters     map[string]interface{} `json:"filters,omitempty"`
+	Query        string                 `json:"query"`
+	TopK         int                    `json:"top_k"`
+	Temperature  float64                `json:"temperature"`
+	MaxTokens    int                    `json:"max_tokens"`
+	Stream       bool                   `json:"stream"`
+	ShowThinking bool                   `json:"show_thinking"`
+	Filters      map[string]interface{} `json:"filters,omitempty"`
 }
 
 type QueryResponse struct {

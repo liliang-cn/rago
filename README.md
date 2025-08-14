@@ -10,6 +10,7 @@ RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system writte
 - **Multi-format Support** - Supports TXT and Markdown formats
 - **Local Vector Database** - SQLite-based sqvect vector storage
 - **Local LLM** - Call local models through Ollama
+- **Web UI Interface** - Built-in web interface for easy interaction
 - **Dual Interface Design** - Both CLI tool and HTTP API usage modes
 - **High Performance** - Go implementation with low memory usage and fast response
 - **Extensible** - Modular design, easy to extend new features
@@ -68,10 +69,17 @@ rago-cli --help
 3. **Start API Service**
 
    ```bash
-   ./build/rago serve --port 8080
+   ./build/rago serve --port 7127
    ```
 
-4. **List Imported Documents**
+4. **Start with Web UI**
+
+   ```bash
+   ./build/rago serve --port 7127 --ui
+   # Access web interface at http://localhost:7127
+   ```
+
+5. **List Imported Documents**
    ```bash
    ./build/rago list
    ```
@@ -133,8 +141,46 @@ rago import ./backup.json
 Start the server:
 
 ```bash
-rago serve --port 8080 --host 0.0.0.0
+rago serve --port 7127 --host 0.0.0.0
 ```
+
+Start with Web UI:
+
+```bash
+rago serve --port 7127 --ui
+# Access web interface at http://localhost:7127
+```
+
+The `--ui` flag enables the built-in web interface that provides:
+
+- **Document Upload** - Drag and drop files or paste text content
+- **Interactive Chat** - Real-time conversation with your documents
+- **Document Management** - View, search, and delete documents
+- **Advanced Options** - Control streaming, AI thinking process, and filters
+- **Responsive Design** - Works on desktop and mobile devices
+
+#### Web UI Features
+
+**Chat Interface:**
+- Real-time streaming responses
+- Toggle AI thinking process visibility
+- Document source citations
+- Filter by document metadata
+- Advanced settings panel
+
+**Document Management:**
+- Upload files (TXT, MD, PDF support planned)
+- Paste text content directly
+- View all ingested documents
+- Search through documents
+- Delete individual documents
+- Bulk reset functionality
+
+**Configuration:**
+- Streaming response control
+- Show/hide AI reasoning
+- Custom metadata filters
+- Adjustable response parameters
 
 #### API Endpoints
 
@@ -172,9 +218,25 @@ Content-Type: application/json
   "temperature": 0.7,
   "max_tokens": 500,
   "stream": false,
+  "show_thinking": false,
   "filters": {
     "source": "textbook",
     "category": "ai"
+  }
+}
+```
+
+**Streaming Query**
+
+```bash
+POST /api/query-stream
+Content-Type: application/json
+
+{
+  "query": "Explain machine learning",
+  "show_thinking": true,
+  "filters": {
+    "category": "ml"
   }
 }
 ```
@@ -210,6 +272,7 @@ Content-Type: application/json
 RAGO supports filtering search results based on document metadata. This allows you to search within specific subsets of your knowledge base:
 
 **CLI Usage:**
+
 ```bash
 # Query with filters
 rago query "machine learning" --filter "source=textbook" --filter "author=John Doe"
@@ -219,9 +282,10 @@ rago search "neural networks" --filter "category=deep-learning" --filter "year=2
 ```
 
 **API Usage:**
+
 ```bash
 # Query with filters
-curl -X POST http://localhost:8080/api/query \
+curl -X POST http://localhost:7127/api/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What is machine learning?",
@@ -232,7 +296,7 @@ curl -X POST http://localhost:8080/api/query \
   }'
 
 # Search with filters
-curl -X POST http://localhost:8080/api/search \
+curl -X POST http://localhost:7127/api/search \
   -H "Content-Type: application/json" \
   -d '{
     "query": "neural networks",
@@ -367,8 +431,9 @@ Create `config.toml`:
 
 ```toml
 [server]
-port = 8080
+port = 7127
 host = "localhost"
+enable_ui = true
 cors_origins = ["*"]
 
 [ollama]
@@ -395,7 +460,7 @@ max_file_size = "10MB"
 ### Environment Variables
 
 ```bash
-export RAGO_SERVER_PORT=8080
+export RAGO_SERVER_PORT=7127
 export RAGO_OLLAMA_BASE_URL=http://localhost:11434
 export RAGO_SQVECT_DB_PATH=./data/custom.sqlite
 ```
@@ -413,7 +478,7 @@ make docker-build
 ```bash
 docker run -d \
   --name rago \
-  -p 8080:8080 \
+  -p 7127:7127 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/config.toml:/app/config.toml \
   rago:latest
@@ -434,7 +499,7 @@ services:
   rago:
     build: .
     ports:
-      - "8080:8080"
+      - "7127:7127"
     volumes:
       - ./data:/app/data
       - ./config.toml:/app/config.toml

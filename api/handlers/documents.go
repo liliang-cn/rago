@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/liliang-cn/rago/internal/domain"
 	"github.com/liliang-cn/rago/internal/processor"
 )
 
@@ -24,10 +25,12 @@ func (h *DocumentsHandler) List(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"documents": documents,
-		"count":     len(documents),
-	})
+	// 确保总是返回数组，即使为空
+	if documents == nil {
+		documents = []domain.Document{}
+	}
+
+	c.JSON(http.StatusOK, documents)
 }
 
 func (h *DocumentsHandler) Delete(c *gin.Context) {

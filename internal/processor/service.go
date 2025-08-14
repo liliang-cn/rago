@@ -141,6 +141,9 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 		return domain.QueryResponse{}, fmt.Errorf("failed to search vectors: %w", err)
 	}
 
+	// Deduplicate chunks by content
+	chunks = s.deduplicateChunks(chunks)
+
 	if len(chunks) == 0 {
 		return domain.QueryResponse{
 			Answer:  "很抱歉，我在知识库中找不到相关信息来回答您的问题。",
@@ -166,6 +169,11 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 	answer, err := s.generator.Generate(ctx, prompt, genOpts)
 	if err != nil {
 		return domain.QueryResponse{}, fmt.Errorf("failed to generate answer: %w", err)
+	}
+
+	// Clean up internal thinking tags from the answer only if ShowThinking is false
+	if !req.ShowThinking {
+		answer = s.cleanThinkingTags(answer)
 	}
 
 	return domain.QueryResponse{
@@ -204,6 +212,9 @@ func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, call
 		return fmt.Errorf("failed to search vectors: %w", err)
 	}
 
+	// Deduplicate chunks by content
+	chunks = s.deduplicateChunks(chunks)
+
 	if len(chunks) == 0 {
 		callback("很抱歉，我在知识库中找不到相关信息来回答您的问题。")
 		return nil
@@ -223,7 +234,7 @@ func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, call
 		genOpts.MaxTokens = 500
 	}
 
-	return s.generator.Stream(ctx, prompt, genOpts, callback)
+	return s.generator.Stream(ctx, prompt, genOpts, s.wrapCallbackForThinking(callback, req.ShowThinking))
 }
 
 func (s *Service) ListDocuments(ctx context.Context) ([]domain.Document, error) {
@@ -313,5 +324,108 @@ func (s *Service) readFile(filePath string) (string, error) {
 		
 	default:
 		return "", fmt.Errorf("unsupported file type: %s", ext)
+	}
+}
+
+// deduplicateChunks removes duplicate chunks by content to avoid confusion
+func (s *Service) deduplicateChunks(chunks []domain.Chunk) []domain.Chunk {
+	seen := make(map[string]bool)
+	result := make([]domain.Chunk, 0, len(chunks))
+	
+	for _, chunk := range chunks {
+		// Use content as the key for deduplication
+		if !seen[chunk.Content] {
+			seen[chunk.Content] = true
+			result = append(result, chunk)
+		}
+	}
+	
+	return result
+}
+
+// cleanThinkingTags removes internal thinking tags from LLM responses
+func (s *Service) cleanThinkingTags(answer string) string {
+	// Remove <think>...</think> blocks and their contents
+	re := strings.NewReplacer("<think>", "", "</think>", "")
+	cleaned := re.Replace(answer)
+	
+	// Also handle the case where thinking tags might span multiple lines
+	if strings.Contains(cleaned, "<think") || strings.Contains(cleaned, "</think") {
+		// Use regex for more complex cases
+		lines := strings.Split(cleaned, "\n")
+		var filtered []string
+		inThinking := false
+		
+		for _, line := range lines {
+			if strings.Contains(line, "<think") {
+				inThinking = true
+				continue
+			}
+			if strings.Contains(line, "</think") {
+				inThinking = false
+				continue
+			}
+			if !inThinking {
+				filtered = append(filtered, line)
+			}
+		}
+		cleaned = strings.Join(filtered, "\n")
+	}
+	
+	// Trim any extra whitespace
+	return strings.TrimSpace(cleaned)
+}
+
+// wrapCallbackForThinking wraps the callback to filter thinking tags in streaming mode
+func (s *Service) wrapCallbackForThinking(callback func(string), showThinking bool) func(string) {
+	if showThinking {
+		// If showing thinking, just pass through
+		return callback
+	}
+	
+	// If not showing thinking, filter out thinking content
+	var buffer strings.Builder
+	inThinking := false
+	
+	return func(token string) {
+		buffer.WriteString(token)
+		content := buffer.String()
+		
+		// Process complete thinking blocks
+		for {
+			if !inThinking {
+				// Look for start of thinking block
+				if idx := strings.Index(content, "<think>"); idx != -1 {
+					// Send content before thinking block
+					if idx > 0 {
+						callback(content[:idx])
+					}
+					inThinking = true
+					content = content[idx+7:] // Skip "<think>"
+					buffer.Reset()
+					buffer.WriteString(content)
+					continue
+				} else {
+					// No thinking block start, send everything
+					if content != "" {
+						callback(content)
+						buffer.Reset()
+					}
+					break
+				}
+			} else {
+				// Look for end of thinking block
+				if idx := strings.Index(content, "</think>"); idx != -1 {
+					inThinking = false
+					content = content[idx+8:] // Skip "</think>"
+					buffer.Reset()
+					buffer.WriteString(content)
+					continue
+				} else {
+					// Still in thinking block, don't send anything
+					break
+				}
+			}
+		}
 	}
 }

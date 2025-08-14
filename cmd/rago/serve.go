@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +19,7 @@ import (
 	"github.com/liliang-cn/rago/internal/llm"
 	"github.com/liliang-cn/rago/internal/processor"
 	"github.com/liliang-cn/rago/internal/store"
+	"github.com/liliang-cn/rago/internal/web"
 	"github.com/spf13/cobra"
 )
 
@@ -87,11 +89,13 @@ var serveCmd = &cobra.Command{
 			docStore,
 		)
 
-		if quiet {
-			gin.SetMode(gin.ReleaseMode)
-		}
+		// 设置Gin为release模式
+		gin.SetMode(gin.ReleaseMode)
 
-		router := setupRouter(processorService, cfg)
+		router, err := setupRouter(processorService, cfg)
+		if err != nil {
+			return fmt.Errorf("failed to setup router: %w", err)
+		}
 
 		server := &http.Server{
 			Addr:    fmt.Sprintf("%s:%d", host, port),
@@ -99,11 +103,7 @@ var serveCmd = &cobra.Command{
 		}
 
 		go func() {
-			fmt.Printf("Starting RAGO server on %s:%d\n", host, port)
-			if enableUI {
-				fmt.Printf("Web UI: http://%s:%d\n", host, port)
-			}
-			fmt.Printf("API: http://%s:%d/api\n", host, port)
+			printServerInfo(host, port, enableUI)
 
 			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				log.Fatalf("Failed to start server: %v", err)
@@ -128,7 +128,7 @@ var serveCmd = &cobra.Command{
 	},
 }
 
-func setupRouter(processor *processor.Service, cfg *config.Config) *gin.Engine {
+func setupRouter(processor *processor.Service, cfg *config.Config) (*gin.Engine, error) {
 	router := gin.New()
 
 	router.Use(gin.Logger())
@@ -156,6 +156,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config) *gin.Engine {
 
 		queryHandler := handlers.NewQueryHandler(processor)
 		api.POST("/query", queryHandler.Handle)
+		api.POST("/query-stream", queryHandler.HandleStream)
 		api.POST("/search", queryHandler.SearchOnly)
 
 		documentsHandler := handlers.NewDocumentsHandler(processor)
@@ -166,15 +167,98 @@ func setupRouter(processor *processor.Service, cfg *config.Config) *gin.Engine {
 	}
 
 	if enableUI {
-		router.GET("/", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "index.html", gin.H{
-				"title": cfg.UI.Title,
-				"theme": cfg.UI.Theme,
-			})
-		})
+		// Setup static file routes
+		if err := web.SetupStaticRoutes(router); err != nil {
+			return nil, fmt.Errorf("failed to setup static routes: %w", err)
+		}
 	}
 
-	return router
+	return router, nil
+}
+
+// printServerInfo 打印服务器访问信息
+func printServerInfo(host string, port int, enableUI bool) {
+	fmt.Printf("Starting RAGO server on %s:%d\n", host, port)
+	
+	// 显示不同的访问地址
+	if host == "0.0.0.0" || host == "" {
+		// 获取本机IP地址
+		localIPs := getLocalIPs()
+		
+		fmt.Println("\n📡 Server accessible at:")
+		fmt.Printf("   Local:    http://localhost:%d\n", port)
+		fmt.Printf("   Local:    http://127.0.0.1:%d\n", port)
+		
+		for _, ip := range localIPs {
+			fmt.Printf("   Network:  http://%s:%d\n", ip, port)
+		}
+		
+		if enableUI {
+			fmt.Println("\n🌐 Web UI accessible at:")
+			fmt.Printf("   Local:    http://localhost:%d\n", port)
+			for _, ip := range localIPs {
+				fmt.Printf("   Network:  http://%s:%d\n", ip, port)
+			}
+		}
+		
+		fmt.Printf("\n🔗 API endpoints:")
+		fmt.Printf("\n   Local:    http://localhost:%d/api\n", port)
+		for _, ip := range localIPs {
+			fmt.Printf("   Network:  http://%s:%d/api\n", ip, port)
+		}
+	} else {
+		if enableUI {
+			fmt.Printf("Web UI: http://%s:%d\n", host, port)
+		}
+		fmt.Printf("API: http://%s:%d/api\n", host, port)
+	}
+	
+	fmt.Println("\n💡 Press Ctrl+C to stop the server")
+	fmt.Println("")
+}
+
+// getLocalIPs 获取本机IP地址
+func getLocalIPs() []string {
+	var ips []string
+	
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return ips
+	}
+	
+	for _, iface := range interfaces {
+		// 跳过loopback和down状态的接口
+		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			
+			// 只要IPv4地址，跳过loopback
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+			
+			ip = ip.To4()
+			if ip != nil {
+				ips = append(ips, ip.String())
+			}
+		}
+	}
+	
+	return ips
 }
 
 func init() {

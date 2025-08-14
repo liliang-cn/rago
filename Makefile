@@ -1,6 +1,6 @@
 # RAGO Makefile
 
-.PHONY: build clean test deps fmt lint vet tidy run install docker help
+.PHONY: build clean test deps fmt lint vet tidy run install docker help build-web install-web dev-web build-all
 
 # Build variables
 BINARY_NAME=rago
@@ -19,6 +19,45 @@ GOFMT=gofmt
 GOLINT=golangci-lint
 
 # Default target
+all: build-all
+
+## install-web: Install web dependencies
+install-web:
+	@echo "Installing web dependencies..."
+	@cd web && npm install
+
+## build-web: Build web UI
+build-web: install-web
+	@echo "Building web UI..."
+	@cd web && npm run build
+
+## build-all: Build both web UI and Go binary
+build-all: build-web build-cli
+	@echo "Build complete!"
+
+## dev-web: Start web development server
+dev-web:
+	@echo "Starting web development server..."
+	@cd web && npm run dev
+
+## dev-ui: Start server with UI enabled (development mode)
+dev-ui: build-web
+	@echo "Starting server with UI (development mode)..."
+	@$(GOCMD) run ./cmd/rago-cli serve --ui --port 7127 --host 0.0.0.0
+
+## serve-lan: Start server with UI enabled for LAN access
+serve-lan: build-web
+	@echo "Starting server with UI for LAN access..."
+	@$(GOCMD) run ./cmd/rago-cli serve --ui --port 7127 --host 0.0.0.0
+
+## clean-web: Clean web build artifacts
+clean-web:
+	@echo "Cleaning web artifacts..."
+	@rm -rf web/dist/
+	@rm -rf web/node_modules/
+	@rm -rf internal/web/dist/
+
+# Default target
 all: build
 
 ## build: Build the binary
@@ -34,7 +73,7 @@ build-cli:
 	@$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-cli ./cmd/rago-cli
 
 ## clean: Clean build files
-clean:
+clean: clean-web
 	@echo "Cleaning..."
 	@$(GOCLEAN)
 	@rm -rf $(BUILD_DIR)
@@ -104,7 +143,7 @@ docker-build:
 ## docker-run: Run docker container
 docker-run: docker-build
 	@echo "Running docker container..."
-	@docker run --rm -p 8080:8080 $(BINARY_NAME):$(VERSION)
+	@docker run --rm -p 7127:7127 $(BINARY_NAME):$(VERSION)
 
 ## dev: Run in development mode
 dev:
