@@ -1,10 +1,82 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAGO - 本地RAG系统 | 基于Ollama的智能文档检索</title>
-    <meta name="description" content="完全本地化的RAG系统，保护数据隐私，支持多格式文档，提供高效的语义搜索和智能问答功能">
+    <title>RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval</title>
+    <meta name="description" content="Fully local RAG system that protects data privacy, supports multiple document formats, and provides efficient semantic search and intelligent Q&A features">
+    
+    <!-- SEO Meta Tags -->
+    <meta name="keywords" content="RAG system,local RAG,Ollama,Golang,Go language,vector database,semantic search,document retrieval,AI QA,privacy protection,knowledge base,local AI,document processing,intelligent search,open source RAG">
+    <meta name="author" content="RAGO Team">
+    <meta name="robots" content="index, follow">
+    <meta name="language" content="en">
+    <meta name="revisit-after" content="7 days">
+    <meta name="theme-color" content="#059669">
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval">
+    <meta property="og:description" content="Fully local RAG system powered by Ollama, providing powerful document retrieval and intelligent Q&A while protecting your data privacy">
+    <meta property="og:url" content="https://github.com/liliang-cn/rago">
+    <meta property="og:site_name" content="RAGO">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:locale:alternate" content="zh_CN">
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval">
+    <meta name="twitter:description" content="Fully local RAG system powered by Ollama, providing powerful document retrieval and intelligent Q&A">
+    <meta name="twitter:creator" content="@liliang_cn">
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://github.com/liliang-cn/rago">
+    
+    <!-- Alternate Language Links -->
+    <link rel="alternate" hreflang="en" href="https://github.com/liliang-cn/rago">
+    <link rel="alternate" hreflang="zh-CN" href="https://github.com/liliang-cn/rago?lang=zh">
+    <link rel="alternate" hreflang="x-default" href="https://github.com/liliang-cn/rago">
+    
+    <!-- Structured Data for SEO -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "RAGO",
+      "applicationCategory": "DeveloperApplication",
+      "description": "Fully local RAG system powered by Ollama, providing powerful document retrieval and intelligent Q&A",
+      "operatingSystem": ["Windows", "macOS", "Linux"],
+      "programmingLanguage": "Go",
+      "author": {
+        "@type": "Organization",
+        "name": "RAGO Team"
+      },
+      "url": "https://github.com/liliang-cn/rago",
+      "downloadUrl": "https://github.com/liliang-cn/rago/releases",
+      "codeRepository": "https://github.com/liliang-cn/rago",
+      "license": "MIT",
+      "keywords": ["RAG", "local RAG", "Ollama", "Golang", "Go language", "vector database", "semantic search", "document retrieval", "AI QA", "privacy protection"],
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "5",
+        "ratingCount": "1"
+      }
+    }
+    </script>
+    
+    <!-- Preload Critical Resources -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" as="style">
+    <link rel="preload" href="https://unpkg.com/lucide@latest/dist/umd/lucide.js" as="script">
+    
+    <!-- DNS Prefetch -->
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="dns-prefetch" href="//unpkg.com">
+    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
     
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -556,8 +628,8 @@
                     </nav>
                     <!-- 语言切换按钮现在独立于导航菜单 -->
                     <div class="language-toggle">
-                        <span class="lang-option active" data-lang="zh">中文</span>
-                        <span class="lang-option" data-lang="en">EN</span>
+                        <span class="lang-option" data-lang="zh">中文</span>
+                        <span class="lang-option active" data-lang="en">EN</span>
                     </div>
                 </div>
             </div>
@@ -576,7 +648,7 @@
                 RAGO是一个完全本地化的RAG系统，通过Ollama提供强大的文档检索和智能问答功能，保护您的数据隐私，提升工作效率
             </p>
             <div class="hero-buttons">
-                <a href="#" class="btn btn-primary btn-lg">
+                <a href="https://github.com/liliang-cn/rago/releases" class="btn btn-primary btn-lg">
                     <i data-lucide="download"></i>
                     <span data-i18n="hero.download">立即下载</span>
                     <i data-lucide="arrow-right"></i>
@@ -720,7 +792,7 @@
                 立即下载RAGO，体验本地化RAG系统的强大功能，让您的文档数据发挥更大价值
             </p>
             <div class="cta-buttons">
-                <a href="#" class="btn btn-white btn-lg">
+                <a href="https://github.com/liliang-cn/rago/releases" class="btn btn-white btn-lg">
                     <i data-lucide="download"></i>
                     <span data-i18n="cta.download">下载RAGO</span>
                 </a>
@@ -882,7 +954,7 @@
             }
         };
 
-        let currentLang = 'zh';
+        let currentLang = 'en';
 
         function updateLanguage(lang) {
             currentLang = lang;
@@ -892,9 +964,19 @@
             if (lang === 'en') {
                 document.title = 'RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval';
                 document.querySelector('meta[name="description"]').content = 'Fully local RAG system that protects data privacy, supports multiple document formats, and provides efficient semantic search and intelligent Q&A features';
+                document.querySelector('meta[name="keywords"]').content = 'RAG system,local RAG,Ollama,Golang,Go language,vector database,semantic search,document retrieval,AI QA,privacy protection,knowledge base,local AI,document processing,intelligent search,open source RAG';
+                document.querySelector('meta[property="og:title"]').content = 'RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval';
+                document.querySelector('meta[property="og:description"]').content = 'Fully local RAG system powered by Ollama, providing powerful document retrieval and intelligent Q&A while protecting your data privacy';
+                document.querySelector('meta[name="twitter:title"]').content = 'RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval';
+                document.querySelector('meta[name="twitter:description"]').content = 'Fully local RAG system powered by Ollama, providing powerful document retrieval and intelligent Q&A';
             } else {
                 document.title = 'RAGO - 本地RAG系统 | 基于Ollama的智能文档检索';
                 document.querySelector('meta[name="description"]').content = '完全本地化的RAG系统，保护数据隐私，支持多格式文档，提供高效的语义搜索和智能问答功能';
+                document.querySelector('meta[name="keywords"]').content = 'RAG系统,本地RAG,Ollama,Golang,Go语言,向量数据库,语义搜索,文档检索,AI问答,隐私保护,知识库,本地化AI,文档处理,智能搜索,开源RAG';
+                document.querySelector('meta[property="og:title"]').content = 'RAGO - 本地RAG系统 | 基于Ollama的智能文档检索';
+                document.querySelector('meta[property="og:description"]').content = '完全本地化的RAG系统，基于Ollama提供强大的文档检索和智能问答功能，保护您的数据隐私';
+                document.querySelector('meta[name="twitter:title"]').content = 'RAGO - 本地RAG系统 | 基于Ollama的智能文档检索';
+                document.querySelector('meta[name="twitter:description"]').content = '完全本地化的RAG系统，基于Ollama提供强大的文档检索和智能问答功能';
             }
             
             // 更新所有带有data-i18n属性的元素
@@ -992,7 +1074,7 @@
         });
 
         document.addEventListener('DOMContentLoaded', () => {
-            const savedLang = localStorage.getItem('preferred-language') || 'zh';
+            const savedLang = localStorage.getItem('preferred-language') || 'en';
             updateLanguage(savedLang);
         });
     </script>
