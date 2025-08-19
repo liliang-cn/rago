@@ -21,11 +21,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	defer cancel()
 
 	// Create Ollama service
-	ollamaService, err := llm.NewOllamaService(
-		cfg.Ollama.BaseURL,
-		cfg.Ollama.LLMModel,
-		cfg.Ollama.Timeout,
-	)
+			ollamaService, err := llm.NewOllamaService(cfg.Ollama.BaseURL, cfg.Ollama.LLMModel)
+
 	if err != nil {
 		fmt.Printf("❌ Failed to create Ollama client: %v\n", err)
 		return nil

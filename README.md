@@ -118,7 +118,10 @@ rago init --help
 # Single file ingestion
 rago ingest ./document.txt
 
-# Batch ingestion
+# Ingest a directory and automatically extract metadata
+rago ingest ./docs/ --recursive --extract-metadata
+
+# Batch ingestion with custom chunking
 rago ingest ./docs/ --recursive --chunk-size 500 --overlap 100
 ```
 
@@ -494,6 +497,10 @@ top_k = 5
 chunk_size = 300
 overlap = 50
 method = "sentence"  # sentence, paragraph, token
+
+[ingest.metadata_extraction]
+enable = false # Enable automatic metadata extraction via LLM
+llm_model = "qwen3" # Model to use for metadata extraction
 ```
 
 ### Environment Variables

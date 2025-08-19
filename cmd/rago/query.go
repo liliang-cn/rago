@@ -53,7 +53,6 @@ You can provide a question as an argument or use interactive mode.`,
 		embedService, err := embedder.NewOllamaService(
 			cfg.Ollama.BaseURL,
 			cfg.Ollama.EmbeddingModel,
-			cfg.Ollama.Timeout,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create embedder: %w", err)
@@ -62,7 +61,6 @@ You can provide a question as an argument or use interactive mode.`,
 		llmService, err := llm.NewOllamaService(
 			cfg.Ollama.BaseURL,
 			cfg.Ollama.LLMModel,
-			cfg.Ollama.Timeout,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create LLM service: %w", err)
@@ -76,6 +74,8 @@ You can provide a question as an argument or use interactive mode.`,
 			chunkerService,
 			vectorStore,
 			docStore,
+			cfg,
+			llmService,
 		)
 
 		ctx := context.Background()

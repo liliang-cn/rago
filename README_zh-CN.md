@@ -108,7 +108,10 @@ rago init --help
 # 单文件导入
 rago ingest ./document.txt
 
-# 批量导入
+# 批量导入并自动提取元数据
+rago ingest ./docs/ --recursive --extract-metadata
+
+# 调整分块参数
 rago ingest ./docs/ --recursive --chunk-size 500 --overlap 100
 ```
 
@@ -426,6 +429,10 @@ top_k = 5
 chunk_size = 300
 overlap = 50
 method = "sentence"  # sentence, paragraph, token
+
+[ingest.metadata_extraction]
+enable = false # 是否启用元数据自动提取
+llm_model = "qwen3" # 用于提取元数据的模型
 ```
 
 ### 环境变量

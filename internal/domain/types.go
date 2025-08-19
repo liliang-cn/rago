@@ -55,6 +55,15 @@ type IngestResponse struct {
 	Message    string `json:"message"`
 }
 
+// ExtractedMetadata holds the data extracted from a document by an LLM.
+
+type ExtractedMetadata struct {
+	Summary      string   `json:"summary"`
+	Keywords     []string `json:"keywords"`
+	DocumentType string   `json:"document_type"`
+	CreationDate string   `json:"creation_date"`
+}
+
 type Embedder interface {
 	Embed(ctx context.Context, text string) ([]float64, error)
 }

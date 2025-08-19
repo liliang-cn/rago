@@ -3,12 +3,14 @@ package processor
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/liliang-cn/rago/internal/config"
 	"github.com/liliang-cn/rago/internal/domain"
 	"github.com/liliang-cn/rago/internal/llm"
 )
@@ -19,6 +21,8 @@ type Service struct {
 	chunker       domain.Chunker
 	vectorStore   domain.VectorStore
 	documentStore domain.DocumentStore
+	config        *config.Config
+	llmService    *llm.OllamaService
 }
 
 func New(
@@ -27,6 +31,8 @@ func New(
 	chunker domain.Chunker,
 	vectorStore domain.VectorStore,
 	documentStore domain.DocumentStore,
+	config *config.Config,
+	llmService *llm.OllamaService,
 ) *Service {
 	return &Service{
 		embedder:      embedder,
@@ -34,6 +40,8 @@ func New(
 		chunker:       chunker,
 		vectorStore:   vectorStore,
 		documentStore: documentStore,
+		config:        config,
+		llmService:    llmService,
 	}
 }
 
@@ -54,11 +62,33 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 		}, nil
 	}
 
+	// Initialize metadata map if it's nil
+	if req.Metadata == nil {
+		req.Metadata = make(map[string]interface{})
+	}
+
+	// Automatic metadata extraction
+	if s.config.Ingest.MetadataExtraction.Enable {
+		log.Println("Metadata extraction enabled, calling LLM...")
+		extracted, err := s.llmService.ExtractMetadata(ctx, content, s.config.Ingest.MetadataExtraction.LLMModel)
+		if err != nil {
+			log.Printf("Warning: metadata extraction failed, proceeding without it. Error: %v", err)
+		} else {
+			log.Printf("Successfully extracted metadata: %+v", extracted)
+			s.mergeMetadata(req.Metadata, extracted)
+		}
+	}
+
+	// Fallback for creation_date
+	if _, ok := req.Metadata["creation_date"]; !ok || req.Metadata["creation_date"] == nil || req.Metadata["creation_date"] == "" {
+		s.addFileCreationDate(req.FilePath, req.Metadata)
+	}
+
 	doc := domain.Document{
 		ID:       uuid.New().String(),
 		Path:     req.FilePath,
 		URL:      req.URL,
-		Content:  content,
+		Content:  content, // Storing full content might be redundant, consider trade-offs
 		Metadata: req.Metadata,
 		Created:  time.Now(),
 	}
@@ -74,10 +104,10 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 	}
 
 	if req.ChunkSize <= 0 {
-		chunkOptions.Size = 300
+		chunkOptions.Size = s.config.Chunker.ChunkSize
 	}
 	if req.Overlap < 0 {
-		chunkOptions.Overlap = 50
+		chunkOptions.Overlap = s.config.Chunker.Overlap
 	}
 
 	textChunks, err := s.chunker.Split(content, chunkOptions)
@@ -97,7 +127,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 			DocumentID: doc.ID,
 			Content:    textChunk,
 			Vector:     vector,
-			Metadata:   req.Metadata,
+			Metadata:   doc.Metadata, // Pass down the combined metadata to each chunk
 		}
 		chunks = append(chunks, chunk)
 	}
@@ -113,6 +143,34 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 		Message:    fmt.Sprintf("Successfully ingested %d chunks", len(chunks)),
 	}, nil
 }
+
+// mergeMetadata merges the extracted metadata into the request's metadata map.
+func (s *Service) mergeMetadata(base map[string]interface{}, extracted *domain.ExtractedMetadata) {
+	if extracted.Summary != "" {
+		base["summary"] = extracted.Summary
+	}
+	if len(extracted.Keywords) > 0 {
+		base["keywords"] = extracted.Keywords
+	}
+	if extracted.DocumentType != "" {
+		base["document_type"] = extracted.DocumentType
+	}
+	if extracted.CreationDate != "" {
+		base["creation_date"] = extracted.CreationDate
+	}
+}
+
+// addFileCreationDate adds the file's modification time as a fallback creation date.
+func (s *Service) addFileCreationDate(filePath string, metadata map[string]interface{}) {
+	if filePath == "" {
+		return
+	}
+	fileInfo, err := os.Stat(filePath)
+	if err == nil {
+		metadata["creation_date"] = fileInfo.ModTime().Format("2006-01-02")
+	}
+}
+
 
 func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.QueryResponse, error) {
 	start := time.Now()
