@@ -92,7 +92,7 @@ func setDefaults() {
 	viper.SetDefault("ollama.timeout", "30s")
 
 	viper.SetDefault("sqvect.db_path", "./data/rag.db")
-	viper.SetDefault("sqvect.vector_dim", 1536)
+	viper.SetDefault("sqvect.vector_dim", 768)
 	viper.SetDefault("sqvect.max_conns", 10)
 	viper.SetDefault("sqvect.batch_size", 100)
 	viper.SetDefault("sqvect.top_k", 5)

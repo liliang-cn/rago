@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/liliang-cn/rago/internal/config"
+	"github.com/liliang-cn/rago/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -48,6 +50,15 @@ all default configuration values, which you can then customize as needed.`,
 			return fmt.Errorf("failed to write configuration file: %w", err)
 		}
 
+		// Initialize the database
+		if err := initializeDatabase(configPath); err != nil {
+			fmt.Printf("⚠️  Configuration file created but database initialization failed: %v\n", err)
+			fmt.Println("   You can try initializing the database later by running:")
+			fmt.Printf("   rago --config %s serve\n", configPath)
+		} else {
+			fmt.Println("✅ Database initialized successfully")
+		}
+
 		fmt.Printf("✅ Configuration file created successfully at: %s\n", configPath)
 		fmt.Println("\n📝 You can now customize the configuration and start using RAGO:")
 		fmt.Printf("   rago --config %s serve\n", configPath)
@@ -77,7 +88,7 @@ timeout = "30s"
 [sqvect]
 # SQLite vector database configuration
 db_path = "./data/rag.db"
-vector_dim = 1536
+vector_dim = 768
 max_conns = 10
 batch_size = 100
 top_k = 5
@@ -89,6 +100,34 @@ chunk_size = 300
 overlap = 50
 method = "sentence"  # options: sentence, paragraph, token
 `
+}
+
+func initializeDatabase(configPath string) error {
+	// Load configuration
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Create data directory if it doesn't exist
+	dbDir := filepath.Dir(cfg.Sqvect.DBPath)
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		return fmt.Errorf("failed to create database directory %s: %w", dbDir, err)
+	}
+
+	// Initialize SQLite vector store
+	vectorStore, err := store.NewSQLiteStore(
+		cfg.Sqvect.DBPath,
+		cfg.Sqvect.VectorDim,
+		cfg.Sqvect.MaxConns,
+		cfg.Sqvect.BatchSize,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to initialize vector store: %w", err)
+	}
+	defer vectorStore.Close()
+
+	return nil
 }
 
 func init() {
