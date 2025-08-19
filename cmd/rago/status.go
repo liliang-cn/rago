@@ -46,5 +46,5 @@ func runStatus(cmd *cobra.Command, args []string) error {
 }
 
 func init() {
-	rootCmd.AddCommand(statusCmd)
+	RootCmd.AddCommand(statusCmd)
 }

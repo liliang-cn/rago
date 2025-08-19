@@ -30,7 +30,7 @@ var ingestCmd = &cobra.Command{
 	Use:   "ingest [file/directory]",
 	Short: "Import documents into vector database",
 	Long: `Chunk document content, vectorize and store into local vector database.
-Supports text format files like .txt, .md, etc.
+Supports text format files like .txt, .md, .pdf, etc.
 You can also use --text flag to ingest text directly.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if textInput != "" {

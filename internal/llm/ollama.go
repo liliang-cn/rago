@@ -190,3 +190,52 @@ func ComposePrompt(chunks []domain.Chunk, query string) string {
 
 	return prompt
 }
+
+// isAlmostSamePromptTemplate is the prompt template used to determine if input and output are essentially the same
+const isAlmostSamePromptTemplate = `You are an expert judge evaluating whether two pieces of text represent the same information. 
+Please compare the original input and the generated output and determine if they convey the same core meaning.
+
+Respond with ONLY "true" if they are essentially the same, or "false" if they are different.
+
+Original input: "%s"
+Generated output: "%s"
+
+Are these essentially the same? Respond with only "true" or "false":`
+
+// IsAlmostSame determines if the input and output are essentially the same using LLM
+func (s *OllamaService) IsAlmostSame(ctx context.Context, input, output string) (bool, error) {
+	if input == "" || output == "" {
+		return false, nil
+	}
+
+	prompt := fmt.Sprintf(isAlmostSamePromptTemplate, input, output)
+	
+	stream := false
+	format := "json"
+	req := &ollama.GenerateRequest{
+		Model:  s.model,
+		Prompt: prompt,
+		Stream: &stream,
+		Format: &format,
+	}
+
+	resp, err := s.client.Generate(ctx, req)
+	if err != nil {
+		return false, fmt.Errorf("failed to generate similarity judgment: %w", err)
+	}
+
+	// Parse the response as a boolean
+	result := strings.TrimSpace(strings.ToLower(resp.Response))
+	
+	// Handle cases where the model might return "true" or "false" with extra text
+	if strings.Contains(result, "true") {
+		return true, nil
+	}
+	
+	if strings.Contains(result, "false") {
+		return false, nil
+	}
+	
+	// Default to false if we can't determine
+	return false, nil
+}

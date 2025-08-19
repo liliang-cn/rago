@@ -181,5 +181,5 @@ func init() {
 	exportCmd.Flags().StringVar(&exportFormat, "format", "json", "Export format (json)")
 	exportCmd.Flags().BoolVar(&includeVectors, "include-vectors", false, "Include vector embeddings in export")
 
-	rootCmd.AddCommand(exportCmd)
+	RootCmd.AddCommand(exportCmd)
 }

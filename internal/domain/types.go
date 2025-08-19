@@ -71,6 +71,7 @@ type Embedder interface {
 type Generator interface {
 	Generate(ctx context.Context, prompt string, opts *GenerationOptions) (string, error)
 	Stream(ctx context.Context, prompt string, opts *GenerationOptions, callback func(string)) error
+	IsAlmostSame(ctx context.Context, input, output string) (bool, error)
 }
 
 type GenerationOptions struct {

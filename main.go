@@ -11,11 +11,15 @@ import (
 var version = "dev"
 
 func main() {
+	if err := run(); err != nil {
+		log.Printf("Error: %v", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	// Set version for CLI
 	rago.SetVersion(version)
 
-	if err := rago.Execute(); err != nil {
-		log.Printf("Error executing command: %v", err)
-		os.Exit(1)
-	}
+	return rago.Execute()
 }

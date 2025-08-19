@@ -112,3 +112,108 @@ func TestExtractMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestIsAlmostSame(t *testing.T) {
+	trueResponse, err := json.Marshal(ollama.GenerateResponse{
+		Response: "true",
+	})
+	require.NoError(t, err)
+
+	falseResponse, err := json.Marshal(ollama.GenerateResponse{
+		Response: "false",
+	})
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name          string
+		handler       http.HandlerFunc
+		input         string
+		output        string
+		expected      bool
+		expectError   bool
+		errorMsg      string
+	}{
+		{
+			name: "Same content - should return true",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "/api/generate", r.URL.Path)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(trueResponse)
+			},
+			input:       "The sky is blue",
+			output:      "The sky is blue",
+			expected:    true,
+			expectError: false,
+		},
+		{
+			name: "Different content - should return false",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(falseResponse)
+			},
+			input:       "The sky is blue",
+			output:      "The grass is green",
+			expected:    false,
+			expectError: false,
+		},
+		{
+			name: "Empty input - should return false",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				// Should not be called
+				t.Errorf("Handler should not be called for empty input")
+			},
+			input:       "",
+			output:      "Some output",
+			expected:    false,
+			expectError: false,
+		},
+		{
+			name: "Empty output - should return false",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				// Should not be called
+				t.Errorf("Handler should not be called for empty output")
+			},
+			input:       "Some input",
+			output:      "",
+			expected:    false,
+			expectError: false,
+		},
+		{
+			name: "Server error",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+			},
+			input:       "Test input",
+			output:      "Test output",
+			expected:    false,
+			expectError: true,
+			errorMsg:    "failed to generate similarity judgment",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(tc.handler)
+			defer server.Close()
+
+			// Set the environment variable to point to the test server.
+			t.Setenv("OLLAMA_HOST", server.URL)
+
+			// Create a new service that will use the test server's URL via environment variable.
+			service, err := NewOllamaService(server.URL, "test-model")
+			require.NoError(t, err)
+
+			result, err := service.IsAlmostSame(context.Background(), tc.input, tc.output)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				if tc.errorMsg != "" {
+					assert.Contains(t, err.Error(), tc.errorMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
