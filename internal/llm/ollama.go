@@ -2,9 +2,9 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/liliang-cn/ollama-go"
 	"github.com/liliang-cn/rago/internal/domain"
@@ -16,11 +16,13 @@ type OllamaService struct {
 	baseURL string
 }
 
-func NewOllamaService(baseURL, model string, timeout time.Duration) (*OllamaService, error) {
+func NewOllamaService(baseURL, model string) (*OllamaService, error) {
 	client, err := ollama.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ollama client: %w", err)
 	}
+
+	// The client will automatically use OLLAMA_HOST from env if available.
 
 	return &OllamaService{
 		client:  client,
@@ -121,6 +123,48 @@ func (s *OllamaService) Health(ctx context.Context) error {
 		return fmt.Errorf("%w: %v", domain.ErrServiceUnavailable, err)
 	}
 	return nil
+}
+
+const metadataExtractionPromptTemplate = `You are an expert data extractor. Analyze the following document content and return ONLY a single valid JSON object with the following fields:
+- "summary": A concise, one-sentence summary of the document.
+- "keywords": An array of 3 to 5 most relevant keywords.
+- "document_type": The type of the document (e.g., "Article", "Meeting Notes", "Technical Manual", "Code Snippet", "Essay").
+- "creation_date": The creation date found in the document text in "YYYY-MM-DD" format. If no date is found, use null.
+
+Document Content:
+"""
+%s
+"""
+
+JSON Output:`
+
+func (s *OllamaService) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
+	if content == "" {
+		return nil, fmt.Errorf("%w: content cannot be empty", domain.ErrInvalidInput)
+	}
+
+	prompt := fmt.Sprintf(metadataExtractionPromptTemplate, content)
+
+	stream := false
+	format := "json"
+	req := &ollama.GenerateRequest{
+		Model:  model,
+		Prompt: prompt,
+		Stream: &stream,
+		Format: &format,
+	}
+
+	resp, err := s.client.Generate(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("%w: metadata extraction failed: %v", domain.ErrGenerationFailed, err)
+	}
+
+	var metadata domain.ExtractedMetadata
+	if err := json.Unmarshal([]byte(resp.Response), &metadata); err != nil {
+		return nil, fmt.Errorf("%w: failed to unmarshal metadata response: %v. Raw response: %s", domain.ErrInvalidInput, err, resp.Response)
+	}
+
+	return &metadata, nil
 }
 
 func ComposePrompt(chunks []domain.Chunk, query string) string {

@@ -4,8 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/liliang-cn/rago/internal/config"
 	"github.com/liliang-cn/rago/internal/domain"
 )
+
+// mockOllamaService can be used if we need to mock llm.OllamaService behavior.
 
 type mockEmbedder struct {
 	embedding []float64
@@ -170,12 +173,15 @@ func TestService_Ingest(t *testing.T) {
 				Overlap:   10,
 			},
 			setup: func() *Service {
+				cfg := &config.Config{} // Use default config for tests
 				return New(
 					&mockEmbedder{embedding: []float64{0.1, 0.2, 0.3}},
 					&mockGenerator{response: "test response"},
 					&mockChunker{chunks: []string{"This is test content.", "It has multiple sentences."}},
 					&mockVectorStore{},
 					newMockDocumentStore(),
+					cfg,
+					nil, // No llm service needed for this test case
 				)
 			},
 			wantErr: false,
@@ -187,12 +193,15 @@ func TestService_Ingest(t *testing.T) {
 				Overlap:   10,
 			},
 			setup: func() *Service {
+				cfg := &config.Config{} // Use default config for tests
 				return New(
 					&mockEmbedder{},
 					&mockGenerator{},
 					&mockChunker{},
 					&mockVectorStore{},
 					newMockDocumentStore(),
+					cfg,
+					nil,
 				)
 			},
 			wantErr: true,
@@ -245,12 +254,15 @@ func TestService_Query(t *testing.T) {
 						{ID: "2", Content: "chunk 2", Score: 0.8},
 					},
 				}
+				cfg := &config.Config{}
 				return New(
 					&mockEmbedder{embedding: []float64{0.1, 0.2, 0.3}},
 					&mockGenerator{response: "test response"},
 					&mockChunker{},
 					mockVS,
 					newMockDocumentStore(),
+					cfg,
+					nil,
 				)
 			},
 			wantErr: false,
@@ -262,12 +274,15 @@ func TestService_Query(t *testing.T) {
 				TopK:  3,
 			},
 			setup: func() *Service {
+				cfg := &config.Config{}
 				return New(
 					&mockEmbedder{},
 					&mockGenerator{},
 					&mockChunker{},
 					&mockVectorStore{},
 					newMockDocumentStore(),
+					cfg,
+					nil,
 				)
 			},
 			wantErr: true,

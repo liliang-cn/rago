@@ -111,7 +111,6 @@ var importCmd = &cobra.Command{
 			embedService, err = embedder.NewOllamaService(
 				cfg.Ollama.BaseURL,
 				cfg.Ollama.EmbeddingModel,
-				cfg.Ollama.Timeout,
 			)
 			if err != nil {
 				return fmt.Errorf("failed to create embedder: %w", err)
