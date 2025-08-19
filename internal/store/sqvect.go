@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -58,11 +59,21 @@ func (s *SQLiteStore) Store(ctx context.Context, chunks []domain.Chunk) error {
 			vector[i] = float32(v)
 		}
 
-		// Convert metadata to string map
+		// Convert metadata to string map, handling slices and maps as JSON strings
 		metadata := make(map[string]string)
 		if chunk.Metadata != nil {
 			for k, v := range chunk.Metadata {
-				metadata[k] = fmt.Sprintf("%v", v)
+				switch val := v.(type) {
+				case []string, map[string]interface{}, []interface{}:
+					jsonBytes, err := json.Marshal(val)
+					if err == nil {
+						metadata[k] = string(jsonBytes)
+					} else {
+						metadata[k] = fmt.Sprintf("%v", v)
+					}
+				default:
+					metadata[k] = fmt.Sprintf("%v", v)
+				}
 			}
 		}
 

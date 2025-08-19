@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	pdf "github.com/dslipak/pdf"
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/internal/config"
 	"github.com/liliang-cn/rago/internal/domain"
@@ -376,10 +377,29 @@ func (s *Service) readFile(filePath string) (string, error) {
 			return "", fmt.Errorf("failed to read file %s: %w", filePath, err)
 		}
 		return string(data), nil
-		
+	
 	case ".pdf":
-		return "", fmt.Errorf("PDF files not yet supported")
-		
+		r, err := pdf.Open(filePath)
+		if err != nil {
+			return "", fmt.Errorf("failed to open PDF %s: %w", filePath, err)
+		}
+		var buf strings.Builder
+		for i := 1; i <= r.NumPage(); i++ {
+			p := r.Page(i)
+			if p.V.IsNull() {
+				continue
+			}
+			text, err := p.GetPlainText(nil)
+			if err != nil {
+				// Log a warning but continue processing other pages
+				log.Printf("Warning: failed to get text from page %d of %s: %v", i, filePath, err)
+				continue
+			}
+			buf.WriteString(text)
+			buf.WriteString("\n") // Add a newline between pages
+		}
+		return buf.String(), nil
+
 	default:
 		return "", fmt.Errorf("unsupported file type: %s", ext)
 	}

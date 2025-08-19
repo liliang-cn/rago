@@ -16,7 +16,7 @@ var (
 	version string = "dev"
 )
 
-var rootCmd = &cobra.Command{
+var RootCmd = &cobra.Command{
 	Use:   "rago",
 	Short: "RAGO - Local RAG System",
 	Long: `RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system written in Go,
@@ -38,13 +38,13 @@ supporting document ingestion, semantic search, and context-enhanced Q&A.`,
 }
 
 func Execute() error {
-	return rootCmd.Execute()
+	return RootCmd.Execute()
 }
 
 // SetVersion sets the version for the CLI
 func SetVersion(v string) {
 	version = v
-	rootCmd.Version = v
+	RootCmd.Version = v
 }
 
 var versionCmd = &cobra.Command{
@@ -56,16 +56,16 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "configuration file path (default: ./config.toml)")
-	rootCmd.PersistentFlags().StringVar(&dbPath, "db-path", "", "database path (default: ./data/rag.db)")
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose logging output")
-	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "quiet mode")
+	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "configuration file path (default: ./config.toml)")
+	RootCmd.PersistentFlags().StringVar(&dbPath, "db-path", "", "database path (default: ./data/rag.db)")
+	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose logging output")
+	RootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "quiet mode")
 
-	rootCmd.AddCommand(versionCmd)
-	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(ingestCmd)
-	rootCmd.AddCommand(queryCmd)
-	rootCmd.AddCommand(listCmd)
-	rootCmd.AddCommand(resetCmd)
-	rootCmd.AddCommand(serveCmd)
+	RootCmd.AddCommand(versionCmd)
+	RootCmd.AddCommand(initCmd)
+	RootCmd.AddCommand(ingestCmd)
+	RootCmd.AddCommand(queryCmd)
+	RootCmd.AddCommand(listCmd)
+	RootCmd.AddCommand(resetCmd)
+	RootCmd.AddCommand(serveCmd)
 }
