@@ -15,6 +15,16 @@ type Config struct {
 	Ollama  OllamaConfig  `mapstructure:"ollama"`
 	Sqvect  SqvectConfig  `mapstructure:"sqvect"`
 	Chunker ChunkerConfig `mapstructure:"chunker"`
+	Ingest  IngestConfig  `mapstructure:"ingest"`
+}
+
+type IngestConfig struct {
+	MetadataExtraction MetadataExtractionConfig `mapstructure:"metadata_extraction"`
+}
+
+type MetadataExtractionConfig struct {
+	Enable   bool   `mapstructure:"enable"`
+	LLMModel string `mapstructure:"llm_model"`
 }
 
 type ServerConfig struct {
@@ -101,6 +111,9 @@ func setDefaults() {
 	viper.SetDefault("chunker.chunk_size", 300)
 	viper.SetDefault("chunker.overlap", 50)
 	viper.SetDefault("chunker.method", "sentence")
+
+	viper.SetDefault("ingest.metadata_extraction.enable", false)
+	viper.SetDefault("ingest.metadata_extraction.llm_model", "qwen3") // 默认使用与问答相同的模型
 }
 
 func bindEnvVars() {
@@ -157,6 +170,13 @@ func bindEnvVars() {
 	}
 	if err := viper.BindEnv("chunker.method", "RAGO_CHUNKER_METHOD"); err != nil {
 		log.Printf("Warning: failed to bind chunker.method env var: %v", err)
+	}
+
+	if err := viper.BindEnv("ingest.metadata_extraction.enable", "RAGO_INGEST_METADATA_EXTRACTION_ENABLE"); err != nil {
+		log.Printf("Warning: failed to bind ingest.metadata_extraction.enable env var: %v", err)
+	}
+	if err := viper.BindEnv("ingest.metadata_extraction.llm_model", "RAGO_INGEST_METADATA_EXTRACTION_LLM_MODEL"); err != nil {
+		log.Printf("Warning: failed to bind ingest.metadata_extraction.llm_model env var: %v", err)
 	}
 }
 
@@ -216,6 +236,10 @@ func (c *Config) Validate() error {
 	validMethods := map[string]bool{"sentence": true, "paragraph": true, "token": true}
 	if !validMethods[c.Chunker.Method] {
 		return fmt.Errorf("invalid chunker method: %s", c.Chunker.Method)
+	}
+
+	if c.Ingest.MetadataExtraction.Enable && c.Ingest.MetadataExtraction.LLMModel == "" {
+		return fmt.Errorf("llm_model for metadata extraction cannot be empty when enabled")
 	}
 
 	return nil

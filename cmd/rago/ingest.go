@@ -10,18 +10,20 @@ import (
 	"github.com/liliang-cn/rago/internal/chunker"
 	"github.com/liliang-cn/rago/internal/domain"
 	"github.com/liliang-cn/rago/internal/embedder"
+	"github.com/liliang-cn/rago/internal/llm"
 	"github.com/liliang-cn/rago/internal/processor"
 	"github.com/liliang-cn/rago/internal/store"
 	"github.com/spf13/cobra"
 )
 
 var (
-	chunkSize int
-	overlap   int
-	batchSize int
-	recursive bool
-	textInput string
-	source    string
+	chunkSize         int
+	overlap           int
+	batchSize         int
+	recursive         bool
+	textInput         string
+	source            string
+	extractMetadata   bool
 )
 
 var ingestCmd = &cobra.Command{
@@ -40,6 +42,11 @@ You can also use --text flag to ingest text directly.`,
 		return cobra.ExactArgs(1)(cmd, args)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Override config if flag is set
+		if extractMetadata {
+			cfg.Ingest.MetadataExtraction.Enable = true
+		}
+
 		vectorStore, err := store.NewSQLiteStore(
 			cfg.Sqvect.DBPath,
 			cfg.Sqvect.VectorDim,
@@ -60,10 +67,17 @@ You can also use --text flag to ingest text directly.`,
 		embedService, err := embedder.NewOllamaService(
 			cfg.Ollama.BaseURL,
 			cfg.Ollama.EmbeddingModel,
-			cfg.Ollama.Timeout,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create embedder: %w", err)
+		}
+
+		llmService, err := llm.NewOllamaService(
+			cfg.Ollama.BaseURL,
+			cfg.Ollama.LLMModel, // Default model for other tasks
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create llm service: %w", err)
 		}
 
 		chunkerService := chunker.New()
@@ -74,6 +88,8 @@ You can also use --text flag to ingest text directly.`,
 			chunkerService,
 			vectorStore,
 			docStore,
+			cfg,
+			llmService,
 		)
 
 		ctx := context.Background()
@@ -205,4 +221,5 @@ func init() {
 	ingestCmd.Flags().BoolVar(&recursive, "recursive", false, "process directory recursively")
 	ingestCmd.Flags().StringVar(&textInput, "text", "", "ingest text directly instead of from file")
 	ingestCmd.Flags().StringVar(&source, "source", "", "source name for text input (default: text-input)")
+	ingestCmd.Flags().BoolVar(&extractMetadata, "extract-metadata", false, "enable automatic metadata extraction via LLM")
 }

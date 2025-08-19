@@ -3,7 +3,6 @@ package embedder
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/liliang-cn/ollama-go"
 	"github.com/liliang-cn/rago/internal/domain"
@@ -15,7 +14,7 @@ type OllamaService struct {
 	baseURL string
 }
 
-func NewOllamaService(baseURL, model string, timeout time.Duration) (*OllamaService, error) {
+func NewOllamaService(baseURL, model string) (*OllamaService, error) {
 	client, err := ollama.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ollama client: %w", err)

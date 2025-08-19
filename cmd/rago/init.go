@@ -99,6 +99,11 @@ threshold = 0.0
 chunk_size = 300
 overlap = 50
 method = "sentence"  # options: sentence, paragraph, token
+
+[ingest.metadata_extraction]
+# Automatic metadata extraction configuration
+enable = false # Enable automatic metadata extraction via LLM
+llm_model = "qwen3" # Model to use for metadata extraction. Can be different from the main llm_model
 `
 }
 

@@ -48,7 +48,6 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 	embedService, err := embedder.NewOllamaService(
 		cfg.Ollama.BaseURL,
 		cfg.Ollama.EmbeddingModel,
-		cfg.Ollama.Timeout,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embedder: %w", err)
@@ -57,7 +56,6 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 	llmService, err := llm.NewOllamaService(
 		cfg.Ollama.BaseURL,
 		cfg.Ollama.LLMModel,
-		cfg.Ollama.Timeout,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
@@ -71,6 +69,8 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 		chunkerService,
 		vectorStore,
 		docStore,
+		cfg,
+		llmService,
 	)
 
 	return &Client{
