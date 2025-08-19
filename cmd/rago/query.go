@@ -17,13 +17,14 @@ import (
 )
 
 var (
-	topK        int
-	temperature float64
-	maxTokens   int
-	stream      bool
-	interactive bool
-	queryFile   string
-	filterBy    []string
+	topK         int
+	temperature  float64
+	maxTokens    int
+	stream       bool
+	showThinking bool
+	interactive  bool
+	queryFile    string
+	filterBy     []string
 )
 
 var queryCmd = &cobra.Command{
@@ -174,12 +175,13 @@ func processQuery(ctx context.Context, p *processor.Service, query string) error
 	}
 
 	req := domain.QueryRequest{
-		Query:       query,
-		TopK:        topK,
-		Temperature: temperature,
-		MaxTokens:   maxTokens,
-		Stream:      stream,
-		Filters:     filters,
+		Query:        query,
+		TopK:         topK,
+		Temperature:  temperature,
+		MaxTokens:    maxTokens,
+		Stream:       stream,
+		ShowThinking: showThinking,
+		Filters:      filters,
 	}
 
 	if stream {
@@ -242,7 +244,8 @@ func init() {
 	queryCmd.Flags().IntVar(&topK, "top-k", 5, "number of documents to retrieve")
 	queryCmd.Flags().Float64Var(&temperature, "temperature", 0.7, "generation temperature")
 	queryCmd.Flags().IntVar(&maxTokens, "max-tokens", 500, "maximum generation length")
-	queryCmd.Flags().BoolVar(&stream, "stream", false, "streaming output")
+	queryCmd.Flags().BoolVar(&stream, "stream", true, "streaming output")
+	queryCmd.Flags().BoolVar(&showThinking, "show-thinking", true, "show AI thinking process")
 	queryCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "interactive mode")
 	queryCmd.Flags().StringVar(&queryFile, "file", "", "batch query from file")
 	queryCmd.Flags().StringSliceVar(&filterBy, "filter", []string{}, "filter by metadata (key=value format, can be used multiple times)")

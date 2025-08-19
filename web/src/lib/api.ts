@@ -84,7 +84,7 @@ class APIClient {
     })
   }
 
-  async query(question: string, context_only = false, filters?: Record<string, any>, show_thinking = false): Promise<APIResponse<{ answer: string; sources: SearchResult[] }>> {
+  async query(question: string, context_only = false, filters?: Record<string, any>, show_thinking = true): Promise<APIResponse<{ answer: string; sources: SearchResult[] }>> {
     return this.request('/query', {
       method: 'POST',
       body: JSON.stringify({ query: question, context_only, filters, show_thinking }),
@@ -125,7 +125,7 @@ export function useRAGChat() {
   const [isLoading, setIsLoading] = useState(false)
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; sources?: SearchResult[] }>>([])
 
-  const sendMessage = async (content: string, filters?: Record<string, any>, showThinking = false) => {
+  const sendMessage = async (content: string, filters?: Record<string, any>, showThinking = true) => {
     setIsLoading(true)
     setMessages(prev => [...prev, { role: 'user', content }])
 
@@ -153,7 +153,7 @@ export function useRAGChat() {
     }
   }
 
-  const sendMessageStream = async (content: string, filters?: Record<string, any>, onChunk?: (chunk: string) => void, showThinking = false) => {
+  const sendMessageStream = async (content: string, filters?: Record<string, any>, onChunk?: (chunk: string) => void, showThinking = true) => {
     setIsLoading(true)
     setMessages(prev => [...prev, { role: 'user', content }])
 
