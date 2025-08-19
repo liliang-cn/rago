@@ -921,8 +921,14 @@ base_url = "http://localhost:11434"
 timeout = "30s"
 
 [sqvect]
+# SQLite vector database configuration
 db_path = "./data/rag.db"
-top_k = 5</code></pre>
+vector_dim = 768
+max_conns = 10
+batch_size = 100
+top_k = 5
+threshold = 0.0
+</code></pre>
                     </div>
                 </div>
             </div>
@@ -992,15 +998,17 @@ top_k = 5</code></pre>
                         <div class="terminal-dot green"></div>
                     </div>
                     <div class="terminal-content">
-                        <div class="terminal-command">$ rago ingest ./docs/</div>
-                        <div class="terminal-output" data-i18n="terminal.processing">✓ Processing documents: 15 files
+                        <div class="terminal-command">$ rago ingest knowledge/sound-and-book-bar.md</div>
+                        <div class="terminal-output" data-i18n="terminal.processing">✓ Processing document:
+                            sound-and-book-bar.md
                         </div>
-                        <div class="terminal-output" data-i18n="terminal.vectors">✓ Generated vectors: 1,234 chunks
+                        <div class="terminal-output" data-i18n="terminal.vectors">✓ Generated vectors: 12 chunks
                         </div>
-                        <div class="terminal-command">$ rago query "<span data-i18n="terminal.query">What is
-                                RAG?</span>"</div>
-                        <div class="terminal-output" data-i18n="terminal.answer">🤖 RAG (Retrieval-Augmented Generation)
-                            is an AI technology that combines information retrieval and text generation...</div>
+                        <div class="terminal-command">$ rago query "<span data-i18n="terminal.query">where is yinshu
+                                bar</span>"</div>
+                        <div class="terminal-output" data-i18n="terminal.answer">🤖 Yinshu Bar is located at 3rd Floor,
+                            Wanda Plaza, No. 188 Aviation Road, Shuangliu District, Chengdu City. This is the official
+                            business address mentioned in the document...</div>
                     </div>
                 </div>
             </div>
@@ -1117,10 +1125,10 @@ top_k = 5</code></pre>
                 'benefits.crossplatform': '📱 跨平台支持 - 支持Windows、macOS、Linux',
                 'benefits.accurate': '🎯 精准检索 - 基于语义理解的智能搜索',
                 'benefits.deploy': '🚀 快速部署 - Docker支持，一键启动',
-                'terminal.processing': '✓ 处理文档: 15个文件',
-                'terminal.vectors': '✓ 生成向量: 1,234个片段',
-                'terminal.query': '什么是RAG？',
-                'terminal.answer': '🤖 RAG（检索增强生成）是一种结合了信息检索和文本生成的AI技术...',
+                'terminal.processing': '✓ 处理文档: 音书酒吧.md',
+                'terminal.vectors': '✓ 生成向量: 12个片段',
+                'terminal.query': '音书酒吧在哪里',
+                'terminal.answer': '🤖 音书酒吧（Yinshu Bar）位于成都市双流区航空路188号万达广场3楼。该地址是文档中明确标注的唯一营业地址...',
                 'cta.title': '准备开始了吗？',
                 'cta.description': '立即下载RAGO，体验本地化RAG系统的强大功能，让您的文档数据发挥更大价值',
                 'cta.download': '下载RAGO',
@@ -1180,10 +1188,10 @@ top_k = 5</code></pre>
                 'benefits.crossplatform': '📱 Cross-platform Support - Supports Windows, macOS, Linux',
                 'benefits.accurate': '🎯 Accurate Retrieval - Intelligent search based on semantic understanding',
                 'benefits.deploy': '🚀 Quick Deployment - Docker support, one-click startup',
-                'terminal.processing': '✓ Processing documents: 15 files',
-                'terminal.vectors': '✓ Generated vectors: 1,234 chunks',
-                'terminal.query': 'What is RAG?',
-                'terminal.answer': '🤖 RAG (Retrieval-Augmented Generation) is an AI technology that combines information retrieval and text generation...',
+                'terminal.processing': '✓ Processing document: sound-and-book-bar.md',
+                'terminal.vectors': '✓ Generated vectors: 12 chunks',
+                'terminal.query': 'where is yinshu bar',
+                'terminal.answer': '🤖 Yinshu Bar is located at 3rd Floor, Wanda Plaza, No. 188 Aviation Road, Shuangliu District, Chengdu City. This is the official business address mentioned in the document...',
                 'cta.title': 'Ready to Get Started?',
                 'cta.description': 'Download RAGO now and experience the powerful features of local RAG system, making your document data more valuable',
                 'cta.download': 'Download RAGO',
