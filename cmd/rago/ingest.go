@@ -215,11 +215,11 @@ func processText(ctx context.Context, p *processor.Service, text string) error {
 }
 
 func init() {
-	ingestCmd.Flags().IntVar(&chunkSize, "chunk-size", 300, "text chunk size")
-	ingestCmd.Flags().IntVar(&overlap, "overlap", 50, "chunk overlap size")
-	ingestCmd.Flags().IntVar(&batchSize, "batch-size", 10, "batch processing size")
-	ingestCmd.Flags().BoolVar(&recursive, "recursive", false, "process directory recursively")
+	ingestCmd.Flags().IntVarP(&chunkSize, "chunk-size", "c", 300, "text chunk size")
+	ingestCmd.Flags().IntVarP(&overlap, "overlap", "o", 50, "chunk overlap size")
+	ingestCmd.Flags().IntVarP(&batchSize, "batch-size", "b", 10, "batch processing size")
+	ingestCmd.Flags().BoolVarP(&recursive, "recursive", "r", false, "process directory recursively")
 	ingestCmd.Flags().StringVar(&textInput, "text", "", "ingest text directly instead of from file")
 	ingestCmd.Flags().StringVar(&source, "source", "", "source name for text input (default: text-input)")
-	ingestCmd.Flags().BoolVar(&extractMetadata, "extract-metadata", false, "enable automatic metadata extraction via LLM")
+	ingestCmd.Flags().BoolVarP(&extractMetadata, "extract-metadata", "e", false, "enable automatic metadata extraction via LLM")
 }
