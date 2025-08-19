@@ -15,7 +15,6 @@ type Config struct {
 	Ollama  OllamaConfig  `mapstructure:"ollama"`
 	Sqvect  SqvectConfig  `mapstructure:"sqvect"`
 	Chunker ChunkerConfig `mapstructure:"chunker"`
-	UI      UIConfig      `mapstructure:"ui"`
 }
 
 type ServerConfig struct {
@@ -45,12 +44,6 @@ type ChunkerConfig struct {
 	ChunkSize int    `mapstructure:"chunk_size"`
 	Overlap   int    `mapstructure:"overlap"`
 	Method    string `mapstructure:"method"`
-}
-
-type UIConfig struct {
-	Title       string `mapstructure:"title"`
-	Theme       string `mapstructure:"theme"`
-	MaxFileSize string `mapstructure:"max_file_size"`
 }
 
 func Load(configPath string) (*Config, error) {
@@ -108,10 +101,6 @@ func setDefaults() {
 	viper.SetDefault("chunker.chunk_size", 300)
 	viper.SetDefault("chunker.overlap", 50)
 	viper.SetDefault("chunker.method", "sentence")
-
-	viper.SetDefault("ui.title", "RAGO - Local RAG based on Ollama")
-	viper.SetDefault("ui.theme", "light")
-	viper.SetDefault("ui.max_file_size", "10MB")
 }
 
 func bindEnvVars() {

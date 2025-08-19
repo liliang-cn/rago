@@ -62,6 +62,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "quiet mode")
 
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(ingestCmd)
 	rootCmd.AddCommand(queryCmd)
 	rootCmd.AddCommand(listCmd)

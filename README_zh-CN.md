@@ -49,34 +49,58 @@ rago-cli --help
 
 ### 基本使用
 
-1. **导入文档**
+1. **初始化配置**
 
    ```bash
-   ./build/rago ingest ./docs/sample.md
-   ./build/rago ingest ./docs/ --recursive  # 递归处理目录
+   rago-cli init                    # 创建默认配置文件 config.toml
+   rago-cli init --force            # 强制覆盖现有配置文件
+   rago-cli init -o custom.toml     # 在自定义路径创建配置文件
    ```
 
-2. **查询知识库**
+2. **导入文档**
 
    ```bash
-   ./build/rago query "什么是 RAG？"
-   ./build/rago query --interactive         # 交互模式
+   rago-cli ingest ./docs/sample.md
+   rago-cli ingest ./docs/ --recursive  # 递归处理目录
    ```
 
-3. **启动 API 服务**
+3. **查询知识库**
 
    ```bash
-   ./build/rago serve --port 7127
+   rago-cli query "什么是 RAG？"
+   rago-cli query --interactive         # 交互模式
    ```
 
-4. **查看已导入文档**
+4. **启动 API 服务**
+
    ```bash
-   ./build/rago list
+   rago-cli serve --port 7127
+   ```
+
+5. **查看已导入文档**
+   ```bash
+   rago-cli list
    ```
 
 ## 📖 详细使用
 
 ### CLI 命令
+
+#### 配置管理
+
+```bash
+# 使用默认设置初始化配置
+rago init
+
+# 覆盖现有配置文件
+rago init --force
+
+# 在自定义位置创建配置
+rago init --output ./config/rago.toml
+
+# 查看 init 命令帮助
+rago init --help
+```
 
 #### 文档管理
 
@@ -361,6 +385,23 @@ go run library_usage.go
 
 ## ⚙️ 配置
 
+### 初始化配置
+
+RAGO 提供 `init` 命令来快速生成包含默认设置的配置文件：
+
+```bash
+# 创建默认设置的 config.toml
+rago init
+
+# 覆盖现有配置文件
+rago init --force
+
+# 在自定义路径创建配置文件
+rago init --output /path/to/config.toml
+```
+
+生成的配置文件包含所有可用选项，并提供开箱即用的合理默认值。
+
 ### 配置文件
 
 创建 `config.toml`：
@@ -385,11 +426,6 @@ top_k = 5
 chunk_size = 300
 overlap = 50
 method = "sentence"  # sentence, paragraph, token
-
-[ui]
-title = "RAGO - 本地 RAG 系统"
-theme = "light"
-max_file_size = "10MB"
 ```
 
 ### 环境变量
