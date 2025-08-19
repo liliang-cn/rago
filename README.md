@@ -52,41 +52,65 @@ rago-cli --help
 
 ### Basic Usage
 
-1. **Ingest Documents**
+1. **Initialize Configuration**
 
    ```bash
-   ./build/rago ingest ./docs/sample.md
-   ./build/rago ingest ./docs/ --recursive  # Process directory recursively
+   rago-cli init                    # Create config.toml with defaults
+   rago-cli init --force            # Overwrite existing config file
+   rago-cli init -o custom.toml     # Create config at custom path
    ```
 
-2. **Query Knowledge Base**
+2. **Ingest Documents**
 
    ```bash
-   ./build/rago query "What is RAG?"
-   ./build/rago query --interactive         # Interactive mode
+   rago-cli ingest ./docs/sample.md
+   rago-cli ingest ./docs/ --recursive  # Process directory recursively
    ```
 
-3. **Start API Service**
+3. **Query Knowledge Base**
 
    ```bash
-   ./build/rago serve --port 7127
+   rago-cli query "What is RAG?"
+   rago-cli query --interactive         # Interactive mode
    ```
 
-4. **Start with Web UI**
+4. **Start API Service**
 
    ```bash
-   ./build/rago serve --port 7127 --ui
+   rago-cli serve --port 7127
+   ```
+
+5. **Start with Web UI**
+
+   ```bash
+   rago-cli serve --port 7127 --ui
    # Access web interface at http://localhost:7127
    ```
 
-5. **List Imported Documents**
+6. **List Imported Documents**
    ```bash
-   ./build/rago list
+   rago-cli list
    ```
 
 ## 📖 Detailed Usage
 
 ### CLI Commands
+
+#### Configuration Management
+
+```bash
+# Initialize configuration with default settings
+rago init
+
+# Overwrite existing configuration file
+rago init --force
+
+# Create configuration at custom location
+rago init --output ./config/rago.toml
+
+# View help for init command
+rago init --help
+```
 
 #### Document Management
 
@@ -428,6 +452,23 @@ go run library_usage.go
 
 ## ⚙️ Configuration
 
+### Initialize Configuration
+
+RAGO provides an `init` command to quickly generate a configuration file with default settings:
+
+```bash
+# Create config.toml with default settings
+rago init
+
+# Overwrite existing configuration file  
+rago init --force
+
+# Create configuration at custom path
+rago init --output /path/to/config.toml
+```
+
+The generated configuration file includes all available options with sensible defaults that work out of the box.
+
 ### Configuration File
 
 Create `config.toml`:
@@ -453,11 +494,6 @@ top_k = 5
 chunk_size = 300
 overlap = 50
 method = "sentence"  # sentence, paragraph, token
-
-[ui]
-title = "RAGO - Local RAG System"
-theme = "light"
-max_file_size = "10MB"
 ```
 
 ### Environment Variables
