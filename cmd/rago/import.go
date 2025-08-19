@@ -222,5 +222,5 @@ func init() {
 	importCmd.Flags().BoolVar(&skipVectors, "skip-vectors", false, "Skip importing vector data")
 	importCmd.Flags().BoolVar(&recomputeVectors, "recompute-vectors", false, "Recompute all vector embeddings")
 
-	rootCmd.AddCommand(importCmd)
+	RootCmd.AddCommand(importCmd)
 }

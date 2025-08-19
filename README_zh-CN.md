@@ -5,7 +5,7 @@ RAGO（Retrieval-Augmented Generation Offline）是一个完全本地运行的 R
 ## 🎯 特性
 
 - **完全离线运行** - 无需外部 API，保护数据隐私
-- **多格式支持** - 支持 TXT、Markdown 等文本格式
+- **多格式支持** - 支持 PDF、TXT、Markdown 等文本格式
 - **本地向量数据库** - 基于 SQLite 的 sqvect 向量存储
 - **本地 LLM** - 通过 Ollama 调用本地模型
 - **双接口设计** - CLI 工具和 HTTP API 两种使用方式
