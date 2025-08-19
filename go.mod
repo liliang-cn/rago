@@ -3,6 +3,7 @@ module github.com/liliang-cn/rago
 go 1.24.6
 
 require (
+	github.com/dslipak/pdf v0.0.2
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
 	github.com/liliang-cn/ollama-go v0.1.2
