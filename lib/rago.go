@@ -116,10 +116,12 @@ func (c *Client) IngestText(text, source string) error {
 func (c *Client) Query(query string) (domain.QueryResponse, error) {
 	ctx := context.Background()
 	req := domain.QueryRequest{
-		Query:       query,
-		TopK:        c.config.Sqvect.TopK,
-		Temperature: 0.7,
-		MaxTokens:   500,
+		Query:        query,
+		TopK:         c.config.Sqvect.TopK,
+		Temperature:  0.7,
+		MaxTokens:    500,
+		Stream:       true,
+		ShowThinking: true,
 	}
 
 	return c.processor.Query(ctx, req)
@@ -128,11 +130,13 @@ func (c *Client) Query(query string) (domain.QueryResponse, error) {
 func (c *Client) QueryWithFilters(query string, filters map[string]interface{}) (domain.QueryResponse, error) {
 	ctx := context.Background()
 	req := domain.QueryRequest{
-		Query:       query,
-		TopK:        c.config.Sqvect.TopK,
-		Temperature: 0.7,
-		MaxTokens:   500,
-		Filters:     filters,
+		Query:        query,
+		TopK:         c.config.Sqvect.TopK,
+		Temperature:  0.7,
+		MaxTokens:    500,
+		Stream:       true,
+		ShowThinking: true,
+		Filters:      filters,
 	}
 
 	return c.processor.Query(ctx, req)
@@ -141,11 +145,12 @@ func (c *Client) QueryWithFilters(query string, filters map[string]interface{}) 
 func (c *Client) StreamQuery(query string, callback func(string)) error {
 	ctx := context.Background()
 	req := domain.QueryRequest{
-		Query:       query,
-		TopK:        c.config.Sqvect.TopK,
-		Temperature: 0.7,
-		MaxTokens:   500,
-		Stream:      true,
+		Query:        query,
+		TopK:         c.config.Sqvect.TopK,
+		Temperature:  0.7,
+		MaxTokens:    500,
+		Stream:       true,
+		ShowThinking: true,
 	}
 
 	return c.processor.StreamQuery(ctx, req, callback)
@@ -154,12 +159,13 @@ func (c *Client) StreamQuery(query string, callback func(string)) error {
 func (c *Client) StreamQueryWithFilters(query string, filters map[string]interface{}, callback func(string)) error {
 	ctx := context.Background()
 	req := domain.QueryRequest{
-		Query:       query,
-		TopK:        c.config.Sqvect.TopK,
-		Temperature: 0.7,
-		MaxTokens:   500,
-		Stream:      true,
-		Filters:     filters,
+		Query:        query,
+		TopK:         c.config.Sqvect.TopK,
+		Temperature:  0.7,
+		MaxTokens:    500,
+		Stream:       true,
+		ShowThinking: true,
+		Filters:      filters,
 	}
 
 	return c.processor.StreamQuery(ctx, req, callback)
