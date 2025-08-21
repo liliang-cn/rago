@@ -99,6 +99,14 @@ type VectorStore interface {
 	Reset(ctx context.Context) error
 }
 
+type KeywordStore interface {
+	Index(ctx context.Context, chunk Chunk) error
+	Search(ctx context.Context, query string, topK int) ([]Chunk, error)
+	Delete(ctx context.Context, documentID string) error
+	Reset(ctx context.Context) error
+	Close() error
+}
+
 type DocumentStore interface {
 	Store(ctx context.Context, doc Document) error
 	Get(ctx context.Context, id string) (Document, error)

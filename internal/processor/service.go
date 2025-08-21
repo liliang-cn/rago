@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	pdf "github.com/dslipak/pdf"
@@ -21,6 +23,7 @@ type Service struct {
 	generator     domain.Generator
 	chunker       domain.Chunker
 	vectorStore   domain.VectorStore
+	keywordStore  domain.KeywordStore
 	documentStore domain.DocumentStore
 	config        *config.Config
 	llmService    *llm.OllamaService
@@ -31,6 +34,7 @@ func New(
 	generator domain.Generator,
 	chunker domain.Chunker,
 	vectorStore domain.VectorStore,
+	keywordStore domain.KeywordStore,
 	documentStore domain.DocumentStore,
 	config *config.Config,
 	llmService *llm.OllamaService,
@@ -40,6 +44,7 @@ func New(
 		generator:     generator,
 		chunker:       chunker,
 		vectorStore:   vectorStore,
+		keywordStore:  keywordStore,
 		documentStore: documentStore,
 		config:        config,
 		llmService:    llmService,
@@ -60,7 +65,8 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 		return domain.IngestResponse{
 			Success: false,
 			Message: "no content found",
-		}, nil
+		},
+	nil
 	}
 
 	// Initialize metadata map if it's nil
@@ -131,6 +137,11 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 			Metadata:   doc.Metadata, // Pass down the combined metadata to each chunk
 		}
 		chunks = append(chunks, chunk)
+
+		// Index the chunk in the keyword store as well.
+		if err := s.keywordStore.Index(ctx, chunk); err != nil {
+			return domain.IngestResponse{}, fmt.Errorf("failed to index chunk %d in keyword store: %w", i, err)
+		}
 	}
 
 	if err := s.vectorStore.Store(ctx, chunks); err != nil {
@@ -142,7 +153,8 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 		DocumentID: doc.ID,
 		ChunkCount: len(chunks),
 		Message:    fmt.Sprintf("Successfully ingested %d chunks", len(chunks)),
-	}, nil
+	},
+	nil
 }
 
 // mergeMetadata merges the extracted metadata into the request's metadata map.
@@ -172,7 +184,6 @@ func (s *Service) addFileCreationDate(filePath string, metadata map[string]inter
 	}
 }
 
-
 func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.QueryResponse, error) {
 	start := time.Now()
 
@@ -180,35 +191,18 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 		return domain.QueryResponse{}, fmt.Errorf("%w: empty query", domain.ErrInvalidInput)
 	}
 
-	if req.TopK <= 0 {
-		req.TopK = 5
-	}
-
-	queryVector, err := s.embedder.Embed(ctx, req.Query)
+	chunks, err := s.hybridSearch(ctx, req)
 	if err != nil {
-		return domain.QueryResponse{}, fmt.Errorf("failed to generate query embedding: %w", err)
+		return domain.QueryResponse{}, err
 	}
-
-	var chunks []domain.Chunk
-	if len(req.Filters) > 0 {
-		chunks, err = s.vectorStore.SearchWithFilters(ctx, queryVector, req.TopK, req.Filters)
-	} else {
-		chunks, err = s.vectorStore.Search(ctx, queryVector, req.TopK)
-	}
-	
-	if err != nil {
-		return domain.QueryResponse{}, fmt.Errorf("failed to search vectors: %w", err)
-	}
-
-	// Deduplicate chunks by content
-	chunks = s.deduplicateChunks(chunks)
 
 	if len(chunks) == 0 {
 		return domain.QueryResponse{
 			Answer:  "很抱歉，我在知识库中找不到相关信息来回答您的问题。",
 			Sources: []domain.Chunk{},
 			Elapsed: time.Since(start).String(),
-		}, nil
+		},
+	nil
 	}
 
 	prompt := llm.ComposePrompt(chunks, req.Query)
@@ -239,7 +233,8 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 		Answer:  answer,
 		Sources: chunks,
 		Elapsed: time.Since(start).String(),
-	}, nil
+	},
+	nil
 }
 
 func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, callback func(string)) error {
@@ -251,28 +246,10 @@ func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, call
 		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
 	}
 
-	if req.TopK <= 0 {
-		req.TopK = 5
-	}
-
-	queryVector, err := s.embedder.Embed(ctx, req.Query)
+	chunks, err := s.hybridSearch(ctx, req)
 	if err != nil {
-		return fmt.Errorf("failed to generate query embedding: %w", err)
+		return err
 	}
-
-	var chunks []domain.Chunk
-	if len(req.Filters) > 0 {
-		chunks, err = s.vectorStore.SearchWithFilters(ctx, queryVector, req.TopK, req.Filters)
-	} else {
-		chunks, err = s.vectorStore.Search(ctx, queryVector, req.TopK)
-	}
-	
-	if err != nil {
-		return fmt.Errorf("failed to search vectors: %w", err)
-	}
-
-	// Deduplicate chunks by content
-	chunks = s.deduplicateChunks(chunks)
 
 	if len(chunks) == 0 {
 		callback("很抱歉，我在知识库中找不到相关信息来回答您的问题。")
@@ -296,6 +273,94 @@ func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, call
 	return s.generator.Stream(ctx, prompt, genOpts, s.wrapCallbackForThinking(callback, req.ShowThinking))
 }
 
+func (s *Service) hybridSearch(ctx context.Context, req domain.QueryRequest) ([]domain.Chunk, error) {
+	if req.TopK <= 0 {
+		req.TopK = 5
+	}
+
+	var wg sync.WaitGroup
+	var vectorErr, keywordErr error
+	var vectorChunks, keywordChunks []domain.Chunk
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		queryVector, err := s.embedder.Embed(ctx, req.Query)
+		if err != nil {
+			vectorErr = fmt.Errorf("failed to generate query embedding: %w", err)
+			return
+		}
+
+		if len(req.Filters) > 0 {
+			vectorChunks, vectorErr = s.vectorStore.SearchWithFilters(ctx, queryVector, req.TopK, req.Filters)
+		} else {
+			vectorChunks, vectorErr = s.vectorStore.Search(ctx, queryVector, req.TopK)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		keywordChunks, keywordErr = s.keywordStore.Search(ctx, req.Query, req.TopK)
+	}()
+
+	wg.Wait()
+
+	if vectorErr != nil {
+		log.Printf("Warning: vector search failed: %v", vectorErr)
+		// Do not return error, proceed with keyword results if available
+	}
+	if keywordErr != nil {
+		log.Printf("Warning: keyword search failed: %v", keywordErr)
+		// Do not return error, proceed with vector results if available
+	}
+
+	fusedChunks := s.fuseResults(vectorChunks, keywordChunks)
+
+	return s.deduplicateChunks(fusedChunks), nil
+}
+
+// fuseResults combines and re-ranks search results using Reciprocal Rank Fusion (RRF).
+func (s *Service) fuseResults(listA, listB []domain.Chunk) []domain.Chunk {
+	const k = 60 // RRF constant
+
+	scores := make(map[string]float64)
+	chunksMap := make(map[string]domain.Chunk)
+
+	// Process first list
+	for i, chunk := range listA {
+		rank := i + 1
+		scores[chunk.ID] += 1.0 / float64(k+rank)
+		if _, exists := chunksMap[chunk.ID]; !exists {
+			chunksMap[chunk.ID] = chunk
+		}
+	}
+
+	// Process second list
+	for i, chunk := range listB {
+		rank := i + 1
+		scores[chunk.ID] += 1.0 / float64(k+rank)
+		if _, exists := chunksMap[chunk.ID]; !exists {
+			chunksMap[chunk.ID] = chunk
+		}
+	}
+
+	// Create a slice of unique chunks
+	var fused []domain.Chunk
+	for id := range chunksMap {
+		chunk := chunksMap[id]
+		chunk.Score = scores[id] // Assign the fused RRF score
+		fused = append(fused, chunk)
+	}
+
+	// Sort by the new RRF score in descending order
+	sort.Slice(fused, func(i, j int) bool {
+		return fused[i].Score > fused[j].Score
+	})
+
+	return fused
+}
+
 func (s *Service) ListDocuments(ctx context.Context) ([]domain.Document, error) {
 	return s.documentStore.List(ctx)
 }
@@ -309,6 +374,10 @@ func (s *Service) DeleteDocument(ctx context.Context, documentID string) error {
 		return fmt.Errorf("failed to delete from vector store: %w", err)
 	}
 
+	if err := s.keywordStore.Delete(ctx, documentID); err != nil {
+		return fmt.Errorf("failed to delete from keyword store: %w", err)
+	}
+
 	if err := s.documentStore.Delete(ctx, documentID); err != nil {
 		return fmt.Errorf("failed to delete from document store: %w", err)
 	}
@@ -319,6 +388,10 @@ func (s *Service) DeleteDocument(ctx context.Context, documentID string) error {
 func (s *Service) Reset(ctx context.Context) error {
 	if err := s.vectorStore.Reset(ctx); err != nil {
 		return fmt.Errorf("failed to reset vector store: %w", err)
+	}
+
+	if err := s.keywordStore.Reset(ctx); err != nil {
+		return fmt.Errorf("failed to reset keyword store: %w", err)
 	}
 
 	return nil
@@ -475,7 +548,7 @@ func (s *Service) wrapCallbackForThinking(callback func(string), showThinking bo
 				// Look for start of thinking block
 				if idx := strings.Index(content, "<think>"); idx != -1 {
 					// Send content before thinking block
-					if idx > 0 {
+				if idx > 0 {
 						callback(content[:idx])
 					}
 					inThinking = true
@@ -485,7 +558,7 @@ func (s *Service) wrapCallbackForThinking(callback func(string), showThinking bo
 					continue
 				} else {
 					// No thinking block start, send everything
-					if content != "" {
+				if content != "" {
 						callback(content)
 						buffer.Reset()
 					}
