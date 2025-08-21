@@ -94,6 +94,10 @@ batch_size = 100
 top_k = 5
 threshold = 0.0
 
+[keyword]
+# Bleve keyword index configuration
+index_path = "./data/keyword.bleve"
+
 [chunker]
 # Document chunking configuration
 chunk_size = 300
@@ -114,10 +118,14 @@ func initializeDatabase(configPath string) error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Create data directory if it doesn't exist
+	// Create data directories if they don't exist
 	dbDir := filepath.Dir(cfg.Sqvect.DBPath)
 	if err := os.MkdirAll(dbDir, 0755); err != nil {
 		return fmt.Errorf("failed to create database directory %s: %w", dbDir, err)
+	}
+	keywordDir := filepath.Dir(cfg.Keyword.IndexPath)
+	if err := os.MkdirAll(keywordDir, 0755); err != nil {
+		return fmt.Errorf("failed to create keyword index directory %s: %w", keywordDir, err)
 	}
 
 	// Initialize SQLite vector store
@@ -131,6 +139,13 @@ func initializeDatabase(configPath string) error {
 		return fmt.Errorf("failed to initialize vector store: %w", err)
 	}
 	defer vectorStore.Close()
+
+	// Initialize Bleve keyword store
+	keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize keyword store: %w", err)
+	}
+	defer keywordStore.Close()
 
 	return nil
 }
