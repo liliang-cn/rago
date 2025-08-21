@@ -76,13 +76,22 @@ func (s *KeywordStore) Search(ctx context.Context, query string, topK int) ([]do
 		// Safely extract fields with type checking
 		var content, documentID string
 		
-		if contentField, ok := hit.Fields["Content"]; ok && contentField != nil {
+		// Try different possible field names that Bleve might use
+		if contentField, ok := hit.Fields["content"]; ok && contentField != nil {
+			if contentStr, ok := contentField.(string); ok {
+				content = contentStr
+			}
+		} else if contentField, ok := hit.Fields["Content"]; ok && contentField != nil {
 			if contentStr, ok := contentField.(string); ok {
 				content = contentStr
 			}
 		}
 		
-		if docIDField, ok := hit.Fields["DocumentID"]; ok && docIDField != nil {
+		if docIDField, ok := hit.Fields["document_id"]; ok && docIDField != nil {
+			if docIDStr, ok := docIDField.(string); ok {
+				documentID = docIDStr
+			}
+		} else if docIDField, ok := hit.Fields["DocumentID"]; ok && docIDField != nil {
 			if docIDStr, ok := docIDField.(string); ok {
 				documentID = docIDStr
 			}
@@ -106,13 +115,23 @@ func (s *KeywordStore) Search(ctx context.Context, query string, topK int) ([]do
 // Delete removes all chunks associated with a given documentID from the store.
 func (s *KeywordStore) Delete(ctx context.Context, documentID string) error {
 	query := bleve.NewTermQuery(documentID)
-	query.SetField("DocumentID")
+	// Try both possible field names
+	query.SetField("document_id")
 
 	searchRequest := bleve.NewSearchRequest(query)
 	searchRequest.Size = 1000 // Adjust size as needed, or implement pagination
 	searchResult, err := s.index.Search(searchRequest)
 	if err != nil {
 		return err
+	}
+
+	// If no results with lowercase field name, try uppercase
+	if len(searchResult.Hits) == 0 {
+		query.SetField("DocumentID")
+		searchResult, err = s.index.Search(searchRequest)
+		if err != nil {
+			return err
+		}
 	}
 
 	batch := s.index.NewBatch()
@@ -144,7 +163,9 @@ func (s *KeywordStore) Reset(ctx context.Context) error {
 // Close closes the underlying Bleve index.
 func (s *KeywordStore) Close() error {
 	if s.index != nil {
-		return s.index.Close()
+		err := s.index.Close()
+		s.index = nil // Prevent double close
+		return err
 	}
 	return nil
 }
