@@ -41,6 +41,11 @@ func Execute() error {
 	return RootCmd.Execute()
 }
 
+// GetRootCmd returns the root cobra command for testing purposes.
+func GetRootCmd() *cobra.Command {
+	return RootCmd
+}
+
 // SetVersion sets the version for the CLI
 func SetVersion(v string) {
 	version = v

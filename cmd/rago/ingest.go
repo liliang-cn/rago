@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 
 	"github.com/liliang-cn/rago/internal/chunker"
 	"github.com/liliang-cn/rago/internal/domain"
@@ -17,13 +19,14 @@ import (
 )
 
 var (
-	chunkSize         int
-	overlap           int
-	batchSize         int
-	recursive         bool
-	textInput         string
-	source            string
-	extractMetadata   bool
+	chunkSize       int
+	overlap         int
+	batchSize       int
+	recursive       bool
+	textInput       string
+	source          string
+	extractMetadata bool
+	concurrency     int
 )
 
 var ingestCmd = &cobra.Command{
@@ -31,7 +34,7 @@ var ingestCmd = &cobra.Command{
 	Short: "Import documents into vector database",
 	Long: `Chunk document content, vectorize and store into local vector database.
 Supports text format files like .txt, .md, .pdf, etc.
-You can also use --text flag to ingest text directly.`,
+You can also use --text flag to ingest text directly.`, 
 	Args: func(cmd *cobra.Command, args []string) error {
 		if textInput != "" {
 			if len(args) > 0 {
@@ -47,6 +50,7 @@ You can also use --text flag to ingest text directly.`,
 			cfg.Ingest.MetadataExtraction.Enable = true
 		}
 
+		// Initialize stores
 		vectorStore, err := store.NewSQLiteStore(
 			cfg.Sqvect.DBPath,
 			cfg.Sqvect.VectorDim,
@@ -56,14 +60,17 @@ You can also use --text flag to ingest text directly.`,
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)
 		}
-		defer func() {
-			if closeErr := vectorStore.Close(); closeErr != nil {
-				fmt.Printf("Warning: failed to close vector store: %v\n", closeErr)
-			}
-		}()
+		defer vectorStore.Close()
+
+		keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
+		if err != nil {
+			return fmt.Errorf("failed to create keyword store: %w", err)
+		}
+		defer keywordStore.Close()
 
 		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
+		// Initialize services
 		embedService, err := embedder.NewOllamaService(
 			cfg.Ollama.BaseURL,
 			cfg.Ollama.EmbeddingModel,
@@ -87,6 +94,7 @@ You can also use --text flag to ingest text directly.`,
 			nil, // generator not needed for ingest
 			chunkerService,
 			vectorStore,
+			keywordStore,
 			docStore,
 			cfg,
 			llmService,
@@ -94,7 +102,7 @@ You can also use --text flag to ingest text directly.`,
 
 		ctx := context.Background()
 
-		// Handle text input
+		// Handle text input (not concurrent)
 		if textInput != "" {
 			return processText(ctx, processor, textInput)
 		}
@@ -105,29 +113,62 @@ You can also use --text flag to ingest text directly.`,
 		}
 		path := args[0]
 
-		if err := processPath(ctx, processor, path); err != nil {
+		// Setup for concurrent processing
+		var wg sync.WaitGroup
+		jobs := make(chan string, 100) // Buffered channel for file paths
+
+		// Start workers
+		for i := 0; i < concurrency; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for filePath := range jobs {
+					if !quiet {
+						fmt.Printf("Processing: %s\n", filePath)
+					}
+					err := processFile(ctx, processor, filePath)
+					if err != nil {
+						if !quiet {
+							log.Printf("Warning: failed to process %s: %v", filePath, err)
+						}
+					}
+				}
+			}()
+		}
+
+		// Start producer
+		err = processPath(ctx, jobs, path)
+		if err != nil {
+			// Close channel to unblock workers before returning error
+			close(jobs)
 			return err
 		}
+
+		// Close channel and wait for workers to finish
+		close(jobs)
+		wg.Wait()
 
 		fmt.Printf("Successfully ingested documents from: %s\n", path)
 		return nil
 	},
 }
 
-func processPath(ctx context.Context, p *processor.Service, path string) error {
+func processPath(ctx context.Context, jobs chan<- string, path string) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return fmt.Errorf("failed to stat path %s: %w", path, err)
 	}
 
 	if info.IsDir() {
-		return processDirectory(ctx, p, path)
+		return processDirectory(ctx, jobs, path)
 	}
 
-	return processFile(ctx, p, path)
+	// For a single file, just send it to the jobs channel
+	jobs <- path
+	return nil
 }
 
-func processDirectory(ctx context.Context, p *processor.Service, dirPath string) error {
+func processDirectory(ctx context.Context, jobs chan<- string, dirPath string) error {
 	if !recursive {
 		return fmt.Errorf("directory processing requires --recursive flag")
 	}
@@ -137,25 +178,17 @@ func processDirectory(ctx context.Context, p *processor.Service, dirPath string)
 			if !quiet {
 				log.Printf("Warning: failed to access %s: %v", path, err)
 			}
-			return nil
+			return nil // Continue walking
 		}
 
 		if info.IsDir() {
-			return nil
+			return nil // Continue walking
 		}
 
 		ext := filepath.Ext(path)
 		switch ext {
-		case ".txt", ".md", ".markdown":
-			if !quiet {
-				fmt.Printf("Processing: %s\n", path)
-			}
-
-			if err := processFile(ctx, p, path); err != nil {
-				if !quiet {
-					log.Printf("Warning: failed to process %s: %v", path, err)
-				}
-			}
+		case ".txt", ".md", ".markdown", ".pdf":
+			jobs <- path
 		default:
 			if verbose {
 				log.Printf("Skipping unsupported file: %s", path)
@@ -222,4 +255,5 @@ func init() {
 	ingestCmd.Flags().StringVar(&textInput, "text", "", "ingest text directly instead of from file")
 	ingestCmd.Flags().StringVar(&source, "source", "", "source name for text input (default: text-input)")
 	ingestCmd.Flags().BoolVarP(&extractMetadata, "extract-metadata", "e", false, "enable automatic metadata extraction via LLM")
+	ingestCmd.Flags().IntVar(&concurrency, "concurrency", runtime.NumCPU(), "number of concurrent workers for ingestion")
 }

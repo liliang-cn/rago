@@ -16,11 +16,12 @@ import (
 )
 
 type Client struct {
-	config    *config.Config
-	processor *processor.Service
-	store     *store.SQLiteStore
-	embedder  *embedder.OllamaService
-	llm       *llm.OllamaService
+	config       *config.Config
+	processor    *processor.Service
+	vectorStore  *store.SQLiteStore
+	keywordStore *store.KeywordStore
+	embedder     *embedder.OllamaService
+	llm          *llm.OllamaService
 }
 
 func New(configPath string) (*Client, error) {
@@ -43,6 +44,12 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 		return nil, fmt.Errorf("failed to create vector store: %w", err)
 	}
 
+	keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
+	if err != nil {
+		vectorStore.Close() // clean up previous store
+		return nil, fmt.Errorf("failed to create keyword store: %w", err)
+	}
+
 	docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
 	embedService, err := embedder.NewOllamaService(
@@ -50,6 +57,8 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 		cfg.Ollama.EmbeddingModel,
 	)
 	if err != nil {
+		vectorStore.Close()
+		keywordStore.Close()
 		return nil, fmt.Errorf("failed to create embedder: %w", err)
 	}
 
@@ -58,6 +67,8 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 		cfg.Ollama.LLMModel,
 	)
 	if err != nil {
+		vectorStore.Close()
+		keywordStore.Close()
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
 	}
 
@@ -68,17 +79,19 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 		llmService,
 		chunkerService,
 		vectorStore,
+		keywordStore,
 		docStore,
 		cfg,
 		llmService,
 	)
 
 	return &Client{
-		config:    cfg,
-		processor: processor,
-		store:     vectorStore,
-		embedder:  embedService,
-		llm:       llmService,
+		config:       cfg,
+		processor:    processor,
+		vectorStore:  vectorStore,
+		keywordStore: keywordStore,
+		embedder:     embedService,
+		llm:          llmService,
 	}, nil
 }
 
@@ -187,8 +200,21 @@ func (c *Client) Reset() error {
 }
 
 func (c *Client) Close() error {
-	if c.store != nil {
-		return c.store.Close()
+	var errs []error
+	if c.vectorStore != nil {
+		if err := c.vectorStore.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close vector store: %w", err))
+		}
+	}
+	if c.keywordStore != nil {
+		if err := c.keywordStore.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close keyword store: %w", err))
+		}
+	}
+
+	if len(errs) > 0 {
+		// Return a single error wrapping all close errors
+		return fmt.Errorf("failed to close client resources: %v", errs)
 	}
 	return nil
 }

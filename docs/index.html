@@ -861,15 +861,15 @@
     <section id="installation" class="installation">
         <div class="container">
             <div class="section-header">
-                <h2 class="section-title" data-i18n="installation.title">Quick Installation</h2>
+                <h2 class="section-title" data-i18n="installation.title">Build from Source</h2>
                 <p class="section-subtitle" data-i18n="installation.subtitle">
-                    Use Go command to install RAGO with one click and quickly start your local RAG journey
+                    Use make to build the RAGO binary
                 </p>
             </div>
             <div class="installation-content">
                 <div class="install-command">
                     <div class="command-header">
-                        <h3 data-i18n="installation.command.title">Installation Command</h3>
+                        <h3 data-i18n="installation.command.title">Build Command</h3>
                     </div>
                     <div class="terminal">
                         <div class="terminal-header">
@@ -878,11 +878,10 @@
                             <div class="terminal-dot green"></div>
                         </div>
                         <div class="terminal-content">
-                            <div class="terminal-command">$ go install github.com/liliang-cn/rago/cmd/rago-cli@latest
-                            </div>
-                            <div class="terminal-output" data-i18n="installation.installing">Installing...</div>
-                            <div class="terminal-command">$ rago-cli --help</div>
-                            <div class="terminal-output" data-i18n="installation.help">Show help information</div>
+                            <div class="terminal-command">$ git clone https://github.com/liliang-cn/rago.git</div>
+                            <div class="terminal-command">$ cd rago</div>
+                            <div class="terminal-command">$ make build</div>
+                            <div class="terminal-output" data-i18n="installation.help">The binary is in ./build/rago</div>
                         </div>
                     </div>
                 </div>
@@ -1108,11 +1107,10 @@ threshold = 0.0
                 'features.web.desc': '内置现代化Web界面，支持拖拽上传和实时对话',
                 'features.interface.title': '双重接口',
                 'features.interface.desc': '同时提供CLI工具和HTTP API，满足不同使用场景',
-                'installation.title': '快速安装',
-                'installation.subtitle': '使用Go命令一键安装RAGO，快速开始您的本地RAG之旅',
-                'installation.command.title': '安装命令',
-                'installation.installing': '正在安装...',
-                'installation.help': '显示帮助信息',
+                'installation.title': '从源码构建',
+                'installation.subtitle': '使用 make 构建 RAGO 二进制文件',
+                'installation.command.title': '构建命令',
+                'installation.help': '二进制文件位于 ./build/rago',
                 'config.title': '基本配置',
                 'config.subtitle': '创建配置文件以自定义RAGO的行为和参数',
                 'config.create.title': '创建 config.toml',
@@ -1171,11 +1169,10 @@ threshold = 0.0
                 'features.web.desc': 'Built-in modern web interface, supporting drag-and-drop upload and real-time chat',
                 'features.interface.title': 'Dual Interface',
                 'features.interface.desc': 'Provides both CLI tools and HTTP API to meet different usage scenarios',
-                'installation.title': 'Quick Installation',
-                'installation.subtitle': 'Use Go command to install RAGO with one click and quickly start your local RAG journey',
-                'installation.command.title': 'Installation Command',
-                'installation.installing': 'Installing...',
-                'installation.help': 'Show help information',
+                'installation.title': 'Build from Source',
+                'installation.subtitle': 'Use make to build the RAGO binary',
+                'installation.command.title': 'Build Command',
+                'installation.help': 'The binary is in ./build/rago',
                 'config.title': 'Basic Configuration',
                 'config.subtitle': 'Create configuration file to customize RAGO behavior and parameters',
                 'config.create.title': 'Create config.toml',

@@ -44,6 +44,7 @@ var serveCmd = &cobra.Command{
 			enableUI = cfg.Server.EnableUI
 		}
 
+		// Initialize stores
 		vectorStore, err := store.NewSQLiteStore(
 			cfg.Sqvect.DBPath,
 			cfg.Sqvect.VectorDim,
@@ -53,14 +54,17 @@ var serveCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)
 		}
-		defer func() {
-			if closeErr := vectorStore.Close(); closeErr != nil {
-				fmt.Printf("Warning: failed to close vector store: %v\n", closeErr)
-			}
-		}()
+		defer vectorStore.Close()
+
+		keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
+		if err != nil {
+			return fmt.Errorf("failed to create keyword store: %w", err)
+		}
+		defer keywordStore.Close()
 
 		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
+		// Initialize services
 		embedService, err := embedder.NewOllamaService(
 			cfg.Ollama.BaseURL,
 			cfg.Ollama.EmbeddingModel,
@@ -84,6 +88,7 @@ var serveCmd = &cobra.Command{
 			llmService,
 			chunkerService,
 			vectorStore,
+			keywordStore,
 			docStore,
 			cfg,
 			llmService,

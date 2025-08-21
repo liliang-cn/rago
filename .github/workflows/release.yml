@@ -56,7 +56,7 @@ jobs:
             fi
             
             echo "Building for $os/$arch..."
-            GOOS=$os GOARCH=$arch go build -ldflags="-X main.version=$VERSION" -o "dist/$output_name" ./cmd/rago-cli
+            GOOS=$os GOARCH=$arch go build -ldflags="-X main.version=$VERSION" -o "dist/$output_name" .
             
             # Create archive
             if [ "$os" = "windows" ]; then

@@ -44,52 +44,56 @@ make build
 #### Option 2: Install using go install
 
 ```bash
-go install github.com/liliang-cn/rago/cmd/rago-cli@latest
+go install github.com/liliang-cn/rago@latest
 
-# The binary will be named 'rago-cli'
-rago-cli --help
+# The binary will be named 'rago'
+rago --help
 ```
 
+
+
 ### Basic Usage
+
+After building the project with `make build`, you can use the `rago` binary in the `build` directory.
 
 1. **Initialize Configuration**
 
    ```bash
-   rago-cli init                    # Create config.toml with defaults
-   rago-cli init --force            # Overwrite existing config file
-   rago-cli init -o custom.toml     # Create config at custom path
+   ./build/rago init                    # Create config.toml with defaults
+   ./build/rago init --force            # Overwrite existing config file
+   ./build/rago init -o custom.toml     # Create config at custom path
    ```
 
 2. **Ingest Documents**
 
    ```bash
-   rago-cli ingest ./docs/sample.md
-   rago-cli ingest ./docs/ --recursive  # Process directory recursively
+   ./build/rago ingest ./docs/sample.md
+   ./build/rago ingest ./docs/ --recursive  # Process directory recursively
    ```
 
 3. **Query Knowledge Base**
 
    ```bash
-   rago-cli query "What is RAG?"
-   rago-cli query --interactive         # Interactive mode
+   ./build/rago query "What is RAG?"
+   ./build/rago query --interactive         # Interactive mode
    ```
 
 4. **Start API Service**
 
    ```bash
-   rago-cli serve --port 7127
+   ./build/rago serve --port 7127
    ```
 
 5. **Start with Web UI**
 
    ```bash
-   rago-cli serve --port 7127 --ui
+   ./build/rago serve --port 7127 --ui
    # Access web interface at http://localhost:7127
    ```
 
 6. **List Imported Documents**
    ```bash
-   rago-cli list
+   ./build/rago list
    ```
 
 ## 📖 Detailed Usage

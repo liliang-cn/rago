@@ -43,15 +43,21 @@ var resetCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)
 		}
-		defer func() {
-			if closeErr := vectorStore.Close(); closeErr != nil {
-				fmt.Printf("Warning: failed to close vector store: %v\n", closeErr)
-			}
-		}()
+		defer vectorStore.Close()
+
+		keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
+		if err != nil {
+			return fmt.Errorf("failed to create keyword store: %w", err)
+		}
+		defer keywordStore.Close()
 
 		ctx := context.Background()
 		if err := vectorStore.Reset(ctx); err != nil {
-			return fmt.Errorf("failed to reset database: %w", err)
+			return fmt.Errorf("failed to reset vector store: %w", err)
+		}
+
+		if err := keywordStore.Reset(ctx); err != nil {
+			return fmt.Errorf("failed to reset keyword store: %w", err)
 		}
 
 		fmt.Println("Database has been reset successfully.")

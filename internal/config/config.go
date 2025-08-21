@@ -14,6 +14,7 @@ type Config struct {
 	Server  ServerConfig  `mapstructure:"server"`
 	Ollama  OllamaConfig  `mapstructure:"ollama"`
 	Sqvect  SqvectConfig  `mapstructure:"sqvect"`
+	Keyword KeywordConfig `mapstructure:"keyword"`
 	Chunker ChunkerConfig `mapstructure:"chunker"`
 	Ingest  IngestConfig  `mapstructure:"ingest"`
 }
@@ -48,6 +49,10 @@ type SqvectConfig struct {
 	BatchSize int     `mapstructure:"batch_size"`
 	TopK      int     `mapstructure:"top_k"`
 	Threshold float64 `mapstructure:"threshold"`
+}
+
+type KeywordConfig struct {
+	IndexPath string `mapstructure:"index_path"`
 }
 
 type ChunkerConfig struct {
@@ -108,6 +113,8 @@ func setDefaults() {
 	viper.SetDefault("sqvect.top_k", 5)
 	viper.SetDefault("sqvect.threshold", 0.0)
 
+	viper.SetDefault("keyword.index_path", "./data/keyword.bleve")
+
 	viper.SetDefault("chunker.chunk_size", 300)
 	viper.SetDefault("chunker.overlap", 50)
 	viper.SetDefault("chunker.method", "sentence")
@@ -162,6 +169,10 @@ func bindEnvVars() {
 		log.Printf("Warning: failed to bind sqvect.threshold env var: %v", err)
 	}
 
+	if err := viper.BindEnv("keyword.index_path", "RAGO_KEYWORD_INDEX_PATH"); err != nil {
+		log.Printf("Warning: failed to bind keyword.index_path env var: %v", err)
+	}
+
 	if err := viper.BindEnv("chunker.chunk_size", "RAGO_CHUNKER_CHUNK_SIZE"); err != nil {
 		log.Printf("Warning: failed to bind chunker.chunk_size env var: %v", err)
 	}
@@ -203,6 +214,10 @@ func (c *Config) Validate() error {
 
 	if c.Sqvect.DBPath == "" {
 		return fmt.Errorf("database path cannot be empty")
+	}
+
+	if c.Keyword.IndexPath == "" {
+		return fmt.Errorf("keyword index path cannot be empty")
 	}
 
 	if c.Sqvect.VectorDim <= 0 {

@@ -43,13 +43,8 @@ jobs:
       - name: Build UI
         run: make build-web
 
-      - name: Run tests
-        run: make test
-
-      - name: Run linter
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: latest
+      - name: Run checks (lint, unit tests)
+        run: make check
 
       - name: Build
         run: make build-all
