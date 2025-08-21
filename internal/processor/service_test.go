@@ -116,6 +116,29 @@ func (m *mockVectorStore) Reset(ctx context.Context) error {
 	return nil
 }
 
+type mockKeywordStore struct {
+	err error
+}
+
+func (m *mockKeywordStore) Index(ctx context.Context, chunk domain.Chunk) error {
+	return m.err
+}
+func (m *mockKeywordStore) Search(ctx context.Context, query string, topK int) ([]domain.Chunk, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return []domain.Chunk{}, nil
+}
+func (m *mockKeywordStore) Delete(ctx context.Context, documentID string) error {
+	return m.err
+}
+func (m *mockKeywordStore) Reset(ctx context.Context) error {
+	return m.err
+}
+func (m *mockKeywordStore) Close() error {
+	return m.err
+}
+
 type mockDocumentStore struct {
 	documents map[string]domain.Document
 	err       error
@@ -186,6 +209,7 @@ func TestService_Ingest(t *testing.T) {
 					&mockGenerator{response: "test response"},
 					&mockChunker{chunks: []string{"This is test content.", "It has multiple sentences."}},
 					&mockVectorStore{},
+					&mockKeywordStore{},
 					newMockDocumentStore(),
 					cfg,
 					nil, // No llm service needed for this test case
@@ -206,6 +230,7 @@ func TestService_Ingest(t *testing.T) {
 					&mockGenerator{},
 					&mockChunker{},
 					&mockVectorStore{},
+					&mockKeywordStore{},
 					newMockDocumentStore(),
 					cfg,
 					nil,
@@ -267,6 +292,7 @@ func TestService_Query(t *testing.T) {
 					&mockGenerator{response: "test response"},
 					&mockChunker{},
 					mockVS,
+					&mockKeywordStore{},
 					newMockDocumentStore(),
 					cfg,
 					nil,
@@ -287,6 +313,7 @@ func TestService_Query(t *testing.T) {
 					&mockGenerator{},
 					&mockChunker{},
 					&mockVectorStore{},
+					&mockKeywordStore{},
 					newMockDocumentStore(),
 					cfg,
 					nil,

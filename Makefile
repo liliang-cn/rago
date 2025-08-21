@@ -18,6 +18,9 @@ GOMOD=$(GOCMD) mod
 GOFMT=gofmt
 GOLINT=golangci-lint
 
+# Package variables
+UNIT_TEST_PKGS=$(shell go list ./... | grep -v /integration_test)
+
 # Default target
 all: build-all
 
@@ -32,7 +35,7 @@ build-web: install-web
 	@cd web && npm run build
 
 ## build-all: Build both web UI and Go binary
-build-all: build-web build-cli
+build-all: build-web build
 	@echo "Build complete!"
 
 ## dev-web: Start web development server
@@ -40,15 +43,7 @@ dev-web:
 	@echo "Starting web development server..."
 	@cd web && npm run dev
 
-## dev-ui: Start server with UI enabled (development mode)
-dev-ui: build-web
-	@echo "Starting server with UI (development mode)..."
-	@$(GOCMD) run ./cmd/rago-cli serve --ui --port 7127 --host 0.0.0.0
 
-## serve-lan: Start server with UI enabled for LAN access
-serve-lan: build-web
-	@echo "Starting server with UI for LAN access..."
-	@$(GOCMD) run ./cmd/rago-cli serve --ui --port 7127 --host 0.0.0.0
 
 ## clean-web: Clean web build artifacts
 clean-web:
@@ -66,11 +61,7 @@ build:
 	@mkdir -p $(BUILD_DIR)
 	@$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) .
 
-## build-cli: Build the CLI binary for go install
-build-cli:
-	@echo "Building $(BINARY_NAME)-cli..."
-	@mkdir -p $(BUILD_DIR)
-	@$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-cli ./cmd/rago-cli
+
 
 ## clean: Clean build files
 clean: clean-web
@@ -78,16 +69,21 @@ clean: clean-web
 	@$(GOCLEAN)
 	@rm -rf $(BUILD_DIR)
 
-## test: Run tests
+## test: Run unit tests
 test:
-	@echo "Running tests..."
-	@$(GOTEST) -v -race -coverprofile=coverage.out ./...
+	@echo "Running unit tests..."
+	@$(GOTEST) -v -race -coverprofile=coverage.out $(UNIT_TEST_PKGS)
 
-## test-coverage: Run tests with coverage
+## test-coverage: Run unit tests with coverage
 test-coverage: test
 	@echo "Generating coverage report..."
 	@$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
+
+## test-integration: Run integration tests
+test-integration:
+	@echo "Running integration tests..."
+	@$(GOTEST) -v -race ./integration_test/...
 
 ## deps: Download dependencies
 deps:
@@ -130,10 +126,7 @@ install:
 	@echo "Installing $(BINARY_NAME)..."
 	@$(GOCMD) install $(LDFLAGS) .
 
-## install-cli: Install the CLI binary (for distribution)
-install-cli:
-	@echo "Installing $(BINARY_NAME)-cli..."
-	@$(GOCMD) install $(LDFLAGS) ./cmd/rago-cli
+
 
 ## docker-build: Build docker image
 docker-build:
@@ -175,7 +168,7 @@ serve:
 	@echo "Starting server..."
 	@$(GOCMD) run . serve
 
-## check: Run all checks (fmt, vet, lint, test)
+## check: Run all checks (fmt, vet, lint, unit tests)
 check: fmt vet lint test
 	@echo "All checks passed!"
 

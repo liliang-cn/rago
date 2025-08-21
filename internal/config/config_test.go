@@ -30,6 +30,9 @@ func TestConfig_Validate(t *testing.T) {
 					BatchSize: 100,
 					TopK:      5,
 				},
+				Keyword: KeywordConfig{
+					IndexPath: "./data/keyword.bleve",
+				},
 				Chunker: ChunkerConfig{
 					ChunkSize: 300,
 					Overlap:   50,

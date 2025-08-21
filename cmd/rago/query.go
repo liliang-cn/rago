@@ -33,6 +33,7 @@ var queryCmd = &cobra.Command{
 	Long: `Perform semantic search and Q&A based on imported documents.
 You can provide a question as an argument or use interactive mode.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Initialize stores
 		vectorStore, err := store.NewSQLiteStore(
 			cfg.Sqvect.DBPath,
 			cfg.Sqvect.VectorDim,
@@ -42,14 +43,17 @@ You can provide a question as an argument or use interactive mode.`,
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)
 		}
-		defer func() {
-			if closeErr := vectorStore.Close(); closeErr != nil {
-				fmt.Printf("Warning: failed to close vector store: %v\n", closeErr)
-			}
-		}()
+		defer vectorStore.Close()
+
+		keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
+		if err != nil {
+			return fmt.Errorf("failed to create keyword store: %w", err)
+		}
+		defer keywordStore.Close()
 
 		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
+		// Initialize services
 		embedService, err := embedder.NewOllamaService(
 			cfg.Ollama.BaseURL,
 			cfg.Ollama.EmbeddingModel,
@@ -73,6 +77,7 @@ You can provide a question as an argument or use interactive mode.`,
 			llmService,
 			chunkerService,
 			vectorStore,
+			keywordStore,
 			docStore,
 			cfg,
 			llmService,

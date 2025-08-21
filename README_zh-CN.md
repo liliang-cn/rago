@@ -41,45 +41,49 @@ make build
 #### 方式二：使用 go install 安装
 
 ```bash
-go install github.com/liliang-cn/rago/cmd/rago-cli@latest
+go install github.com/liliang-cn/rago@latest
 
-# 二进制文件名为 'rago-cli'
-rago-cli --help
+# 二进制文件名为 'rago'
+rago --help
 ```
 
+
+
 ### 基本使用
+
+使用 `make build` 构建项目后, 你可以在 `build` 目录中使用 `rago` 二进制文件。
 
 1. **初始化配置**
 
    ```bash
-   rago-cli init                    # 创建默认配置文件 config.toml
-   rago-cli init --force            # 强制覆盖现有配置文件
-   rago-cli init -o custom.toml     # 在自定义路径创建配置文件
+   ./build/rago init                    # 创建默认配置文件 config.toml
+   ./build/rago init --force            # 强制覆盖现有配置文件
+   ./build/rago init -o custom.toml     # 在自定义路径创建配置文件
    ```
 
 2. **导入文档**
 
    ```bash
-   rago-cli ingest ./docs/sample.md
-   rago-cli ingest ./docs/ --recursive  # 递归处理目录
+   ./build/rago ingest ./docs/sample.md
+   ./build/rago ingest ./docs/ --recursive  # 递归处理目录
    ```
 
 3. **查询知识库**
 
    ```bash
-   rago-cli query "什么是 RAG？"
-   rago-cli query --interactive         # 交互模式
+   ./build/rago query "什么是 RAG？"
+   ./build/rago query --interactive         # 交互模式
    ```
 
 4. **启动 API 服务**
 
    ```bash
-   rago-cli serve --port 7127
+   ./build/rago serve --port 7127
    ```
 
 5. **查看已导入文档**
    ```bash
-   rago-cli list
+   ./build/rago list
    ```
 
 ## 📖 详细使用
