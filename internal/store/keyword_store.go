@@ -73,12 +73,27 @@ func (s *KeywordStore) Search(ctx context.Context, query string, topK int) ([]do
 	// Process the results.
 	var chunks []domain.Chunk
 	for _, hit := range searchResult.Hits {
+		// Safely extract fields with type checking
+		var content, documentID string
+		
+		if contentField, ok := hit.Fields["Content"]; ok && contentField != nil {
+			if contentStr, ok := contentField.(string); ok {
+				content = contentStr
+			}
+		}
+		
+		if docIDField, ok := hit.Fields["DocumentID"]; ok && docIDField != nil {
+			if docIDStr, ok := docIDField.(string); ok {
+				documentID = docIDStr
+			}
+		}
+		
 		// The ID of the hit is the chunk ID we assigned during indexing.
 		chunk := domain.Chunk{
 			ID:         hit.ID,
 			Score:      hit.Score,
-			Content:    hit.Fields["Content"].(string),
-			DocumentID: hit.Fields["DocumentID"].(string),
+			Content:    content,
+			DocumentID: documentID,
 			// Metadata might need more careful reconstruction if it's complex.
 			// For now, we assume it's not needed for the search result context.
 		}
