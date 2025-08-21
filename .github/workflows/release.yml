@@ -71,9 +71,18 @@ jobs:
         run: |
           # Simple changelog generation
           echo "## What's Changed" > CHANGELOG.md
-          git log --pretty=format:"* %s (%h)" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> CHANGELOG.md || echo "* Initial release" >> CHANGELOG.md
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            git log --pretty=format:"* %s (%h)" ${PREV_TAG}..HEAD >> CHANGELOG.md
+          else
+            echo "* Initial release" >> CHANGELOG.md
+          fi
           echo "" >> CHANGELOG.md
-          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo 'HEAD')...v$VERSION" >> CHANGELOG.md
+          if [ -n "$PREV_TAG" ]; then
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...v$VERSION" >> CHANGELOG.md
+          else
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/commits/v$VERSION" >> CHANGELOG.md
+          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v1

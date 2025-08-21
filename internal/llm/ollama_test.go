@@ -125,13 +125,13 @@ func TestIsAlmostSame(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []struct {
-		name          string
-		handler       http.HandlerFunc
-		input         string
-		output        string
-		expected      bool
-		expectError   bool
-		errorMsg      string
+		name        string
+		handler     http.HandlerFunc
+		input       string
+		output      string
+		expected    bool
+		expectError bool
+		errorMsg    string
 	}{
 		{
 			name: "Same content - should return true",

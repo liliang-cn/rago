@@ -244,21 +244,21 @@ func TestService_Ingest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			service := tt.setup()
 			ctx := context.Background()
-			
+
 			resp, err := service.Ingest(ctx, tt.request)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Ingest() expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("Ingest() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			
+
 			if !resp.Success {
 				t.Errorf("Ingest() success = %v, expected true", resp.Success)
 			}
@@ -327,25 +327,25 @@ func TestService_Query(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			service := tt.setup()
 			ctx := context.Background()
-			
+
 			resp, err := service.Query(ctx, tt.request)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Query() expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("Query() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			
+
 			if resp.Answer == "" {
 				t.Errorf("Query() answer is empty")
 			}
-			
+
 			if resp.Elapsed == "" {
 				t.Errorf("Query() elapsed time is empty")
 			}
@@ -383,7 +383,7 @@ func TestService_validateIngestRequest(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "no content source",
+			name:    "no content source",
 			request: domain.IngestRequest{},
 			wantErr: true,
 		},

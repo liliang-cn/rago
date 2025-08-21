@@ -21,7 +21,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	defer cancel()
 
 	// Create Ollama service
-			ollamaService, err := llm.NewOllamaService(cfg.Ollama.BaseURL, cfg.Ollama.LLMModel)
+	ollamaService, err := llm.NewOllamaService(cfg.Ollama.BaseURL, cfg.Ollama.LLMModel)
 
 	if err != nil {
 		fmt.Printf("❌ Failed to create Ollama client: %v\n", err)
@@ -30,7 +30,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Check Ollama health
 	fmt.Printf("🔍 Checking Ollama connection to %s...\n", cfg.Ollama.BaseURL)
-	
+
 	if err := ollamaService.Health(ctx); err != nil {
 		fmt.Printf("❌ Ollama connection failed: %v\n", err)
 		return nil
@@ -41,7 +41,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("   • LLM Model: %s\n", cfg.Ollama.LLMModel)
 	fmt.Printf("   • Embedding Model: %s\n", cfg.Ollama.EmbeddingModel)
 	fmt.Printf("   • Timeout: %s\n", cfg.Ollama.Timeout)
-	
+
 	return nil
 }
 

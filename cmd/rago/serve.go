@@ -184,20 +184,20 @@ func setupRouter(processor *processor.Service, cfg *config.Config) (*gin.Engine,
 // printServerInfo 打印服务器访问信息
 func printServerInfo(host string, port int, enableUI bool) {
 	fmt.Printf("Starting RAGO server on %s:%d\n", host, port)
-	
+
 	// 显示不同的访问地址
 	if host == "0.0.0.0" || host == "" {
 		// 获取本机IP地址
 		localIPs := getLocalIPs()
-		
+
 		fmt.Println("\n📡 Server accessible at:")
 		fmt.Printf("   Local:    http://localhost:%d\n", port)
 		fmt.Printf("   Local:    http://127.0.0.1:%d\n", port)
-		
+
 		for _, ip := range localIPs {
 			fmt.Printf("   Network:  http://%s:%d\n", ip, port)
 		}
-		
+
 		if enableUI {
 			fmt.Println("\n🌐 Web UI accessible at:")
 			fmt.Printf("   Local:    http://localhost:%d\n", port)
@@ -205,7 +205,7 @@ func printServerInfo(host string, port int, enableUI bool) {
 				fmt.Printf("   Network:  http://%s:%d\n", ip, port)
 			}
 		}
-		
+
 		fmt.Printf("\n🔗 API endpoints:")
 		fmt.Printf("\n   Local:    http://localhost:%d/api\n", port)
 		for _, ip := range localIPs {
@@ -217,7 +217,7 @@ func printServerInfo(host string, port int, enableUI bool) {
 		}
 		fmt.Printf("API: http://%s:%d/api\n", host, port)
 	}
-	
+
 	fmt.Println("\n💡 Press Ctrl+C to stop the server")
 	fmt.Println("")
 }
@@ -225,23 +225,23 @@ func printServerInfo(host string, port int, enableUI bool) {
 // getLocalIPs 获取本机IP地址
 func getLocalIPs() []string {
 	var ips []string
-	
+
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return ips
 	}
-	
+
 	for _, iface := range interfaces {
 		// 跳过loopback和down状态的接口
 		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
 			continue
 		}
-		
+
 		addrs, err := iface.Addrs()
 		if err != nil {
 			continue
 		}
-		
+
 		for _, addr := range addrs {
 			var ip net.IP
 			switch v := addr.(type) {
@@ -250,19 +250,19 @@ func getLocalIPs() []string {
 			case *net.IPAddr:
 				ip = v.IP
 			}
-			
+
 			// 只要IPv4地址，跳过loopback
 			if ip == nil || ip.IsLoopback() {
 				continue
 			}
-			
+
 			ip = ip.To4()
 			if ip != nil {
 				ips = append(ips, ip.String())
 			}
 		}
 	}
-	
+
 	return ips
 }
 
