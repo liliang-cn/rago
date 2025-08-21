@@ -1,5 +1,5 @@
 
-.PHONY: build run test clean install
+.PHONY: build build-web run test clean install
 
 # Get the latest git tag
 GIT_TAG := $(shell git describe --tags --abbrev=0)
@@ -13,6 +13,11 @@ all: build
 build:
 	@echo "Building rago version $(GIT_TAG)..."
 	@go build $(LDFLAGS) -o rago main.go
+
+# Build the web application
+build-web:
+	@echo "Building web assets..."
+	@cd web && npm install && npm run build
 
 # Run the application
 run:
