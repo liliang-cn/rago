@@ -53,7 +53,7 @@ func (s *OllamaService) Generate(ctx context.Context, prompt string, opts *domai
 			options.NumPredict = &numPredict
 		}
 		req.Options = options
-		
+
 		if opts.Think != nil {
 			req.Think = opts.Think
 		}
@@ -213,7 +213,7 @@ func (s *OllamaService) IsAlmostSame(ctx context.Context, input, output string) 
 	}
 
 	prompt := fmt.Sprintf(isAlmostSamePromptTemplate, input, output)
-	
+
 	stream := false
 	format := "json"
 	req := &ollama.GenerateRequest{
@@ -230,16 +230,16 @@ func (s *OllamaService) IsAlmostSame(ctx context.Context, input, output string) 
 
 	// Parse the response as a boolean
 	result := strings.TrimSpace(strings.ToLower(resp.Response))
-	
+
 	// Handle cases where the model might return "true" or "false" with extra text
 	if strings.Contains(result, "true") {
 		return true, nil
 	}
-	
+
 	if strings.Contains(result, "false") {
 		return false, nil
 	}
-	
+
 	// Default to false if we can't determine
 	return false, nil
 }

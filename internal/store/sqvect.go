@@ -21,7 +21,7 @@ func NewSQLiteStore(dbPath string, vectorDim int, maxConns int, batchSize int) (
 	config.VectorDim = vectorDim
 	config.MaxConns = maxConns
 	config.BatchSize = batchSize
-	
+
 	// Enable HNSW indexing for better performance
 	config.HNSW = sqvect.DefaultHNSWConfig()
 	config.HNSW.Enabled = true

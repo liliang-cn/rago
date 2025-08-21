@@ -1,8 +1,8 @@
 
-.PHONY: build build-web run test clean install
+.PHONY: build build-web run test clean install check build-all
 
-# Get the latest git tag
-GIT_TAG := $(shell git describe --tags --abbrev=0)
+# Get the latest git tag (fallback to v0.0.0 if no tags)
+GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
 # Variable to hold the Go linker flags
 LDFLAGS := -ldflags="-X 'github.com/liliang-cn/rago/cmd/rago.version=$(GIT_TAG)'"
 
@@ -35,4 +35,14 @@ clean:
 install:
 	@echo "Installing rago version $(GIT_TAG)..."
 	@go install $(LDFLAGS) ./...
+
+# Run checks (lint, format check, tests)
+check:
+	@echo "Running checks..."
+	@go fmt ./...
+	@go vet ./...
+	@go test -race -coverprofile=coverage.out ./...
+
+# Build all platforms (used by CI)
+build-all: build
 

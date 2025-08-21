@@ -63,10 +63,10 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 
 	if content == "" {
 		return domain.IngestResponse{
-			Success: false,
-			Message: "no content found",
-		},
-	nil
+				Success: false,
+				Message: "no content found",
+			},
+			nil
 	}
 
 	// Initialize metadata map if it's nil
@@ -149,12 +149,12 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 	}
 
 	return domain.IngestResponse{
-		Success:    true,
-		DocumentID: doc.ID,
-		ChunkCount: len(chunks),
-		Message:    fmt.Sprintf("Successfully ingested %d chunks", len(chunks)),
-	},
-	nil
+			Success:    true,
+			DocumentID: doc.ID,
+			ChunkCount: len(chunks),
+			Message:    fmt.Sprintf("Successfully ingested %d chunks", len(chunks)),
+		},
+		nil
 }
 
 // mergeMetadata merges the extracted metadata into the request's metadata map.
@@ -198,11 +198,11 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 
 	if len(chunks) == 0 {
 		return domain.QueryResponse{
-			Answer:  "很抱歉，我在知识库中找不到相关信息来回答您的问题。",
-			Sources: []domain.Chunk{},
-			Elapsed: time.Since(start).String(),
-		},
-	nil
+				Answer:  "很抱歉，我在知识库中找不到相关信息来回答您的问题。",
+				Sources: []domain.Chunk{},
+				Elapsed: time.Since(start).String(),
+			},
+			nil
 	}
 
 	prompt := llm.ComposePrompt(chunks, req.Query)
@@ -230,11 +230,11 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 	}
 
 	return domain.QueryResponse{
-		Answer:  answer,
-		Sources: chunks,
-		Elapsed: time.Since(start).String(),
-	},
-	nil
+			Answer:  answer,
+			Sources: chunks,
+			Elapsed: time.Since(start).String(),
+		},
+		nil
 }
 
 func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, callback func(string)) error {
@@ -442,7 +442,7 @@ func (s *Service) extractContent(req domain.IngestRequest) (string, error) {
 
 func (s *Service) readFile(filePath string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(filePath))
-	
+
 	switch ext {
 	case ".txt", ".md", ".markdown":
 		data, err := os.ReadFile(filePath)
@@ -450,7 +450,7 @@ func (s *Service) readFile(filePath string) (string, error) {
 			return "", fmt.Errorf("failed to read file %s: %w", filePath, err)
 		}
 		return string(data), nil
-	
+
 	case ".pdf":
 		r, err := pdf.Open(filePath)
 		if err != nil {
@@ -482,7 +482,7 @@ func (s *Service) readFile(filePath string) (string, error) {
 func (s *Service) deduplicateChunks(chunks []domain.Chunk) []domain.Chunk {
 	seen := make(map[string]bool)
 	result := make([]domain.Chunk, 0, len(chunks))
-	
+
 	for _, chunk := range chunks {
 		// Use content as the key for deduplication
 		if !seen[chunk.Content] {
@@ -490,7 +490,7 @@ func (s *Service) deduplicateChunks(chunks []domain.Chunk) []domain.Chunk {
 			result = append(result, chunk)
 		}
 	}
-	
+
 	return result
 }
 
@@ -499,14 +499,14 @@ func (s *Service) cleanThinkingTags(answer string) string {
 	// Remove <think>...</think> blocks and their contents
 	re := strings.NewReplacer("<think>", "", "</think>", "")
 	cleaned := re.Replace(answer)
-	
+
 	// Also handle the case where thinking tags might span multiple lines
 	if strings.Contains(cleaned, "<think") || strings.Contains(cleaned, "</think") {
 		// Use regex for more complex cases
 		lines := strings.Split(cleaned, "\n")
 		var filtered []string
 		inThinking := false
-		
+
 		for _, line := range lines {
 			if strings.Contains(line, "<think") {
 				inThinking = true
@@ -522,7 +522,7 @@ func (s *Service) cleanThinkingTags(answer string) string {
 		}
 		cleaned = strings.Join(filtered, "\n")
 	}
-	
+
 	// Trim any extra whitespace
 	return strings.TrimSpace(cleaned)
 }
@@ -533,22 +533,22 @@ func (s *Service) wrapCallbackForThinking(callback func(string), showThinking bo
 		// If showing thinking, just pass through
 		return callback
 	}
-	
+
 	// If not showing thinking, filter out thinking content
 	var buffer strings.Builder
 	inThinking := false
-	
+
 	return func(token string) {
 		buffer.WriteString(token)
 		content := buffer.String()
-		
+
 		// Process complete thinking blocks
 		for {
 			if !inThinking {
 				// Look for start of thinking block
 				if idx := strings.Index(content, "<think>"); idx != -1 {
 					// Send content before thinking block
-				if idx > 0 {
+					if idx > 0 {
 						callback(content[:idx])
 					}
 					inThinking = true
@@ -558,7 +558,7 @@ func (s *Service) wrapCallbackForThinking(callback func(string), showThinking bo
 					continue
 				} else {
 					// No thinking block start, send everything
-				if content != "" {
+					if content != "" {
 						callback(content)
 						buffer.Reset()
 					}
