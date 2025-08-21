@@ -32,17 +32,17 @@ func SetupStaticRoutes(router *gin.Engine) error {
 		}
 		c.Data(http.StatusOK, "text/html; charset=utf-8", data)
 	})
-	
+
 	// Use NoRoute to handle SPA routing
 	router.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
-		
+
 		// Skip API routes
 		if len(path) >= 4 && path[:4] == "/api" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "API endpoint not found"})
 			return
 		}
-		
+
 		// Check if file exists in embedded FS
 		if data, err := fs.ReadFile(fsys, path[1:]); err == nil {
 			// Determine content type
@@ -62,7 +62,7 @@ func SetupStaticRoutes(router *gin.Engine) error {
 			c.Data(http.StatusOK, contentType, data)
 			return
 		}
-		
+
 		// For SPA routes, serve index.html
 		data, err := fs.ReadFile(fsys, "index.html")
 		if err != nil {
