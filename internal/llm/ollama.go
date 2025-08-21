@@ -53,6 +53,10 @@ func (s *OllamaService) Generate(ctx context.Context, prompt string, opts *domai
 			options.NumPredict = &numPredict
 		}
 		req.Options = options
+		
+		if opts.Think != nil {
+			req.Think = opts.Think
+		}
 	}
 
 	resp, err := s.client.Generate(ctx, req)
