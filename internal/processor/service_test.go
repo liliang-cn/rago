@@ -42,6 +42,13 @@ func (m *mockGenerator) Stream(ctx context.Context, prompt string, opts *domain.
 	return nil
 }
 
+func (m *mockGenerator) IsAlmostSame(ctx context.Context, input, output string) (bool, error) {
+	if m.err != nil {
+		return false, m.err
+	}
+	return input == output, nil
+}
+
 type mockChunker struct {
 	chunks []string
 	err    error

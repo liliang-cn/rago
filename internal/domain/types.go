@@ -77,6 +77,7 @@ type Generator interface {
 type GenerationOptions struct {
 	Temperature float64
 	MaxTokens   int
+	Think       *bool
 }
 
 type Chunker interface {
