@@ -413,7 +413,7 @@ func (c *Coordinator) buildPromptFromMessages(messages []Message) string {
 		for i, result := range toolResults {
 			promptParts = append(promptParts, fmt.Sprintf("Tool %d result: %s", i+1, result))
 		}
-		promptParts = append(promptParts, "\nBased on the tool execution results above, please provide a comprehensive answer to the user's question.")
+		promptParts = append(promptParts, "\nPlease use BOTH the knowledge base documents AND the tool execution results above to provide a complete and accurate answer to the user's question. If the question involves current information (like time, date, or file status), prioritize the tool results. If it involves stored knowledge, use the relevant documents.")
 		return strings.Join(promptParts, "\n")
 	}
 	
@@ -426,7 +426,27 @@ func (c *Coordinator) formatToolResult(executed domain.ExecutedToolCall) string 
 		// Format the result more comprehensively
 		if executed.Result != nil {
 			if dataMap, ok := executed.Result.(map[string]interface{}); ok {
-				// Format structured data nicely
+				// Format structured data nicely for specific tools
+				switch executed.Function.Name {
+				case "datetime":
+					if datetime, ok := dataMap["datetime"]; ok {
+						if iso8601, ok := dataMap["iso8601"]; ok {
+							return fmt.Sprintf("Tool %s executed successfully. Current time: %v (%v)", 
+								executed.Function.Name, datetime, iso8601)
+						}
+						return fmt.Sprintf("Tool %s executed successfully. Current time: %v", 
+							executed.Function.Name, datetime)
+					}
+				case "file_operations":
+					if action, ok := dataMap["path"]; ok {
+						if count, ok := dataMap["count"]; ok {
+							return fmt.Sprintf("Tool %s executed successfully. Found %v items in %v", 
+								executed.Function.Name, count, action)
+						}
+					}
+				}
+				
+				// Generic structured data formatting
 				var parts []string
 				for key, value := range dataMap {
 					parts = append(parts, fmt.Sprintf("%s: %v", key, value))
