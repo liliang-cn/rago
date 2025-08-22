@@ -7,16 +7,18 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/liliang-cn/rago/internal/tools"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Server  ServerConfig  `mapstructure:"server"`
-	Ollama  OllamaConfig  `mapstructure:"ollama"`
-	Sqvect  SqvectConfig  `mapstructure:"sqvect"`
-	Keyword KeywordConfig `mapstructure:"keyword"`
-	Chunker ChunkerConfig `mapstructure:"chunker"`
-	Ingest  IngestConfig  `mapstructure:"ingest"`
+	Server  ServerConfig     `mapstructure:"server"`
+	Ollama  OllamaConfig     `mapstructure:"ollama"`
+	Sqvect  SqvectConfig     `mapstructure:"sqvect"`
+	Keyword KeywordConfig    `mapstructure:"keyword"`
+	Chunker ChunkerConfig    `mapstructure:"chunker"`
+	Ingest  IngestConfig     `mapstructure:"ingest"`
+	Tools   tools.ToolConfig `mapstructure:"tools"`
 }
 
 type IngestConfig struct {
@@ -121,6 +123,24 @@ func setDefaults() {
 
 	viper.SetDefault("ingest.metadata_extraction.enable", false)
 	viper.SetDefault("ingest.metadata_extraction.llm_model", "qwen3") // 默认使用与问答相同的模型
+
+	// Tools configuration defaults
+	toolConfig := tools.DefaultToolConfig()
+	viper.SetDefault("tools.enabled", toolConfig.Enabled)
+	viper.SetDefault("tools.max_concurrent_calls", toolConfig.MaxConcurrency)
+	viper.SetDefault("tools.call_timeout", toolConfig.CallTimeout)
+	viper.SetDefault("tools.security_level", toolConfig.SecurityLevel)
+	viper.SetDefault("tools.enabled_tools", toolConfig.EnabledTools)
+	viper.SetDefault("tools.log_level", toolConfig.LogLevel)
+	viper.SetDefault("tools.rate_limit.calls_per_minute", toolConfig.RateLimit.CallsPerMinute)
+	viper.SetDefault("tools.rate_limit.calls_per_hour", toolConfig.RateLimit.CallsPerHour)
+	viper.SetDefault("tools.rate_limit.burst_size", toolConfig.RateLimit.BurstSize)
+	viper.SetDefault("tools.builtin", toolConfig.BuiltinTools)
+
+	// Plugin configuration defaults
+	viper.SetDefault("tools.plugins.enabled", toolConfig.Plugins.Enabled)
+	viper.SetDefault("tools.plugins.plugin_paths", toolConfig.Plugins.PluginPaths)
+	viper.SetDefault("tools.plugins.auto_load", toolConfig.Plugins.AutoLoad)
 }
 
 func bindEnvVars() {
@@ -189,6 +209,31 @@ func bindEnvVars() {
 	if err := viper.BindEnv("ingest.metadata_extraction.llm_model", "RAGO_INGEST_METADATA_EXTRACTION_LLM_MODEL"); err != nil {
 		log.Printf("Warning: failed to bind ingest.metadata_extraction.llm_model env var: %v", err)
 	}
+
+	// Tools environment variables
+	if err := viper.BindEnv("tools.enabled", "RAGO_TOOLS_ENABLED"); err != nil {
+		log.Printf("Warning: failed to bind tools.enabled env var: %v", err)
+	}
+	if err := viper.BindEnv("tools.max_concurrent_calls", "RAGO_TOOLS_MAX_CONCURRENT_CALLS"); err != nil {
+		log.Printf("Warning: failed to bind tools.max_concurrent_calls env var: %v", err)
+	}
+	if err := viper.BindEnv("tools.call_timeout", "RAGO_TOOLS_CALL_TIMEOUT"); err != nil {
+		log.Printf("Warning: failed to bind tools.call_timeout env var: %v", err)
+	}
+	if err := viper.BindEnv("tools.security_level", "RAGO_TOOLS_SECURITY_LEVEL"); err != nil {
+		log.Printf("Warning: failed to bind tools.security_level env var: %v", err)
+	}
+	if err := viper.BindEnv("tools.log_level", "RAGO_TOOLS_LOG_LEVEL"); err != nil {
+		log.Printf("Warning: failed to bind tools.log_level env var: %v", err)
+	}
+
+	// Plugin environment variables
+	if err := viper.BindEnv("tools.plugins.enabled", "RAGO_TOOLS_PLUGINS_ENABLED"); err != nil {
+		log.Printf("Warning: failed to bind tools.plugins.enabled env var: %v", err)
+	}
+	if err := viper.BindEnv("tools.plugins.auto_load", "RAGO_TOOLS_PLUGINS_AUTO_LOAD"); err != nil {
+		log.Printf("Warning: failed to bind tools.plugins.auto_load env var: %v", err)
+	}
 }
 
 func (c *Config) Validate() error {
@@ -255,6 +300,55 @@ func (c *Config) Validate() error {
 
 	if c.Ingest.MetadataExtraction.Enable && c.Ingest.MetadataExtraction.LLMModel == "" {
 		return fmt.Errorf("llm_model for metadata extraction cannot be empty when enabled")
+	}
+
+	// Validate tools configuration
+	if err := c.validateToolsConfig(); err != nil {
+		return fmt.Errorf("invalid tools configuration: %w", err)
+	}
+
+	return nil
+}
+
+// validateToolsConfig validates the tools configuration
+func (c *Config) validateToolsConfig() error {
+	if c.Tools.MaxConcurrency < 0 {
+		return fmt.Errorf("max_concurrent_calls must be non-negative: %d", c.Tools.MaxConcurrency)
+	}
+
+	if c.Tools.CallTimeout < 0 {
+		return fmt.Errorf("call_timeout must be non-negative: %v", c.Tools.CallTimeout)
+	}
+
+	validSecurityLevels := map[string]bool{
+		"strict":     true,
+		"normal":     true,
+		"permissive": true,
+	}
+	if !validSecurityLevels[c.Tools.SecurityLevel] {
+		return fmt.Errorf("invalid security_level: %s (must be strict, normal, or permissive)", c.Tools.SecurityLevel)
+	}
+
+	validLogLevels := map[string]bool{
+		"debug": true,
+		"info":  true,
+		"warn":  true,
+		"error": true,
+	}
+	if c.Tools.LogLevel != "" && !validLogLevels[c.Tools.LogLevel] {
+		return fmt.Errorf("invalid log_level: %s (must be debug, info, warn, or error)", c.Tools.LogLevel)
+	}
+
+	if c.Tools.RateLimit.CallsPerMinute < 0 {
+		return fmt.Errorf("rate_limit.calls_per_minute must be non-negative: %d", c.Tools.RateLimit.CallsPerMinute)
+	}
+
+	if c.Tools.RateLimit.CallsPerHour < 0 {
+		return fmt.Errorf("rate_limit.calls_per_hour must be non-negative: %d", c.Tools.RateLimit.CallsPerHour)
+	}
+
+	if c.Tools.RateLimit.BurstSize < 0 {
+		return fmt.Errorf("rate_limit.burst_size must be non-negative: %d", c.Tools.RateLimit.BurstSize)
 	}
 
 	return nil

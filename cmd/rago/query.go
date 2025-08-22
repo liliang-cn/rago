@@ -25,6 +25,9 @@ var (
 	interactive  bool
 	queryFile    string
 	filterBy     []string
+	enableTools  bool
+	allowedTools []string
+	maxToolCalls int
 )
 
 var queryCmd = &cobra.Command{
@@ -184,21 +187,53 @@ func processQuery(ctx context.Context, p *processor.Service, query string) error
 		TopK:         topK,
 		Temperature:  temperature,
 		MaxTokens:    maxTokens,
-		Stream:       stream,
+		Stream:       stream && !enableTools, // Disable streaming when tools are enabled
 		ShowThinking: showThinking,
 		Filters:      filters,
+		ToolsEnabled: enableTools,
+		AllowedTools: allowedTools,
+		MaxToolCalls: maxToolCalls,
 	}
 
-	if stream {
+	// Inform user if streaming was disabled due to tools
+	if stream && enableTools && verbose {
+		fmt.Println("Note: Streaming disabled when tools are enabled")
+	}
+
+	if req.Stream {
 		return processStreamQuery(ctx, p, req)
 	}
 
-	resp, err := p.Query(ctx, req)
+	var resp domain.QueryResponse
+	var err error
+	
+	// Use QueryWithTools if tools are enabled
+	if enableTools {
+		resp, err = p.QueryWithTools(ctx, req)
+	} else {
+		resp, err = p.Query(ctx, req)
+	}
+	
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Answer: %s\n", resp.Answer)
+
+	// Show tool execution information if available
+	if enableTools && len(resp.ToolCalls) > 0 {
+		fmt.Printf("\nTool Executions (%d):\n", len(resp.ToolCalls))
+		for i, toolCall := range resp.ToolCalls {
+			status := "Success"
+			if !toolCall.Success {
+				status = "Failed"
+			}
+			fmt.Printf("  [%d] %s - %s (%s)\n", i+1, toolCall.Function.Name, status, toolCall.Elapsed)
+			if toolCall.Error != "" {
+				fmt.Printf("      Error: %s\n", toolCall.Error)
+			}
+		}
+	}
 
 	if verbose && len(resp.Sources) > 0 {
 		fmt.Printf("\nSources (%d):\n", len(resp.Sources))
@@ -221,9 +256,16 @@ func processQuery(ctx context.Context, p *processor.Service, query string) error
 func processStreamQuery(ctx context.Context, p *processor.Service, req domain.QueryRequest) error {
 	fmt.Print("Answer: ")
 
-	err := p.StreamQuery(ctx, req, func(token string) {
-		fmt.Print(token)
-	})
+	var err error
+	if enableTools {
+		err = p.StreamQueryWithTools(ctx, req, func(token string) {
+			fmt.Print(token)
+		})
+	} else {
+		err = p.StreamQuery(ctx, req, func(token string) {
+			fmt.Print(token)
+		})
+	}
 
 	fmt.Println()
 	return err
@@ -235,7 +277,12 @@ func printHelp() {
 	fmt.Println("  clear, cls  - Clear the screen")
 	fmt.Println("  exit, quit  - Exit the program")
 	fmt.Println("  <question>  - Ask a question to the knowledge base")
-	fmt.Println("  --filter key=value  - Filter results by metadata (can be used multiple times)")
+	fmt.Println()
+	fmt.Println("Available flags:")
+	fmt.Println("  --filter key=value    - Filter results by metadata")
+	fmt.Println("  --tools               - Enable tool calling")
+	fmt.Println("  --allowed-tools tool1,tool2 - Specify allowed tools")
+	fmt.Println("  --max-tool-calls N    - Maximum tool calls per query")
 }
 
 func truncateText(text string, maxLen int) string {
@@ -254,4 +301,7 @@ func init() {
 	queryCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "interactive mode")
 	queryCmd.Flags().StringVar(&queryFile, "file", "", "batch query from file")
 	queryCmd.Flags().StringSliceVar(&filterBy, "filter", []string{}, "filter by metadata (key=value format, can be used multiple times)")
+	queryCmd.Flags().BoolVar(&enableTools, "tools", false, "enable tool calling capabilities")
+	queryCmd.Flags().StringSliceVar(&allowedTools, "allowed-tools", []string{}, "comma-separated list of allowed tools (empty means all enabled tools)")
+	queryCmd.Flags().IntVar(&maxToolCalls, "max-tool-calls", 5, "maximum number of tool calls per query")
 }

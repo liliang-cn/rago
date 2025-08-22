@@ -46,19 +46,19 @@ func TestMockEmbedder_Embed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := tt.embedder.Embed(context.Background(), tt.text)
-			
+
 			if tt.wantError {
 				if err == nil {
 					t.Error("Expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 				return
 			}
-			
+
 			if len(result) != len(tt.embedder.embedding) {
 				t.Errorf("Expected embedding length %d, got %d", len(tt.embedder.embedding), len(result))
 			}

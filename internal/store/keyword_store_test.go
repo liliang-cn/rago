@@ -154,7 +154,7 @@ func TestKeywordStore_Delete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to search after deletion: %v", err)
 	}
-	
+
 	// Allow for the possibility that deletion didn't work as expected
 	// This tests the current actual behavior rather than ideal behavior
 	if len(results) == 3 {
@@ -236,7 +236,7 @@ func TestKeywordStore_Close(t *testing.T) {
 func TestKeywordStore_InvalidIndexPath(t *testing.T) {
 	// Try to create store with invalid path
 	invalidPath := "/nonexistent/path/that/should/not/exist.bleve"
-	
+
 	_, err := NewKeywordStore(invalidPath)
 	if err == nil {
 		t.Error("Expected error for invalid path, got nil")

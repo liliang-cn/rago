@@ -41,7 +41,15 @@ func (h *QueryHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.processor.Query(c.Request.Context(), req)
+	// Use QueryWithTools if tools are enabled and requested
+	var resp domain.QueryResponse
+	var err error
+	if req.ToolsEnabled {
+		resp, err = h.processor.QueryWithTools(c.Request.Context(), req)
+	} else {
+		resp, err = h.processor.Query(c.Request.Context(), req)
+	}
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to process query: " + err.Error(),
@@ -148,13 +156,25 @@ func (h *QueryHandler) handleStream(c *gin.Context, req domain.QueryRequest) {
 		return
 	}
 
-	err := h.processor.StreamQuery(ctx, req, func(token string) {
-		if _, writeErr := fmt.Fprint(c.Writer, token); writeErr != nil {
-			// Log the error but continue streaming
-			log.Printf("Error writing token: %v", writeErr)
-		}
-		flusher.Flush()
-	})
+	// Use StreamQueryWithTools if tools are enabled and requested
+	var err error
+	if req.ToolsEnabled {
+		err = h.processor.StreamQueryWithTools(ctx, req, func(token string) {
+			if _, writeErr := fmt.Fprint(c.Writer, token); writeErr != nil {
+				// Log the error but continue streaming
+				log.Printf("Error writing token: %v", writeErr)
+			}
+			flusher.Flush()
+		})
+	} else {
+		err = h.processor.StreamQuery(ctx, req, func(token string) {
+			if _, writeErr := fmt.Fprint(c.Writer, token); writeErr != nil {
+				// Log the error but continue streaming
+				log.Printf("Error writing token: %v", writeErr)
+			}
+			flusher.Flush()
+		})
+	}
 
 	if err != nil {
 		if _, writeErr := fmt.Fprintf(c.Writer, "\n\nError: %v", err); writeErr != nil {
