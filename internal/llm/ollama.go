@@ -243,3 +243,180 @@ func (s *OllamaService) IsAlmostSame(ctx context.Context, input, output string) 
 	// Default to false if we can't determine
 	return false, nil
 }
+
+// GenerateWithTools generates text with tool calling support
+func (s *OllamaService) GenerateWithTools(ctx context.Context, prompt string, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
+	if prompt == "" {
+		return nil, fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
+	}
+
+	// Convert domain.ToolDefinition to ollama.Tool
+	ollamaTools := make([]ollama.Tool, len(tools))
+	for i, tool := range tools {
+		ollamaTools[i] = ollama.Tool{
+			Type: tool.Type,
+			Function: &ollama.ToolFunction{
+				Name:        tool.Function.Name,
+				Description: tool.Function.Description,
+				Parameters:  tool.Function.Parameters,
+			},
+		}
+	}
+
+	// Prepare messages
+	messages := []ollama.Message{
+		{
+			Role:    "user",
+			Content: prompt,
+		},
+	}
+
+	// Create chat request
+	req := &ollama.ChatRequest{
+		Model:    s.model,
+		Messages: messages,
+		Tools:    ollamaTools,
+		Stream:   new(bool), // false for non-streaming
+	}
+
+	// Apply generation options
+	if opts != nil {
+		options := &ollama.Options{}
+		if opts.Temperature >= 0 {
+			options.Temperature = &opts.Temperature
+		}
+		if opts.MaxTokens > 0 {
+			numPredict := opts.MaxTokens
+			options.NumPredict = &numPredict
+		}
+		req.Options = options
+	}
+
+	// Make the request
+	resp, err := s.client.Chat(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+	}
+
+	// Convert response
+	result := &domain.GenerationResult{
+		Content:  resp.Message.Content,
+		Finished: true,
+	}
+
+	// Convert tool calls if any
+	if len(resp.Message.ToolCalls) > 0 {
+		result.ToolCalls = make([]domain.ToolCall, len(resp.Message.ToolCalls))
+		for i, tc := range resp.Message.ToolCalls {
+			result.ToolCalls[i] = domain.ToolCall{
+				ID:   tc.Function.Name, // Use function name as ID if no ID provided
+				Type: "function",
+				Function: domain.FunctionCall{
+					Name:      tc.Function.Name,
+					Arguments: tc.Function.Arguments,
+				},
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// StreamWithTools generates text with tool calling support in streaming mode
+func (s *OllamaService) StreamWithTools(ctx context.Context, prompt string, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
+	if prompt == "" {
+		return fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
+	}
+
+	if callback == nil {
+		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
+	}
+
+	// Convert domain.ToolDefinition to ollama.Tool
+	ollamaTools := make([]ollama.Tool, len(tools))
+	for i, tool := range tools {
+		ollamaTools[i] = ollama.Tool{
+			Type: tool.Type,
+			Function: &ollama.ToolFunction{
+				Name:        tool.Function.Name,
+				Description: tool.Function.Description,
+				Parameters:  tool.Function.Parameters,
+			},
+		}
+	}
+
+	// Prepare messages
+	messages := []ollama.Message{
+		{
+			Role:    "user",
+			Content: prompt,
+		},
+	}
+
+	// Create chat request
+	req := &ollama.ChatRequest{
+		Model:    s.model,
+		Messages: messages,
+		Tools:    ollamaTools,
+		Stream:   func() *bool { b := true; return &b }(), // true for streaming
+	}
+
+	// Apply generation options
+	if opts != nil {
+		options := &ollama.Options{}
+		if opts.Temperature >= 0 {
+			options.Temperature = &opts.Temperature
+		}
+		if opts.MaxTokens > 0 {
+			numPredict := opts.MaxTokens
+			options.NumPredict = &numPredict
+		}
+		req.Options = options
+	}
+
+	// Make streaming request
+	respCh, errCh := ollama.ChatStream(ctx, s.model, messages, func(r *ollama.ChatRequest) {
+		r.Tools = ollamaTools
+		if req.Options != nil {
+			r.Options = req.Options
+		}
+	})
+
+	for {
+		select {
+		case resp, ok := <-respCh:
+			if !ok {
+				// Channel closed, streaming is done
+				return nil
+			}
+			if resp != nil {
+				// Convert tool calls if any
+				var toolCalls []domain.ToolCall
+				if len(resp.Message.ToolCalls) > 0 {
+					toolCalls = make([]domain.ToolCall, len(resp.Message.ToolCalls))
+					for i, tc := range resp.Message.ToolCalls {
+						toolCalls[i] = domain.ToolCall{
+							ID:   tc.Function.Name, // Use function name as ID if no ID provided
+							Type: "function",
+							Function: domain.FunctionCall{
+								Name:      tc.Function.Name,
+								Arguments: tc.Function.Arguments,
+							},
+						}
+					}
+				}
+
+				// Call the callback with content and tool calls
+				if err := callback(resp.Message.Content, toolCalls); err != nil {
+					return fmt.Errorf("callback error: %w", err)
+				}
+			}
+		case err := <-errCh:
+			if err != nil {
+				return fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}

@@ -168,6 +168,24 @@ func setupRouter(processor *processor.Service, cfg *config.Config) (*gin.Engine,
 		api.GET("/documents", documentsHandler.List)
 		api.DELETE("/documents/:id", documentsHandler.Delete)
 
+		// Tools API endpoints (only if tools are enabled)
+		if cfg.Tools.Enabled {
+			// Initialize tools handler
+			toolsHandler := handlers.NewToolsHandler(processor.GetToolRegistry(), processor.GetToolExecutor())
+
+			tools := api.Group("/tools")
+			{
+				tools.GET("", toolsHandler.ListTools)
+				tools.GET("/:name", toolsHandler.GetTool)
+				tools.POST("/:name/execute", toolsHandler.ExecuteTool)
+				tools.GET("/stats", toolsHandler.GetToolStats)
+				tools.GET("/registry/stats", toolsHandler.GetRegistryStats)
+				tools.GET("/executions", toolsHandler.ListExecutions)
+				tools.GET("/executions/:id", toolsHandler.GetExecution)
+				tools.DELETE("/executions/:id", toolsHandler.CancelExecution)
+			}
+		}
+
 		api.POST("/reset", handlers.NewResetHandler(processor).Handle)
 	}
 

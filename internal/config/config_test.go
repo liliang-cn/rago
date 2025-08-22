@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"testing"
+
+	"github.com/liliang-cn/rago/internal/tools"
 )
 
 func TestConfig_Validate(t *testing.T) {
@@ -38,6 +40,7 @@ func TestConfig_Validate(t *testing.T) {
 					Overlap:   50,
 					Method:    "sentence",
 				},
+				Tools: tools.DefaultToolConfig(),
 			},
 			wantErr: false,
 		},
