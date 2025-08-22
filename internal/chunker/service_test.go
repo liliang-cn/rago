@@ -193,8 +193,8 @@ func TestService_splitIntoSentences(t *testing.T) {
 			},
 		},
 		{
-			name: "Empty text",
-			text: "",
+			name:     "Empty text",
+			text:     "",
 			expected: []string{},
 		},
 		{
@@ -283,7 +283,7 @@ func TestService_combineChunks(t *testing.T) {
 			expected: 2,
 		},
 		{
-			name: "empty sentences",
+			name:      "empty sentences",
 			sentences: []string{},
 			options: domain.ChunkOptions{
 				Size:    50,
@@ -292,7 +292,7 @@ func TestService_combineChunks(t *testing.T) {
 			expected: 0,
 		},
 		{
-			name: "single sentence",
+			name:      "single sentence",
 			sentences: []string{"Single sentence."},
 			options: domain.ChunkOptions{
 				Size:    50,
@@ -343,8 +343,8 @@ func TestService_splitByParagraph(t *testing.T) {
 			},
 		},
 		{
-			name: "Empty text",
-			text: "",
+			name:     "Empty text",
+			text:     "",
 			expected: []string{},
 		},
 	}
