@@ -428,7 +428,7 @@ func (s *Service) QueryWithTools(ctx context.Context, req domain.QueryRequest) (
 		genOpts.Temperature = 0.7
 	}
 	if genOpts.MaxTokens <= 0 {
-		genOpts.MaxTokens = 500
+		genOpts.MaxTokens = 1500  // Increased for tool calling scenarios
 	}
 
 	// Build prompt with context
