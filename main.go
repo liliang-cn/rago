@@ -15,12 +15,12 @@ func getVersion() string {
 	if version != "dev" {
 		return version
 	}
-	
+
 	if info, ok := debug.ReadBuildInfo(); ok {
 		if info.Main.Version != "" && info.Main.Version != "(devel)" {
 			return info.Main.Version
 		}
-		
+
 		for _, setting := range info.Settings {
 			if setting.Key == "vcs.revision" {
 				if len(setting.Value) > 7 {
@@ -30,7 +30,7 @@ func getVersion() string {
 			}
 		}
 	}
-	
+
 	return version
 }
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -16,17 +17,23 @@ import (
 	"github.com/liliang-cn/rago/internal/config"
 	"github.com/liliang-cn/rago/internal/domain"
 	"github.com/liliang-cn/rago/internal/llm"
+	"github.com/liliang-cn/rago/internal/tools"
+	"github.com/liliang-cn/rago/internal/tools/builtin"
 )
 
 type Service struct {
-	embedder      domain.Embedder
-	generator     domain.Generator
-	chunker       domain.Chunker
-	vectorStore   domain.VectorStore
-	keywordStore  domain.KeywordStore
-	documentStore domain.DocumentStore
-	config        *config.Config
-	llmService    *llm.OllamaService
+	embedder        domain.Embedder
+	generator       domain.Generator
+	chunker         domain.Chunker
+	vectorStore     domain.VectorStore
+	keywordStore    domain.KeywordStore
+	documentStore   domain.DocumentStore
+	config          *config.Config
+	llmService      *llm.OllamaService
+	toolsEnabled    bool
+	toolRegistry    *tools.Registry
+	toolExecutor    *tools.Executor
+	toolCoordinator *tools.Coordinator
 }
 
 func New(
@@ -39,7 +46,7 @@ func New(
 	config *config.Config,
 	llmService *llm.OllamaService,
 ) *Service {
-	return &Service{
+	s := &Service{
 		embedder:      embedder,
 		generator:     generator,
 		chunker:       chunker,
@@ -48,6 +55,130 @@ func New(
 		documentStore: documentStore,
 		config:        config,
 		llmService:    llmService,
+		toolsEnabled:  config.Tools.Enabled,
+	}
+
+	// Initialize tools if enabled
+	if config.Tools.Enabled {
+		s.initializeTools()
+	}
+
+	return s
+}
+
+// initializeTools sets up the tool system
+func (s *Service) initializeTools() {
+	// Create tool registry
+	s.toolRegistry = tools.NewRegistry(&s.config.Tools)
+
+	// Create tool executor
+	executorConfig := &tools.ExecutorConfig{
+		MaxConcurrency: s.config.Tools.MaxConcurrency,
+		DefaultTimeout: s.config.Tools.CallTimeout,
+		EnableLogging:  true,
+	}
+	s.toolExecutor = tools.NewExecutor(s.toolRegistry, executorConfig)
+
+	// Create tool coordinator
+	coordConfig := tools.DefaultCoordinatorConfig()
+	s.toolCoordinator = tools.NewCoordinator(s.toolRegistry, s.toolExecutor, coordConfig)
+
+	// Register built-in tools
+	s.registerBuiltinTools()
+}
+
+// registerBuiltinTools registers the built-in tools
+func (s *Service) registerBuiltinTools() {
+	// Register datetime tool
+	if s.config.Tools.BuiltinTools["datetime"].Enabled {
+		datetimeTool := builtin.NewDateTimeTool()
+		if err := s.toolRegistry.Register(datetimeTool); err != nil {
+			log.Printf("Failed to register datetime tool: %v", err)
+		}
+	}
+
+	// Register RAG search tool
+	if s.config.Tools.BuiltinTools["rag_search"].Enabled {
+		ragSearchTool := builtin.NewRAGSearchTool(s)
+		if err := s.toolRegistry.Register(ragSearchTool); err != nil {
+			log.Printf("Failed to register rag_search tool: %v", err)
+		}
+	}
+
+	// Register document info tool
+	if s.config.Tools.BuiltinTools["document_info"].Enabled {
+		docInfoTool := builtin.NewDocumentInfoTool(s)
+		if err := s.toolRegistry.Register(docInfoTool); err != nil {
+			log.Printf("Failed to register document_info tool: %v", err)
+		}
+	}
+
+	// Register file operations tool
+	if s.config.Tools.BuiltinTools["file_operations"].Enabled {
+		// Parse configuration
+		allowedPaths := []string{"./knowledge", "./data", "./examples"} // Default paths
+		maxFileSize := int64(10 * 1024 * 1024)                         // Default 10MB
+
+		if params := s.config.Tools.BuiltinTools["file_operations"].Parameters; params != nil {
+			if pathsStr, ok := params["allowed_paths"]; ok {
+				allowedPaths = strings.Split(pathsStr, ",")
+				// Trim whitespace from paths
+				for i, path := range allowedPaths {
+					allowedPaths[i] = strings.TrimSpace(path)
+				}
+			}
+			if sizeStr, ok := params["max_file_size"]; ok {
+				if size, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
+					maxFileSize = size
+				}
+			}
+		}
+
+		fileOpsTool := builtin.NewFileOperationTool(allowedPaths, maxFileSize)
+		if err := s.toolRegistry.Register(fileOpsTool); err != nil {
+			log.Printf("Failed to register file_operations tool: %v", err)
+		}
+	}
+
+	// Register SQL query tool
+	if s.config.Tools.BuiltinTools["sql_query"].Enabled {
+		// Parse configuration
+		allowedDBs := make(map[string]string)
+		maxRows := 1000
+		queryTimeout := 30 * time.Second
+
+		if params := s.config.Tools.BuiltinTools["sql_query"].Parameters; params != nil {
+			if dbsStr, ok := params["allowed_databases"]; ok {
+				// Parse "name:path,name2:path2" format
+				pairs := strings.Split(dbsStr, ",")
+				for _, pair := range pairs {
+					parts := strings.SplitN(strings.TrimSpace(pair), ":", 2)
+					if len(parts) == 2 {
+						allowedDBs[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+					}
+				}
+			}
+			if rowsStr, ok := params["max_rows"]; ok {
+				if rows, err := strconv.Atoi(rowsStr); err == nil && rows > 0 {
+					maxRows = rows
+				}
+			}
+			if timeoutStr, ok := params["query_timeout"]; ok {
+				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
+					queryTimeout = timeout
+				}
+			}
+		}
+
+		// Only register if we have configured databases
+		if len(allowedDBs) > 0 {
+			sqlQueryTool := builtin.NewSQLQueryTool(allowedDBs, maxRows, queryTimeout)
+			if err := s.toolRegistry.Register(sqlQueryTool); err != nil {
+				log.Printf("Failed to register sql_query tool: %v", err)
+			}
+		} else {
+			log.Printf("SQL query tool enabled but no databases configured, skipping registration")
+		}
 	}
 }
 
@@ -235,6 +366,244 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 			Elapsed: time.Since(start).String(),
 		},
 		nil
+}
+
+// QueryWithTools processes a query with tool calling support
+func (s *Service) QueryWithTools(ctx context.Context, req domain.QueryRequest) (domain.QueryResponse, error) {
+	start := time.Now()
+
+	if req.Query == "" {
+		return domain.QueryResponse{}, fmt.Errorf("%w: empty query", domain.ErrInvalidInput)
+	}
+
+	// If tools are not enabled or not requested, fall back to regular query
+	if !s.toolsEnabled || !req.ToolsEnabled {
+		return s.Query(ctx, req)
+	}
+
+	// Perform hybrid search first to get context
+	chunks, err := s.hybridSearch(ctx, req)
+	if err != nil {
+		return domain.QueryResponse{}, err
+	}
+
+	// Build tools list based on allowed tools
+	availableTools := s.getAvailableTools(req.AllowedTools)
+	if len(availableTools) == 0 {
+		// No tools available, fall back to regular query
+		return s.Query(ctx, req)
+	}
+
+	// Convert to domain.ToolDefinition
+	toolDefs := make([]domain.ToolDefinition, 0, len(availableTools))
+	for _, tool := range availableTools {
+		params := tool.Parameters()
+		toolDef := domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        tool.Name(),
+				Description: tool.Description(),
+				Parameters: map[string]interface{}{
+					"type":       params.Type,
+					"properties": params.Properties,
+					"required":   params.Required,
+				},
+			},
+		}
+		toolDefs = append(toolDefs, toolDef)
+	}
+
+	// Create execution context
+	execCtx := &tools.ExecutionContext{
+		RequestID: uuid.New().String(),
+	}
+
+	// Generate options
+	genOpts := &domain.GenerationOptions{
+		Temperature: req.Temperature,
+		MaxTokens:   req.MaxTokens,
+	}
+
+	if genOpts.Temperature <= 0 {
+		genOpts.Temperature = 0.7
+	}
+	if genOpts.MaxTokens <= 0 {
+		genOpts.MaxTokens = 500
+	}
+
+	// Build prompt with context
+	prompt := s.buildPromptWithContext(req.Query, chunks)
+
+	// Use coordinator to handle tool calling conversation
+	response, err := s.toolCoordinator.HandleToolCallingConversation(
+		ctx, s.generator, prompt, toolDefs, genOpts, execCtx,
+	)
+	if err != nil {
+		return domain.QueryResponse{}, fmt.Errorf("tool calling failed: %w", err)
+	}
+
+	// Clean up internal thinking tags if needed
+	if !req.ShowThinking {
+		response.Answer = s.cleanThinkingTags(response.Answer)
+	}
+
+	// Add sources from initial search
+	response.Sources = chunks
+	response.Elapsed = time.Since(start).String()
+
+	return *response, nil
+}
+
+// StreamQueryWithTools processes a streaming query with tool calling support
+func (s *Service) StreamQueryWithTools(ctx context.Context, req domain.QueryRequest, callback func(string)) error {
+	if req.Query == "" {
+		return fmt.Errorf("%w: empty query", domain.ErrInvalidInput)
+	}
+
+	if callback == nil {
+		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
+	}
+
+	// If tools are not enabled or not requested, fall back to regular stream query
+	if !s.toolsEnabled || !req.ToolsEnabled {
+		return s.StreamQuery(ctx, req, callback)
+	}
+
+	// Perform hybrid search first
+	chunks, err := s.hybridSearch(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	// Build tools list
+	availableTools := s.getAvailableTools(req.AllowedTools)
+	if len(availableTools) == 0 {
+		return s.StreamQuery(ctx, req, callback)
+	}
+
+	// Convert to domain.ToolDefinition
+	toolDefs := make([]domain.ToolDefinition, 0, len(availableTools))
+	for _, tool := range availableTools {
+		params := tool.Parameters()
+		toolDef := domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        tool.Name(),
+				Description: tool.Description(),
+				Parameters: map[string]interface{}{
+					"type":       params.Type,
+					"properties": params.Properties,
+					"required":   params.Required,
+				},
+			},
+		}
+		toolDefs = append(toolDefs, toolDef)
+	}
+
+	// Create execution context
+	execCtx := &tools.ExecutionContext{
+		RequestID: uuid.New().String(),
+	}
+
+	// Generate options
+	genOpts := &domain.GenerationOptions{
+		Temperature: req.Temperature,
+		MaxTokens:   req.MaxTokens,
+	}
+
+	if genOpts.Temperature <= 0 {
+		genOpts.Temperature = 0.7
+	}
+	if genOpts.MaxTokens <= 0 {
+		genOpts.MaxTokens = 500
+	}
+
+	// Build prompt with context
+	prompt := s.buildPromptWithContext(req.Query, chunks)
+
+	// Wrap callback to handle thinking tags
+	wrappedCallback := s.wrapCallbackForThinking(callback, req.ShowThinking)
+
+	// Create a callback that handles tool execution results
+	toolCallback := func(chunk string, toolCalls []domain.ExecutedToolCall, finished bool) error {
+		if chunk != "" {
+			wrappedCallback(chunk)
+		}
+
+		// Optionally send tool execution info
+		if len(toolCalls) > 0 && req.ShowThinking {
+			for _, call := range toolCalls {
+				info := fmt.Sprintf("\n[Tool: %s - %s]\n", call.Function.Name,
+					map[bool]string{true: "Success", false: "Failed"}[call.Success])
+				wrappedCallback(info)
+			}
+		}
+
+		return nil
+	}
+
+	// Use coordinator for streaming with tools
+	return s.toolCoordinator.StreamToolCallingConversation(
+		ctx, s.generator, prompt, toolDefs, genOpts, execCtx, toolCallback,
+	)
+}
+
+// getAvailableTools returns the list of available tools based on allowed list
+func (s *Service) getAvailableTools(allowedTools []string) []tools.Tool {
+	if s.toolRegistry == nil {
+		return nil
+	}
+
+	allTools := s.toolRegistry.ListEnabled()
+	if len(allowedTools) == 0 {
+		// Return all enabled tools
+		result := make([]tools.Tool, 0, len(allTools))
+		for _, info := range allTools {
+			if tool, exists := s.toolRegistry.Get(info.Name); exists {
+				result = append(result, tool)
+			}
+		}
+		return result
+	}
+
+	// Filter by allowed list
+	allowedMap := make(map[string]bool)
+	for _, name := range allowedTools {
+		allowedMap[name] = true
+	}
+
+	result := make([]tools.Tool, 0, len(allowedTools))
+	for _, info := range allTools {
+		if allowedMap[info.Name] {
+			if tool, exists := s.toolRegistry.Get(info.Name); exists {
+				result = append(result, tool)
+			}
+		}
+	}
+
+	return result
+}
+
+// buildPromptWithContext builds a prompt with RAG context
+func (s *Service) buildPromptWithContext(query string, chunks []domain.Chunk) string {
+	if len(chunks) == 0 {
+		return query
+	}
+
+	var contextParts []string
+	for i, chunk := range chunks {
+		contextParts = append(contextParts, fmt.Sprintf("[Document %d]\n%s", i+1, chunk.Content))
+	}
+
+	context := strings.Join(contextParts, "\n\n")
+
+	return fmt.Sprintf(`Based on the following context, please answer the user's question. 
+If the context doesn't contain relevant information, you may use tools to get additional information.
+
+Context:
+%s
+
+User Question: %s`, context, query)
 }
 
 func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, callback func(string)) error {
@@ -579,4 +948,14 @@ func (s *Service) wrapCallbackForThinking(callback func(string), showThinking bo
 			}
 		}
 	}
+}
+
+// GetToolRegistry returns the tool registry if tools are enabled
+func (s *Service) GetToolRegistry() *tools.Registry {
+	return s.toolRegistry
+}
+
+// GetToolExecutor returns the tool executor if tools are enabled
+func (s *Service) GetToolExecutor() *tools.Executor {
+	return s.toolExecutor
 }

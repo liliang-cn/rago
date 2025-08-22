@@ -13,6 +13,7 @@ import (
 	"github.com/liliang-cn/rago/internal/llm"
 	"github.com/liliang-cn/rago/internal/processor"
 	"github.com/liliang-cn/rago/internal/store"
+	"github.com/liliang-cn/rago/internal/tools"
 )
 
 type Client struct {
@@ -133,11 +134,29 @@ func (c *Client) Query(query string) (domain.QueryResponse, error) {
 		TopK:         c.config.Sqvect.TopK,
 		Temperature:  0.7,
 		MaxTokens:    500,
-		Stream:       true,
+		Stream:       false, // Changed to false for library use
 		ShowThinking: true,
 	}
 
 	return c.processor.Query(ctx, req)
+}
+
+// QueryWithTools performs a query with tool calling enabled
+func (c *Client) QueryWithTools(query string, allowedTools []string, maxToolCalls int) (domain.QueryResponse, error) {
+	ctx := context.Background()
+	req := domain.QueryRequest{
+		Query:        query,
+		TopK:         c.config.Sqvect.TopK,
+		Temperature:  0.7,
+		MaxTokens:    500,
+		Stream:       false, // Non-streaming for library use
+		ShowThinking: true,
+		ToolsEnabled: true,
+		AllowedTools: allowedTools,
+		MaxToolCalls: maxToolCalls,
+	}
+
+	return c.processor.QueryWithTools(ctx, req)
 }
 
 func (c *Client) QueryWithFilters(query string, filters map[string]interface{}) (domain.QueryResponse, error) {
@@ -218,6 +237,92 @@ func (c *Client) Close() error {
 	}
 	return nil
 }
+
+// Tool Management Methods
+
+// ListAvailableTools returns all available tools
+func (c *Client) ListAvailableTools() []tools.ToolInfo {
+	if registry := c.processor.GetToolRegistry(); registry != nil {
+		return registry.List()
+	}
+	return []tools.ToolInfo{}
+}
+
+// ListEnabledTools returns only enabled tools
+func (c *Client) ListEnabledTools() []tools.ToolInfo {
+	if registry := c.processor.GetToolRegistry(); registry != nil {
+		return registry.ListEnabled()
+	}
+	return []tools.ToolInfo{}
+}
+
+// ExecuteTool directly executes a tool with given arguments
+func (c *Client) ExecuteTool(toolName string, args map[string]interface{}) (*tools.ToolResult, error) {
+	registry := c.processor.GetToolRegistry()
+	executor := c.processor.GetToolExecutor()
+	
+	if registry == nil || executor == nil {
+		return nil, fmt.Errorf("tools are not enabled")
+	}
+
+	// Check if tool exists and is enabled
+	if !registry.IsEnabled(toolName) {
+		return nil, fmt.Errorf("tool '%s' is not enabled", toolName)
+	}
+
+	tool, exists := registry.Get(toolName)
+	if !exists {
+		return nil, fmt.Errorf("tool '%s' not found", toolName)
+	}
+
+	// Validate arguments
+	if err := tool.Validate(args); err != nil {
+		return nil, fmt.Errorf("invalid arguments: %w", err)
+	}
+
+	// Create execution context
+	ctx := context.Background()
+	execCtx := &tools.ExecutionContext{
+		RequestID: fmt.Sprintf("lib-%s-%d", toolName, time.Now().Unix()),
+		UserID:    "lib-user",
+		SessionID: "lib-session",
+	}
+
+	// Execute tool
+	result, err := executor.Execute(ctx, execCtx, toolName, args)
+	if err != nil {
+		return nil, fmt.Errorf("tool execution failed: %w", err)
+	}
+
+	return result, nil
+}
+
+// GetToolStats returns tool execution statistics
+func (c *Client) GetToolStats() map[string]interface{} {
+	registry := c.processor.GetToolRegistry()
+	executor := c.processor.GetToolExecutor()
+	
+	if registry == nil || executor == nil {
+		return map[string]interface{}{
+			"tools_enabled": false,
+		}
+	}
+
+	return map[string]interface{}{
+		"tools_enabled":    true,
+		"registry_stats":   registry.Stats(),
+		"executor_stats":   executor.GetStats(),
+	}
+}
+
+// convertToolInfoSlice converts internal tool info slice to interface slice
+// func convertToolInfoSlice(toolInfos []tools.ToolInfo) []interface{} {
+// 	result := make([]interface{}, len(toolInfos))
+// 	for i, info := range toolInfos {
+// 		result[i] = info
+// 	}
+// 	return result
+// }
 
 func (c *Client) GetConfig() *config.Config {
 	return c.config

@@ -75,7 +75,7 @@ func (s *KeywordStore) Search(ctx context.Context, query string, topK int) ([]do
 	for _, hit := range searchResult.Hits {
 		// Safely extract fields with type checking
 		var content, documentID string
-		
+
 		// Try different possible field names that Bleve might use
 		if contentField, ok := hit.Fields["content"]; ok && contentField != nil {
 			if contentStr, ok := contentField.(string); ok {
@@ -86,7 +86,7 @@ func (s *KeywordStore) Search(ctx context.Context, query string, topK int) ([]do
 				content = contentStr
 			}
 		}
-		
+
 		if docIDField, ok := hit.Fields["document_id"]; ok && docIDField != nil {
 			if docIDStr, ok := docIDField.(string); ok {
 				documentID = docIDStr
@@ -96,7 +96,7 @@ func (s *KeywordStore) Search(ctx context.Context, query string, topK int) ([]do
 				documentID = docIDStr
 			}
 		}
-		
+
 		// The ID of the hit is the chunk ID we assigned during indexing.
 		chunk := domain.Chunk{
 			ID:         hit.ID,

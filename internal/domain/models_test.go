@@ -47,9 +47,9 @@ func TestChunk_IsEmpty(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "completely empty",
+			name:  "completely empty",
 			chunk: Chunk{},
-			want: true,
+			want:  true,
 		},
 	}
 

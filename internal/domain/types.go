@@ -31,12 +31,17 @@ type QueryRequest struct {
 	Stream       bool                   `json:"stream"`
 	ShowThinking bool                   `json:"show_thinking"`
 	Filters      map[string]interface{} `json:"filters,omitempty"`
+	ToolsEnabled bool                   `json:"tools_enabled"`
+	AllowedTools []string               `json:"allowed_tools,omitempty"`
+	MaxToolCalls int                    `json:"max_tool_calls"`
 }
 
 type QueryResponse struct {
-	Answer  string  `json:"answer"`
-	Sources []Chunk `json:"sources"`
-	Elapsed string  `json:"elapsed"`
+	Answer    string             `json:"answer"`
+	Sources   []Chunk            `json:"sources"`
+	Elapsed   string             `json:"elapsed"`
+	ToolCalls []ExecutedToolCall `json:"tool_calls,omitempty"`
+	ToolsUsed []string           `json:"tools_used,omitempty"`
 }
 
 type IngestRequest struct {
@@ -72,12 +77,61 @@ type Generator interface {
 	Generate(ctx context.Context, prompt string, opts *GenerationOptions) (string, error)
 	Stream(ctx context.Context, prompt string, opts *GenerationOptions, callback func(string)) error
 	IsAlmostSame(ctx context.Context, input, output string) (bool, error)
+	GenerateWithTools(ctx context.Context, prompt string, tools []ToolDefinition, opts *GenerationOptions) (*GenerationResult, error)
+	StreamWithTools(ctx context.Context, prompt string, tools []ToolDefinition, opts *GenerationOptions, callback ToolCallCallback) error
 }
 
 type GenerationOptions struct {
 	Temperature float64
 	MaxTokens   int
 	Think       *bool
+}
+
+// Tool calling related types
+
+// ToolDefinition represents a tool that can be called by the LLM
+type ToolDefinition struct {
+	Type     string       `json:"type"` // Always "function"
+	Function ToolFunction `json:"function"`
+}
+
+// ToolFunction defines a function that can be called
+type ToolFunction struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Parameters  map[string]interface{} `json:"parameters"`
+}
+
+// ToolCall represents a call to a tool made by the LLM
+type ToolCall struct {
+	ID       string       `json:"id"`
+	Type     string       `json:"type"` // "function"
+	Function FunctionCall `json:"function"`
+}
+
+// FunctionCall represents the function call details
+type FunctionCall struct {
+	Name      string                 `json:"name"`
+	Arguments map[string]interface{} `json:"arguments"`
+}
+
+// GenerationResult represents the result of LLM generation with potential tool calls
+type GenerationResult struct {
+	Content   string     `json:"content"`
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	Finished  bool       `json:"finished"`
+}
+
+// ToolCallCallback is called during streaming when tool calls are detected
+type ToolCallCallback func(chunk string, toolCalls []ToolCall) error
+
+// ExecutedToolCall represents a tool call that has been executed
+type ExecutedToolCall struct {
+	ToolCall
+	Result  interface{} `json:"result"`
+	Elapsed string      `json:"elapsed"`
+	Success bool        `json:"success"`
+	Error   string      `json:"error,omitempty"`
 }
 
 type Chunker interface {
