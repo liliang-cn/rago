@@ -1,14 +1,14 @@
-# RAGO 工具调用功能实施进度
+# RAGO 工具调用系统优化任务清单
 
-## 已完成
+## ✅ 已完成
 
-### ✅ 阶段1: 基础架构 (完成)
+### 阶段1: 基础架构 (完成)
 - [x] **定义工具接口和基础类型** (`internal/tools/types.go`)
 - [x] **实现工具注册管理器** (`internal/tools/registry.go`)
 - [x] **创建基础的工具执行引擎** (`internal/tools/executor.go`)
 - [x] **扩展配置系统** (`internal/config/config.go`)
 
-### ✅ 插件化架构 (完成) 🎯
+### 插件化架构 (完成) 🎯
 - [x] **设计和实现插件管理器** (`internal/tools/plugin_manager.go`)
   - 支持动态加载 .so 文件
   - 插件生命周期管理 (加载/卸载/重载)
@@ -30,61 +30,119 @@
   - 配置示例和使用说明
   - 安全考虑和最佳实践
 
-### ✅ 阶段2: LLM集成 (部分完成)
+### LLM集成和工具实现 (完成)
 - [x] **扩展Generator接口支持工具调用** (`internal/domain/types.go`)
 - [x] **更新OllamaService实现工具调用** (`internal/llm/ollama.go`)
+- [x] **实现工具协调器** (`internal/tools/coordinator.go`)
+- [x] **实现5个内置工具**:
+  - `datetime` - 日期时间查询工具
+  - `file_operations` - 文件系统操作工具
+  - `rag_search` - RAG搜索工具
+  - `document_info` - 文档信息查询工具
+  - `sql_query` - SQL查询工具 (支持 modernc.org/sqlite)
+- [x] **API集成** (`api/handlers/tools.go`, `internal/processor/service.go`)
+- [x] **CLI集成** (`cmd/rago/tools.go`, `cmd/rago/query.go`)
+- [x] **库接口支持** (`lib/rago.go`)
 
-## 进行中
+### 测试和修复 (完成)
+- [x] **单元测试覆盖**
+- [x] **修复SQLite驱动问题** (modernc.org/sqlite)
+- [x] **修复工具响应生成问题**
+- [x] **版本发布** (v1.0.0, v1.0.1)
 
-### 🚧 阶段2: LLM集成 (2/4 已完成)
-- [ ] **实现工具调用的请求/响应处理**
-  - 需要实现工具调用结果的处理逻辑
-  - 处理多轮对话中的工具调用
-  
-- [ ] **添加流式工具调用支持** 
-  - 完善流式处理中的工具调用逻辑
-  - 实现实时工具执行反馈
+## 🔥 Critical Priority (进行中)
 
-## 待完成
+### 1. 修复流式工具调用的多轮对话问题 (In Progress)
+- **问题**: 当前的 `StreamToolCallingConversation` 只支持单轮对话，无法处理工具执行结果后的后续对话
+- **位置**: `internal/tools/coordinator.go:272-326`
+- **解决方案**: 重新设计流式处理，支持多轮对话循环，类似非流式版本的实现
 
-### ⏳ 阶段3: 内置工具
-- [ ] **实现实用工具集**
-  - 创建 `internal/tools/builtin/` 目录
-  - 实现日期时间工具 (`DateTimeTool`) - 获取当前时间、日期计算等
-  - 实现SQL查询工具 (`SQLQueryTool`) - 连接外部数据库查询
-  - 实现文件操作工具 (`FileReadTool`, `FileListTool`) - 安全的文件系统访问
+## 🎯 High Priority
 
-- [ ] **实现RAG专用工具**
-  - 实现RAG搜索工具 (`RAGSearchTool`) - 搜索知识库内容
-  - 实现文档管理工具 (`DocumentManagementTool`) - 管理文档元数据
-  - 实现统计分析工具 (`StatsQueryTool`) - 分析文档和查询统计
+### 2. 实现完整的插件加载系统(.so文件)
+- **目标**: 完成 `.so` 文件动态加载功能
+- **当前状态**: 基础框架已完成，需要完善加载逻辑
+- **位置**: `internal/tools/plugin.go`
+- **任务**:
+  - 完善插件文件扫描和加载逻辑
+  - 实现插件热重载功能
+  - 添加插件依赖管理
+  - 完善错误处理和日志记录
 
-### ⏳ 阶段4: API集成
-- [ ] **扩展查询处理器支持工具调用**
-  - 更新 `internal/processor/service.go`
-  - 实现 `QueryWithTools` 方法
-  - 集成工具执行引擎
+### 3. 增加更多实用工具
+- **HTTP 请求工具** (GET/POST/PUT/DELETE)
+- **邮件发送工具** (SMTP支持)
+- **文件压缩/解压工具** (zip/tar.gz)
+- **系统信息查询工具** (CPU、内存、磁盘)
+- **网络测试工具** (ping、端口检测)
 
-- [ ] **添加新的API端点**
-  - 创建 `api/handlers/tools.go`
-  - 实现工具列表、详情、执行等端点
-  - 实现带工具调用的查询端点
+### 4. 增强安全机制
+- **工具权限控制和白名单机制**
+- **审计日志记录所有工具调用**
+- **敏感操作确认机制**
+- **资源使用限制和监控**
+- **输入参数验证和净化**
 
-- [ ] **更新CLI命令支持工具调用**
-  - 扩展 `cmd/rago/query.go` 支持工具调用选项
-  - 添加新的工具管理命令
-  - 更新帮助文档
+## 🚀 Medium Priority
 
-### ⏳ 阶段5: 安全和优化
-- [ ] **实现权限控制系统**
-  - 实现工具权限验证
-  - 添加用户权限管理
-  - 实现资源访问控制
+### 5. 添加监控和可观测性
+- **Prometheus 指标收集**
+- **OpenTelemetry 链路追踪**
+- **工具执行性能监控**
+- **错误率和成功率统计**
+- **资源使用情况监控**
 
-- [ ] **添加执行沙箱**
-  - 实现安全沙箱环境
-  - 限制工具的系统访问
-  - 添加资源使用监控
+### 6. 性能优化
+- **结果缓存机制**
+- **数据库连接池管理**
+- **并发执行优化**
+- **内存使用优化**
+- **工具调用去重**
+
+### 7. 实现对话记忆和上下文管理
+- **长期对话历史存储**
+- **上下文相关性分析**
+- **智能上下文剪枝**
+- **会话恢复功能**
+- **多轮对话状态管理**
+
+## 📋 Standard Priority
+
+### 8. 增强Web UI支持工具调用界面
+- **工具执行状态可视化**
+- **交互式工具参数配置**
+- **执行结果展示优化**
+- **实时执行监控**
+- **工具使用统计图表**
+
+### 9. 添加端到端集成测试
+- **完整工具调用流程测试**
+- **多工具协作场景测试**
+- **错误处理和恢复测试**
+- **性能基准测试**
+- **安全边界测试**
+
+### 10. 完善API文档和使用指南
+- **完整的工具开发指南**
+- **API 参考文档**
+- **最佳实践文档**
+- **故障排除指南**
+- **性能调优指南**
+
+## 📊 当前状态总结
+- ✅ **核心工具调用框架** (已完成)
+- ✅ **5个内置工具** (datetime, file_operations, rag_search, document_info, sql_query)
+- ✅ **插件架构基础框架** (已完成)
+- ✅ **CLI 和 API 集成** (已完成)
+- ✅ **库接口支持** (已完成)
+- 🔄 **流式工具调用修复** (进行中)
+- 📝 **插件系统完善** (待开始)
+
+## 🎯 下一步行动计划
+1. **立即**: 修复流式工具调用的多轮对话问题
+2. **接下来**: 完善插件系统的.so文件动态加载
+3. **然后**: 添加HTTP请求、邮件等实用工具
+4. **最后**: 增强安全机制和监控系统
 
 ## 关键文件结构
 
@@ -94,13 +152,14 @@ internal/
 │   ├── types.go              ✅ 工具接口和基础类型
 │   ├── registry.go           ✅ 工具注册管理器
 │   ├── executor.go           ✅ 工具执行引擎
+│   ├── coordinator.go        ✅ 工具协调器 (🔄 流式修复中)
 │   ├── plugin_manager.go     ✅ 插件管理器
 │   ├── plugin_example.go     ✅ 插件开发示例
-│   └── builtin/              ⏳ 内置工具实现
-│       ├── datetime.go       ⏳ 日期时间工具
-│       ├── sql.go            ⏳ SQL查询工具
-│       ├── file.go           ⏳ 文件操作工具
-│       └── rag_tools.go      ⏳ RAG专用工具
+│   └── builtin/              ✅ 内置工具实现
+│       ├── datetime.go       ✅ 日期时间工具
+│       ├── sql_tool.go       ✅ SQL查询工具
+│       ├── file_tools.go     ✅ 文件操作工具
+│       └── rag_tools.go      ✅ RAG专用工具
 ├── config/
 │   └── config.go             ✅ 扩展配置支持工具和插件
 ├── domain/
@@ -108,32 +167,27 @@ internal/
 ├── llm/
 │   └── ollama.go             ✅ 添加工具调用支持
 └── processor/
-    └── service.go            ⏳ 集成工具调用到查询处理
+    └── service.go            ✅ 集成工具调用到查询处理
 
 api/handlers/
-├── tools.go                  ⏳ 工具相关API端点
-└── plugins.go                ⏳ 插件管理API端点
+└── tools.go                  ✅ 工具相关API端点
 
 cmd/rago/
-├── tools.go                  ⏳ 工具管理CLI命令
-└── plugins.go                ⏳ 插件管理CLI命令
+├── tools.go                  ✅ 工具管理CLI命令
+└── query.go                  ✅ 支持工具调用的查询命令
 
-plugins/                      ⏳ 插件目录
-└── example_plugin.so         ⏳ 示例插件
+lib/
+└── rago.go                   ✅ 库接口支持工具调用
+
+plugins/                      📝 插件目录 (待完善)
+└── example_plugin.so         📝 示例插件
 
 PLUGIN_ARCHITECTURE.md        ✅ 插件开发完整指南
 ```
 
-## 下一步行动
-
-1. **立即**: 完成阶段2剩余工作 - 实现工具调用的请求/响应处理
-2. **接下来**: 实现实用内置工具（日期时间、SQL查询、文件操作）
-3. **然后**: 实现RAG专用工具并集成到处理器
-4. **最后**: 添加API端点和CLI支持
-
 ## 配置示例
 
-创建的配置将支持如下结构：
+当前系统支持的配置结构：
 
 ```toml
 [tools]
@@ -141,7 +195,7 @@ enabled = true
 max_concurrent_calls = 3
 call_timeout = "30s"
 security_level = "normal"
-enabled_tools = ["datetime", "sql_query", "rag_search", "file_read"]
+enabled_tools = ["datetime", "sql_query", "rag_search", "file_operations", "document_info"]
 
 [tools.builtin]
 datetime = { enabled = true }
@@ -151,10 +205,11 @@ sql_query = {
     allowed_drivers = ["postgres", "mysql", "sqlite"]
 }
 rag_search = { enabled = true }
-file_read = { 
+file_operations = { 
     enabled = true,
-    allowed_paths = ["/safe/path/*", "./documents/*"]
+    allowed_paths = ["/safe/path/*", "./documents/*", "."]
 }
+document_info = { enabled = true }
 
 [tools.plugins]
 enabled = true
@@ -170,34 +225,51 @@ timeout = "10s"
 
 ## API示例
 
-实现后将支持：
+当前系统支持的API接口：
 
 ```bash
 # 工具管理
-GET /api/tools
-GET /api/tools/datetime
-POST /api/tools/datetime/execute
+GET /api/tools                    # 获取所有工具列表
+GET /api/tools/datetime           # 获取特定工具详情
+POST /api/tools/datetime/execute  # 执行特定工具
 
 # 插件管理
-GET /api/plugins
-GET /api/plugins/weather-plugin
-POST /api/plugins/weather-plugin/reload
+GET /api/plugins                  # 获取所有插件列表
+POST /api/plugins/reload          # 重载插件
 
 # 带工具调用的查询
-POST /api/query/with-tools
-POST /api/query/with-tools/stream
+POST /api/query/with-tools        # 执行带工具的查询
+POST /api/query/with-tools/stream # 流式执行带工具的查询
+```
+
+## CLI示例
+
+当前系统支持的CLI命令：
+
+```bash
+# 工具管理
+rago tools list                   # 列出所有可用工具
+rago tools info datetime          # 查看工具详情
+rago tools execute datetime       # 执行工具
+
+# 带工具调用的查询
+rago query "现在几点？" --tools
+rago query "查询文档数量" --tools --allowed-tools="document_info,rag_search"
+rago query "检查当前目录" --tools --max-tool-calls=5
 ```
 
 ## 测试计划
 
-1. 单元测试所有工具实现
-2. 集成测试工具调用流程
-3. 性能测试并发执行
-4. 安全测试权限控制
+- [x] **单元测试所有工具实现**
+- [x] **集成测试工具调用流程** 
+- [x] **修复测试失败问题**
+- [ ] **性能测试并发执行**
+- [ ] **安全测试权限控制**
+- [ ] **端到端集成测试**
 
 ---
-**更新时间**: 2025-01-08
-**完成度**: 50% (10/20 个主要任务)
+**更新时间**: 2025-01-23  
+**完成度**: 85% (17/20 个主要功能模块)
 
 ## 🎯 插件化架构亮点
 
@@ -210,3 +282,9 @@ POST /api/query/with-tools/stream
 - **配置灵活**: 细粒度的插件配置管理
 
 这使得RAGO不仅是一个RAG系统，更是一个可扩展的AI工具平台。
+
+## 📈 版本历史
+
+- **v1.0.1** (Current) - 修复工具调用响应生成问题，增强稳定性
+- **v1.0.0** - 首个完整的工具调用系统版本
+- **v0.x.x** - 基础RAG功能版本
