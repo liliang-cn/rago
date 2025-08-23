@@ -117,7 +117,7 @@ func DefaultToolConfig() ToolConfig {
 		MaxConcurrency: 3,
 		CallTimeout:    30 * time.Second,
 		SecurityLevel:  "normal",
-		EnabledTools:   []string{"datetime", "rag_search", "document_info", "file_operations", "sql_query"},
+		EnabledTools:   []string{"datetime", "rag_search", "document_info", "file_operations", "sql_query", "http_request", "web_request", "google_search", "duckduckgo_search"},
 		LogLevel:       "info",
 		RateLimit: RateLimitConfig{
 			CallsPerMinute: 30,
@@ -136,6 +136,28 @@ func DefaultToolConfig() ToolConfig {
 				"allowed_databases": "main:./data/rag.db",
 				"max_rows":          "1000",
 				"query_timeout":     "30s",
+			}},
+			"http_request": {Enabled: true, Parameters: map[string]string{
+				"timeout":        "30s",
+				"max_body_size":  "10485760", // 10MB
+				"user_agent":     "RAGO-HTTP-Tool/1.0",
+				"follow_redirect": "true",
+			}},
+			"web_request": {Enabled: true, Parameters: map[string]string{
+				"timeout":          "60s",
+				"max_content_len":  "102400", // 100KB
+				"user_agent":       "RAGO-Web-Tool/1.0",
+			}},
+			"google_search": {Enabled: true, Parameters: map[string]string{
+				"max_results":    "10",
+				"search_timeout": "60s",
+				"user_agent":     "RAGO-Search-Tool/1.0",
+			}},
+			"duckduckgo_search": {Enabled: true, Parameters: map[string]string{
+				"max_results":    "10",
+				"search_timeout": "30s",
+				"user_agent":     "RAGO-DuckDuckGo-Tool/1.0",
+				"safe_search":    "moderate",
 			}},
 		},
 		Plugins: DefaultPluginConfig(),

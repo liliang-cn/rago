@@ -180,6 +180,164 @@ func (s *Service) registerBuiltinTools() {
 			log.Printf("SQL query tool enabled but no databases configured, skipping registration")
 		}
 	}
+
+	// Register HTTP request tool
+	if s.config.Tools.BuiltinTools["http_request"].Enabled {
+		// Parse configuration
+		config := builtin.HTTPToolConfig{
+			Timeout:      30 * time.Second,
+			MaxBodySize:  10 * 1024 * 1024, // 10MB default
+			UserAgent:    "RAGO-HTTP-Tool/1.0",
+			FollowRedirect: true,
+		}
+
+		if params := s.config.Tools.BuiltinTools["http_request"].Parameters; params != nil {
+			if timeoutStr, ok := params["timeout"]; ok {
+				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
+					config.Timeout = timeout
+				}
+			}
+			if sizeStr, ok := params["max_body_size"]; ok {
+				if size, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
+					config.MaxBodySize = size
+				}
+			}
+			if userAgent, ok := params["user_agent"]; ok {
+				config.UserAgent = userAgent
+			}
+			if followStr, ok := params["follow_redirect"]; ok {
+				if follow, err := strconv.ParseBool(followStr); err == nil {
+					config.FollowRedirect = follow
+				}
+			}
+			if allowedHosts, ok := params["allowed_hosts"]; ok {
+				config.AllowedHosts = strings.Split(allowedHosts, ",")
+				for i, host := range config.AllowedHosts {
+					config.AllowedHosts[i] = strings.TrimSpace(host)
+				}
+			}
+			if blockedHosts, ok := params["blocked_hosts"]; ok {
+				config.BlockedHosts = strings.Split(blockedHosts, ",")
+				for i, host := range config.BlockedHosts {
+					config.BlockedHosts[i] = strings.TrimSpace(host)
+				}
+			}
+		}
+
+		httpTool := builtin.NewHTTPTool(config)
+		if err := s.toolRegistry.Register(httpTool); err != nil {
+			log.Printf("Failed to register http_request tool: %v", err)
+		}
+	}
+
+	// Register Web request tool
+	if s.config.Tools.BuiltinTools["web_request"].Enabled {
+		// Parse configuration
+		config := builtin.WebToolConfig{
+			Timeout:       60 * time.Second,
+			MaxContentLen: 100 * 1024, // 100KB default
+			UserAgent:     "RAGO-Web-Tool/1.0",
+		}
+
+		if params := s.config.Tools.BuiltinTools["web_request"].Parameters; params != nil {
+			if timeoutStr, ok := params["timeout"]; ok {
+				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
+					config.Timeout = timeout
+				}
+			}
+			if lenStr, ok := params["max_content_len"]; ok {
+				if length, err := strconv.Atoi(lenStr); err == nil {
+					config.MaxContentLen = length
+				}
+			}
+			if userAgent, ok := params["user_agent"]; ok {
+				config.UserAgent = userAgent
+			}
+			if allowedHosts, ok := params["allowed_hosts"]; ok {
+				config.AllowedHosts = strings.Split(allowedHosts, ",")
+				for i, host := range config.AllowedHosts {
+					config.AllowedHosts[i] = strings.TrimSpace(host)
+				}
+			}
+			if blockedHosts, ok := params["blocked_hosts"]; ok {
+				config.BlockedHosts = strings.Split(blockedHosts, ",")
+				for i, host := range config.BlockedHosts {
+					config.BlockedHosts[i] = strings.TrimSpace(host)
+				}
+			}
+		}
+
+		webTool := builtin.NewWebTool(config)
+		if err := s.toolRegistry.Register(webTool); err != nil {
+			log.Printf("Failed to register web_request tool: %v", err)
+		}
+	}
+
+	// Register Google Search tool
+	if s.config.Tools.BuiltinTools["google_search"].Enabled {
+		// Parse configuration
+		config := builtin.GoogleSearchConfig{
+			MaxResults:    10,
+			SearchTimeout: 60 * time.Second,
+			UserAgent:     "RAGO-Search-Tool/1.0",
+		}
+
+		if params := s.config.Tools.BuiltinTools["google_search"].Parameters; params != nil {
+			if maxResultsStr, ok := params["max_results"]; ok {
+				if maxResults, err := strconv.Atoi(maxResultsStr); err == nil && maxResults > 0 {
+					config.MaxResults = maxResults
+				}
+			}
+			if timeoutStr, ok := params["search_timeout"]; ok {
+				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
+					config.SearchTimeout = timeout
+				}
+			}
+			if userAgent, ok := params["user_agent"]; ok {
+				config.UserAgent = userAgent
+			}
+		}
+
+		googleSearchTool := builtin.NewGoogleSearchTool(config)
+		if err := s.toolRegistry.Register(googleSearchTool); err != nil {
+			log.Printf("Failed to register google_search tool: %v", err)
+		}
+	}
+
+	// Register DuckDuckGo Search tool
+	if s.config.Tools.BuiltinTools["duckduckgo_search"].Enabled {
+		// Parse configuration
+		config := builtin.DuckDuckGoSearchConfig{
+			MaxResults:    10,
+			SearchTimeout: 30 * time.Second,
+			UserAgent:     "RAGO-DuckDuckGo-Tool/1.0",
+			SafeSearch:    "moderate",
+		}
+
+		if params := s.config.Tools.BuiltinTools["duckduckgo_search"].Parameters; params != nil {
+			if maxResultsStr, ok := params["max_results"]; ok {
+				if maxResults, err := strconv.Atoi(maxResultsStr); err == nil && maxResults > 0 {
+					config.MaxResults = maxResults
+				}
+			}
+			if timeoutStr, ok := params["search_timeout"]; ok {
+				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
+					config.SearchTimeout = timeout
+				}
+			}
+			if userAgent, ok := params["user_agent"]; ok {
+				config.UserAgent = userAgent
+			}
+			if safeSearch, ok := params["safe_search"]; ok {
+				config.SafeSearch = safeSearch
+			}
+		}
+
+		duckDuckGoTool := builtin.NewDuckDuckGoSearchTool(config)
+		if err := s.toolRegistry.Register(duckDuckGoTool); err != nil {
+			log.Printf("Failed to register duckduckgo_search tool: %v", err)
+		}
+	}
 }
 
 func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.IngestResponse, error) {
