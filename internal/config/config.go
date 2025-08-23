@@ -7,18 +7,31 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/liliang-cn/rago/internal/domain"
 	"github.com/liliang-cn/rago/internal/tools"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Server  ServerConfig     `mapstructure:"server"`
-	Ollama  OllamaConfig     `mapstructure:"ollama"`
-	Sqvect  SqvectConfig     `mapstructure:"sqvect"`
-	Keyword KeywordConfig    `mapstructure:"keyword"`
-	Chunker ChunkerConfig    `mapstructure:"chunker"`
-	Ingest  IngestConfig     `mapstructure:"ingest"`
-	Tools   tools.ToolConfig `mapstructure:"tools"`
+	Server    ServerConfig     `mapstructure:"server"`
+	Providers ProvidersConfig  `mapstructure:"providers"`
+	Sqvect    SqvectConfig     `mapstructure:"sqvect"`
+	Keyword   KeywordConfig    `mapstructure:"keyword"`
+	Chunker   ChunkerConfig    `mapstructure:"chunker"`
+	Ingest    IngestConfig     `mapstructure:"ingest"`
+	Tools     tools.ToolConfig `mapstructure:"tools"`
+	
+	// Deprecated: Use Providers instead
+	Ollama OllamaConfig `mapstructure:"ollama"`
+}
+
+type ProvidersConfig struct {
+	// The default provider to use for LLM operations
+	DefaultLLM string `mapstructure:"default_llm"`
+	// The default provider to use for embedding operations  
+	DefaultEmbedder string `mapstructure:"default_embedder"`
+	// Provider configurations
+	ProviderConfigs domain.ProviderConfig `mapstructure:",squash"`
 }
 
 type IngestConfig struct {
@@ -103,6 +116,18 @@ func setDefaults() {
 	viper.SetDefault("server.enable_ui", false)
 	viper.SetDefault("server.cors_origins", []string{"*"})
 
+	// Provider defaults
+	viper.SetDefault("providers.default_llm", "ollama")
+	viper.SetDefault("providers.default_embedder", "ollama")
+	
+	// Ollama provider defaults (backward compatibility)
+	viper.SetDefault("providers.ollama.type", "ollama")
+	viper.SetDefault("providers.ollama.embedding_model", "nomic-embed-text")
+	viper.SetDefault("providers.ollama.llm_model", "qwen3")
+	viper.SetDefault("providers.ollama.base_url", "http://localhost:11434")
+	viper.SetDefault("providers.ollama.timeout", "30s")
+
+	// Deprecated: Keep for backward compatibility
 	viper.SetDefault("ollama.embedding_model", "nomic-embed-text")
 	viper.SetDefault("ollama.llm_model", "qwen3")
 	viper.SetDefault("ollama.base_url", "http://localhost:11434")
@@ -157,6 +182,52 @@ func bindEnvVars() {
 		log.Printf("Warning: failed to bind server.enable_ui env var: %v", err)
 	}
 
+	// Provider environment variables
+	if err := viper.BindEnv("providers.default_llm", "RAGO_PROVIDERS_DEFAULT_LLM"); err != nil {
+		log.Printf("Warning: failed to bind providers.default_llm env var: %v", err)
+	}
+	if err := viper.BindEnv("providers.default_embedder", "RAGO_PROVIDERS_DEFAULT_EMBEDDER"); err != nil {
+		log.Printf("Warning: failed to bind providers.default_embedder env var: %v", err)
+	}
+
+	// Ollama provider environment variables
+	if err := viper.BindEnv("providers.ollama.embedding_model", "RAGO_OLLAMA_EMBEDDING_MODEL"); err != nil {
+		log.Printf("Warning: failed to bind providers.ollama.embedding_model env var: %v", err)
+	}
+	if err := viper.BindEnv("providers.ollama.llm_model", "RAGO_OLLAMA_LLM_MODEL"); err != nil {
+		log.Printf("Warning: failed to bind providers.ollama.llm_model env var: %v", err)
+	}
+	if err := viper.BindEnv("providers.ollama.base_url", "RAGO_OLLAMA_BASE_URL"); err != nil {
+		log.Printf("Warning: failed to bind providers.ollama.base_url env var: %v", err)
+	}
+	if err := viper.BindEnv("providers.ollama.timeout", "RAGO_OLLAMA_TIMEOUT"); err != nil {
+		log.Printf("Warning: failed to bind providers.ollama.timeout env var: %v", err)
+	}
+
+	// OpenAI provider environment variables
+	if err := viper.BindEnv("providers.openai.api_key", "RAGO_OPENAI_API_KEY"); err != nil {
+		log.Printf("Warning: failed to bind providers.openai.api_key env var: %v", err)
+	}
+	if err := viper.BindEnv("providers.openai.base_url", "RAGO_OPENAI_BASE_URL"); err != nil {
+		log.Printf("Warning: failed to bind providers.openai.base_url env var: %v", err)
+	}
+	if err := viper.BindEnv("providers.openai.embedding_model", "RAGO_OPENAI_EMBEDDING_MODEL"); err != nil {
+		log.Printf("Warning: failed to bind providers.openai.embedding_model env var: %v", err)
+	}
+	if err := viper.BindEnv("providers.openai.llm_model", "RAGO_OPENAI_LLM_MODEL"); err != nil {
+		log.Printf("Warning: failed to bind providers.openai.llm_model env var: %v", err)
+	}
+	if err := viper.BindEnv("providers.openai.organization", "RAGO_OPENAI_ORGANIZATION"); err != nil {
+		log.Printf("Warning: failed to bind providers.openai.organization env var: %v", err)
+	}
+	if err := viper.BindEnv("providers.openai.project", "RAGO_OPENAI_PROJECT"); err != nil {
+		log.Printf("Warning: failed to bind providers.openai.project env var: %v", err)
+	}
+	if err := viper.BindEnv("providers.openai.timeout", "RAGO_OPENAI_TIMEOUT"); err != nil {
+		log.Printf("Warning: failed to bind providers.openai.timeout env var: %v", err)
+	}
+
+	// Deprecated: Keep for backward compatibility
 	if err := viper.BindEnv("ollama.embedding_model", "RAGO_OLLAMA_EMBEDDING_MODEL"); err != nil {
 		log.Printf("Warning: failed to bind ollama.embedding_model env var: %v", err)
 	}
@@ -245,16 +316,19 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("server host cannot be empty")
 	}
 
-	if c.Ollama.BaseURL == "" {
-		return fmt.Errorf("ollama base URL cannot be empty")
+	// Validate provider configurations only if they exist
+	if c.Providers.DefaultLLM != "" || c.Providers.DefaultEmbedder != "" || 
+		c.Providers.ProviderConfigs.Ollama != nil || c.Providers.ProviderConfigs.OpenAI != nil {
+		if err := c.validateProviderConfig(); err != nil {
+			return fmt.Errorf("invalid provider configuration: %w", err)
+		}
 	}
 
-	if c.Ollama.EmbeddingModel == "" {
-		return fmt.Errorf("embedding model cannot be empty")
-	}
-
-	if c.Ollama.LLMModel == "" {
-		return fmt.Errorf("LLM model cannot be empty")
+	// Backward compatibility: validate deprecated ollama config if new config is not provided
+	if c.Providers.ProviderConfigs.Ollama == nil && c.Providers.ProviderConfigs.OpenAI == nil {
+		if err := c.validateLegacyOllamaConfig(); err != nil {
+			return fmt.Errorf("invalid ollama configuration: %w", err)
+		}
 	}
 
 	if c.Sqvect.DBPath == "" {
@@ -307,6 +381,100 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid tools configuration: %w", err)
 	}
 
+	return nil
+}
+
+// validateProviderConfig validates the new provider configuration
+func (c *Config) validateProviderConfig() error {
+	// Validate default provider settings
+	if c.Providers.DefaultLLM == "" {
+		return fmt.Errorf("default_llm cannot be empty")
+	}
+	if c.Providers.DefaultEmbedder == "" {
+		return fmt.Errorf("default_embedder cannot be empty")
+	}
+
+	validProviders := map[string]bool{"ollama": true, "openai": true}
+	if !validProviders[c.Providers.DefaultLLM] {
+		return fmt.Errorf("invalid default_llm provider: %s (supported: ollama, openai)", c.Providers.DefaultLLM)
+	}
+	if !validProviders[c.Providers.DefaultEmbedder] {
+		return fmt.Errorf("invalid default_embedder provider: %s (supported: ollama, openai)", c.Providers.DefaultEmbedder)
+	}
+
+	// Validate individual provider configurations
+	if c.Providers.ProviderConfigs.Ollama != nil {
+		if err := c.validateOllamaProviderConfig(c.Providers.ProviderConfigs.Ollama); err != nil {
+			return fmt.Errorf("invalid ollama provider config: %w", err)
+		}
+	}
+
+	if c.Providers.ProviderConfigs.OpenAI != nil {
+		if err := c.validateOpenAIProviderConfig(c.Providers.ProviderConfigs.OpenAI); err != nil {
+			return fmt.Errorf("invalid openai provider config: %w", err)
+		}
+	}
+
+	// Ensure the default providers have corresponding configurations
+	if c.Providers.DefaultLLM == "ollama" || c.Providers.DefaultEmbedder == "ollama" {
+		if c.Providers.ProviderConfigs.Ollama == nil {
+			return fmt.Errorf("ollama provider configuration is required when using ollama as default provider")
+		}
+	}
+	if c.Providers.DefaultLLM == "openai" || c.Providers.DefaultEmbedder == "openai" {
+		if c.Providers.ProviderConfigs.OpenAI == nil {
+			return fmt.Errorf("openai provider configuration is required when using openai as default provider")
+		}
+	}
+
+	return nil
+}
+
+// validateOllamaProviderConfig validates Ollama provider configuration
+func (c *Config) validateOllamaProviderConfig(config *domain.OllamaProviderConfig) error {
+	if config.BaseURL == "" {
+		return fmt.Errorf("base_url cannot be empty")
+	}
+	if config.EmbeddingModel == "" {
+		return fmt.Errorf("embedding_model cannot be empty")
+	}
+	if config.LLMModel == "" {
+		return fmt.Errorf("llm_model cannot be empty")
+	}
+	if config.Timeout <= 0 {
+		return fmt.Errorf("timeout must be positive: %v", config.Timeout)
+	}
+	return nil
+}
+
+// validateOpenAIProviderConfig validates OpenAI provider configuration
+func (c *Config) validateOpenAIProviderConfig(config *domain.OpenAIProviderConfig) error {
+	if config.APIKey == "" {
+		return fmt.Errorf("api_key cannot be empty")
+	}
+	if config.EmbeddingModel == "" {
+		return fmt.Errorf("embedding_model cannot be empty")
+	}
+	if config.LLMModel == "" {
+		return fmt.Errorf("llm_model cannot be empty")
+	}
+	if config.Timeout <= 0 {
+		return fmt.Errorf("timeout must be positive: %v", config.Timeout)
+	}
+	return nil
+}
+
+// validateLegacyOllamaConfig validates the deprecated ollama configuration
+func (c *Config) validateLegacyOllamaConfig() error {
+	if c.Ollama.BaseURL == "" {
+		return fmt.Errorf("ollama base URL cannot be empty")
+	}
+	if c.Ollama.EmbeddingModel == "" {
+		return fmt.Errorf("embedding model cannot be empty")
+	}
+	if c.Ollama.LLMModel == "" {
+		return fmt.Errorf("LLM model cannot be empty")
+	}
 	return nil
 }
 

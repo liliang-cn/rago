@@ -16,9 +16,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/internal/config"
 	"github.com/liliang-cn/rago/internal/domain"
-	"github.com/liliang-cn/rago/internal/llm"
 	"github.com/liliang-cn/rago/internal/tools"
 	"github.com/liliang-cn/rago/internal/tools/builtin"
+	"github.com/liliang-cn/rago/internal/utils"
 )
 
 type Service struct {
@@ -29,7 +29,7 @@ type Service struct {
 	keywordStore    domain.KeywordStore
 	documentStore   domain.DocumentStore
 	config          *config.Config
-	llmService      *llm.OllamaService
+	llmService      domain.MetadataExtractor
 	toolsEnabled    bool
 	toolRegistry    *tools.Registry
 	toolExecutor    *tools.Executor
@@ -44,7 +44,7 @@ func New(
 	keywordStore domain.KeywordStore,
 	documentStore domain.DocumentStore,
 	config *config.Config,
-	llmService *llm.OllamaService,
+	llmService domain.MetadataExtractor,
 ) *Service {
 	s := &Service{
 		embedder:      embedder,
@@ -494,7 +494,7 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 			nil
 	}
 
-	prompt := llm.ComposePrompt(chunks, req.Query)
+	prompt := utils.ComposePrompt(chunks, req.Query)
 
 	genOpts := &domain.GenerationOptions{
 		Temperature: req.Temperature,
@@ -745,7 +745,9 @@ func (s *Service) getAvailableTools(allowedTools []string) []tools.Tool {
 // buildPromptWithContext builds a prompt with RAG context
 func (s *Service) buildPromptWithContext(query string, chunks []domain.Chunk) string {
 	if len(chunks) == 0 {
-		return query
+		return fmt.Sprintf(`Please answer the user's question: %s
+
+If you need current information (like time, date, weather, file contents, web data, etc.), use the available tools to get accurate and up-to-date information.`, query)
 	}
 
 	var contextParts []string
@@ -755,13 +757,19 @@ func (s *Service) buildPromptWithContext(query string, chunks []domain.Chunk) st
 
 	context := strings.Join(contextParts, "\n\n")
 
-	return fmt.Sprintf(`Based on the following context, please answer the user's question. 
-If the context doesn't contain relevant information, you may use tools to get additional information.
+	return fmt.Sprintf(`Please answer the user's question using the following context AND any available tools when needed.
 
-Context:
+IMPORTANT INSTRUCTIONS:
+1. For questions about current information (time, date, weather, file contents, web data, etc.), always use the appropriate tools to get accurate and up-to-date information.
+2. For questions about stored knowledge, use the provided context documents.
+3. If both context and tools are relevant, combine information from both sources.
+
+Context Documents:
 %s
 
-User Question: %s`, context, query)
+User Question: %s
+
+Please provide a comprehensive answer using both the context documents and tools as appropriate.`, context, query)
 }
 
 func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, callback func(string)) error {
@@ -783,7 +791,7 @@ func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, call
 		return nil
 	}
 
-	prompt := llm.ComposePrompt(chunks, req.Query)
+	prompt := utils.ComposePrompt(chunks, req.Query)
 
 	genOpts := &domain.GenerationOptions{
 		Temperature: req.Temperature,

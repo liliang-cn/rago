@@ -8,7 +8,10 @@ import (
 )
 
 func main() {
-	// Create a new rago client with default config file
+	// Create a new rago client with config file
+	// The config file can use the new provider system or legacy Ollama configuration
+	// New provider system supports multiple providers: Ollama, OpenAI, and compatible services
+	// See config examples in examples/ directory for different configurations
 	client, err := rago.New("config.toml")
 	if err != nil {
 		log.Fatalf("Failed to create rago client: %v", err)
@@ -97,11 +100,9 @@ func main() {
 	// Example 6: System status check
 	fmt.Println("=== 6. 系统状态检查 ===")
 	status := client.CheckStatus()
-	fmt.Printf("Ollama 可用性: %v\n", status.OllamaAvailable)
-	fmt.Printf("基础 URL: %s\n", status.BaseURL)
-	fmt.Printf("LLM 模型: %s\n", status.LLMModel)
-	fmt.Printf("嵌入模型: %s\n", status.EmbeddingModel)
-	fmt.Printf("超时设置: %v\n", status.Timeout)
+	fmt.Printf("Provider 可用性: %v\n", status.ProvidersAvailable)
+	fmt.Printf("LLM Provider: %s\n", status.LLMProvider)
+	fmt.Printf("Embedder Provider: %s\n", status.EmbedderProvider)
 	
 	if status.Error != nil {
 		fmt.Printf("❌ 错误: %v\n", status.Error)
