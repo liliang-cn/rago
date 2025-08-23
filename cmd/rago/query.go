@@ -187,17 +187,12 @@ func processQuery(ctx context.Context, p *processor.Service, query string) error
 		TopK:         topK,
 		Temperature:  temperature,
 		MaxTokens:    maxTokens,
-		Stream:       stream && !enableTools, // Disable streaming when tools are enabled
+		Stream:       stream, // Streaming now works with tools
 		ShowThinking: showThinking,
 		Filters:      filters,
 		ToolsEnabled: enableTools,
 		AllowedTools: allowedTools,
 		MaxToolCalls: maxToolCalls,
-	}
-
-	// Inform user if streaming was disabled due to tools
-	if stream && enableTools && verbose {
-		fmt.Println("Note: Streaming disabled when tools are enabled")
 	}
 
 	if req.Stream {
