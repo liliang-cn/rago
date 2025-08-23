@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/liliang-cn/rago/internal/chunker"
-	"github.com/liliang-cn/rago/internal/embedder"
-	"github.com/liliang-cn/rago/internal/llm"
 	"github.com/liliang-cn/rago/internal/processor"
 	"github.com/liliang-cn/rago/internal/store"
 	"github.com/liliang-cn/rago/internal/tools"
@@ -319,25 +317,13 @@ func initializeProcessor() (*processor.Service, func(), error) {
 
 	docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
-	// Initialize services
-	embedService, err := embedder.NewOllamaService(
-		cfg.Ollama.BaseURL,
-		cfg.Ollama.EmbeddingModel,
-	)
+	// Initialize services using shared provider system
+	ctx := context.Background()
+	embedService, llmService, metadataExtractor, err := initializeProviders(ctx, cfg)
 	if err != nil {
 		vectorStore.Close()
 		keywordStore.Close()
-		return nil, nil, fmt.Errorf("failed to create embedder: %w", err)
-	}
-
-	llmService, err := llm.NewOllamaService(
-		cfg.Ollama.BaseURL,
-		cfg.Ollama.LLMModel,
-	)
-	if err != nil {
-		vectorStore.Close()
-		keywordStore.Close()
-		return nil, nil, fmt.Errorf("failed to create LLM service: %w", err)
+		return nil, nil, fmt.Errorf("failed to initialize providers: %w", err)
 	}
 
 	chunkerService := chunker.New()
@@ -350,7 +336,7 @@ func initializeProcessor() (*processor.Service, func(), error) {
 		keywordStore,
 		docStore,
 		cfg,
-		llmService,
+		metadataExtractor,
 	)
 
 	cleanup := func() {

@@ -56,3 +56,8 @@ func (s *OllamaService) Health(ctx context.Context) error {
 	}
 	return nil
 }
+
+// ExtractMetadata is a placeholder for embedder service - it doesn't actually extract metadata
+func (s *OllamaService) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
+	return nil, fmt.Errorf("metadata extraction not supported by embedder service")
+}

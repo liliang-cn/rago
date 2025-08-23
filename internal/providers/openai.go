@@ -1,0 +1,493 @@
+package providers
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	openai "github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/option"
+	"github.com/openai/openai-go/v2/shared"
+
+	"github.com/liliang-cn/rago/internal/domain"
+)
+
+// OpenAILLMProvider implements LLMProvider for OpenAI-compatible services
+type OpenAILLMProvider struct {
+	client openai.Client
+	config *domain.OpenAIProviderConfig
+}
+
+// NewOpenAILLMProvider creates a new OpenAI LLM provider
+func NewOpenAILLMProvider(config *domain.OpenAIProviderConfig) (domain.LLMProvider, error) {
+	if config == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+
+	opts := []option.RequestOption{
+		option.WithAPIKey(config.APIKey),
+	}
+
+	if config.BaseURL != "" {
+		opts = append(opts, option.WithBaseURL(config.BaseURL))
+	}
+
+	client := openai.NewClient(opts...)
+
+	return &OpenAILLMProvider{
+		client: client,
+		config: config,
+	}, nil
+}
+
+// ProviderType returns the provider type
+func (p *OpenAILLMProvider) ProviderType() domain.ProviderType {
+	return domain.ProviderOpenAI
+}
+
+// Generate generates text using OpenAI API
+func (p *OpenAILLMProvider) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
+	if prompt == "" {
+		return "", fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
+	}
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(prompt),
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:    shared.ChatModel(p.config.LLMModel),
+		Messages: messages,
+	}
+
+	if opts != nil {
+		if opts.Temperature >= 0 {
+			params.Temperature = openai.Float(opts.Temperature)
+		}
+		if opts.MaxTokens > 0 {
+			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
+		}
+	}
+
+	completion, err := p.client.Chat.Completions.New(ctx, params)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+	}
+
+	if len(completion.Choices) == 0 {
+		return "", fmt.Errorf("%w: no choices returned", domain.ErrGenerationFailed)
+	}
+
+	return completion.Choices[0].Message.Content, nil
+}
+
+// Stream generates text with streaming using OpenAI API
+func (p *OpenAILLMProvider) Stream(ctx context.Context, prompt string, opts *domain.GenerationOptions, callback func(string)) error {
+	if prompt == "" {
+		return fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
+	}
+
+	if callback == nil {
+		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
+	}
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(prompt),
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:    shared.ChatModel(p.config.LLMModel),
+		Messages: messages,
+	}
+
+	if opts != nil {
+		if opts.Temperature >= 0 {
+			params.Temperature = openai.Float(opts.Temperature)
+		}
+		if opts.MaxTokens > 0 {
+			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
+		}
+	}
+
+	stream := p.client.Chat.Completions.NewStreaming(ctx, params)
+	defer stream.Close()
+
+	for stream.Next() {
+		chunk := stream.Current()
+		if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
+			callback(chunk.Choices[0].Delta.Content)
+		}
+	}
+
+	if err := stream.Err(); err != nil {
+		return fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+	}
+
+	return nil
+}
+
+// Health checks the health of the OpenAI service
+func (p *OpenAILLMProvider) Health(ctx context.Context) error {
+	// Test with a simple completion to check if the service is accessible
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage("Hello"),
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:               shared.ChatModel(p.config.LLMModel),
+		Messages:            messages,
+		MaxCompletionTokens: openai.Int(1),
+	}
+
+	_, err := p.client.Chat.Completions.New(ctx, params)
+	if err != nil {
+		return fmt.Errorf("%w: %v", domain.ErrServiceUnavailable, err)
+	}
+
+	return nil
+}
+
+// ExtractMetadata extracts metadata from content using OpenAI API
+func (p *OpenAILLMProvider) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
+	if content == "" {
+		return nil, fmt.Errorf("%w: content cannot be empty", domain.ErrInvalidInput)
+	}
+
+	prompt := fmt.Sprintf(`You are an expert data extractor. Analyze the following document content and return ONLY a single valid JSON object with the following fields:
+- "summary": A concise, one-sentence summary of the document.
+- "keywords": An array of 3 to 5 most relevant keywords.
+- "document_type": The type of the document (e.g., "Article", "Meeting Notes", "Technical Manual", "Code Snippet", "Essay").
+- "creation_date": The creation date found in the document text in "YYYY-MM-DD" format. If no date is found, use null.
+
+Document Content:
+"""
+%s
+"""
+
+JSON Output:`, content)
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(prompt),
+	}
+
+	// Use the specified model if provided, otherwise use the default LLM model
+	llmModel := p.config.LLMModel
+	if model != "" {
+		llmModel = model
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:    shared.ChatModel(llmModel),
+		Messages: messages,
+	}
+
+	completion, err := p.client.Chat.Completions.New(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("%w: metadata extraction failed: %v", domain.ErrGenerationFailed, err)
+	}
+
+	if len(completion.Choices) == 0 {
+		return nil, fmt.Errorf("%w: no choices returned for metadata extraction", domain.ErrGenerationFailed)
+	}
+
+	var metadata domain.ExtractedMetadata
+	if err := json.Unmarshal([]byte(completion.Choices[0].Message.Content), &metadata); err != nil {
+		return nil, fmt.Errorf("%w: failed to unmarshal metadata response: %v. Raw response: %s", 
+			domain.ErrInvalidInput, err, completion.Choices[0].Message.Content)
+	}
+
+	return &metadata, nil
+}
+
+// IsAlmostSame determines if input and output are essentially the same using OpenAI API
+func (p *OpenAILLMProvider) IsAlmostSame(ctx context.Context, input, output string) (bool, error) {
+	if input == "" || output == "" {
+		return false, nil
+	}
+
+	prompt := fmt.Sprintf(`You are an expert judge evaluating whether two pieces of text represent the same information. 
+Please compare the original input and the generated output and determine if they convey the same core meaning.
+
+Respond with ONLY "true" if they are essentially the same, or "false" if they are different.
+
+Original input: "%s"
+Generated output: "%s"
+
+Are these essentially the same? Respond with only "true" or "false":`, input, output)
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(prompt),
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:               shared.ChatModel(p.config.LLMModel),
+		Messages:            messages,
+		MaxCompletionTokens: openai.Int(1),
+		Temperature:         openai.Float(0.0),
+	}
+
+	completion, err := p.client.Chat.Completions.New(ctx, params)
+	if err != nil {
+		return false, fmt.Errorf("failed to generate similarity judgment: %w", err)
+	}
+
+	if len(completion.Choices) == 0 {
+		return false, fmt.Errorf("no choices returned for similarity judgment")
+	}
+
+	result := strings.TrimSpace(strings.ToLower(completion.Choices[0].Message.Content))
+
+	if strings.Contains(result, "true") {
+		return true, nil
+	}
+	if strings.Contains(result, "false") {
+		return false, nil
+	}
+
+	// Default to false if we can't determine
+	return false, nil
+}
+
+// GenerateWithTools generates text with tool calling support
+func (p *OpenAILLMProvider) GenerateWithTools(ctx context.Context, prompt string, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
+	if prompt == "" {
+		return nil, fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
+	}
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(prompt),
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:    shared.ChatModel(p.config.LLMModel),
+		Messages: messages,
+	}
+
+	// Convert domain tools to OpenAI tools
+	if len(tools) > 0 {
+		openaiTools := make([]openai.ChatCompletionToolUnionParam, len(tools))
+		for i, tool := range tools {
+			openaiTools[i] = openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+				Name:        tool.Function.Name,
+				Description: openai.String(tool.Function.Description),
+				Parameters:  tool.Function.Parameters,
+			})
+		}
+		params.Tools = openaiTools
+	}
+
+	if opts != nil {
+		if opts.Temperature >= 0 {
+			params.Temperature = openai.Float(opts.Temperature)
+		}
+		if opts.MaxTokens > 0 {
+			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
+		}
+	}
+
+	completion, err := p.client.Chat.Completions.New(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+	}
+
+	if len(completion.Choices) == 0 {
+		return nil, fmt.Errorf("%w: no choices returned", domain.ErrGenerationFailed)
+	}
+
+	choice := completion.Choices[0]
+	result := &domain.GenerationResult{
+		Content:  choice.Message.Content,
+		Finished: true,
+	}
+
+	// Convert tool calls if any
+	if len(choice.Message.ToolCalls) > 0 {
+		result.ToolCalls = make([]domain.ToolCall, len(choice.Message.ToolCalls))
+		for i, tc := range choice.Message.ToolCalls {
+			// Parse function arguments if they are in string format
+			var args map[string]interface{}
+			if tc.Function.Arguments != "" {
+				if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+					return nil, fmt.Errorf("failed to parse tool call arguments: %w", err)
+				}
+			}
+
+			result.ToolCalls[i] = domain.ToolCall{
+				ID:   tc.ID,
+				Type: string(tc.Type),
+				Function: domain.FunctionCall{
+					Name:      tc.Function.Name,
+					Arguments: args,
+				},
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// StreamWithTools generates text with tool calling support in streaming mode
+func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, prompt string, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
+	if prompt == "" {
+		return fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
+	}
+
+	if callback == nil {
+		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
+	}
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(prompt),
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:    shared.ChatModel(p.config.LLMModel),
+		Messages: messages,
+	}
+
+	// Convert domain tools to OpenAI tools
+	if len(tools) > 0 {
+		openaiTools := make([]openai.ChatCompletionToolUnionParam, len(tools))
+		for i, tool := range tools {
+			openaiTools[i] = openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+				Name:        tool.Function.Name,
+				Description: openai.String(tool.Function.Description),
+				Parameters:  tool.Function.Parameters,
+			})
+		}
+		params.Tools = openaiTools
+	}
+
+	if opts != nil {
+		if opts.Temperature >= 0 {
+			params.Temperature = openai.Float(opts.Temperature)
+		}
+		if opts.MaxTokens > 0 {
+			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
+		}
+	}
+
+	stream := p.client.Chat.Completions.NewStreaming(ctx, params)
+	defer stream.Close()
+
+	for stream.Next() {
+		chunk := stream.Current()
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+
+		choice := chunk.Choices[0]
+		var toolCalls []domain.ToolCall
+
+		// Handle tool calls in streaming
+		if len(choice.Delta.ToolCalls) > 0 {
+			toolCalls = make([]domain.ToolCall, len(choice.Delta.ToolCalls))
+			for i, tc := range choice.Delta.ToolCalls {
+				var args map[string]interface{}
+				if tc.Function.Arguments != "" {
+					if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+						// If we can't parse, continue with empty args
+						args = make(map[string]interface{})
+					}
+				}
+
+				toolCalls[i] = domain.ToolCall{
+					ID:   tc.ID,
+					Type: "function", // Default type for OpenAI
+					Function: domain.FunctionCall{
+						Name:      tc.Function.Name,
+						Arguments: args,
+					},
+				}
+			}
+		}
+
+		// Call the callback with content and tool calls
+		if err := callback(choice.Delta.Content, toolCalls); err != nil {
+			return fmt.Errorf("callback error: %w", err)
+		}
+	}
+
+	if err := stream.Err(); err != nil {
+		return fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+	}
+
+	return nil
+}
+
+// OpenAIEmbedderProvider implements EmbedderProvider for OpenAI-compatible services
+type OpenAIEmbedderProvider struct {
+	client openai.Client
+	config *domain.OpenAIProviderConfig
+}
+
+// NewOpenAIEmbedderProvider creates a new OpenAI embedder provider
+func NewOpenAIEmbedderProvider(config *domain.OpenAIProviderConfig) (domain.EmbedderProvider, error) {
+	if config == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+
+	opts := []option.RequestOption{
+		option.WithAPIKey(config.APIKey),
+	}
+
+	if config.BaseURL != "" {
+		opts = append(opts, option.WithBaseURL(config.BaseURL))
+	}
+
+	client := openai.NewClient(opts...)
+
+	return &OpenAIEmbedderProvider{
+		client: client,
+		config: config,
+	}, nil
+}
+
+// ProviderType returns the provider type
+func (p *OpenAIEmbedderProvider) ProviderType() domain.ProviderType {
+	return domain.ProviderOpenAI
+}
+
+// Embed generates embeddings using OpenAI API
+func (p *OpenAIEmbedderProvider) Embed(ctx context.Context, text string) ([]float64, error) {
+	if text == "" {
+		return nil, fmt.Errorf("%w: empty text", domain.ErrInvalidInput)
+	}
+
+	params := openai.EmbeddingNewParams{
+		Model: openai.EmbeddingModel(p.config.EmbeddingModel),
+		Input: openai.EmbeddingNewParamsInputUnion{
+			OfString: openai.String(text),
+		},
+	}
+
+	embedding, err := p.client.Embeddings.New(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", domain.ErrEmbeddingFailed, err)
+	}
+
+	if len(embedding.Data) == 0 {
+		return nil, fmt.Errorf("%w: no embedding data returned", domain.ErrEmbeddingFailed)
+	}
+
+	return embedding.Data[0].Embedding, nil
+}
+
+// Health checks the health of the OpenAI embeddings service
+func (p *OpenAIEmbedderProvider) Health(ctx context.Context) error {
+	// Test with a simple embedding to check if the service is accessible
+	params := openai.EmbeddingNewParams{
+		Model: openai.EmbeddingModel(p.config.EmbeddingModel),
+		Input: openai.EmbeddingNewParamsInputUnion{
+			OfString: openai.String("test"),
+		},
+	}
+
+	_, err := p.client.Embeddings.New(ctx, params)
+	if err != nil {
+		return fmt.Errorf("%w: %v", domain.ErrServiceUnavailable, err)
+	}
+
+	return nil
+}

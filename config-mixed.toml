@@ -1,0 +1,60 @@
+# Mixed Provider Configuration
+# Use OpenAI for LLM (better quality) and Ollama for embeddings (cost-effective)
+
+[server]
+port = 7127
+host = "0.0.0.0"
+enable_ui = true
+
+[providers]
+default_llm = "openai"      # Use OpenAI for text generation
+default_embedder = "ollama" # Use Ollama for embeddings (cheaper)
+
+[providers.openai]
+type = "openai"
+api_key = "sk-your-openai-api-key-here"
+base_url = "https://api.openai.com/v1"
+llm_model = "gpt-4"
+timeout = "60s"
+
+[providers.ollama]
+type = "ollama"
+base_url = "http://localhost:11434"
+embedding_model = "nomic-embed-text"
+timeout = "120s"
+
+[sqvect]
+db_path = "./data/rag.db"
+vector_dim = 768  # Match Ollama nomic-embed-text dimension
+max_conns = 10
+batch_size = 100
+top_k = 5
+threshold = 0.0
+
+[keyword]
+index_path = "./data/keyword.bleve"
+
+[chunker]
+chunk_size = 500
+overlap = 50
+method = "sentence"
+
+[ingest]
+[ingest.metadata_extraction]
+enable = true
+llm_model = "gpt-4"  # Use OpenAI for metadata extraction
+
+[tools]
+enabled = true
+max_concurrent_calls = 5
+call_timeout = "30s"
+security_level = "normal"
+enabled_tools = [
+    "datetime",
+    "rag_search",
+    "document_info", 
+    "file_operations",
+    "web_request",
+    "google_search",
+    "duckduckgo_search"
+]

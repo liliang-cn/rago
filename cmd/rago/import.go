@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/liliang-cn/rago/internal/embedder"
+	"github.com/liliang-cn/rago/internal/domain"
 	"github.com/liliang-cn/rago/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -106,14 +106,12 @@ var importCmd = &cobra.Command{
 		}
 
 		// Initialize embedder if we need to recompute vectors
-		var embedService *embedder.OllamaService
+		var embedService domain.Embedder
 		if recomputeVectors || (len(exportData.Chunks) > 0 && len(exportData.Chunks[0].Vector) == 0) {
-			embedService, err = embedder.NewOllamaService(
-				cfg.Ollama.BaseURL,
-				cfg.Ollama.EmbeddingModel,
-			)
+			// Initialize providers to get embedder service
+			embedService, _, _, err = initializeProviders(ctx, cfg)
 			if err != nil {
-				return fmt.Errorf("failed to create embedder: %w", err)
+				return fmt.Errorf("failed to initialize embedder: %w", err)
 			}
 			fmt.Println("Embedder initialized for vector computation...")
 		}

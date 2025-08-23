@@ -9,11 +9,10 @@ import (
 	"github.com/liliang-cn/rago/internal/chunker"
 	"github.com/liliang-cn/rago/internal/config"
 	"github.com/liliang-cn/rago/internal/domain"
-	"github.com/liliang-cn/rago/internal/embedder"
-	"github.com/liliang-cn/rago/internal/llm"
 	"github.com/liliang-cn/rago/internal/processor"
 	"github.com/liliang-cn/rago/internal/store"
 	"github.com/liliang-cn/rago/internal/tools"
+	"github.com/liliang-cn/rago/internal/utils"
 )
 
 type Client struct {
@@ -21,8 +20,8 @@ type Client struct {
 	processor    *processor.Service
 	vectorStore  *store.SQLiteStore
 	keywordStore *store.KeywordStore
-	embedder     *embedder.OllamaService
-	llm          *llm.OllamaService
+	embedder     domain.Embedder
+	llm          domain.Generator
 }
 
 func New(configPath string) (*Client, error) {
@@ -53,24 +52,13 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 
 	docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
-	embedService, err := embedder.NewOllamaService(
-		cfg.Ollama.BaseURL,
-		cfg.Ollama.EmbeddingModel,
-	)
+	// Initialize services using provider system
+	ctx := context.Background()
+	embedService, llmService, metadataExtractor, err := utils.InitializeProviders(ctx, cfg)
 	if err != nil {
 		vectorStore.Close()
 		keywordStore.Close()
-		return nil, fmt.Errorf("failed to create embedder: %w", err)
-	}
-
-	llmService, err := llm.NewOllamaService(
-		cfg.Ollama.BaseURL,
-		cfg.Ollama.LLMModel,
-	)
-	if err != nil {
-		vectorStore.Close()
-		keywordStore.Close()
-		return nil, fmt.Errorf("failed to create LLM service: %w", err)
+		return nil, fmt.Errorf("failed to initialize providers: %w", err)
 	}
 
 	chunkerService := chunker.New()
@@ -83,7 +71,7 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 		keywordStore,
 		docStore,
 		cfg,
-		llmService,
+		metadataExtractor,
 	)
 
 	return &Client{
@@ -133,7 +121,7 @@ func (c *Client) Query(query string) (domain.QueryResponse, error) {
 		Query:        query,
 		TopK:         c.config.Sqvect.TopK,
 		Temperature:  0.7,
-		MaxTokens:    500,
+		MaxTokens:    1000,
 		Stream:       false, // Changed to false for library use
 		ShowThinking: true,
 	}
@@ -148,7 +136,7 @@ func (c *Client) QueryWithTools(query string, allowedTools []string, maxToolCall
 		Query:        query,
 		TopK:         c.config.Sqvect.TopK,
 		Temperature:  0.7,
-		MaxTokens:    500,
+		MaxTokens:    1000,
 		Stream:       false, // Non-streaming for library use
 		ShowThinking: true,
 		ToolsEnabled: true,
@@ -165,7 +153,7 @@ func (c *Client) QueryWithFilters(query string, filters map[string]interface{}) 
 		Query:        query,
 		TopK:         c.config.Sqvect.TopK,
 		Temperature:  0.7,
-		MaxTokens:    500,
+		MaxTokens:    1000,
 		Stream:       true,
 		ShowThinking: true,
 		Filters:      filters,
@@ -180,7 +168,7 @@ func (c *Client) StreamQuery(query string, callback func(string)) error {
 		Query:        query,
 		TopK:         c.config.Sqvect.TopK,
 		Temperature:  0.7,
-		MaxTokens:    500,
+		MaxTokens:    1000,
 		Stream:       true,
 		ShowThinking: true,
 	}
@@ -194,7 +182,7 @@ func (c *Client) StreamQueryWithFilters(query string, filters map[string]interfa
 		Query:        query,
 		TopK:         c.config.Sqvect.TopK,
 		Temperature:  0.7,
-		MaxTokens:    500,
+		MaxTokens:    1000,
 		Stream:       true,
 		ShowThinking: true,
 		Filters:      filters,
@@ -260,7 +248,7 @@ func (c *Client) ListEnabledTools() []tools.ToolInfo {
 func (c *Client) ExecuteTool(toolName string, args map[string]interface{}) (*tools.ToolResult, error) {
 	registry := c.processor.GetToolRegistry()
 	executor := c.processor.GetToolExecutor()
-	
+
 	if registry == nil || executor == nil {
 		return nil, fmt.Errorf("tools are not enabled")
 	}
@@ -301,7 +289,7 @@ func (c *Client) ExecuteTool(toolName string, args map[string]interface{}) (*too
 func (c *Client) GetToolStats() map[string]interface{} {
 	registry := c.processor.GetToolRegistry()
 	executor := c.processor.GetToolExecutor()
-	
+
 	if registry == nil || executor == nil {
 		return map[string]interface{}{
 			"tools_enabled": false,
@@ -309,9 +297,9 @@ func (c *Client) GetToolStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"tools_enabled":    true,
-		"registry_stats":   registry.Stats(),
-		"executor_stats":   executor.GetStats(),
+		"tools_enabled":  true,
+		"registry_stats": registry.Stats(),
+		"executor_stats": executor.GetStats(),
 	}
 }
 
@@ -329,12 +317,10 @@ func (c *Client) GetConfig() *config.Config {
 }
 
 type StatusResult struct {
-	OllamaAvailable bool
-	BaseURL         string
-	LLMModel        string
-	EmbeddingModel  string
-	Timeout         time.Duration
-	Error           error
+	ProvidersAvailable bool
+	LLMProvider        string
+	EmbedderProvider   string
+	Error              error
 }
 
 func (c *Client) CheckStatus() StatusResult {
@@ -342,17 +328,22 @@ func (c *Client) CheckStatus() StatusResult {
 	defer cancel()
 
 	result := StatusResult{
-		BaseURL:        c.config.Ollama.BaseURL,
-		LLMModel:       c.config.Ollama.LLMModel,
-		EmbeddingModel: c.config.Ollama.EmbeddingModel,
-		Timeout:        c.config.Ollama.Timeout,
+		LLMProvider:      c.config.Providers.DefaultLLM,
+		EmbedderProvider: c.config.Providers.DefaultEmbedder,
 	}
 
-	if err := c.llm.Health(ctx); err != nil {
-		result.OllamaAvailable = false
+	// If using legacy config, show that instead
+	if c.config.Providers.DefaultLLM == "" {
+		result.LLMProvider = "ollama (legacy)"
+		result.EmbedderProvider = "ollama (legacy)"
+	}
+
+	// Check provider health using the utils function
+	if err := utils.CheckProviderHealth(ctx, c.embedder, c.llm); err != nil {
+		result.ProvidersAvailable = false
 		result.Error = err
 	} else {
-		result.OllamaAvailable = true
+		result.ProvidersAvailable = true
 	}
 
 	return result
