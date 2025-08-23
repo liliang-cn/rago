@@ -269,7 +269,7 @@ func (c *Coordinator) HandleToolCallingConversation(ctx context.Context,
 	}, nil
 }
 
-// StreamToolCallingConversation handles streaming tool calling conversation
+// StreamToolCallingConversation handles streaming tool calling conversation with multi-turn support
 func (c *Coordinator) StreamToolCallingConversation(ctx context.Context,
 	generator domain.Generator, prompt string, tools []domain.ToolDefinition,
 	opts *domain.GenerationOptions, execCtx *ExecutionContext,
@@ -284,9 +284,11 @@ func (c *Coordinator) StreamToolCallingConversation(ctx context.Context,
 
 	c.logger.Info("Starting streaming tool calling conversation %s", conversationID)
 
-	_ = c.getOrCreateConversation(conversationID, execCtx) // Create conversation for tracking
+	conversation := c.getOrCreateConversation(conversationID, execCtx)
 	allToolCalls := make([]domain.ExecutedToolCall, 0)
+	toolsUsed := make(map[string]bool)
 
+	// Initial user message
 	messages := []Message{
 		{
 			Role:    "user",
@@ -294,34 +296,103 @@ func (c *Coordinator) StreamToolCallingConversation(ctx context.Context,
 		},
 	}
 
-	streamCallback := func(chunk string, toolCalls []domain.ToolCall) error {
-		// If we have tool calls, execute them
-		if len(toolCalls) > 0 {
-			executedCalls, err := c.ProcessToolCalls(ctx, conversationID, toolCalls, execCtx)
-			if err != nil {
-				c.logger.Error("Tool execution failed in streaming mode: %v", err)
-				return callback("", executedCalls, false)
+	// Multi-round streaming conversation
+	for round := 0; round < c.maxRounds; round++ {
+		conversation.RoundCount = round + 1
+		c.logger.Debug("Streaming tool calling conversation %s round %d", conversationID, round+1)
+
+		// Track if we received tool calls in this round
+		roundToolCalls := make([]domain.ToolCall, 0)
+		roundContent := strings.Builder{}
+
+		streamCallback := func(chunk string, toolCalls []domain.ToolCall) error {
+			// Accumulate content chunks
+			if chunk != "" {
+				roundContent.WriteString(chunk)
+				// Stream content to user immediately
+				return callback(chunk, nil, false)
 			}
 
-			allToolCalls = append(allToolCalls, executedCalls...)
+			// Collect tool calls for this round
+			if len(toolCalls) > 0 {
+				roundToolCalls = append(roundToolCalls, toolCalls...)
+			}
 
-			// Send tool execution results
+			return nil
+		}
+
+		// Generate response with tools for this round
+		err := generator.StreamWithTools(ctx, c.buildPromptFromMessages(messages), tools, opts, streamCallback)
+		if err != nil {
+			c.markConversationError(conversationID, err)
+			return fmt.Errorf("generation failed in streaming round %d: %w", round+1, err)
+		}
+
+		// Add assistant message with the accumulated content
+		assistantMsg := Message{
+			Role:    "assistant",
+			Content: roundContent.String(),
+		}
+
+		// If no tool calls, we're done
+		if len(roundToolCalls) == 0 {
+			messages = append(messages, assistantMsg)
+			break
+		}
+
+		// Add tool calls to message and execute them
+		assistantMsg.ToolCalls = roundToolCalls
+		messages = append(messages, assistantMsg)
+
+		// Execute tool calls
+		executedCalls, err := c.ProcessToolCalls(ctx, conversationID, roundToolCalls, execCtx)
+		if err != nil {
+			c.logger.Error("Tool execution failed in streaming round %d: %v", round+1, err)
+			// Send tool execution results even if some failed
 			return callback("", executedCalls, false)
 		}
 
-		// Regular content chunk
-		return callback(chunk, nil, false)
+		// Track executed tool calls and used tools
+		allToolCalls = append(allToolCalls, executedCalls...)
+		for _, call := range executedCalls {
+			toolsUsed[call.Function.Name] = true
+		}
+
+		// Stream tool execution results to user
+		err = callback("", executedCalls, false)
+		if err != nil {
+			return fmt.Errorf("callback failed for tool results in round %d: %w", round+1, err)
+		}
+
+		// Add tool result messages for next round
+		for _, executed := range executedCalls {
+			toolMsg := Message{
+				Role:       "tool",
+				Content:    c.formatToolResult(executed),
+				ToolCallID: executed.ID,
+			}
+			messages = append(messages, toolMsg)
+		}
+
+		// If this is the last round, break to avoid infinite loop
+		if round == c.maxRounds-1 {
+			c.logger.Warn("Streaming conversation %s reached maximum rounds %d", conversationID, c.maxRounds)
+			break
+		}
 	}
 
-	// Start streaming generation
-	err := generator.StreamWithTools(ctx, c.buildPromptFromMessages(messages), tools, opts, streamCallback)
-	if err != nil {
-		c.markConversationError(conversationID, err)
-		return err
+	// Update conversation with final messages
+	c.mu.Lock()
+	if conv, exists := c.conversations[conversationID]; exists {
+		conv.Messages = messages
+		conv.LastActivity = time.Now()
 	}
+	c.mu.Unlock()
 
-	// Mark as completed and send final callback
+	// Mark conversation as completed
 	c.markConversationCompleted(conversationID)
+
+	// Send final callback indicating completion
 	return callback("", allToolCalls, true)
 }
 
