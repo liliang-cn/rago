@@ -102,6 +102,17 @@ func (s *SQLiteStore) Search(ctx context.Context, vector []float64, topK int) ([
 		topK = 5
 	}
 
+	// Check if there are any vectors in the database first
+	count, err := s.getVectorCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to check vector count: %v", domain.ErrVectorStoreFailed, err)
+	}
+	
+	if count == 0 {
+		// Return empty results if no vectors exist
+		return []domain.Chunk{}, nil
+	}
+
 	// Convert []float64 to []float32 for sqvect
 	queryVector := make([]float32, len(vector))
 	for i, v := range vector {
@@ -150,6 +161,17 @@ func (s *SQLiteStore) SearchWithFilters(ctx context.Context, vector []float64, t
 
 	if topK <= 0 {
 		topK = 5
+	}
+
+	// Check if there are any vectors in the database first
+	count, err := s.getVectorCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to check vector count: %v", domain.ErrVectorStoreFailed, err)
+	}
+	
+	if count == 0 {
+		// Return empty results if no vectors exist
+		return []domain.Chunk{}, nil
 	}
 
 	// Convert []float64 to []float32 for sqvect
@@ -381,6 +403,18 @@ func (s *SQLiteStore) Reset(ctx context.Context) error {
 		return fmt.Errorf("%w: failed to clear store: %v", domain.ErrVectorStoreFailed, err)
 	}
 	return nil
+}
+
+// getVectorCount returns the number of vectors in the database
+func (s *SQLiteStore) getVectorCount(ctx context.Context) (int64, error) {
+	// Since sqvect doesn't have a Count method, we'll do a simple check
+	// by trying to search with a dummy vector and see if we get results
+	// For a more accurate count, we could query the database directly
+	documents, err := s.sqvect.ListDocuments(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(documents)), nil
 }
 
 func (s *SQLiteStore) Close() error {
