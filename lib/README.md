@@ -18,7 +18,7 @@ package main
 import (
     "fmt"
     "log"
-    
+
     rago "github.com/liliang-cn/rago/lib"
 )
 
@@ -29,13 +29,13 @@ func main() {
         log.Fatal(err)
     }
     defer client.Close()
-    
+
     // 基础查询
     response, err := client.Query("什么是机器学习？")
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("答案: %s\n", response.Answer)
 }
 ```
@@ -139,8 +139,9 @@ config := client.GetConfig()
 RAGO 内置了多个强大的工具：
 
 ### 1. DateTime Tool (datetime)
+
 - **功能**: 时间日期操作
-- **用法**: 
+- **用法**:
   ```go
   client.ExecuteTool("datetime", map[string]interface{}{
       "action": "now",
@@ -148,15 +149,17 @@ RAGO 内置了多个强大的工具：
   ```
 
 ### 2. File Operations Tool (file_operations)
+
 - **功能**: 安全的文件系统操作
 - **用法**:
+
   ```go
   // 读取文件
   client.ExecuteTool("file_operations", map[string]interface{}{
       "action": "read",
       "path":   "./README.md",
   })
-  
+
   // 列出目录
   client.ExecuteTool("file_operations", map[string]interface{}{
       "action": "list",
@@ -165,6 +168,7 @@ RAGO 内置了多个强大的工具：
   ```
 
 ### 3. RAG Search Tool (rag_search)
+
 - **功能**: 知识库搜索
 - **用法**:
   ```go
@@ -175,6 +179,7 @@ RAGO 内置了多个强大的工具：
   ```
 
 ### 4. Document Info Tool (document_info)
+
 - **功能**: 文档管理
 - **用法**:
   ```go
@@ -185,6 +190,7 @@ RAGO 内置了多个强大的工具：
   ```
 
 ### 5. SQL Query Tool (sql_query)
+
 - **功能**: 安全的数据库查询
 - **用法**:
   ```go
@@ -198,6 +204,7 @@ RAGO 内置了多个强大的工具：
 ## 📋 响应格式
 
 ### QueryResponse
+
 ```go
 type QueryResponse struct {
     Answer    string                 // 生成的答案
@@ -209,6 +216,7 @@ type QueryResponse struct {
 ```
 
 ### ToolResult
+
 ```go
 type ToolResult struct {
     Success bool        // 是否执行成功
@@ -224,7 +232,7 @@ type ToolResult struct {
 ```toml
 [ollama]
 base_url = "http://localhost:11434"
-llm_model = "qwen2.5"
+llm_model = "qwen3"
 embedding_model = "nomic-embed-text"
 
 [tools]
