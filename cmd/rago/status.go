@@ -117,13 +117,28 @@ func checkLegacyStatus(ctx context.Context, cfg *config.Config) error {
 	fmt.Println("🔍 Checking legacy Ollama configuration...")
 	fmt.Printf("🔍 Checking Ollama connection to %s...\n", cfg.Ollama.BaseURL)
 
-	// Create legacy Ollama service
-	ollamaService, err := llm.NewOllamaService(cfg.Ollama.BaseURL, cfg.Ollama.LLMModel)
+	// Create legacy Ollama service using new provider system
+	factory := providers.NewFactory()
+	
+	legacyConfig := &domain.OllamaProviderConfig{
+		BaseProviderConfig: domain.BaseProviderConfig{
+			Type:    domain.ProviderOllama,
+			Timeout: cfg.Ollama.Timeout,
+		},
+		BaseURL:        cfg.Ollama.BaseURL,
+		LLMModel:       cfg.Ollama.LLMModel,
+		EmbeddingModel: cfg.Ollama.EmbeddingModel,
+	}
+
+	// Check LLM provider
+	llmProvider, err := factory.CreateLLMProvider(ctx, legacyConfig)
 	if err != nil {
-		fmt.Printf("❌ Failed to create Ollama client: %v\n", err)
+		fmt.Printf("❌ Failed to create Ollama LLM provider: %v\n", err)
 		return nil
 	}
 
+	ollamaService := llm.NewService(llmProvider)
+	
 	// Check Ollama health
 	if err := ollamaService.Health(ctx); err != nil {
 		fmt.Printf("❌ Ollama connection failed: %v\n", err)
@@ -137,12 +152,14 @@ func checkLegacyStatus(ctx context.Context, cfg *config.Config) error {
 	fmt.Printf("   • Timeout: %s\n", cfg.Ollama.Timeout)
 
 	// Check embedder
-	embedService, err := embedder.NewOllamaService(cfg.Ollama.BaseURL, cfg.Ollama.EmbeddingModel)
+	embedderProvider, err := factory.CreateEmbedderProvider(ctx, legacyConfig)
 	if err != nil {
-		fmt.Printf("⚠️  Failed to create embedder service: %v\n", err)
+		fmt.Printf("⚠️  Failed to create embedder provider: %v\n", err)
 		return nil
 	}
 
+	embedService := embedder.NewService(embedderProvider)
+	
 	if err := embedService.Health(ctx); err != nil {
 		fmt.Printf("⚠️  Embedder health check failed: %v\n", err)
 	} else {

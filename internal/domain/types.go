@@ -73,18 +73,27 @@ type Embedder interface {
 	Embed(ctx context.Context, text string) ([]float64, error)
 }
 
+// Message represents a conversation message, used for tool calling
+type Message struct {
+	Role       string     `json:"role"` // user, assistant, tool
+	Content    string     `json:"content"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+}
+
 type Generator interface {
 	Generate(ctx context.Context, prompt string, opts *GenerationOptions) (string, error)
 	Stream(ctx context.Context, prompt string, opts *GenerationOptions, callback func(string)) error
 	IsAlmostSame(ctx context.Context, input, output string) (bool, error)
-	GenerateWithTools(ctx context.Context, prompt string, tools []ToolDefinition, opts *GenerationOptions) (*GenerationResult, error)
-	StreamWithTools(ctx context.Context, prompt string, tools []ToolDefinition, opts *GenerationOptions, callback ToolCallCallback) error
+	GenerateWithTools(ctx context.Context, messages []Message, tools []ToolDefinition, opts *GenerationOptions) (*GenerationResult, error)
+	StreamWithTools(ctx context.Context, messages []Message, tools []ToolDefinition, opts *GenerationOptions, callback ToolCallCallback) error
 }
 
 type GenerationOptions struct {
 	Temperature float64
 	MaxTokens   int
 	Think       *bool
+	ToolChoice  string // "auto", "required", "none", or specific function name
 }
 
 // Tool calling related types

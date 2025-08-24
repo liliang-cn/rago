@@ -29,13 +29,13 @@ func (s *Service) Stream(ctx context.Context, prompt string, opts *domain.Genera
 }
 
 // GenerateWithTools generates text with tool calling support
-func (s *Service) GenerateWithTools(ctx context.Context, prompt string, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
-	return s.provider.GenerateWithTools(ctx, prompt, tools, opts)
+func (s *Service) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
+	return s.provider.GenerateWithTools(ctx, messages, tools, opts)
 }
 
 // StreamWithTools generates text with tool calling support in streaming mode
-func (s *Service) StreamWithTools(ctx context.Context, prompt string, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
-	return s.provider.StreamWithTools(ctx, prompt, tools, opts, callback)
+func (s *Service) StreamWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
+	return s.provider.StreamWithTools(ctx, messages, tools, opts, callback)
 }
 
 // ExtractMetadata extracts metadata from content
