@@ -290,6 +290,7 @@ func init() {
 	queryCmd.Flags().IntVar(&maxTokens, "max-tokens", 500, "maximum generation length")
 	queryCmd.Flags().BoolVar(&stream, "stream", true, "streaming output")
 	queryCmd.Flags().BoolVar(&showThinking, "show-thinking", true, "show AI thinking process")
+	queryCmd.Flags().BoolVar(&verbose, "verbose", false, "show verbose output including sources")
 	queryCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "interactive mode")
 	queryCmd.Flags().StringVar(&queryFile, "file", "", "batch query from file")
 	queryCmd.Flags().StringSliceVar(&filterBy, "filter", []string{}, "filter by metadata (key=value format, can be used multiple times)")
