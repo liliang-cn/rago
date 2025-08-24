@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -27,7 +28,7 @@ type Coordinator struct {
 // Conversation tracks a multi-turn tool calling conversation
 type Conversation struct {
 	ID           string                    `json:"id"`
-	Messages     []Message                 `json:"messages"`
+	Messages     []domain.Message          `json:"messages"`
 	ToolCalls    []domain.ExecutedToolCall `json:"tool_calls"`
 	StartTime    time.Time                 `json:"start_time"`
 	LastActivity time.Time                 `json:"last_activity"`
@@ -35,14 +36,6 @@ type Conversation struct {
 	Completed    bool                      `json:"completed"`
 	Error        string                    `json:"error,omitempty"`
 	Context      *ExecutionContext         `json:"context"`
-}
-
-// Message represents a conversation message
-type Message struct {
-	Role       string            `json:"role"` // user, assistant, tool
-	Content    string            `json:"content"`
-	ToolCalls  []domain.ToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string            `json:"tool_call_id,omitempty"`
 }
 
 // CoordinatorConfig contains configuration for the coordinator
@@ -75,7 +68,6 @@ func NewCoordinator(registry *Registry, executor *Executor, config CoordinatorCo
 		conversations:   make(map[string]*Conversation),
 	}
 
-	// Start cleanup goroutine
 	go coord.cleanupExpiredConversations()
 
 	return coord
@@ -96,7 +88,6 @@ func (c *Coordinator) SetLogger(logger Logger) {
 // ProcessToolCalls processes tool calls from LLM and returns the results
 func (c *Coordinator) ProcessToolCalls(ctx context.Context, conversationID string,
 	toolCalls []domain.ToolCall, execCtx *ExecutionContext) ([]domain.ExecutedToolCall, error) {
-
 	if len(toolCalls) == 0 {
 		return nil, nil
 	}
@@ -105,20 +96,16 @@ func (c *Coordinator) ProcessToolCalls(ctx context.Context, conversationID strin
 		return nil, fmt.Errorf("too many tool calls: %d exceeds maximum %d", len(toolCalls), c.maxToolCalls)
 	}
 
-	// Get or create conversation
 	conversation := c.getOrCreateConversation(conversationID, execCtx)
 
-	// Check round limits
 	if conversation.RoundCount >= c.maxRounds {
 		return nil, fmt.Errorf("conversation %s exceeded maximum rounds: %d", conversationID, c.maxRounds)
 	}
 
 	c.logger.Info("Processing %d tool calls for conversation %s", len(toolCalls), conversationID)
 
-	// Execute tool calls concurrently
 	results := make([]domain.ExecutedToolCall, len(toolCalls))
 	var wg sync.WaitGroup
-	errChan := make(chan error, len(toolCalls))
 
 	for i, toolCall := range toolCalls {
 		wg.Add(1)
@@ -147,22 +134,10 @@ func (c *Coordinator) ProcessToolCalls(ctx context.Context, conversationID strin
 		}(i, toolCall)
 	}
 
-	// Wait for all executions to complete
 	wg.Wait()
-	close(errChan)
 
-	// Collect any errors
-	var executionErrors []error
-	for err := range errChan {
-		if err != nil {
-			executionErrors = append(executionErrors, err)
-		}
-	}
-
-	// Update conversation
 	c.updateConversation(conversationID, results)
 
-	// Return results even if some tools failed
 	return results, nil
 }
 
@@ -173,9 +148,7 @@ func (c *Coordinator) HandleToolCallingConversation(ctx context.Context,
 
 	conversationID := uuid.New().String()
 	if execCtx == nil {
-		execCtx = &ExecutionContext{
-			RequestID: conversationID,
-		}
+		execCtx = &ExecutionContext{RequestID: conversationID}
 	}
 
 	c.logger.Info("Starting tool calling conversation %s", conversationID)
@@ -184,58 +157,42 @@ func (c *Coordinator) HandleToolCallingConversation(ctx context.Context,
 	allToolCalls := make([]domain.ExecutedToolCall, 0)
 	toolsUsed := make(map[string]bool)
 
-	// Initial user message
-	messages := []Message{
-		{
-			Role:    "user",
-			Content: prompt,
-		},
+	messages := []domain.Message{
+		{Role: "user", Content: prompt},
 	}
 
 	for round := 0; round < c.maxRounds; round++ {
 		conversation.RoundCount = round + 1
-
 		c.logger.Debug("Tool calling conversation %s round %d", conversationID, round+1)
 
-		// Generate response with tools
-		result, err := generator.GenerateWithTools(ctx, c.buildPromptFromMessages(messages), tools, opts)
+		result, err := generator.GenerateWithTools(ctx, messages, tools, opts)
 		if err != nil {
 			c.markConversationError(conversationID, err)
 			return nil, fmt.Errorf("generation failed in round %d: %w", round+1, err)
 		}
 
-		// Add assistant message
-		assistantMsg := Message{
+		assistantMsg := domain.Message{
 			Role:    "assistant",
 			Content: result.Content,
 		}
 
-		// If no tool calls, we're done
 		if len(result.ToolCalls) == 0 {
 			messages = append(messages, assistantMsg)
 			break
 		}
 
-		// Add tool calls to message
 		assistantMsg.ToolCalls = result.ToolCalls
 		messages = append(messages, assistantMsg)
 
-		// Execute tool calls
-		executedCalls, err := c.ProcessToolCalls(ctx, conversationID, result.ToolCalls, execCtx)
-		if err != nil {
-			c.logger.Error("Tool execution failed: %v", err)
-			// Continue with partial results rather than failing completely
-		}
+		executedCalls, _ := c.ProcessToolCalls(ctx, conversationID, result.ToolCalls, execCtx)
 
-		// Track executed tool calls and used tools
 		allToolCalls = append(allToolCalls, executedCalls...)
 		for _, call := range executedCalls {
 			toolsUsed[call.Function.Name] = true
 		}
 
-		// Add tool result messages
 		for _, executed := range executedCalls {
-			toolMsg := Message{
+			toolMsg := domain.Message{
 				Role:       "tool",
 				Content:    c.formatToolResult(executed),
 				ToolCallID: executed.ID,
@@ -244,16 +201,13 @@ func (c *Coordinator) HandleToolCallingConversation(ctx context.Context,
 		}
 	}
 
-	// Mark conversation as completed
 	c.markConversationCompleted(conversationID)
 
-	// Build final response
 	usedToolsList := make([]string, 0, len(toolsUsed))
 	for tool := range toolsUsed {
 		usedToolsList = append(usedToolsList, tool)
 	}
 
-	// Get final content from the last assistant message
 	finalContent := ""
 	for i := len(messages) - 1; i >= 0; i-- {
 		if messages[i].Role == "assistant" && messages[i].Content != "" {
@@ -269,7 +223,7 @@ func (c *Coordinator) HandleToolCallingConversation(ctx context.Context,
 	}, nil
 }
 
-// StreamToolCallingConversation handles streaming tool calling conversation with multi-turn support
+// StreamToolCallingConversation handles streaming tool calling conversation
 func (c *Coordinator) StreamToolCallingConversation(ctx context.Context,
 	generator domain.Generator, prompt string, tools []domain.ToolDefinition,
 	opts *domain.GenerationOptions, execCtx *ExecutionContext,
@@ -277,96 +231,62 @@ func (c *Coordinator) StreamToolCallingConversation(ctx context.Context,
 
 	conversationID := uuid.New().String()
 	if execCtx == nil {
-		execCtx = &ExecutionContext{
-			RequestID: conversationID,
-		}
+		execCtx = &ExecutionContext{RequestID: conversationID}
 	}
 
 	c.logger.Info("Starting streaming tool calling conversation %s", conversationID)
 
 	conversation := c.getOrCreateConversation(conversationID, execCtx)
-	allToolCalls := make([]domain.ExecutedToolCall, 0)
-	toolsUsed := make(map[string]bool)
 
-	// Initial user message
-	messages := []Message{
-		{
-			Role:    "user",
-			Content: prompt,
-		},
+	messages := []domain.Message{
+		{Role: "user", Content: prompt},
 	}
 
-	// Multi-round streaming conversation
 	for round := 0; round < c.maxRounds; round++ {
 		conversation.RoundCount = round + 1
 		c.logger.Debug("Streaming tool calling conversation %s round %d", conversationID, round+1)
 
-		// Track if we received tool calls in this round
 		roundToolCalls := make([]domain.ToolCall, 0)
 		roundContent := strings.Builder{}
 
 		streamCallback := func(chunk string, toolCalls []domain.ToolCall) error {
-			// Accumulate content chunks
 			if chunk != "" {
 				roundContent.WriteString(chunk)
-				// Stream content to user immediately
 				return callback(chunk, nil, false)
 			}
-
-			// Collect tool calls for this round
 			if len(toolCalls) > 0 {
 				roundToolCalls = append(roundToolCalls, toolCalls...)
 			}
-
 			return nil
 		}
 
-		// Generate response with tools for this round
-		err := generator.StreamWithTools(ctx, c.buildPromptFromMessages(messages), tools, opts, streamCallback)
+		err := generator.StreamWithTools(ctx, messages, tools, opts, streamCallback)
 		if err != nil {
 			c.markConversationError(conversationID, err)
 			return fmt.Errorf("generation failed in streaming round %d: %w", round+1, err)
 		}
 
-		// Add assistant message with the accumulated content
-		assistantMsg := Message{
+		assistantMsg := domain.Message{
 			Role:    "assistant",
 			Content: roundContent.String(),
 		}
 
-		// If no tool calls, we're done
 		if len(roundToolCalls) == 0 {
 			messages = append(messages, assistantMsg)
 			break
 		}
 
-		// Add tool calls to message and execute them
 		assistantMsg.ToolCalls = roundToolCalls
 		messages = append(messages, assistantMsg)
 
-		// Execute tool calls
-		executedCalls, err := c.ProcessToolCalls(ctx, conversationID, roundToolCalls, execCtx)
-		if err != nil {
-			c.logger.Error("Tool execution failed in streaming round %d: %v", round+1, err)
-			// Send tool execution results even if some failed
-			return callback("", executedCalls, false)
-		}
+		executedCalls, _ := c.ProcessToolCalls(ctx, conversationID, roundToolCalls, execCtx)
 
-		// Track executed tool calls and used tools
-		allToolCalls = append(allToolCalls, executedCalls...)
-		for _, call := range executedCalls {
-			toolsUsed[call.Function.Name] = true
-		}
-
-		// Stream tool execution results to user
-		err = callback("", executedCalls, false)
-		if err != nil {
+		if err := callback("", executedCalls, false); err != nil {
 			return fmt.Errorf("callback failed for tool results in round %d: %w", round+1, err)
 		}
 
-		// Add tool result messages for next round
 		for _, executed := range executedCalls {
-			toolMsg := Message{
+			toolMsg := domain.Message{
 				Role:       "tool",
 				Content:    c.formatToolResult(executed),
 				ToolCallID: executed.ID,
@@ -374,30 +294,18 @@ func (c *Coordinator) StreamToolCallingConversation(ctx context.Context,
 			messages = append(messages, toolMsg)
 		}
 
-		// If this is the last round, break to avoid infinite loop
 		if round == c.maxRounds-1 {
 			c.logger.Warn("Streaming conversation %s reached maximum rounds %d", conversationID, c.maxRounds)
 			break
 		}
 	}
 
-	// Update conversation with final messages
-	c.mu.Lock()
-	if conv, exists := c.conversations[conversationID]; exists {
-		conv.Messages = messages
-		conv.LastActivity = time.Now()
-	}
-	c.mu.Unlock()
-
-	// Mark conversation as completed
 	c.markConversationCompleted(conversationID)
-
-	// Send final callback indicating completion
-	return callback("", allToolCalls, true)
+	return callback("", nil, true)
 }
 
-// Helper methods
 
+// Helper methods
 func (c *Coordinator) getOrCreateConversation(id string, execCtx *ExecutionContext) *Conversation {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -409,7 +317,7 @@ func (c *Coordinator) getOrCreateConversation(id string, execCtx *ExecutionConte
 
 	conv := &Conversation{
 		ID:           id,
-		Messages:     make([]Message, 0),
+		Messages:     make([]domain.Message, 0),
 		ToolCalls:    make([]domain.ExecutedToolCall, 0),
 		StartTime:    time.Now(),
 		LastActivity: time.Now(),
@@ -452,85 +360,20 @@ func (c *Coordinator) markConversationError(id string, err error) {
 	}
 }
 
-func (c *Coordinator) buildPromptFromMessages(messages []Message) string {
-	// Build a proper conversation prompt that includes all messages and tool results
-	var promptParts []string
-	
-	// Find the original user question
-	var originalQuestion string
-	for _, msg := range messages {
-		if msg.Role == "user" && msg.Content != "" {
-			originalQuestion = msg.Content
-			break
-		}
-	}
-	
-	if originalQuestion == "" {
-		return ""
-	}
-	
-	// Check if we have tool results to incorporate
-	var toolResults []string
-	for _, msg := range messages {
-		if msg.Role == "tool" && msg.Content != "" {
-			toolResults = append(toolResults, msg.Content)
-		}
-	}
-	
-	// If we have tool results, build a prompt that asks the LLM to use them
-	if len(toolResults) > 0 {
-		promptParts = append(promptParts, "User question: "+originalQuestion)
-		promptParts = append(promptParts, "\nTool execution results:")
-		for i, result := range toolResults {
-			promptParts = append(promptParts, fmt.Sprintf("Tool %d result: %s", i+1, result))
-		}
-		promptParts = append(promptParts, "\nPlease use BOTH the knowledge base documents AND the tool execution results above to provide a complete and accurate answer to the user's question. If the question involves current information (like time, date, or file status), prioritize the tool results. If it involves stored knowledge, use the relevant documents.")
-		return strings.Join(promptParts, "\n")
-	}
-	
-	// If no tool results yet, return the original question
-	return originalQuestion
-}
-
 func (c *Coordinator) formatToolResult(executed domain.ExecutedToolCall) string {
-	if executed.Success {
-		// Format the result more comprehensively
-		if executed.Result != nil {
-			if dataMap, ok := executed.Result.(map[string]interface{}); ok {
-				// Format structured data nicely for specific tools
-				switch executed.Function.Name {
-				case "datetime":
-					if datetime, ok := dataMap["datetime"]; ok {
-						if iso8601, ok := dataMap["iso8601"]; ok {
-							return fmt.Sprintf("Tool %s executed successfully. Current time: %v (%v)", 
-								executed.Function.Name, datetime, iso8601)
-						}
-						return fmt.Sprintf("Tool %s executed successfully. Current time: %v", 
-							executed.Function.Name, datetime)
-					}
-				case "file_operations":
-					if action, ok := dataMap["path"]; ok {
-						if count, ok := dataMap["count"]; ok {
-							return fmt.Sprintf("Tool %s executed successfully. Found %v items in %v", 
-								executed.Function.Name, count, action)
-						}
-					}
-				}
-				
-				// Generic structured data formatting
-				var parts []string
-				for key, value := range dataMap {
-					parts = append(parts, fmt.Sprintf("%s: %v", key, value))
-				}
-				return fmt.Sprintf("Tool %s executed successfully. Results: %s", 
-					executed.Function.Name, strings.Join(parts, ", "))
-			}
-			return fmt.Sprintf("Tool %s executed successfully. Result: %v", 
-				executed.Function.Name, executed.Result)
-		}
-		return fmt.Sprintf("Tool %s executed successfully", executed.Function.Name)
+	if !executed.Success {
+		return fmt.Sprintf("Tool %s failed: %s", executed.Function.Name, executed.Error)
 	}
-	return fmt.Sprintf("Tool %s failed: %s", executed.Function.Name, executed.Error)
+	if executed.Result != nil {
+		// Try to marshal result to JSON for a clean, structured representation
+		jsonData, err := json.Marshal(executed.Result)
+		if err == nil {
+			return string(jsonData)
+		}
+		// Fallback to string representation
+		return fmt.Sprintf("%v", executed.Result)
+	}
+	return "Tool executed successfully with no return value."
 }
 
 func (c *Coordinator) cleanupExpiredConversations() {
