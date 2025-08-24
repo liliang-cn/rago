@@ -12,8 +12,8 @@ import (
 
 // OllamaLLMProvider wraps the existing Ollama LLM service as a provider
 type OllamaLLMProvider struct {
-	client  *ollama.Client
-	config  *domain.OllamaProviderConfig
+	client *ollama.Client
+	config *domain.OllamaProviderConfig
 }
 
 // NewOllamaLLMProvider creates a new Ollama LLM provider
@@ -36,6 +36,43 @@ func NewOllamaLLMProvider(config *domain.OllamaProviderConfig) (domain.LLMProvid
 // ProviderType returns the provider type
 func (p *OllamaLLMProvider) ProviderType() domain.ProviderType {
 	return domain.ProviderOllama
+}
+
+// toOllamaMessages converts domain messages to the Ollama API format
+func toOllamaMessages(messages []domain.Message) []ollama.Message {
+	ollamaMessages := make([]ollama.Message, 0, len(messages))
+	for _, msg := range messages {
+		ollamaMsg := ollama.Message{
+			Role:    msg.Role,
+			Content: msg.Content,
+		}
+		if len(msg.ToolCalls) > 0 {
+			ollamaMsg.ToolCalls = make([]ollama.ToolCall, len(msg.ToolCalls))
+			for i, tc := range msg.ToolCalls {
+				// The Function field is an anonymous struct, so we cannot name the type.
+				// This is a limitation of the current ollama-go library.
+				// We have to rely on the structure and JSON marshaling.
+				// As we are building the struct, not marshaling, this is tricky.
+				// For now, we will assume the library handles this internally if we provide the right data.
+				// A better solution would be for the library to export the Function type.
+				// Let's try to build it by creating a map and letting the JSON marshaler handle it.
+				// This is a workaround.
+				toolCallMap := map[string]interface{}{
+					"function": map[string]interface{}{
+						"name":      tc.Function.Name,
+						"arguments": tc.Function.Arguments,
+					},
+				}
+				// This is not ideal, as we are converting back and forth. But it's a safe way to handle the anonymous struct.
+				var tempToolCall ollama.ToolCall
+				bytes, _ := json.Marshal(toolCallMap)
+				json.Unmarshal(bytes, &tempToolCall)
+				ollamaMsg.ToolCalls[i] = tempToolCall
+			}
+		}
+		ollamaMessages = append(ollamaMessages, ollamaMsg)
+	}
+	return ollamaMessages
 }
 
 // Generate generates text using Ollama
@@ -61,10 +98,6 @@ func (p *OllamaLLMProvider) Generate(ctx context.Context, prompt string, opts *d
 			options.NumPredict = &numPredict
 		}
 		req.Options = options
-
-		if opts.Think != nil {
-			req.Think = opts.Think
-		}
 	}
 
 	resp, err := p.client.Generate(ctx, req)
@@ -80,12 +113,10 @@ func (p *OllamaLLMProvider) Stream(ctx context.Context, prompt string, opts *dom
 	if prompt == "" {
 		return fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
 	}
-
 	if callback == nil {
 		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
 	}
 
-	// Use the functional API like in your working example
 	options := []func(*ollama.GenerateRequest){}
 
 	if opts != nil {
@@ -102,23 +133,163 @@ func (p *OllamaLLMProvider) Stream(ctx context.Context, prompt string, opts *dom
 				if req.Options == nil {
 					req.Options = &ollama.Options{}
 				}
-				req.Options.NumPredict = &opts.MaxTokens
+				numPredict := opts.MaxTokens
+				req.Options.NumPredict = &numPredict
 			})
 		}
 	}
 
-	// Use the functional API that works correctly
 	respCh, errCh := ollama.GenerateStream(ctx, p.config.LLMModel, prompt, options...)
 
 	for {
 		select {
 		case resp, ok := <-respCh:
 			if !ok {
-				// Channel closed, streaming is done
 				return nil
 			}
 			if resp != nil && resp.Response != "" {
 				callback(resp.Response)
+			}
+		case err := <-errCh:
+			if err != nil {
+				return fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+// GenerateWithTools generates text with tool calling support using Ollama
+func (p *OllamaLLMProvider) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
+	if len(messages) == 0 {
+		return nil, fmt.Errorf("%w: empty messages", domain.ErrInvalidInput)
+	}
+
+	ollamaMessages := toOllamaMessages(messages)
+
+	ollamaTools := make([]ollama.Tool, len(tools))
+	for i, tool := range tools {
+		ollamaTools[i] = ollama.Tool{
+			Type: tool.Type,
+			Function: &ollama.ToolFunction{
+				Name:        tool.Function.Name,
+				Description: tool.Function.Description,
+				Parameters:  tool.Function.Parameters,
+			},
+		}
+	}
+
+	req := &ollama.ChatRequest{
+		Model:    p.config.LLMModel,
+		Messages: ollamaMessages,
+		Tools:    ollamaTools,
+		Stream:   new(bool), // false
+	}
+
+	if opts != nil {
+		options := &ollama.Options{}
+		if opts.Temperature >= 0 {
+			options.Temperature = &opts.Temperature
+		}
+		if opts.MaxTokens > 0 {
+			numPredict := opts.MaxTokens
+			options.NumPredict = &numPredict
+		}
+		req.Options = options
+	}
+
+	resp, err := p.client.Chat(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+	}
+
+	result := &domain.GenerationResult{
+		Content:  resp.Message.Content,
+		Finished: true,
+	}
+
+	if len(resp.Message.ToolCalls) > 0 {
+		result.ToolCalls = make([]domain.ToolCall, len(resp.Message.ToolCalls))
+		for i, tc := range resp.Message.ToolCalls {
+			result.ToolCalls[i] = domain.ToolCall{
+				ID:   tc.Function.Name, // Ollama doesn't provide an ID, so we use the name
+				Type: "function",
+				Function: domain.FunctionCall{
+					Name:      tc.Function.Name,
+					Arguments: tc.Function.Arguments,
+				},
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// StreamWithTools generates text with tool calling support in streaming mode using Ollama
+func (p *OllamaLLMProvider) StreamWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
+	if len(messages) == 0 {
+		return fmt.Errorf("%w: empty messages", domain.ErrInvalidInput)
+	}
+	if callback == nil {
+		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
+	}
+
+	ollamaMessages := toOllamaMessages(messages)
+
+	ollamaTools := make([]ollama.Tool, len(tools))
+	for i, tool := range tools {
+		ollamaTools[i] = ollama.Tool{
+			Type: tool.Type,
+			Function: &ollama.ToolFunction{
+				Name:        tool.Function.Name,
+				Description: tool.Function.Description,
+				Parameters:  tool.Function.Parameters,
+			},
+		}
+	}
+
+	chatOptions := func(req *ollama.ChatRequest) {
+		req.Tools = ollamaTools
+		if opts != nil {
+			options := &ollama.Options{}
+			if opts.Temperature >= 0 {
+				options.Temperature = &opts.Temperature
+			}
+			if opts.MaxTokens > 0 {
+				numPredict := opts.MaxTokens
+				options.NumPredict = &numPredict
+			}
+			req.Options = options
+		}
+	}
+
+	respCh, errCh := ollama.ChatStream(ctx, p.config.LLMModel, ollamaMessages, chatOptions)
+
+	for {
+		select {
+		case resp, ok := <-respCh:
+			if !ok {
+				return nil
+			}
+			if resp != nil {
+				var toolCalls []domain.ToolCall
+				if len(resp.Message.ToolCalls) > 0 {
+					toolCalls = make([]domain.ToolCall, len(resp.Message.ToolCalls))
+					for i, tc := range resp.Message.ToolCalls {
+						toolCalls[i] = domain.ToolCall{
+							ID:   tc.Function.Name,
+							Type: "function",
+							Function: domain.FunctionCall{
+								Name:      tc.Function.Name,
+								Arguments: tc.Function.Arguments,
+							},
+						}
+					}
+				}
+				if err := callback(resp.Message.Content, toolCalls); err != nil {
+					return fmt.Errorf("callback error: %w", err)
+				}
 			}
 		case err := <-errCh:
 			if err != nil {
@@ -160,7 +331,6 @@ func (p *OllamaLLMProvider) ExtractMetadata(ctx context.Context, content string,
 
 	prompt := fmt.Sprintf(metadataExtractionPromptTemplate, content)
 
-	// Use the specified model if provided, otherwise use the default LLM model
 	llmModel := p.config.LLMModel
 	if model != "" {
 		llmModel = model
@@ -188,7 +358,6 @@ func (p *OllamaLLMProvider) ExtractMetadata(ctx context.Context, content string,
 	return &metadata, nil
 }
 
-// isAlmostSamePromptTemplate is the prompt template used to determine if input and output are essentially the same
 const isAlmostSamePromptTemplate = `You are an expert judge evaluating whether two pieces of text represent the same information. 
 Please compare the original input and the generated output and determine if they convey the same core meaning.
 
@@ -219,197 +388,16 @@ func (p *OllamaLLMProvider) IsAlmostSame(ctx context.Context, input, output stri
 		return false, fmt.Errorf("failed to generate similarity judgment: %w", err)
 	}
 
-	// Parse the response as a boolean
 	result := strings.TrimSpace(strings.ToLower(resp.Response))
 
-	// Handle cases where the model might return "true" or "false" with extra text
 	if strings.Contains(result, "true") {
 		return true, nil
 	}
-
 	if strings.Contains(result, "false") {
 		return false, nil
 	}
 
-	// Default to false if we can't determine
 	return false, nil
-}
-
-// GenerateWithTools generates text with tool calling support using Ollama
-func (p *OllamaLLMProvider) GenerateWithTools(ctx context.Context, prompt string, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
-	if prompt == "" {
-		return nil, fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
-	}
-
-	// Convert domain.ToolDefinition to ollama.Tool
-	ollamaTools := make([]ollama.Tool, len(tools))
-	for i, tool := range tools {
-		ollamaTools[i] = ollama.Tool{
-			Type: tool.Type,
-			Function: &ollama.ToolFunction{
-				Name:        tool.Function.Name,
-				Description: tool.Function.Description,
-				Parameters:  tool.Function.Parameters,
-			},
-		}
-	}
-
-	// Prepare messages
-	messages := []ollama.Message{
-		{
-			Role:    "user",
-			Content: prompt,
-		},
-	}
-
-	// Create chat request
-	req := &ollama.ChatRequest{
-		Model:    p.config.LLMModel,
-		Messages: messages,
-		Tools:    ollamaTools,
-		Stream:   new(bool), // false for non-streaming
-	}
-
-	// Apply generation options
-	if opts != nil {
-		options := &ollama.Options{}
-		if opts.Temperature >= 0 {
-			options.Temperature = &opts.Temperature
-		}
-		if opts.MaxTokens > 0 {
-			numPredict := opts.MaxTokens
-			options.NumPredict = &numPredict
-		}
-		req.Options = options
-	}
-
-	// Make the request
-	resp, err := p.client.Chat(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
-	}
-
-	// Convert response
-	result := &domain.GenerationResult{
-		Content:  resp.Message.Content,
-		Finished: true,
-	}
-
-	// Convert tool calls if any
-	if len(resp.Message.ToolCalls) > 0 {
-		result.ToolCalls = make([]domain.ToolCall, len(resp.Message.ToolCalls))
-		for i, tc := range resp.Message.ToolCalls {
-			result.ToolCalls[i] = domain.ToolCall{
-				ID:   tc.Function.Name, // Use function name as ID if no ID provided
-				Type: "function",
-				Function: domain.FunctionCall{
-					Name:      tc.Function.Name,
-					Arguments: tc.Function.Arguments,
-				},
-			}
-		}
-	}
-
-	return result, nil
-}
-
-// StreamWithTools generates text with tool calling support in streaming mode using Ollama
-func (p *OllamaLLMProvider) StreamWithTools(ctx context.Context, prompt string, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
-	if prompt == "" {
-		return fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
-	}
-
-	if callback == nil {
-		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
-	}
-
-	// Convert domain.ToolDefinition to ollama.Tool
-	ollamaTools := make([]ollama.Tool, len(tools))
-	for i, tool := range tools {
-		ollamaTools[i] = ollama.Tool{
-			Type: tool.Type,
-			Function: &ollama.ToolFunction{
-				Name:        tool.Function.Name,
-				Description: tool.Function.Description,
-				Parameters:  tool.Function.Parameters,
-			},
-		}
-	}
-
-	// Prepare messages
-	messages := []ollama.Message{
-		{
-			Role:    "user",
-			Content: prompt,
-		},
-	}
-
-	// Create chat request
-	req := &ollama.ChatRequest{
-		Model:    p.config.LLMModel,
-		Messages: messages,
-		Tools:    ollamaTools,
-		Stream:   func() *bool { b := true; return &b }(), // true for streaming
-	}
-
-	// Apply generation options
-	if opts != nil {
-		options := &ollama.Options{}
-		if opts.Temperature >= 0 {
-			options.Temperature = &opts.Temperature
-		}
-		if opts.MaxTokens > 0 {
-			numPredict := opts.MaxTokens
-			options.NumPredict = &numPredict
-		}
-		req.Options = options
-	}
-
-	// Make streaming request
-	respCh, errCh := ollama.ChatStream(ctx, p.config.LLMModel, messages, func(r *ollama.ChatRequest) {
-		r.Tools = ollamaTools
-		if req.Options != nil {
-			r.Options = req.Options
-		}
-	})
-
-	for {
-		select {
-		case resp, ok := <-respCh:
-			if !ok {
-				// Channel closed, streaming is done
-				return nil
-			}
-			if resp != nil {
-				// Convert tool calls if any
-				var toolCalls []domain.ToolCall
-				if len(resp.Message.ToolCalls) > 0 {
-					toolCalls = make([]domain.ToolCall, len(resp.Message.ToolCalls))
-					for i, tc := range resp.Message.ToolCalls {
-						toolCalls[i] = domain.ToolCall{
-							ID:   tc.Function.Name, // Use function name as ID if no ID provided
-							Type: "function",
-							Function: domain.FunctionCall{
-								Name:      tc.Function.Name,
-								Arguments: tc.Function.Arguments,
-							},
-						}
-					}
-				}
-
-				// Call the callback with content and tool calls
-				if err := callback(resp.Message.Content, toolCalls); err != nil {
-					return fmt.Errorf("callback error: %w", err)
-				}
-			}
-		case err := <-errCh:
-			if err != nil {
-				return fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
 }
 
 // OllamaEmbedderProvider wraps the existing Ollama embedder service as a provider
