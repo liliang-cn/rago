@@ -121,7 +121,7 @@ func (c *Client) Query(query string) (domain.QueryResponse, error) {
 		Query:        query,
 		TopK:         c.config.Sqvect.TopK,
 		Temperature:  0.7,
-		MaxTokens:    1000,
+		MaxTokens:    25000,
 		Stream:       false, // Changed to false for library use
 		ShowThinking: true,
 	}
@@ -136,7 +136,7 @@ func (c *Client) QueryWithTools(query string, allowedTools []string, maxToolCall
 		Query:        query,
 		TopK:         c.config.Sqvect.TopK,
 		Temperature:  0.7,
-		MaxTokens:    1000,
+		MaxTokens:    25000,
 		Stream:       false, // Non-streaming for library use
 		ShowThinking: true,
 		ToolsEnabled: true,
@@ -153,7 +153,7 @@ func (c *Client) QueryWithFilters(query string, filters map[string]interface{}) 
 		Query:        query,
 		TopK:         c.config.Sqvect.TopK,
 		Temperature:  0.7,
-		MaxTokens:    1000,
+		MaxTokens:    25000,
 		Stream:       true,
 		ShowThinking: true,
 		Filters:      filters,
@@ -168,7 +168,7 @@ func (c *Client) StreamQuery(query string, callback func(string)) error {
 		Query:        query,
 		TopK:         c.config.Sqvect.TopK,
 		Temperature:  0.7,
-		MaxTokens:    1000,
+		MaxTokens:    25000,
 		Stream:       true,
 		ShowThinking: true,
 	}
@@ -182,7 +182,7 @@ func (c *Client) StreamQueryWithFilters(query string, filters map[string]interfa
 		Query:        query,
 		TopK:         c.config.Sqvect.TopK,
 		Temperature:  0.7,
-		MaxTokens:    1000,
+		MaxTokens:    25000,
 		Stream:       true,
 		ShowThinking: true,
 		Filters:      filters,

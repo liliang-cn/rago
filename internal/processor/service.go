@@ -117,7 +117,7 @@ func (s *Service) registerBuiltinTools() {
 	if s.config.Tools.BuiltinTools["file_operations"].Enabled {
 		// Parse configuration
 		allowedPaths := []string{"./knowledge", "./data", "./examples"} // Default paths
-		maxFileSize := int64(10 * 1024 * 1024)                         // Default 10MB
+		maxFileSize := int64(10 * 1024 * 1024)                          // Default 10MB
 
 		if params := s.config.Tools.BuiltinTools["file_operations"].Parameters; params != nil {
 			if pathsStr, ok := params["allowed_paths"]; ok {
@@ -185,9 +185,9 @@ func (s *Service) registerBuiltinTools() {
 	if s.config.Tools.BuiltinTools["http_request"].Enabled {
 		// Parse configuration
 		config := builtin.HTTPToolConfig{
-			Timeout:      30 * time.Second,
-			MaxBodySize:  10 * 1024 * 1024, // 10MB default
-			UserAgent:    "RAGO-HTTP-Tool/1.0",
+			Timeout:        30 * time.Second,
+			MaxBodySize:    10 * 1024 * 1024, // 10MB default
+			UserAgent:      "RAGO-HTTP-Tool/1.0",
 			FollowRedirect: true,
 		}
 
@@ -230,59 +230,36 @@ func (s *Service) registerBuiltinTools() {
 		}
 	}
 
-	// Register Web request tool
-	if s.config.Tools.BuiltinTools["web_request"].Enabled {
+	// Register Open URL tool
+	if s.config.Tools.BuiltinTools["open_url"].Enabled {
 		// Parse configuration
-		config := builtin.WebToolConfig{
-			Timeout:       60 * time.Second,
-			MaxContentLen: 100 * 1024, // 100KB default
-			UserAgent:     "RAGO-Web-Tool/1.0",
+		config := builtin.OpenURLConfig{
+			Timeout: 60 * time.Second,
 		}
 
-		if params := s.config.Tools.BuiltinTools["web_request"].Parameters; params != nil {
+		if params := s.config.Tools.BuiltinTools["open_url"].Parameters; params != nil {
 			if timeoutStr, ok := params["timeout"]; ok {
 				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
 					config.Timeout = timeout
 				}
 			}
-			if lenStr, ok := params["max_content_len"]; ok {
-				if length, err := strconv.Atoi(lenStr); err == nil {
-					config.MaxContentLen = length
-				}
-			}
-			if userAgent, ok := params["user_agent"]; ok {
-				config.UserAgent = userAgent
-			}
-			if allowedHosts, ok := params["allowed_hosts"]; ok {
-				config.AllowedHosts = strings.Split(allowedHosts, ",")
-				for i, host := range config.AllowedHosts {
-					config.AllowedHosts[i] = strings.TrimSpace(host)
-				}
-			}
-			if blockedHosts, ok := params["blocked_hosts"]; ok {
-				config.BlockedHosts = strings.Split(blockedHosts, ",")
-				for i, host := range config.BlockedHosts {
-					config.BlockedHosts[i] = strings.TrimSpace(host)
-				}
-			}
 		}
 
-		webTool := builtin.NewWebTool(config)
-		if err := s.toolRegistry.Register(webTool); err != nil {
-			log.Printf("Failed to register web_request tool: %v", err)
+		openUrlTool := builtin.NewOpenURLTool(config)
+		if err := s.toolRegistry.Register(openUrlTool); err != nil {
+			log.Printf("Failed to register open_url tool: %v", err)
 		}
 	}
 
-	// Register Google Search tool
-	if s.config.Tools.BuiltinTools["google_search"].Enabled {
+	// Register Web Search tool
+	if s.config.Tools.BuiltinTools["web_search"].Enabled {
 		// Parse configuration
-		config := builtin.GoogleSearchConfig{
-			MaxResults:    10,
-			SearchTimeout: 60 * time.Second,
-			UserAgent:     "RAGO-Search-Tool/1.0",
+		config := builtin.WebSearchConfig{
+			MaxResults: 10,
+			Timeout:    60 * time.Second,
 		}
 
-		if params := s.config.Tools.BuiltinTools["google_search"].Parameters; params != nil {
+		if params := s.config.Tools.BuiltinTools["web_search"].Parameters; params != nil {
 			if maxResultsStr, ok := params["max_results"]; ok {
 				if maxResults, err := strconv.Atoi(maxResultsStr); err == nil && maxResults > 0 {
 					config.MaxResults = maxResults
@@ -290,52 +267,14 @@ func (s *Service) registerBuiltinTools() {
 			}
 			if timeoutStr, ok := params["search_timeout"]; ok {
 				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
-					config.SearchTimeout = timeout
+					config.Timeout = timeout
 				}
 			}
-			if userAgent, ok := params["user_agent"]; ok {
-				config.UserAgent = userAgent
-			}
 		}
 
-		googleSearchTool := builtin.NewGoogleSearchTool(config)
-		if err := s.toolRegistry.Register(googleSearchTool); err != nil {
-			log.Printf("Failed to register google_search tool: %v", err)
-		}
-	}
-
-	// Register DuckDuckGo Search tool
-	if s.config.Tools.BuiltinTools["duckduckgo_search"].Enabled {
-		// Parse configuration
-		config := builtin.DuckDuckGoSearchConfig{
-			MaxResults:    10,
-			SearchTimeout: 30 * time.Second,
-			UserAgent:     "RAGO-DuckDuckGo-Tool/1.0",
-			SafeSearch:    "moderate",
-		}
-
-		if params := s.config.Tools.BuiltinTools["duckduckgo_search"].Parameters; params != nil {
-			if maxResultsStr, ok := params["max_results"]; ok {
-				if maxResults, err := strconv.Atoi(maxResultsStr); err == nil && maxResults > 0 {
-					config.MaxResults = maxResults
-				}
-			}
-			if timeoutStr, ok := params["search_timeout"]; ok {
-				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
-					config.SearchTimeout = timeout
-				}
-			}
-			if userAgent, ok := params["user_agent"]; ok {
-				config.UserAgent = userAgent
-			}
-			if safeSearch, ok := params["safe_search"]; ok {
-				config.SafeSearch = safeSearch
-			}
-		}
-
-		duckDuckGoTool := builtin.NewDuckDuckGoSearchTool(config)
-		if err := s.toolRegistry.Register(duckDuckGoTool); err != nil {
-			log.Printf("Failed to register duckduckgo_search tool: %v", err)
+		webSearchTool := builtin.NewWebSearchTool(config)
+		if err := s.toolRegistry.Register(webSearchTool); err != nil {
+			log.Printf("Failed to register web_search tool: %v", err)
 		}
 	}
 }
@@ -505,7 +444,7 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 		genOpts.Temperature = 0.7
 	}
 	if genOpts.MaxTokens <= 0 {
-		genOpts.MaxTokens = 500
+		genOpts.MaxTokens = 25000
 	}
 
 	answer, err := s.generator.Generate(ctx, prompt, genOpts)
@@ -586,7 +525,7 @@ func (s *Service) QueryWithTools(ctx context.Context, req domain.QueryRequest) (
 		genOpts.Temperature = 0.7
 	}
 	if genOpts.MaxTokens <= 0 {
-		genOpts.MaxTokens = 1500  // Increased for tool calling scenarios
+		genOpts.MaxTokens = 25000 // Increased for tool calling scenarios
 	}
 
 	// Build prompt with context
@@ -673,7 +612,7 @@ func (s *Service) StreamQueryWithTools(ctx context.Context, req domain.QueryRequ
 		genOpts.Temperature = 0.7
 	}
 	if genOpts.MaxTokens <= 0 {
-		genOpts.MaxTokens = 500
+		genOpts.MaxTokens = 25000
 	}
 
 	// Build prompt with context
@@ -802,7 +741,7 @@ func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, call
 		genOpts.Temperature = 0.7
 	}
 	if genOpts.MaxTokens <= 0 {
-		genOpts.MaxTokens = 500
+		genOpts.MaxTokens = 25000
 	}
 
 	return s.generator.Stream(ctx, prompt, genOpts, s.wrapCallbackForThinking(callback, req.ShowThinking))

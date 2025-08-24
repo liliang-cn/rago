@@ -30,9 +30,12 @@ var (
 
 var queryCmd = &cobra.Command{
 	Use:   "query [question]",
-	Short: "Query knowledge base",
+	Short: "Query knowledge base with automatic tool calling",
 	Long: `Perform semantic search and Q&A based on imported documents.
-You can provide a question as an argument or use interactive mode.`,
+You can provide a question as an argument or use interactive mode.
+
+Tool calling is enabled by default based on your configuration file.
+Use --tools to override the configuration setting.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Initialize stores
 		vectorStore, err := store.NewSQLiteStore(
@@ -74,20 +77,26 @@ You can provide a question as an argument or use interactive mode.`,
 			metadataExtractor,
 		)
 
+		// Determine if tools should be enabled based on config or flag
+		toolsEnabled := enableTools
+		if !cmd.Flags().Changed("tools") {
+			toolsEnabled = cfg.Tools.Enabled
+		}
+
 		if interactive || len(args) == 0 {
-			return runInteractive(ctx, processor)
+			return runInteractive(ctx, processor, toolsEnabled)
 		}
 
 		if queryFile != "" {
-			return processQueryFile(ctx, processor)
+			return processQueryFile(ctx, processor, toolsEnabled)
 		}
 
 		query := strings.Join(args, " ")
-		return processQuery(ctx, processor, query)
+		return processQuery(ctx, processor, query, toolsEnabled)
 	},
 }
 
-func runInteractive(ctx context.Context, p *processor.Service) error {
+func runInteractive(ctx context.Context, p *processor.Service, toolsEnabled bool) error {
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Println("RAGO Interactive Query Mode")
 	fmt.Println("Type 'exit' or 'quit' to exit, 'help' for commands")
@@ -116,7 +125,7 @@ func runInteractive(ctx context.Context, p *processor.Service) error {
 			continue
 		}
 
-		if err := processQuery(ctx, p, input); err != nil {
+		if err := processQuery(ctx, p, input, toolsEnabled); err != nil {
 			fmt.Printf("Error: %v\n", err)
 		}
 		fmt.Println()
@@ -125,7 +134,7 @@ func runInteractive(ctx context.Context, p *processor.Service) error {
 	return scanner.Err()
 }
 
-func processQueryFile(ctx context.Context, p *processor.Service) error {
+func processQueryFile(ctx context.Context, p *processor.Service, toolsEnabled bool) error {
 	file, err := os.Open(queryFile)
 	if err != nil {
 		return fmt.Errorf("failed to open query file: %w", err)
@@ -147,7 +156,7 @@ func processQueryFile(ctx context.Context, p *processor.Service) error {
 		}
 
 		fmt.Printf("Query %d: %s\n", lineNum, query)
-		if err := processQuery(ctx, p, query); err != nil {
+		if err := processQuery(ctx, p, query, toolsEnabled); err != nil {
 			fmt.Printf("Error processing query %d: %v\n", lineNum, err)
 		}
 		fmt.Println(strings.Repeat("-", 50))
@@ -156,7 +165,7 @@ func processQueryFile(ctx context.Context, p *processor.Service) error {
 	return scanner.Err()
 }
 
-func processQuery(ctx context.Context, p *processor.Service, query string) error {
+func processQuery(ctx context.Context, p *processor.Service, query string, toolsEnabled bool) error {
 	// Parse filters from filterBy flag
 	filters := make(map[string]interface{})
 	for _, filter := range filterBy {
@@ -176,7 +185,7 @@ func processQuery(ctx context.Context, p *processor.Service, query string) error
 		Stream:       stream, // Streaming now works with tools
 		ShowThinking: showThinking,
 		Filters:      filters,
-		ToolsEnabled: enableTools,
+		ToolsEnabled: toolsEnabled,
 		AllowedTools: allowedTools,
 		MaxToolCalls: maxToolCalls,
 	}
@@ -189,7 +198,7 @@ func processQuery(ctx context.Context, p *processor.Service, query string) error
 	var err error
 	
 	// Use QueryWithTools if tools are enabled
-	if enableTools {
+	if toolsEnabled {
 		resp, err = p.QueryWithTools(ctx, req)
 	} else {
 		resp, err = p.Query(ctx, req)
@@ -202,7 +211,7 @@ func processQuery(ctx context.Context, p *processor.Service, query string) error
 	fmt.Printf("Answer: %s\n", resp.Answer)
 
 	// Show tool execution information if available
-	if enableTools && len(resp.ToolCalls) > 0 {
+	if toolsEnabled && len(resp.ToolCalls) > 0 {
 		fmt.Printf("\nTool Executions (%d):\n", len(resp.ToolCalls))
 		for i, toolCall := range resp.ToolCalls {
 			status := "Success"
@@ -238,7 +247,7 @@ func processStreamQuery(ctx context.Context, p *processor.Service, req domain.Qu
 	fmt.Print("Answer: ")
 
 	var err error
-	if enableTools {
+	if req.ToolsEnabled {
 		err = p.StreamQueryWithTools(ctx, req, func(token string) {
 			fmt.Print(token)
 		})
@@ -261,9 +270,11 @@ func printHelp() {
 	fmt.Println()
 	fmt.Println("Available flags:")
 	fmt.Println("  --filter key=value    - Filter results by metadata")
-	fmt.Println("  --tools               - Enable tool calling")
+	fmt.Println("  --tools               - Enable/disable tool calling (overrides config)")
 	fmt.Println("  --allowed-tools tool1,tool2 - Specify allowed tools")
 	fmt.Println("  --max-tool-calls N    - Maximum tool calls per query")
+	fmt.Println()
+	fmt.Println("Note: Tool calling is enabled by default based on config.toml settings.")
 }
 
 func truncateText(text string, maxLen int) string {
@@ -282,7 +293,7 @@ func init() {
 	queryCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "interactive mode")
 	queryCmd.Flags().StringVar(&queryFile, "file", "", "batch query from file")
 	queryCmd.Flags().StringSliceVar(&filterBy, "filter", []string{}, "filter by metadata (key=value format, can be used multiple times)")
-	queryCmd.Flags().BoolVar(&enableTools, "tools", false, "enable tool calling capabilities")
+	queryCmd.Flags().BoolVar(&enableTools, "tools", false, "enable tool calling capabilities (overrides config file setting)")
 	queryCmd.Flags().StringSliceVar(&allowedTools, "allowed-tools", []string{}, "comma-separated list of allowed tools (empty means all enabled tools)")
 	queryCmd.Flags().IntVar(&maxToolCalls, "max-tool-calls", 5, "maximum number of tool calls per query")
 }

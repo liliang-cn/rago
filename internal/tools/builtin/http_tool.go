@@ -275,10 +275,3 @@ func (h *HTTPTool) Execute(ctx context.Context, args map[string]interface{}) (*t
 	}, nil
 }
 
-// Helper function to get string with default
-func getStringWithDefault(args map[string]interface{}, key, defaultValue string) string {
-	if value, ok := args[key].(string); ok {
-		return value
-	}
-	return defaultValue
-}
