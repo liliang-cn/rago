@@ -2,14 +2,16 @@
 
 [中文文档](README_zh-CN.md)
 
-RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system written in Go, integrating SQLite vector database (sqvect) and local LLM client (ollama-go), supporting document ingestion, semantic search, and context-enhanced Q&A.
+RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system written in Go, integrating SQLite vector database (sqvect) and multiple LLM providers (OpenAI, Ollama), supporting document ingestion, semantic search, tool calling, and context-enhanced Q&A.
 
 ## 🎯 Features
 
-- **Fully Offline** - No external APIs required, protecting data privacy
+- **Multiple LLM Providers** - Support for OpenAI, Ollama, and other compatible providers
+- **Flexible Configuration** - Modern provider-based architecture for easy switching between services
+- **Tool Calling Support** - Built-in tools for web search, file operations, datetime, and more
+- **Fully Offline Option** - Use with Ollama for complete data privacy
 - **Multi-format Support** - Supports PDF, TXT, and Markdown formats
 - **Local Vector Database** - SQLite-based sqvect vector storage
-- **Local LLM** - Call local models through Ollama
 - **Web UI Interface** - Built-in web interface for easy interaction
 - **Dual Interface Design** - Both CLI tool and HTTP API usage modes
 - **High Performance** - Go implementation with low memory usage and fast response
@@ -19,6 +21,8 @@ RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system writte
 
 ### Prerequisites
 
+**Option 1: For Fully Local Setup (Ollama)**
+
 1. **Install Go** (≥ 1.21)
 2. **Install Ollama**
    ```bash
@@ -27,8 +31,13 @@ RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system writte
 3. **Download Models**
    ```bash
    ollama pull nomic-embed-text  # Embedding model
-   ollama pull qwen3           # Generation model
+   ollama pull qwen2.5          # Generation model (or qwen3)
    ```
+
+**Option 2: For OpenAI Setup**
+
+1. **Install Go** (≥ 1.21)
+2. **Get OpenAI API Key** from [platform.openai.com](https://platform.openai.com)
 
 ### Install RAGO
 
@@ -50,8 +59,6 @@ go install github.com/liliang-cn/rago@latest
 rago --help
 ```
 
-
-
 ### Basic Usage
 
 After building the project with `make build`, you can use the `rago` binary in the `build` directory.
@@ -59,41 +66,69 @@ After building the project with `make build`, you can use the `rago` binary in t
 1. **Initialize Configuration**
 
    ```bash
-   ./build/rago init                    # Create config.toml with defaults
+   ./build/rago init                    # Create config.toml with Ollama defaults
    ./build/rago init --force            # Overwrite existing config file
    ./build/rago init -o custom.toml     # Create config at custom path
    ```
 
-2. **Ingest Documents**
+   The `init` command creates:
+
+   - Modern provider-based configuration with Ollama as default
+   - Complete directory structure (./data/)
+   - Tool calling enabled by default
+   - Web UI enabled by default
+   - Example OpenAI configuration (commented out)
+
+2. **Configure Providers** (if using OpenAI)
+
+   Edit the generated `config.toml` and uncomment the OpenAI section:
+
+   ```toml
+   [providers]
+   default_llm = "openai"           # Change from "ollama" to "openai"
+   default_embedder = "openai"      # Change from "ollama" to "openai"
+
+   [providers.openai]
+   type = "openai"
+   api_key = "your-openai-api-key-here"
+   # ... other settings
+   ```
+
+3. **Ingest Documents**
 
    ```bash
    ./build/rago ingest ./docs/sample.md
    ./build/rago ingest ./docs/ --recursive  # Process directory recursively
    ```
 
-3. **Query Knowledge Base**
+4. **Query Knowledge Base**
 
    ```bash
    ./build/rago query "What is RAG?"
    ./build/rago query --interactive         # Interactive mode
    ```
 
-4. **Start API Service**
+5. **Start API Service with Web UI**
 
    ```bash
    ./build/rago serve --port 7127
-   ```
-
-5. **Start with Web UI**
-
-   ```bash
-   ./build/rago serve --port 7127 --ui
    # Access web interface at http://localhost:7127
    ```
 
-6. **List Imported Documents**
+6. **Check Status**
+
    ```bash
-   ./build/rago list
+   ./build/rago status                      # Check provider connections
+   ```
+
+7. **Tool Calling Examples**
+
+   When using the query command or web interface, RAGO can automatically use built-in tools:
+
+   ```bash
+   ./build/rago query "What's the current time in Tokyo?"        # Uses datetime tool
+   ./build/rago query "Search for recent AI news"               # Uses web search
+   ./build/rago query "What documents do I have about Python?"  # Uses rag_search tool
    ```
 
 ## 📖 Detailed Usage
@@ -461,59 +496,329 @@ go run library_usage.go
 
 ### Initialize Configuration
 
-RAGO provides an `init` command to quickly generate a configuration file with default settings:
+RAGO provides an `init` command to quickly generate a modern configuration file with provider-based architecture:
 
 ```bash
-# Create config.toml with default settings
+# Create config.toml with Ollama defaults and directory structure
 rago init
 
-# Overwrite existing configuration file  
+# Overwrite existing configuration file
 rago init --force
 
 # Create configuration at custom path
 rago init --output /path/to/config.toml
 ```
 
-The generated configuration file includes all available options with sensible defaults that work out of the box.
+The `init` command automatically:
 
-### Configuration File
+- Creates a modern provider-based configuration
+- Sets up complete directory structure (./data/, ./data/documents/, etc.)
+- Enables tool calling by default
+- Enables Web UI by default
+- Includes commented OpenAI configuration for easy switching
 
-Create `config.toml`:
+### Provider Configuration
+
+RAGO uses a flexible provider system supporting multiple LLM and embedding services:
+
+#### Ollama Configuration (Default)
+
+```toml
+[providers]
+default_llm = "ollama"
+default_embedder = "ollama"
+
+[providers.ollama]
+type = "ollama"
+base_url = "http://localhost:11434"
+llm_model = "qwen2.5"
+embedding_model = "nomic-embed-text"
+timeout = "120s"
+```
+
+#### OpenAI Configuration
+
+```toml
+[providers]
+default_llm = "openai"
+default_embedder = "openai"
+
+[providers.openai]
+type = "openai"
+api_key = "your-openai-api-key-here"
+base_url = "https://api.openai.com/v1"          # Optional: for custom endpoints
+llm_model = "gpt-4o-mini"
+embedding_model = "text-embedding-3-small"
+timeout = "60s"
+```
+
+#### Mixed Provider Setup
+
+You can use different providers for LLM and embeddings:
+
+```toml
+[providers]
+default_llm = "openai"      # Use OpenAI for generation
+default_embedder = "ollama" # Use Ollama for embeddings
+
+# Configure both providers
+[providers.openai]
+type = "openai"
+api_key = "your-api-key"
+llm_model = "gpt-4o-mini"
+
+[providers.ollama]
+type = "ollama"
+base_url = "http://localhost:11434"
+embedding_model = "nomic-embed-text"
+```
+
+### Tool Configuration
+
+RAGO includes built-in tools that can be enabled/disabled:
+
+```toml
+[tools]
+enabled = true                           # Enable tool calling
+max_concurrent_calls = 5                 # Max parallel tool calls
+call_timeout = "30s"                     # Timeout per tool call
+security_level = "normal"                # strict, normal, relaxed
+log_level = "info"                       # debug, info, warn, error
+
+# Available built-in tools
+enabled_tools = [
+    "datetime",                          # Date and time operations
+    "rag_search",                        # Search in RAG database
+    "document_info",                     # Document information queries
+    "open_url",                       # HTTP web requests
+    "web_search",                     # Google search functionality
+    "file_operations"                    # File system operations
+]
+
+# Tool-specific configurations
+[tools.builtin.web_search]
+enabled = true
+api_key = "your-google-api-key"         # Optional
+search_engine_id = "your-cse-id"        # Optional
+
+[tools.builtin.open_url]
+enabled = true
+timeout = "10s"
+max_redirects = 5
+user_agent = "RAGO/1.3.1"
+
+[tools.builtin.file_operations]
+enabled = true
+max_file_size = "10MB"
+allowed_extensions = [".txt", ".md", ".json", ".csv", ".log"]
+base_directory = "./data"
+```
+
+### Complete Configuration Example
 
 ```toml
 [server]
 port = 7127
-host = "localhost"
+host = "0.0.0.0"
 enable_ui = true
 cors_origins = ["*"]
 
-[ollama]
-embedding_model = "nomic-embed-text"
-llm_model = "qwen3"
+[providers]
+default_llm = "ollama"
+default_embedder = "ollama"
+
+[providers.ollama]
+type = "ollama"
 base_url = "http://localhost:11434"
-timeout = "30s"
+llm_model = "qwen2.5"
+embedding_model = "nomic-embed-text"
+timeout = "120s"
 
 [sqvect]
 db_path = "./data/rag.db"
+vector_dim = 768                         # 768 for nomic-embed-text, 1536 for OpenAI
+max_conns = 10
+batch_size = 100
 top_k = 5
+threshold = 0.0
+
+[keyword]
+index_path = "./data/keyword.bleve"
 
 [chunker]
-chunk_size = 300
+chunk_size = 500
 overlap = 50
-method = "sentence"  # sentence, paragraph, token
+method = "sentence"                      # sentence, paragraph, token
 
 [ingest.metadata_extraction]
-enable = false # Enable automatic metadata extraction via LLM
-llm_model = "qwen3" # Model to use for metadata extraction
+enable = false                           # Enable automatic metadata extraction
+llm_model = "qwen2.5"                   # Model for metadata extraction
+
+[tools]
+enabled = true
+enabled_tools = ["datetime", "rag_search", "open_url", "web_search"]
 ```
 
 ### Environment Variables
 
 ```bash
 export RAGO_SERVER_PORT=7127
-export RAGO_OLLAMA_BASE_URL=http://localhost:11434
+export RAGO_PROVIDERS_DEFAULT_LLM=openai
+export RAGO_PROVIDERS_OPENAI_API_KEY=your-key-here
 export RAGO_SQVECT_DB_PATH=./data/custom.sqlite
 ```
+
+## 🛠️ Tool Calling
+
+RAGO includes a comprehensive tool system that allows the AI to perform actions and retrieve real-time information:
+
+### Built-in Tools
+
+#### 🕐 DateTime Tool
+
+- Get current date and time
+- Convert between timezones
+- Calculate time differences
+
+**Examples:**
+
+```bash
+"What time is it now?"
+"What's the current date in Tokyo?"
+"How many days until Christmas?"
+```
+
+#### 🔍 RAG Search Tool
+
+- Search through your ingested documents
+- Retrieve specific information from knowledge base
+- Cross-reference document sources
+
+**Examples:**
+
+```bash
+"What documents mention Python programming?"
+"Search my notes for information about machine learning"
+"Find all references to API documentation"
+```
+
+#### 📄 Document Info Tool
+
+- Get metadata about ingested documents
+- List available documents
+- Check document statistics
+
+**Examples:**
+
+```bash
+"How many documents do I have?"
+"What are the latest documents I added?"
+"Show me document statistics"
+```
+
+#### 🌐 Web Request Tool
+
+- Make HTTP requests to APIs
+- Fetch web content
+- Access real-time data
+
+**Examples:**
+
+```bash
+"Get the latest news from example.com/api"
+"Fetch data from this REST API endpoint"
+"Check the status of this website"
+```
+
+#### 🔎 Google Search Tool
+
+- Search the internet via Google
+- Get recent information
+- Find specific resources
+
+**Examples:**
+
+```bash
+"Search for recent developments in AI"
+"What are the latest news about quantum computing?"
+"Find documentation for React hooks"
+```
+
+#### 📁 File Operations Tool
+
+- Read local files
+- List directory contents
+- Check file information
+
+**Examples:**
+
+```bash
+"Read the contents of my todo.txt file"
+"List files in the ./projects directory"
+"What's in my configuration files?"
+```
+
+### Tool Configuration
+
+Tools can be enabled/disabled and configured individually:
+
+```toml
+[tools]
+enabled = true
+max_concurrent_calls = 5
+call_timeout = "30s"
+security_level = "normal"  # Controls tool access levels
+
+# Enable specific tools
+enabled_tools = [
+    "datetime",
+    "rag_search",
+    "document_info",
+    "open_url",
+    "web_search",
+    "file_operations"
+]
+
+# Tool-specific settings
+[tools.builtin.file_operations]
+enabled = true
+base_directory = "./data"                           # Restrict file access to this directory
+allowed_extensions = [".txt", ".md", ".json"]       # Only allow these file types
+max_file_size = "10MB"                              # Maximum file size to read
+
+[tools.builtin.open_url]
+enabled = true
+timeout = "10s"
+max_redirects = 5
+user_agent = "RAGO/1.3.1"
+
+[tools.builtin.web_search]
+enabled = true
+# api_key = "your-google-api-key"        # Optional: for better rate limits
+# search_engine_id = "your-cse-id"       # Optional: for custom search engine
+```
+
+### Security Levels
+
+- **strict**: Very limited tool access, safe for production
+- **normal**: Balanced security and functionality (default)
+- **relaxed**: Full tool access, use with caution
+
+### Tool Usage in API
+
+Tools are automatically invoked when using the API:
+
+```bash
+# Query that will trigger tool usage
+curl -X POST http://localhost:7127/api/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "What time is it and search for recent AI news?",
+    "stream": false
+  }'
+```
+
+The response will include both the tool results and the AI's synthesized answer.
 
 ## 🐳 Docker Deployment
 
@@ -590,15 +895,20 @@ rago/
 ├── cmd/rago/           # CLI commands
 ├── internal/           # Internal modules
 │   ├── config/        # Configuration management
-│   ├── domain/        # Domain models
+│   ├── domain/        # Domain models and interfaces
+│   ├── providers/     # LLM and embedder providers (OpenAI, Ollama)
 │   ├── chunker/       # Text chunking
-│   ├── embedder/      # Embedding service
-│   ├── llm/           # Generation service
-│   ├── store/         # Storage layer
-│   └── processor/     # Core processor
+│   ├── embedder/      # Embedding service layer
+│   ├── llm/           # Generation service layer
+│   ├── store/         # Storage layer (SQLite, Bleve)
+│   ├── processor/     # Core processor
+│   ├── tools/         # Tool calling system
+│   └── utils/         # Utility functions
 ├── api/handlers/       # API handlers
+├── ui/                # Web UI assets
 ├── test/              # Integration tests
 ├── docs/              # Documentation
+├── examples/          # Usage examples
 └── Makefile           # Build scripts
 ```
 
