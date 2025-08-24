@@ -90,9 +90,8 @@ enabled_tools = [
     "document_info",          # Document information queries
     "file_operations",        # File system operations
     "http_request",           # HTTP request tool
-    "web_request",            # Web scraping tool
-    "google_search",          # Google search integration
-    "duckduckgo_search"       # DuckDuckGo search integration
+    "open_url",            # Web scraping tool
+    "web_search",          # Google search integration
 ]
 
 # Rate limiting configuration

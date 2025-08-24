@@ -1,13 +1,16 @@
 # RAGO - 本地化 RAG 系统
 
-RAGO（Retrieval-Augmented Generation Offline）是一个完全本地运行的 RAG 系统，基于 Go 编写，集成 SQLite 向量库（sqvect）和本地 LLM 客户端（ollama-go），支持文档 ingest、语义搜索和上下文增强问答。
+RAGO（Retrieval-Augmented Generation Offline）是一个完全本地运行的 RAG 系统，基于 Go 编写，集成 SQLite 向量库（sqvect）和多种 LLM 提供商（OpenAI、Ollama），支持文档导入、语义搜索、工具调用和上下文增强问答。
 
 ## 🎯 特性
 
-- **完全离线运行** - 无需外部 API，保护数据隐私
+- **多种 LLM 提供商** - 支持 OpenAI、Ollama 和其他兼容提供商
+- **灵活配置架构** - 现代化的 provider 架构，易于切换服务
+- **工具调用支持** - 内置工具：网络搜索、文件操作、时间查询等
+- **完全离线选项** - 使用 Ollama 实现完整数据隐私保护
 - **多格式支持** - 支持 PDF、TXT、Markdown 等文本格式
 - **本地向量数据库** - 基于 SQLite 的 sqvect 向量存储
-- **本地 LLM** - 通过 Ollama 调用本地模型
+- **Web UI 界面** - 内置 Web 界面，易于交互
 - **双接口设计** - CLI 工具和 HTTP API 两种使用方式
 - **高性能** - Go 语言实现，内存占用低，响应速度快
 - **可扩展** - 模块化设计，易于扩展新功能
@@ -15,6 +18,8 @@ RAGO（Retrieval-Augmented Generation Offline）是一个完全本地运行的 R
 ## 🚀 快速开始
 
 ### 前置条件
+
+**方式一：完全本地部署（Ollama）**
 
 1. **安装 Go** (≥ 1.21)
 2. **安装 Ollama**
@@ -24,8 +29,13 @@ RAGO（Retrieval-Augmented Generation Offline）是一个完全本地运行的 R
 3. **下载模型**
    ```bash
    ollama pull nomic-embed-text  # 嵌入模型
-   ollama pull qwen3           # 生成模型
+   ollama pull qwen2.5          # 生成模型（或 qwen3）
    ```
+
+**方式二：使用 OpenAI**
+
+1. **安装 Go** (≥ 1.21)
+2. **获取 OpenAI API 密钥** - 访问 [platform.openai.com](https://platform.openai.com)
 
 ### 安装 RAGO
 
@@ -47,43 +57,76 @@ go install github.com/liliang-cn/rago@latest
 rago --help
 ```
 
-
-
 ### 基本使用
 
-使用 `make build` 构建项目后, 你可以在 `build` 目录中使用 `rago` 二进制文件。
+使用 `make build` 构建项目后，你可以在 `build` 目录中使用 `rago` 二进制文件。
 
 1. **初始化配置**
 
    ```bash
-   ./build/rago init                    # 创建默认配置文件 config.toml
+   ./build/rago init                    # 创建默认配置（Ollama）
    ./build/rago init --force            # 强制覆盖现有配置文件
    ./build/rago init -o custom.toml     # 在自定义路径创建配置文件
    ```
 
-2. **导入文档**
+   `init` 命令自动创建：
+
+   - 基于 provider 架构的现代配置，默认使用 Ollama
+   - 完整目录结构（./data/）
+   - 默认启用工具调用功能
+   - 默认启用 Web UI
+   - 包含 OpenAI 配置示例（已注释）
+
+2. **配置提供商**（如果使用 OpenAI）
+
+   编辑生成的 `config.toml` 文件，取消注释 OpenAI 部分：
+
+   ```toml
+   [providers]
+   default_llm = "openai"           # 从 "ollama" 改为 "openai"
+   default_embedder = "openai"      # 从 "ollama" 改为 "openai"
+
+   [providers.openai]
+   type = "openai"
+   api_key = "your-openai-api-key-here"
+   # ... 其他设置
+   ```
+
+3. **导入文档**
 
    ```bash
    ./build/rago ingest ./docs/sample.md
    ./build/rago ingest ./docs/ --recursive  # 递归处理目录
    ```
 
-3. **查询知识库**
+4. **查询知识库**
 
    ```bash
    ./build/rago query "什么是 RAG？"
    ./build/rago query --interactive         # 交互模式
    ```
 
-4. **启动 API 服务**
+5. **启动 Web UI 服务**
 
    ```bash
    ./build/rago serve --port 7127
+   # 在浏览器中访问 http://localhost:7127
    ```
 
-5. **查看已导入文档**
+6. **检查状态**
+
    ```bash
-   ./build/rago list
+   ./build/rago status                      # 检查提供商连接状态
+   ```
+
+7. **工具调用示例**
+
+   在使用查询命令或 Web 界面时，RAGO 会自动使用内置工具：
+
+   ```bash
+   ./build/rago query "东京现在几点了？"                    # 使用时间工具
+   ./build/rago query "搜索最新的 AI 新闻"                  # 使用网络搜索
+   ./build/rago query "我有哪些关于 Python 的文档？"         # 使用 rag_search 工具
    ```
 
 ## 📖 详细使用
@@ -394,10 +437,10 @@ go run library_usage.go
 
 ### 初始化配置
 
-RAGO 提供 `init` 命令来快速生成包含默认设置的配置文件：
+RAGO 提供 `init` 命令来快速生成基于 provider 架构的现代配置文件：
 
 ```bash
-# 创建默认设置的 config.toml
+# 创建默认设置的 config.toml（使用 Ollama 和目录结构）
 rago init
 
 # 覆盖现有配置文件
@@ -407,45 +450,316 @@ rago init --force
 rago init --output /path/to/config.toml
 ```
 
-生成的配置文件包含所有可用选项，并提供开箱即用的合理默认值。
+`init` 命令自动：
 
-### 配置文件
+- 创建现代化的基于 provider 的配置
+- 建立完整的目录结构（./data/、./data/documents/ 等）
+- 默认启用工具调用功能
+- 默认启用 Web UI
+- 包含注释的 OpenAI 配置示例，便于切换
 
-创建 `config.toml`：
+### Provider 配置
+
+RAGO 使用灵活的 provider 系统，支持多种 LLM 和嵌入服务：
+
+#### Ollama 配置（默认）
+
+```toml
+[providers]
+default_llm = "ollama"
+default_embedder = "ollama"
+
+[providers.ollama]
+type = "ollama"
+base_url = "http://localhost:11434"
+llm_model = "qwen2.5"
+embedding_model = "nomic-embed-text"
+timeout = "120s"
+```
+
+#### OpenAI 配置
+
+```toml
+[providers]
+default_llm = "openai"
+default_embedder = "openai"
+
+[providers.openai]
+type = "openai"
+api_key = "your-openai-api-key-here"
+base_url = "https://api.openai.com/v1"          # 可选：用于自定义端点
+llm_model = "gpt-4o-mini"
+embedding_model = "text-embedding-3-small"
+timeout = "60s"
+```
+
+#### 混合 Provider 设置
+
+您可以为 LLM 和嵌入使用不同的提供商：
+
+```toml
+[providers]
+default_llm = "openai"      # 使用 OpenAI 进行生成
+default_embedder = "ollama" # 使用 Ollama 进行嵌入
+
+# 配置两个提供商
+[providers.openai]
+type = "openai"
+api_key = "your-api-key"
+llm_model = "gpt-4o-mini"
+
+[providers.ollama]
+type = "ollama"
+base_url = "http://localhost:11434"
+embedding_model = "nomic-embed-text"
+```
+
+### 工具配置
+
+RAGO 包含可以启用/禁用的内置工具：
+
+```toml
+[tools]
+enabled = true                           # 启用工具调用
+max_concurrent_calls = 5                 # 最大并行工具调用数
+call_timeout = "30s"                     # 每个工具调用的超时时间
+security_level = "normal"                # 安全级别：strict、normal、relaxed
+log_level = "info"                       # 日志级别：debug、info、warn、error
+
+# 可用的内置工具
+enabled_tools = [
+    "datetime",                          # 日期时间操作
+    "rag_search",                        # 在 RAG 数据库中搜索
+    "document_info",                     # 文档信息查询
+    "open_url",                       # HTTP 网络请求
+    "web_search",                     # Google 搜索功能
+    "file_operations"                    # 文件系统操作
+]
+
+# 工具特定配置
+[tools.builtin.web_search]
+enabled = true
+api_key = "your-google-api-key"         # 可选：获得更好的速率限制
+search_engine_id = "your-cse-id"        # 可选：自定义搜索引擎
+
+[tools.builtin.open_url]
+enabled = true
+timeout = "10s"
+max_redirects = 5
+user_agent = "RAGO/1.3.1"
+
+[tools.builtin.file_operations]
+enabled = true
+max_file_size = "10MB"
+allowed_extensions = [".txt", ".md", ".json", ".csv", ".log"]
+base_directory = "./data"
+```
+
+### 完整配置示例
 
 ```toml
 [server]
 port = 7127
-host = "localhost"
+host = "0.0.0.0"
+enable_ui = true
 cors_origins = ["*"]
 
-[ollama]
-embedding_model = "nomic-embed-text"
-llm_model = "qwen3"
+[providers]
+default_llm = "ollama"
+default_embedder = "ollama"
+
+[providers.ollama]
+type = "ollama"
 base_url = "http://localhost:11434"
-timeout = "30s"
+llm_model = "qwen2.5"
+embedding_model = "nomic-embed-text"
+timeout = "120s"
 
 [sqvect]
 db_path = "./data/rag.db"
+vector_dim = 768                         # nomic-embed-text 为 768，OpenAI 为 1536
+max_conns = 10
+batch_size = 100
 top_k = 5
+threshold = 0.0
+
+[keyword]
+index_path = "./data/keyword.bleve"
 
 [chunker]
-chunk_size = 300
+chunk_size = 500
 overlap = 50
-method = "sentence"  # sentence, paragraph, token
+method = "sentence"                      # sentence、paragraph、token
 
 [ingest.metadata_extraction]
-enable = false # 是否启用元数据自动提取
-llm_model = "qwen3" # 用于提取元数据的模型
+enable = false                           # 启用自动元数据提取
+llm_model = "qwen2.5"                   # 用于元数据提取的模型
+
+[tools]
+enabled = true
+enabled_tools = ["datetime", "rag_search", "open_url", "web_search"]
 ```
 
 ### 环境变量
 
 ```bash
 export RAGO_SERVER_PORT=7127
-export RAGO_OLLAMA_BASE_URL=http://localhost:11434
+export RAGO_PROVIDERS_DEFAULT_LLM=openai
+export RAGO_PROVIDERS_OPENAI_API_KEY=your-key-here
 export RAGO_SQVECT_DB_PATH=./data/custom.sqlite
 ```
+
+## 🛠️ 工具调用
+
+RAGO 包含全面的工具系统，允许 AI 执行操作并检索实时信息：
+
+### 内置工具
+
+#### 🕐 时间工具
+
+- 获取当前日期和时间
+- 时区之间的转换
+- 计算时间差
+
+**示例：**
+
+```bash
+"现在几点了？"
+"东京的当前日期是什么？"
+"距离圣诞节还有多少天？"
+```
+
+#### 🔍 RAG 搜索工具
+
+- 搜索您的已导入文档
+- 从知识库中检索特定信息
+- 交叉引用文档来源
+
+**示例：**
+
+```bash
+"哪些文档提到了 Python 编程？"
+"在我的笔记中搜索机器学习相关信息"
+"找到所有 API 文档的引用"
+```
+
+#### 📄 文档信息工具
+
+- 获取已导入文档的元数据
+- 列出可用文档
+- 检查文档统计信息
+
+**示例：**
+
+```bash
+"我有多少个文档？"
+"最新添加的文档有哪些？"
+"显示文档统计信息"
+```
+
+#### 🌐 网络请求工具
+
+- 向 API 发出 HTTP 请求
+- 获取网页内容
+- 访问实时数据
+
+**示例：**
+
+```bash
+"从 example.com/api 获取最新新闻"
+"从这个 REST API 端点获取数据"
+"检查这个网站的状态"
+```
+
+#### 🔎 Google 搜索工具
+
+- 通过 Google 搜索互联网
+- 获取最新信息
+- 查找特定资源
+
+**示例：**
+
+```bash
+"搜索 AI 的最新发展"
+"量子计算的最新新闻是什么？"
+"找到 React hooks 的文档"
+```
+
+#### 📁 文件操作工具
+
+- 读取本地文件
+- 列出目录内容
+- 检查文件信息
+
+**示例：**
+
+```bash
+"读取我的 todo.txt 文件内容"
+"列出 ./projects 目录中的文件"
+"我的配置文件里有什么？"
+```
+
+### 工具配置
+
+工具可以单独启用/禁用和配置：
+
+```toml
+[tools]
+enabled = true
+max_concurrent_calls = 5
+call_timeout = "30s"
+security_level = "normal"  # 控制工具访问级别
+
+# 启用特定工具
+enabled_tools = [
+    "datetime",
+    "rag_search",
+    "document_info",
+    "open_url",
+    "web_search",
+    "file_operations"
+]
+
+# 工具特定设置
+[tools.builtin.file_operations]
+enabled = true
+base_directory = "./data"                           # 限制文件访问到这个目录
+allowed_extensions = [".txt", ".md", ".json"]       # 只允许这些文件类型
+max_file_size = "10MB"                              # 最大读取文件大小
+
+[tools.builtin.open_url]
+enabled = true
+timeout = "10s"
+max_redirects = 5
+user_agent = "RAGO/1.3.1"
+
+[tools.builtin.web_search]
+enabled = true
+# api_key = "your-google-api-key"        # 可选：获得更好的速率限制
+# search_engine_id = "your-cse-id"       # 可选：自定义搜索引擎
+```
+
+### 安全级别
+
+- **strict**: 非常有限的工具访问，适合生产环境
+- **normal**: 平衡的安全性和功能性（默认）
+- **relaxed**: 完全的工具访问，请谨慎使用
+
+### API 中的工具使用
+
+使用 API 时工具会自动调用：
+
+```bash
+# 会触发工具使用的查询
+curl -X POST http://localhost:7127/api/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "现在几点了，搜索最新的 AI 新闻？",
+    "stream": false
+  }'
+```
+
+响应将包含工具结果和 AI 的综合回答。
 
 ## 🐳 Docker 部署
 

@@ -171,20 +171,20 @@ enabled_tools = [
     "datetime",                          # Date and time operations
     "rag_search",                        # Search in RAG database
     "document_info",                     # Document information queries
-    "web_request",                       # HTTP web requests
-    "google_search",                     # Google search functionality
+    "open_url",                       # HTTP web requests
+    "web_search",                     # Google search functionality
     "file_operations"                    # File system operations
 ]
 
 # Built-in tool configurations
 [tools.builtin]
 
-[tools.builtin.google_search]
+[tools.builtin.web_search]
 enabled = true
 # api_key = "your-google-api-key"       # Optional: for better rate limits
 # search_engine_id = "your-cse-id"     # Optional: for custom search
 
-[tools.builtin.web_request]
+[tools.builtin.open_url]
 enabled = true
 timeout = "10s"
 max_redirects = 5
@@ -216,7 +216,7 @@ func initializeDatabase(configPath string) error {
 	if err := os.MkdirAll(dbDir, 0755); err != nil {
 		return fmt.Errorf("failed to create database directory %s: %w", dbDir, err)
 	}
-	
+
 	keywordDir := filepath.Dir(cfg.Keyword.IndexPath)
 	if err := os.MkdirAll(keywordDir, 0755); err != nil {
 		return fmt.Errorf("failed to create keyword index directory %s: %w", keywordDir, err)
@@ -224,12 +224,12 @@ func initializeDatabase(configPath string) error {
 
 	// Create additional useful directories
 	additionalDirs := []string{
-		"./data/documents",  // For document storage
-		"./data/exports",    // For export files
-		"./data/imports",    // For import files
-		"./data/backups",    // For backup files
+		"./data/documents", // For document storage
+		"./data/exports",   // For export files
+		"./data/imports",   // For import files
+		"./data/backups",   // For backup files
 	}
-	
+
 	for _, dir := range additionalDirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)

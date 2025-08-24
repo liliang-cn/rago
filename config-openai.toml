@@ -48,6 +48,6 @@ enabled_tools = [
     "datetime",
     "rag_search", 
     "document_info",
-    "web_request",
-    "google_search"
+    "open_url",
+    "web_search"
 ]

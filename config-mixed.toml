@@ -54,7 +54,6 @@ enabled_tools = [
     "rag_search",
     "document_info", 
     "file_operations",
-    "web_request",
-    "google_search",
-    "duckduckgo_search"
+    "open_url",
+    "web_search",
 ]
