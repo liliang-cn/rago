@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/liliang-cn/rago/internal/domain"
 	openai "github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 	"github.com/openai/openai-go/v2/shared"
-
-	"github.com/liliang-cn/rago/internal/domain"
 )
 
 // OpenAILLMProvider implements LLMProvider for OpenAI-compatible services
@@ -33,10 +32,8 @@ func NewOpenAILLMProvider(config *domain.OpenAIProviderConfig) (domain.LLMProvid
 		opts = append(opts, option.WithBaseURL(config.BaseURL))
 	}
 
-	client := openai.NewClient(opts...)
-
 	return &OpenAILLMProvider{
-		client: client,
+		client: openai.NewClient(opts...),
 		config: config,
 	}, nil
 }
@@ -44,6 +41,47 @@ func NewOpenAILLMProvider(config *domain.OpenAIProviderConfig) (domain.LLMProvid
 // ProviderType returns the provider type
 func (p *OpenAILLMProvider) ProviderType() domain.ProviderType {
 	return domain.ProviderOpenAI
+}
+
+// toOpenAIMessages converts domain messages to the OpenAI API format
+func toOpenAIMessages(messages []domain.Message) ([]openai.ChatCompletionMessageParamUnion, error) {
+	openAIMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
+	for i, msg := range messages {
+		switch msg.Role {
+		case "user":
+			openAIMessages[i] = openai.UserMessage(msg.Content)
+		case "system":
+			openAIMessages[i] = openai.SystemMessage(msg.Content)
+		case "tool":
+			openAIMessages[i] = openai.ToolMessage(msg.Content, msg.ToolCallID)
+		case "assistant":
+			assistantMsg := openai.ChatCompletionMessage{
+				Role:    "assistant",
+				Content: msg.Content,
+			}
+			if len(msg.ToolCalls) > 0 {
+				assistantMsg.ToolCalls = make([]openai.ChatCompletionMessageToolCallUnion, len(msg.ToolCalls))
+				for j, tc := range msg.ToolCalls {
+					args, err := json.Marshal(tc.Function.Arguments)
+					if err != nil {
+						return nil, fmt.Errorf("failed to marshal tool call arguments: %w", err)
+					}
+					assistantMsg.ToolCalls[j] = openai.ChatCompletionMessageToolCallUnion{
+						ID:   tc.ID,
+						Type: "function",
+						Function: openai.ChatCompletionMessageFunctionToolCallFunction{
+							Name:      tc.Function.Name,
+							Arguments: string(args),
+						},
+					}
+				}
+			}
+			openAIMessages[i] = assistantMsg.ToParam()
+		default:
+			return nil, fmt.Errorf("unknown message role: %s", msg.Role)
+		}
+	}
+	return openAIMessages, nil
 }
 
 // Generate generates text using OpenAI API
@@ -87,7 +125,6 @@ func (p *OpenAILLMProvider) Stream(ctx context.Context, prompt string, opts *dom
 	if prompt == "" {
 		return fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
 	}
-
 	if callback == nil {
 		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
 	}
@@ -111,7 +148,6 @@ func (p *OpenAILLMProvider) Stream(ctx context.Context, prompt string, opts *dom
 	}
 
 	stream := p.client.Chat.Completions.NewStreaming(ctx, params)
-	defer stream.Close()
 
 	for stream.Next() {
 		chunk := stream.Current()
@@ -127,9 +163,200 @@ func (p *OpenAILLMProvider) Stream(ctx context.Context, prompt string, opts *dom
 	return nil
 }
 
+// GenerateWithTools generates text with tool calling support
+func (p *OpenAILLMProvider) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
+	if len(messages) == 0 {
+		return nil, fmt.Errorf("%w: empty messages", domain.ErrInvalidInput)
+	}
+
+	openAIMessages, err := toOpenAIMessages(messages)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert messages: %w", err)
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:    shared.ChatModel(p.config.LLMModel),
+		Messages: openAIMessages,
+	}
+
+	if len(tools) > 0 {
+		openaiTools := make([]openai.ChatCompletionToolUnionParam, len(tools))
+		for i, tool := range tools {
+			openaiTools[i] = openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+				Name:        tool.Function.Name,
+				Description: openai.String(tool.Function.Description),
+				Parameters:  tool.Function.Parameters,
+			})
+		}
+		params.Tools = openaiTools
+
+		// Set tool choice if specified
+		if opts != nil && opts.ToolChoice != "" {
+			switch opts.ToolChoice {
+			case "required":
+				// Force the model to call one of the tools
+				params.ToolChoice = openai.ToolChoiceOptionFunctionToolChoice(openai.ChatCompletionNamedToolChoiceFunctionParam{
+					Name: tools[0].Function.Name, // Use first tool as default
+				})
+			case "auto", "none":
+				// Let OpenAI handle auto/none behavior naturally
+				// "auto" is default when tools are present
+			default:
+				// Assume it's a specific function name
+				params.ToolChoice = openai.ToolChoiceOptionFunctionToolChoice(openai.ChatCompletionNamedToolChoiceFunctionParam{
+					Name: opts.ToolChoice,
+				})
+			}
+		}
+	}
+
+	if opts != nil {
+		if opts.Temperature >= 0 {
+			params.Temperature = openai.Float(opts.Temperature)
+		}
+		if opts.MaxTokens > 0 {
+			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
+		}
+	}
+
+	completion, err := p.client.Chat.Completions.New(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+	}
+
+	if len(completion.Choices) == 0 {
+		return nil, fmt.Errorf("%w: no choices returned", domain.ErrGenerationFailed)
+	}
+
+	choice := completion.Choices[0]
+	result := &domain.GenerationResult{
+		Content:  choice.Message.Content,
+		Finished: true,
+	}
+
+	if len(choice.Message.ToolCalls) > 0 {
+		result.ToolCalls = make([]domain.ToolCall, len(choice.Message.ToolCalls))
+		for i, tc := range choice.Message.ToolCalls {
+			var args map[string]interface{}
+			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+				return nil, fmt.Errorf("failed to parse tool call arguments: %w", err)
+			}
+			result.ToolCalls[i] = domain.ToolCall{
+				ID:   tc.ID,
+				Type: tc.Type,
+				Function: domain.FunctionCall{
+					Name:      tc.Function.Name,
+					Arguments: args,
+				},
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// StreamWithTools generates text with tool calling support in streaming mode
+func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
+	if len(messages) == 0 {
+		return fmt.Errorf("%w: empty messages", domain.ErrInvalidInput)
+	}
+	if callback == nil {
+		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
+	}
+
+	openAIMessages, err := toOpenAIMessages(messages)
+	if err != nil {
+		return fmt.Errorf("failed to convert messages: %w", err)
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:    shared.ChatModel(p.config.LLMModel),
+		Messages: openAIMessages,
+	}
+
+	if len(tools) > 0 {
+		openaiTools := make([]openai.ChatCompletionToolUnionParam, len(tools))
+		for i, tool := range tools {
+			openaiTools[i] = openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+				Name:        tool.Function.Name,
+				Description: openai.String(tool.Function.Description),
+				Parameters:  tool.Function.Parameters,
+			})
+		}
+		params.Tools = openaiTools
+
+		// Set tool choice if specified
+		if opts != nil && opts.ToolChoice != "" {
+			switch opts.ToolChoice {
+			case "required":
+				// Force the model to call one of the tools
+				params.ToolChoice = openai.ToolChoiceOptionFunctionToolChoice(openai.ChatCompletionNamedToolChoiceFunctionParam{
+					Name: tools[0].Function.Name, // Use first tool as default
+				})
+			case "auto", "none":
+				// Let OpenAI handle auto/none behavior naturally
+				// "auto" is default when tools are present
+			default:
+				// Assume it's a specific function name
+				params.ToolChoice = openai.ToolChoiceOptionFunctionToolChoice(openai.ChatCompletionNamedToolChoiceFunctionParam{
+					Name: opts.ToolChoice,
+				})
+			}
+		}
+	}
+
+	if opts != nil {
+		if opts.Temperature >= 0 {
+			params.Temperature = openai.Float(opts.Temperature)
+		}
+		if opts.MaxTokens > 0 {
+			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
+		}
+	}
+
+	stream := p.client.Chat.Completions.NewStreaming(ctx, params)
+
+	for stream.Next() {
+		chunk := stream.Current()
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+
+		choice := chunk.Choices[0]
+		var toolCalls []domain.ToolCall
+
+		if len(choice.Delta.ToolCalls) > 0 {
+			toolCalls = make([]domain.ToolCall, len(choice.Delta.ToolCalls))
+			for i, tc := range choice.Delta.ToolCalls {
+				var args map[string]interface{}
+				if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+					args = make(map[string]interface{})
+				}
+				toolCalls[i] = domain.ToolCall{
+					ID:   tc.ID,
+					Type: "function",
+					Function: domain.FunctionCall{
+						Name:      tc.Function.Name,
+						Arguments: args,
+					},
+				}
+			}
+		}
+
+		if err := callback(choice.Delta.Content, toolCalls); err != nil {
+			return fmt.Errorf("callback error: %w", err)
+		}
+	}
+
+	if err := stream.Err(); err != nil {
+		return fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
+	}
+
+	return nil
+}
+
 // Health checks the health of the OpenAI service
 func (p *OpenAILLMProvider) Health(ctx context.Context) error {
-	// Test with a simple completion to check if the service is accessible
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage("Hello"),
 	}
@@ -171,7 +398,6 @@ JSON Output:`, content)
 		openai.UserMessage(prompt),
 	}
 
-	// Use the specified model if provided, otherwise use the default LLM model
 	llmModel := p.config.LLMModel
 	if model != "" {
 		llmModel = model
@@ -193,7 +419,7 @@ JSON Output:`, content)
 
 	var metadata domain.ExtractedMetadata
 	if err := json.Unmarshal([]byte(completion.Choices[0].Message.Content), &metadata); err != nil {
-		return nil, fmt.Errorf("%w: failed to unmarshal metadata response: %v. Raw response: %s", 
+		return nil, fmt.Errorf("%w: failed to unmarshal metadata response: %v. Raw response: %s",
 			domain.ErrInvalidInput, err, completion.Choices[0].Message.Content)
 	}
 
@@ -236,7 +462,10 @@ Are these essentially the same? Respond with only "true" or "false":`, input, ou
 		return false, fmt.Errorf("no choices returned for similarity judgment")
 	}
 
-	result := strings.TrimSpace(strings.ToLower(completion.Choices[0].Message.Content))
+	result := ""
+	if len(completion.Choices) > 0 {
+		result = completion.Choices[0].Message.Content
+	}
 
 	if strings.Contains(result, "true") {
 		return true, nil
@@ -245,175 +474,7 @@ Are these essentially the same? Respond with only "true" or "false":`, input, ou
 		return false, nil
 	}
 
-	// Default to false if we can't determine
 	return false, nil
-}
-
-// GenerateWithTools generates text with tool calling support
-func (p *OpenAILLMProvider) GenerateWithTools(ctx context.Context, prompt string, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
-	if prompt == "" {
-		return nil, fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
-	}
-
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(prompt),
-	}
-
-	params := openai.ChatCompletionNewParams{
-		Model:    shared.ChatModel(p.config.LLMModel),
-		Messages: messages,
-	}
-
-	// Convert domain tools to OpenAI tools
-	if len(tools) > 0 {
-		openaiTools := make([]openai.ChatCompletionToolUnionParam, len(tools))
-		for i, tool := range tools {
-			openaiTools[i] = openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
-				Name:        tool.Function.Name,
-				Description: openai.String(tool.Function.Description),
-				Parameters:  tool.Function.Parameters,
-			})
-		}
-		params.Tools = openaiTools
-	}
-
-	if opts != nil {
-		if opts.Temperature >= 0 {
-			params.Temperature = openai.Float(opts.Temperature)
-		}
-		if opts.MaxTokens > 0 {
-			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
-		}
-	}
-
-	completion, err := p.client.Chat.Completions.New(ctx, params)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
-	}
-
-	if len(completion.Choices) == 0 {
-		return nil, fmt.Errorf("%w: no choices returned", domain.ErrGenerationFailed)
-	}
-
-	choice := completion.Choices[0]
-	result := &domain.GenerationResult{
-		Content:  choice.Message.Content,
-		Finished: true,
-	}
-
-	// Convert tool calls if any
-	if len(choice.Message.ToolCalls) > 0 {
-		result.ToolCalls = make([]domain.ToolCall, len(choice.Message.ToolCalls))
-		for i, tc := range choice.Message.ToolCalls {
-			// Parse function arguments if they are in string format
-			var args map[string]interface{}
-			if tc.Function.Arguments != "" {
-				if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-					return nil, fmt.Errorf("failed to parse tool call arguments: %w", err)
-				}
-			}
-
-			result.ToolCalls[i] = domain.ToolCall{
-				ID:   tc.ID,
-				Type: string(tc.Type),
-				Function: domain.FunctionCall{
-					Name:      tc.Function.Name,
-					Arguments: args,
-				},
-			}
-		}
-	}
-
-	return result, nil
-}
-
-// StreamWithTools generates text with tool calling support in streaming mode
-func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, prompt string, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
-	if prompt == "" {
-		return fmt.Errorf("%w: empty prompt", domain.ErrInvalidInput)
-	}
-
-	if callback == nil {
-		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
-	}
-
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(prompt),
-	}
-
-	params := openai.ChatCompletionNewParams{
-		Model:    shared.ChatModel(p.config.LLMModel),
-		Messages: messages,
-	}
-
-	// Convert domain tools to OpenAI tools
-	if len(tools) > 0 {
-		openaiTools := make([]openai.ChatCompletionToolUnionParam, len(tools))
-		for i, tool := range tools {
-			openaiTools[i] = openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
-				Name:        tool.Function.Name,
-				Description: openai.String(tool.Function.Description),
-				Parameters:  tool.Function.Parameters,
-			})
-		}
-		params.Tools = openaiTools
-	}
-
-	if opts != nil {
-		if opts.Temperature >= 0 {
-			params.Temperature = openai.Float(opts.Temperature)
-		}
-		if opts.MaxTokens > 0 {
-			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
-		}
-	}
-
-	stream := p.client.Chat.Completions.NewStreaming(ctx, params)
-	defer stream.Close()
-
-	for stream.Next() {
-		chunk := stream.Current()
-		if len(chunk.Choices) == 0 {
-			continue
-		}
-
-		choice := chunk.Choices[0]
-		var toolCalls []domain.ToolCall
-
-		// Handle tool calls in streaming
-		if len(choice.Delta.ToolCalls) > 0 {
-			toolCalls = make([]domain.ToolCall, len(choice.Delta.ToolCalls))
-			for i, tc := range choice.Delta.ToolCalls {
-				var args map[string]interface{}
-				if tc.Function.Arguments != "" {
-					if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-						// If we can't parse, continue with empty args
-						args = make(map[string]interface{})
-					}
-				}
-
-				toolCalls[i] = domain.ToolCall{
-					ID:   tc.ID,
-					Type: "function", // Default type for OpenAI
-					Function: domain.FunctionCall{
-						Name:      tc.Function.Name,
-						Arguments: args,
-					},
-				}
-			}
-		}
-
-		// Call the callback with content and tool calls
-		if err := callback(choice.Delta.Content, toolCalls); err != nil {
-			return fmt.Errorf("callback error: %w", err)
-		}
-	}
-
-	if err := stream.Err(); err != nil {
-		return fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
-	}
-
-	return nil
 }
 
 // OpenAIEmbedderProvider implements EmbedderProvider for OpenAI-compatible services
@@ -436,10 +497,8 @@ func NewOpenAIEmbedderProvider(config *domain.OpenAIProviderConfig) (domain.Embe
 		opts = append(opts, option.WithBaseURL(config.BaseURL))
 	}
 
-	client := openai.NewClient(opts...)
-
 	return &OpenAIEmbedderProvider{
-		client: client,
+		client: openai.NewClient(opts...),
 		config: config,
 	}, nil
 }
@@ -471,12 +530,16 @@ func (p *OpenAIEmbedderProvider) Embed(ctx context.Context, text string) ([]floa
 		return nil, fmt.Errorf("%w: no embedding data returned", domain.ErrEmbeddingFailed)
 	}
 
-	return embedding.Data[0].Embedding, nil
+	vec64 := make([]float64, len(embedding.Data[0].Embedding))
+	for i, v := range embedding.Data[0].Embedding {
+		vec64[i] = float64(v)
+	}
+
+	return vec64, nil
 }
 
 // Health checks the health of the OpenAI embeddings service
 func (p *OpenAIEmbedderProvider) Health(ctx context.Context) error {
-	// Test with a simple embedding to check if the service is accessible
 	params := openai.EmbeddingNewParams{
 		Model: openai.EmbeddingModel(p.config.EmbeddingModel),
 		Input: openai.EmbeddingNewParamsInputUnion{
