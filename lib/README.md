@@ -1,16 +1,16 @@
-# RAGO 库使用指南
+# RAGO Library Usage Guide
 
-RAGO 不仅可以作为独立的 CLI 工具使用，还可以作为 Go 库集成到您的项目中，为您的应用程序提供强大的 RAG（检索增强生成）和工具调用能力。
+RAGO can be used not only as a standalone CLI tool but also as a Go library integrated into your projects, providing powerful RAG (Retrieval-Augmented Generation) and tool-calling capabilities for your applications.
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 安装
+### Installation
 
 ```bash
 go get github.com/liliang-cn/rago/lib
 ```
 
-### 基础使用
+### Basic Usage
 
 ```go
 package main
@@ -23,125 +23,157 @@ import (
 )
 
 func main() {
-    // 创建客户端
+    // Create a client
     client, err := rago.New("config.toml")
     if err != nil {
         log.Fatal(err)
     }
     defer client.Close()
 
-    // 基础查询
-    response, err := client.Query("什么是机器学习？")
+    // Basic query
+    response, err := client.Query("What is machine learning?")
     if err != nil {
         log.Fatal(err)
     }
 
-    fmt.Printf("答案: %s\n", response.Answer)
+    fmt.Printf("Answer: %s\n", response.Answer)
 }
 ```
 
-## 📚 完整 API 文档
+## 📚 Full API Documentation
 
-### 客户端初始化
+### Client Initialization
 
 ```go
-// 从配置文件创建客户端
+// Create a client from a configuration file
 client, err := rago.New("path/to/config.toml")
 
-// 从配置对象创建客户端
+// Create a client from a configuration object
 config := &config.Config{...}
 client, err := rago.NewWithConfig(config)
 
-// 记住关闭客户端以释放资源
-defer client.Close()
+// Remember to close the client to release resources
+def client.Close()
 ```
 
-### 📝 文档管理
+### 📝 Document Management
 
 ```go
-// 导入文本内容
-err := client.IngestText("这是文档内容", "document-id")
+// Ingest text content
+err := client.IngestText("This is the document content", "document-id")
 
-// 导入文件
+// Ingest a file
 err := client.IngestFile("/path/to/document.md")
 
-// 列出所有文档
+// List all documents
 documents, err := client.ListDocuments()
 
-// 删除文档
+// Delete a document
 err := client.DeleteDocument("document-id")
 
-// 重置所有数据
+// Reset all data
 err := client.Reset()
 ```
 
-### 🔍 查询功能
+### 🔍 Query Functions
 
 ```go
-// 基础查询
-response, err := client.Query("你的问题")
+// Basic query
+response, err := client.Query("Your question")
 
-// 带过滤器的查询
+// Query with filters
 filters := map[string]interface{}{
     "category": "tech",
     "author": "john",
 }
-response, err := client.QueryWithFilters("问题", filters)
+response, err := client.QueryWithFilters("Question", filters)
 
-// 流式查询
-err := client.StreamQuery("问题", func(chunk string) {
+// Streaming query
+err := client.StreamQuery("Question", func(chunk string) {
     fmt.Print(chunk)
 })
 
-// 带过滤器的流式查询
-err := client.StreamQueryWithFilters("问题", filters, func(chunk string) {
+// Streaming query with filters
+err := client.StreamQueryWithFilters("Question", filters, func(chunk string) {
     fmt.Print(chunk)
 })
 ```
 
-### ⚙️ 工具调用功能
+### 🧠 Direct LLM Functions
 
 ```go
-// 启用工具的查询
+// Direct LLM generation
+req := rago.LLMGenerateRequest{
+	Prompt:      "Hello, world!",
+	Temperature: 0.7,
+	MaxTokens:   100,
+}
+resp, err := client.LLMGenerate(context.Background(), req)
+
+// Streaming LLM generation
+streamReq := rago.LLMGenerateRequest{...}
+err := client.LLMGenerateStream(context.Background(), streamReq, func(chunk string) {
+    fmt.Print(chunk)
+})
+
+// LLM chat
+chatReq := rago.LLMChatRequest{
+	Messages: []rago.ChatMessage{
+		{Role: "user", Content: "Hello!"},
+	},
+}
+chatResp, err := client.LLMChat(context.Background(), chatReq)
+
+// Streaming LLM chat
+streamChatReq := rago.LLMChatRequest{...}
+err := client.LLMChatStream(context.Background(), streamChatReq, func(chunk string) {
+    fmt.Print(chunk)
+})
+```
+
+### ⚙️ Tool Calling Functions
+
+```go
+// Query with tools enabled
 response, err := client.QueryWithTools(
-    "现在几点了？",
-    []string{"datetime"},  // 允许的工具列表，空表示允许所有
-    5,                     // 最大工具调用次数
+    "What time is it?",
+    []string{"datetime"},  // List of allowed tools, empty means all are allowed
+    5,                     // Maximum number of tool calls
 )
 
-// 直接执行工具
+// Execute a tool directly
 result, err := client.ExecuteTool("datetime", map[string]interface{}{
     "action": "now",
 })
 
-// 列出可用工具
-tools := client.ListAvailableTools()  // 所有工具
-enabled := client.ListEnabledTools()  // 仅启用的工具
+// List available tools
+tools := client.ListAvailableTools()  // All tools
+enabled := client.ListEnabledTools()  // Only enabled tools
 
-// 获取工具统计信息
+// Get tool statistics
 stats := client.GetToolStats()
 ```
 
-### 🔧 系统管理
+### 🔧 System Management
 
 ```go
-// 检查系统状态
+// Check system status
 status := client.CheckStatus()
-fmt.Printf("Ollama 可用: %v\n", status.OllamaAvailable)
-fmt.Printf("模型: %s\n", status.LLMModel)
+fmt.Printf("Providers Available: %v\n", status.ProvidersAvailable)
+fmt.Printf("LLM Provider: %s\n", status.LLMProvider)
 
-// 获取配置
+// Get configuration
 config := client.GetConfig()
 ```
 
-## 🛠️ 可用工具
+## 🛠️ Available Tools
 
-RAGO 内置了多个强大的工具：
+RAGO comes with several powerful built-in tools:
 
 ### 1. DateTime Tool (datetime)
 
-- **功能**: 时间日期操作
-- **用法**:
+- **Functionality**: Date and time operations
+- **Usage**:
   ```go
   client.ExecuteTool("datetime", map[string]interface{}{
       "action": "now",
@@ -150,17 +182,17 @@ RAGO 内置了多个强大的工具：
 
 ### 2. File Operations Tool (file_operations)
 
-- **功能**: 安全的文件系统操作
-- **用法**:
+- **Functionality**: Secure file system operations
+- **Usage**:
 
   ```go
-  // 读取文件
+  // Read a file
   client.ExecuteTool("file_operations", map[string]interface{}{
       "action": "read",
       "path":   "./README.md",
   })
 
-  // 列出目录
+  // List a directory
   client.ExecuteTool("file_operations", map[string]interface{}{
       "action": "list",
       "path":   "./",
@@ -169,21 +201,21 @@ RAGO 内置了多个强大的工具：
 
 ### 3. RAG Search Tool (rag_search)
 
-- **功能**: 知识库搜索
-- **用法**:
+- **Functionality**: Knowledge base search
+- **Usage**:
   ```go
   client.ExecuteTool("rag_search", map[string]interface{}{
-      "query": "机器学习",
+      "query": "machine learning",
       "top_k": 5,
   })
   ```
 
 ### 4. Document Info Tool (document_info)
 
-- **功能**: 文档管理
-- **用法**:
+- **Functionality**: Document management
+- **Usage**:
   ```go
-  // 获取文档数量
+  // Get document count
   client.ExecuteTool("document_info", map[string]interface{}{
       "action": "count",
   })
@@ -191,8 +223,8 @@ RAGO 内置了多个强大的工具：
 
 ### 5. SQL Query Tool (sql_query)
 
-- **功能**: 安全的数据库查询
-- **用法**:
+- **Functionality**: Secure database queries
+- **Usage**:
   ```go
   client.ExecuteTool("sql_query", map[string]interface{}{
       "action":   "query",
@@ -201,17 +233,17 @@ RAGO 内置了多个强大的工具：
   })
   ```
 
-## 📋 响应格式
+## 📋 Response Formats
 
 ### QueryResponse
 
 ```go
 type QueryResponse struct {
-    Answer    string                 // 生成的答案
-    Sources   []Chunk               // 相关的文档片段
-    Elapsed   string                // 查询耗时
-    ToolCalls []ExecutedToolCall   // 执行的工具调用（如果使用工具）
-    ToolsUsed []string             // 使用的工具名称列表
+    Answer    string                 // Generated answer
+    Sources   []Chunk               // Relevant document chunks
+    Elapsed   string                // Query duration
+    ToolCalls []ExecutedToolCall   // Executed tool calls (if tools are used)
+    ToolsUsed []string             // List of tool names used
 }
 ```
 
@@ -219,21 +251,28 @@ type QueryResponse struct {
 
 ```go
 type ToolResult struct {
-    Success bool        // 是否执行成功
-    Data    interface{} // 结果数据
-    Error   string      // 错误信息（如果失败）
+    Success bool        // Whether the execution was successful
+    Data    interface{} // Result data
+    Error   string      // Error message (if failed)
 }
 ```
 
-## ⚙️ 配置
+## ⚙️ Configuration
 
-创建 `config.toml` 文件：
+Create a `config.toml` file:
 
 ```toml
-[ollama]
+[providers]
+default_llm = "ollama"
+default_embedder = "ollama"
+
+[llm.ollama]
 base_url = "http://localhost:11434"
-llm_model = "qwen3"
-embedding_model = "nomic-embed-text"
+model = "qwen2"
+
+[embedder.ollama]
+base_url = "http://localhost:11434"
+model = "nomic-embed-text"
 
 [tools]
 enabled = true
@@ -254,27 +293,27 @@ enabled = true
 enabled = true
 ```
 
-## 🔒 安全特性
+## 🔒 Security Features
 
-- **路径限制**: 文件操作仅限于配置的允许路径
-- **SQL 安全**: 仅允许 SELECT 查询，防止 SQL 注入
-- **速率限制**: 可配置的工具调用频率限制
-- **文件大小限制**: 防止处理过大的文件
+- **Path Restriction**: File operations are restricted to configured allowed paths.
+- **SQL Safety**: Only SELECT queries are allowed to prevent SQL injection.
+- **Rate Limiting**: Configurable rate limiting for tool calls.
+- **File Size Limit**: Prevents processing of overly large files.
 
-## 📱 完整示例
+## 📱 Complete Example
 
-查看 [examples/library_usage.go](examples/library_usage.go) 获取完整的使用示例。
+Check out [examples/library_usage.go](examples/library_usage.go) for a complete usage example.
 
-## 🎯 集成场景
+## 🎯 Integration Scenarios
 
-RAGO 库非常适合以下场景：
+The RAGO library is ideal for the following scenarios:
 
-1. **智能客服系统**: 基于企业知识库回答用户问题
-2. **文档问答应用**: 对大量文档进行智能检索和问答
-3. **AI 助手**: 具备文件操作、时间查询等能力的智能助手
-4. **知识管理系统**: 企业内部知识库的智能化管理
-5. **自动化工具**: 结合 AI 和工具调用的自动化脚本
+1. **Intelligent Customer Service Systems**: Answering user questions based on a corporate knowledge base.
+2. **Document Q&A Applications**: Intelligent search and Q&A for large volumes of documents.
+3. **AI Assistants**: Smart assistants with capabilities like file operations and time queries.
+4. **Knowledge Management Systems**: Intelligent management of internal corporate knowledge bases.
+5. **Automation Tools**: Automation scripts combining AI and tool calls.
 
-## 📞 支持
+## 📞 Support
 
-如有问题或建议，请访问 [GitHub Issues](https://github.com/liliang-cn/rago/issues)。
+For questions or suggestions, please visit [GitHub Issues](https://github.com/liliang-cn/rago/issues).

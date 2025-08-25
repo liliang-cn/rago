@@ -226,6 +226,114 @@ func (c *Client) Close() error {
 	return nil
 }
 
+// LLMGenerateRequest defines the request for a direct LLM generation
+type LLMGenerateRequest struct {
+	Prompt      string
+	Temperature float64
+	MaxTokens   int
+}
+
+// LLMGenerateResponse defines the response from a direct LLM generation
+type LLMGenerateResponse struct {
+	Content string
+}
+
+// LLMGenerate performs a direct generation using the configured LLM
+func (c *Client) LLMGenerate(ctx context.Context, req LLMGenerateRequest) (LLMGenerateResponse, error) {
+	if c.llm == nil {
+		return LLMGenerateResponse{}, fmt.Errorf("LLM service not initialized")
+	}
+
+	opts := &domain.GenerationOptions{
+		Temperature: req.Temperature,
+		MaxTokens:   req.MaxTokens,
+	}
+
+	content, err := c.llm.Generate(ctx, req.Prompt, opts)
+	if err != nil {
+		return LLMGenerateResponse{}, fmt.Errorf("LLM generation failed: %w", err)
+	}
+
+	return LLMGenerateResponse{Content: content}, nil
+}
+
+// LLMGenerateStream performs a direct streaming generation using the configured LLM
+func (c *Client) LLMGenerateStream(ctx context.Context, req LLMGenerateRequest, callback func(string)) error {
+	if c.llm == nil {
+		return fmt.Errorf("LLM service not initialized")
+	}
+
+	opts := &domain.GenerationOptions{
+		Temperature: req.Temperature,
+		MaxTokens:   req.MaxTokens,
+	}
+
+	return c.llm.Stream(ctx, req.Prompt, opts, callback)
+}
+
+// ChatMessage defines a single message in a chat conversation
+type ChatMessage struct {
+	Role    string `json:"role"` // "user" or "assistant"
+	Content string `json:"content"`
+}
+
+// LLMChatRequest defines the request for a direct LLM chat
+type LLMChatRequest struct {
+	Messages    []ChatMessage
+	Temperature float64
+	MaxTokens   int
+}
+
+// LLMChat performs a direct chat using the configured LLM
+func (c *Client) LLMChat(ctx context.Context, req LLMChatRequest) (LLMGenerateResponse, error) {
+	if c.llm == nil {
+		return LLMGenerateResponse{}, fmt.Errorf("LLM service not initialized")
+	}
+
+	// Convert messages to internal domain format
+	domainMessages := make([]domain.Message, len(req.Messages))
+	for i, msg := range req.Messages {
+		domainMessages[i] = domain.Message{Role: msg.Role, Content: msg.Content}
+	}
+
+	opts := &domain.GenerationOptions{
+		Temperature: req.Temperature,
+		MaxTokens:   req.MaxTokens,
+	}
+
+	// Use GenerateWithTools with no tools for chat
+	result, err := c.llm.GenerateWithTools(ctx, domainMessages, nil, opts)
+	if err != nil {
+		return LLMGenerateResponse{}, fmt.Errorf("LLM chat failed: %w", err)
+	}
+
+	return LLMGenerateResponse{Content: result.Content}, nil
+}
+
+// LLMChatStream performs a direct streaming chat using the configured LLM
+func (c *Client) LLMChatStream(ctx context.Context, req LLMChatRequest, callback func(string)) error {
+	if c.llm == nil {
+		return fmt.Errorf("LLM service not initialized")
+	}
+
+	// Convert messages to internal domain format
+	domainMessages := make([]domain.Message, len(req.Messages))
+	for i, msg := range req.Messages {
+		domainMessages[i] = domain.Message{Role: msg.Role, Content: msg.Content}
+	}
+
+	opts := &domain.GenerationOptions{
+		Temperature: req.Temperature,
+		MaxTokens:   req.MaxTokens,
+	}
+
+	// Use StreamWithTools with no tools for chat streaming
+	return c.llm.StreamWithTools(ctx, domainMessages, nil, opts, func(chunk string, toolCalls []domain.ToolCall) error {
+		callback(chunk)
+		return nil
+	})
+}
+
 // Tool Management Methods
 
 // ListAvailableTools returns all available tools
