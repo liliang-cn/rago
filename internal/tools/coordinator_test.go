@@ -64,16 +64,16 @@ func (m *MockGenerator) IsAlmostSame(ctx context.Context, input, output string) 
 	return args.Bool(0), args.Error(1)
 }
 
-func (m *MockGenerator) GenerateWithTools(ctx context.Context, prompt string, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
-	args := m.Called(ctx, prompt, tools, opts)
+func (m *MockGenerator) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
+	args := m.Called(ctx, messages, tools, opts)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.GenerationResult), args.Error(1)
 }
 
-func (m *MockGenerator) StreamWithTools(ctx context.Context, prompt string, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
-	args := m.Called(ctx, prompt, tools, opts, callback)
+func (m *MockGenerator) StreamWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
+	args := m.Called(ctx, messages, tools, opts, callback)
 	return args.Error(0)
 }
 
