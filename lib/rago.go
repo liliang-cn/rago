@@ -101,14 +101,29 @@ func (c *Client) IngestFile(filePath string) error {
 }
 
 func (c *Client) IngestText(text, source string) error {
+	return c.IngestTextWithMetadata(text, source, nil)
+}
+
+func (c *Client) IngestTextWithMetadata(text, source string, additionalMetadata map[string]interface{}) error {
 	ctx := context.Background()
+	
+	// Start with base metadata
+	metadata := map[string]interface{}{
+		"source": source,
+	}
+	
+	// Merge additional metadata if provided
+	if additionalMetadata != nil {
+		for key, value := range additionalMetadata {
+			metadata[key] = value
+		}
+	}
+	
 	req := domain.IngestRequest{
 		Content:   text,
 		ChunkSize: c.config.Chunker.ChunkSize,
 		Overlap:   c.config.Chunker.Overlap,
-		Metadata: map[string]interface{}{
-			"source": source,
-		},
+		Metadata:  metadata,
 	}
 
 	_, err := c.processor.Ingest(ctx, req)
