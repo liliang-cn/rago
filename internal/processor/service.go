@@ -140,14 +140,16 @@ func (s *Service) registerBuiltinTools() {
 		}
 	}
 
-	// Register SQL query tool
-	if s.config.Tools.BuiltinTools["sql_query"].Enabled {
+	// Register SQL query tool - check if enabled via registry
+	if s.toolRegistry.IsEnabled("sql_query") {
 		// Parse configuration
 		allowedDBs := make(map[string]string)
 		maxRows := 1000
 		queryTimeout := 30 * time.Second
 
-		if params := s.config.Tools.BuiltinTools["sql_query"].Parameters; params != nil {
+		// Check if SQL tool has specific configuration
+		if builtinConfig, exists := s.config.Tools.BuiltinTools["sql_query"]; exists && builtinConfig.Parameters != nil {
+			params := builtinConfig.Parameters
 			if dbsStr, ok := params["allowed_databases"]; ok {
 				// Parse "name:path,name2:path2" format
 				pairs := strings.Split(dbsStr, ",")
@@ -167,6 +169,18 @@ func (s *Service) registerBuiltinTools() {
 				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
 					queryTimeout = timeout
 				}
+			}
+		}
+
+		// Check for tools.sql configuration (new format)
+		if s.config.Tools.SQL.Enabled {
+			maxRows = s.config.Tools.SQL.MaxRows
+			if timeout, err := time.ParseDuration(s.config.Tools.SQL.QueryTimeout); err == nil {
+				queryTimeout = timeout
+			}
+			// Convert new format to old format
+			for _, db := range s.config.Tools.SQL.AllowedDatabases {
+				allowedDBs[db.Name] = db.Path
 			}
 		}
 
