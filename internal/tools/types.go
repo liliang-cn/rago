@@ -87,6 +87,7 @@ type ToolConfig struct {
 	LogLevel       string                      `toml:"log_level" mapstructure:"log_level"`
 	RateLimit      RateLimitConfig             `toml:"rate_limit" mapstructure:"rate_limit"`
 	Plugins        PluginConfig                `toml:"plugins" mapstructure:"plugins"`
+	SQL            SQLToolConfig               `toml:"sql" mapstructure:"sql"`
 }
 
 // BuiltinToolCfg represents configuration for a built-in tool
@@ -101,6 +102,26 @@ type CustomToolConfig struct {
 	APIKey     string            `toml:"api_key,omitempty" mapstructure:"api_key"`
 	BaseURL    string            `toml:"base_url,omitempty" mapstructure:"base_url"`
 	Parameters map[string]string `toml:"parameters,omitempty" mapstructure:"parameters"`
+}
+
+// SQLToolConfig represents configuration for SQL query tool
+type SQLToolConfig struct {
+	Enabled           bool           `toml:"enabled" mapstructure:"enabled"`
+	MaxRows           int            `toml:"max_rows" mapstructure:"max_rows"`
+	QueryTimeout      string         `toml:"query_timeout" mapstructure:"query_timeout"`
+	AllowedDatabases  []DatabaseConfig `toml:"allowed_databases" mapstructure:"allowed_databases"`
+}
+
+// DatabaseConfig represents a single database configuration
+type DatabaseConfig struct {
+	Type string `toml:"type" mapstructure:"type"` // sqlite, mysql, postgres, etc
+	Name string `toml:"name" mapstructure:"name"`
+	Path string `toml:"path" mapstructure:"path"` // for sqlite
+	Host string `toml:"host,omitempty" mapstructure:"host"`
+	Port int    `toml:"port,omitempty" mapstructure:"port"`
+	User string `toml:"user,omitempty" mapstructure:"user"`
+	Password string `toml:"password,omitempty" mapstructure:"password"`
+	Database string `toml:"database,omitempty" mapstructure:"database"`
 }
 
 // RateLimitConfig represents rate limiting configuration
@@ -132,11 +153,7 @@ func DefaultToolConfig() ToolConfig {
 				"allowed_paths": "./knowledge,./data,./examples",
 				"max_file_size": "10485760", // 10MB
 			}},
-			"sql_query": {Enabled: false, Parameters: map[string]string{
-				"allowed_databases": "main:./data/rag.db",
-				"max_rows":          "1000",
-				"query_timeout":     "30s",
-			}},
+			// sql_query is now enabled by default via builtinTools map
 			"http_request": {Enabled: true, Parameters: map[string]string{
 				"timeout":         "30s",
 				"max_body_size":   "10485760", // 10MB
