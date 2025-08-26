@@ -164,10 +164,39 @@ func (r *Registry) ListEnabled() []ToolInfo {
 	return enabled
 }
 
+// builtinTools defines the list of built-in tools that are enabled by default
+var builtinTools = map[string]bool{
+	"datetime":        true,
+	"sql_query":       true,
+	"rag_search":      true,
+	"document_count":  true,
+	"document_info":   true,
+	"stats_query":     true,
+	"file_read":       true,
+	"file_list":       true,
+	"file_write":      true,
+	"file_exists":     true,
+	"file_stat":       true,
+	"file_delete":     true,
+	"http_request":    true,
+	"web_search":      true,
+	"open_url":        true,
+}
+
 // IsEnabled checks if a tool is enabled in the configuration
 func (r *Registry) IsEnabled(name string) bool {
 	if !r.config.Enabled {
 		return false
+	}
+
+	// Built-in tools are enabled by default, but can be explicitly disabled
+	if _, isBuiltin := builtinTools[name]; isBuiltin {
+		// Check if explicitly disabled in builtin tool configuration
+		if builtinConfig, exists := r.config.BuiltinTools[name]; exists {
+			return builtinConfig.Enabled
+		}
+		// Default enabled for built-in tools
+		return true
 	}
 
 	// Check if tool is in the enabled list
@@ -180,18 +209,13 @@ func (r *Registry) IsEnabled(name string) bool {
 		return false
 	}
 
-	// Check builtin tool configuration
-	if builtinConfig, exists := r.config.BuiltinTools[name]; exists {
-		return builtinConfig.Enabled
-	}
-
 	// Check custom tool configuration
 	if customConfig, exists := r.config.CustomTools[name]; exists {
 		return customConfig.Enabled
 	}
 
-	// Default to enabled if no specific configuration
-	return true
+	// Default to disabled for non-builtin tools
+	return false
 }
 
 // GetConfig returns the current tool configuration
