@@ -60,7 +60,7 @@ func (w *WebSearchTool) Name() string {
 
 // Description returns the tool description
 func (w *WebSearchTool) Description() string {
-	return "搜索网络信息并获取页面完整内容，支持查询价格、新闻、技术问题等各种信息。"
+	return "Search web information and get complete page content, supports queries for prices, news, technical questions, etc."
 }
 
 // Parameters returns the tool parameters schema
@@ -70,11 +70,11 @@ func (w *WebSearchTool) Parameters() tools.ToolParameters {
 		Properties: map[string]tools.ToolParameter{
 			"query": {
 				Type:        "string",
-				Description: "搜索关键词或问题",
+				Description: "Search keywords or question",
 			},
 			"max_pages": {
 				Type:        "integer",
-				Description: "最多获取几个页面的内容 (1-5)",
+				Description: "Maximum number of page contents to fetch (1-5)",
 				Default:     2,
 			},
 		},
@@ -115,7 +115,7 @@ func (w *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 		return &tools.ToolResult{
 			Data: map[string]interface{}{
 				"query":   query,
-				"message": "没有找到相关搜索结果",
+				"message": "No relevant search results found",
 				"success": false,
 			},
 		}, nil
@@ -129,7 +129,7 @@ func (w *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 	for i := range searchResults {
 		content, err := w.fetchPageContent(ctx, searchResults[i].URL)
 		if err != nil {
-			searchResults[i].Content = fmt.Sprintf("无法获取页面内容: %v", err)
+			searchResults[i].Content = fmt.Sprintf("Unable to fetch page content: %v", err)
 		} else {
 			searchResults[i].Content = content
 		}
@@ -142,7 +142,7 @@ func (w *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 		Data: map[string]interface{}{
 			"query":     query,
 			"results":   results,
-			"message":   fmt.Sprintf("搜索 '%s' 并获取了 %d 个页面的完整内容", query, len(searchResults)),
+			"message":   fmt.Sprintf("Searched '%s' and fetched complete content from %d pages", query, len(searchResults)),
 			"success":   true,
 		},
 	}, nil
@@ -184,7 +184,7 @@ func (w *WebSearchTool) fetchPageContent(ctx context.Context, urlStr string) (st
 	maxSize := 200000 // 200KB limit - increased for better content extraction
 	if len(content) > maxSize {
 		// Try to keep more useful content by truncating from the end
-		content = content[:maxSize] + "\n\n...[内容过长已截断，已保留前" + fmt.Sprintf("%d", maxSize/1000) + "KB]"
+		content = content[:maxSize] + "\n\n...[Content too long and truncated, kept first " + fmt.Sprintf("%d", maxSize/1000) + "KB]"
 	}
 
 	return content, nil
@@ -338,24 +338,24 @@ func (w *WebSearchTool) formatResults(results []SearchResult, query string) map[
 		return map[string]interface{}{
 			"query":   query,
 			"count":   0,
-			"summary": "没有找到相关搜索结果",
+			"summary": "No relevant search results found",
 			"results": []SearchResult{},
 		}
 	}
 
 	// Create summary with page contents
-	summary := fmt.Sprintf("搜索 '%s' 找到 %d 个结果，已获取页面完整内容供分析：\n\n", query, len(results))
+	summary := fmt.Sprintf("Searched '%s' and found %d results, fetched complete page content for analysis:\n\n", query, len(results))
 	
 	pageContents := make([]map[string]interface{}, 0, len(results))
-	var fullContent string // 将所有HTML内容合并供LLM分析
+	var fullContent string // Combine all HTML content for LLM analysis
 	
 	for i, result := range results {
-		summary += fmt.Sprintf("%d. 标题: %s\n   链接: %s\n   摘要: %s\n\n", i+1, result.Title, result.URL, result.Snippet)
+		summary += fmt.Sprintf("%d. Title: %s\n   Link: %s\n   Summary: %s\n\n", i+1, result.Title, result.URL, result.Snippet)
 		
-		// 添加HTML内容到summary中，供LLM直接访问
+		// Add HTML content to summary for direct LLM access
 		if result.Content != "" {
-			summary += fmt.Sprintf("   页面HTML内容:\n%s\n\n", result.Content)
-			fullContent += fmt.Sprintf("\n=== 页面 %d: %s ===\n%s\n", i+1, result.Title, result.Content)
+			summary += fmt.Sprintf("   Page HTML Content:\n%s\n\n", result.Content)
+			fullContent += fmt.Sprintf("\n=== Page %d: %s ===\n%s\n", i+1, result.Title, result.Content)
 		}
 		
 		pageContents = append(pageContents, map[string]interface{}{
