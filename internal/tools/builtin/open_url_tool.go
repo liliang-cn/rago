@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/chromedp/chromedp"
 	"github.com/liliang-cn/rago/internal/tools"
 )
 
@@ -38,7 +40,7 @@ func (o *OpenURLTool) Name() string {
 
 // Description returns the tool description
 func (o *OpenURLTool) Description() string {
-	return "打开指定的网页链接，生成可点击的URL链接。支持HTTP和HTTPS协议。"
+	return "Fetch and parse web page content using Chrome browser. Returns extracted text, title, and structured content."
 }
 
 // Parameters returns the tool parameters schema
@@ -48,12 +50,12 @@ func (o *OpenURLTool) Parameters() tools.ToolParameters {
 		Properties: map[string]tools.ToolParameter{
 			"url": {
 				Type:        "string",
-				Description: "要打开的网页链接地址",
+				Description: "The web link URL to open",
 			},
-			"description": {
-				Type:        "string", 
-				Description: "链接的描述或标题",
-				Default:     "",
+			"extract_content": {
+				Type:        "boolean",
+				Description: "Whether to extract and parse page content",
+				Default:     true,
 			},
 		},
 		Required: []string{"url"},
@@ -85,68 +87,147 @@ func (o *OpenURLTool) Validate(args map[string]interface{}) error {
 	return nil
 }
 
-// Execute performs the URL opening operation
+// Execute performs the URL fetching and content extraction
 func (o *OpenURLTool) Execute(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error) {
 	urlStr := strings.TrimSpace(args["url"].(string))
-	description := getStringWithDefault(args, "description", "")
+	extractContent := true
+	if ec, ok := args["extract_content"].(bool); ok {
+		extractContent = ec
+	}
 
 	// Parse and validate the URL
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
 		return &tools.ToolResult{
 			Data: map[string]interface{}{
-				"error":   fmt.Sprintf("URL解析失败: %v", err),
+				"error":   fmt.Sprintf("URL parsing failed: %v", err),
 				"url":     urlStr,
 				"success": false,
 			},
 		}, fmt.Errorf("URL parsing failed: %w", err)
 	}
 
-	// Generate a clean URL
 	cleanURL := parsedURL.String()
 	
-	// If no description provided, extract from URL
-	if description == "" {
-		description = o.generateDescription(parsedURL)
+	if !extractContent {
+		return &tools.ToolResult{
+			Data: map[string]interface{}{
+				"url":     cleanURL,
+				"host":    parsedURL.Host,
+				"scheme":  parsedURL.Scheme,
+				"message": fmt.Sprintf("URL prepared: %s", cleanURL),
+				"success": true,
+			},
+		}, nil
 	}
 
+	// Use chromedp to fetch and parse content
+	content, title, err := o.fetchPageContent(ctx, cleanURL)
+	if err != nil {
+		return &tools.ToolResult{
+			Data: map[string]interface{}{
+				"error":   fmt.Sprintf("Failed to fetch content: %v", err),
+				"url":     cleanURL,
+				"success": false,
+			},
+		}, fmt.Errorf("content fetch failed: %w", err)
+	}
+
+	// Extract and clean text content
+	textContent := o.extractTextContent(content)
+	
 	return &tools.ToolResult{
 		Data: map[string]interface{}{
-			"url":         cleanURL,
-			"description": description,
-			"host":        parsedURL.Host,
-			"scheme":      parsedURL.Scheme,
-			"message":     fmt.Sprintf("已为您准备打开链接: %s", cleanURL),
-			"clickable_link": fmt.Sprintf("[%s](%s)", description, cleanURL),
-			"success":     true,
+			"url":          cleanURL,
+			"title":        title,
+			"host":         parsedURL.Host,
+			"scheme":       parsedURL.Scheme,
+			"content":      textContent,
+			"raw_html":     content,
+			"content_size": len(textContent),
+			"message":      fmt.Sprintf("Successfully fetched content from: %s", cleanURL),
+			"success":      true,
 		},
 	}, nil
 }
 
-// generateDescription creates a description from the URL
-func (o *OpenURLTool) generateDescription(parsedURL *url.URL) string {
-	host := parsedURL.Host
-	
-	// Remove www. prefix if present
-	if strings.HasPrefix(host, "www.") {
-		host = host[4:]
+// fetchPageContent uses chromedp to get page content and title
+func (o *OpenURLTool) fetchPageContent(ctx context.Context, urlStr string) (string, string, error) {
+	// Create chromedp context with timeout
+	timeoutCtx, cancel := context.WithTimeout(ctx, o.timeout)
+	defer cancel()
+
+	// Create allocator context
+	allocCtx, allocCancel := chromedp.NewExecAllocator(timeoutCtx,
+		chromedp.NoSandbox,
+		chromedp.Headless,
+		chromedp.DisableGPU,
+		chromedp.NoFirstRun,
+		chromedp.NoDefaultBrowserCheck,
+		chromedp.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"),
+	)
+	defer allocCancel()
+
+	// Create browser context
+	browserCtx, browserCancel := chromedp.NewContext(allocCtx)
+	defer browserCancel()
+
+	var content string
+	var title string
+	err := chromedp.Run(browserCtx,
+		chromedp.Navigate(urlStr),
+		chromedp.WaitReady("body", chromedp.ByQuery),
+		chromedp.OuterHTML("html", &content),
+		chromedp.Title(&title),
+	)
+
+	if err != nil {
+		return "", "", fmt.Errorf("chromedp failed: %w", err)
 	}
-	
-	// Generate description based on common sites
-	switch {
-	case strings.Contains(host, "github.com"):
-		return fmt.Sprintf("GitHub - %s", host)
-	case strings.Contains(host, "stackoverflow.com"):
-		return fmt.Sprintf("Stack Overflow - %s", host) 
-	case strings.Contains(host, "baidu.com"):
-		return fmt.Sprintf("百度 - %s", host)
-	case strings.Contains(host, "google.com"):
-		return fmt.Sprintf("Google - %s", host)
-	case strings.Contains(host, "zhihu.com"):
-		return fmt.Sprintf("知乎 - %s", host)
-	case strings.Contains(host, "bilibili.com"):
-		return fmt.Sprintf("哔哩哔哩 - %s", host)
-	default:
-		return fmt.Sprintf("网页链接 - %s", host)
+
+	// Limit content size to avoid too much data
+	maxSize := 500000 // 500KB limit
+	if len(content) > maxSize {
+		content = content[:maxSize] + "\n\n...[Content too long and truncated, kept first " + fmt.Sprintf("%d", maxSize/1000) + "KB]"
 	}
+
+	return content, title, nil
 }
+
+// extractTextContent extracts clean text content from HTML
+func (o *OpenURLTool) extractTextContent(html string) string {
+	// Remove script and style tags with their content
+	scriptRe := regexp.MustCompile(`<script[^>]*>[\s\S]*?</script>`)
+	html = scriptRe.ReplaceAllString(html, "")
+	
+	styleRe := regexp.MustCompile(`<style[^>]*>[\s\S]*?</style>`)
+	html = styleRe.ReplaceAllString(html, "")
+
+	// Remove HTML tags
+	tagRe := regexp.MustCompile(`<[^>]*>`)
+	text := tagRe.ReplaceAllString(html, " ")
+	
+	// Decode common HTML entities
+	text = strings.ReplaceAll(text, "&amp;", "&")
+	text = strings.ReplaceAll(text, "&lt;", "<")
+	text = strings.ReplaceAll(text, "&gt;", ">")
+	text = strings.ReplaceAll(text, "&quot;", "\"")
+	text = strings.ReplaceAll(text, "&#39;", "'")
+	text = strings.ReplaceAll(text, "&nbsp;", " ")
+	text = strings.ReplaceAll(text, "&mdash;", "—")
+	text = strings.ReplaceAll(text, "&ndash;", "–")
+	
+	// Clean up whitespace
+	spaceRe := regexp.MustCompile(`\s+`)
+	text = spaceRe.ReplaceAllString(text, " ")
+	text = strings.TrimSpace(text)
+	
+	// Limit text size
+	maxTextSize := 100000 // 100KB text limit
+	if len(text) > maxTextSize {
+		text = text[:maxTextSize] + "\n\n...[Text content truncated]"
+	}
+	
+	return text
+}
+
