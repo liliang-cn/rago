@@ -30,10 +30,6 @@ func (m *mockGenerator) Stream(ctx context.Context, prompt string, opts *domain.
 	return errors.New("Stream not implemented")
 }
 
-func (m *mockGenerator) IsAlmostSame(ctx context.Context, input, output string) (bool, error) {
-	return false, errors.New("IsAlmostSame not implemented")
-}
-
 func (m *mockGenerator) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
 	if m.GenerateWithToolsFunc != nil {
 		return m.GenerateWithToolsFunc(ctx, messages, tools, opts)

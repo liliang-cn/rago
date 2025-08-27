@@ -59,11 +59,6 @@ func (m *MockGenerator) Stream(ctx context.Context, prompt string, opts *domain.
 	return args.Error(0)
 }
 
-func (m *MockGenerator) IsAlmostSame(ctx context.Context, input, output string) (bool, error) {
-	args := m.Called(ctx, input, output)
-	return args.Bool(0), args.Error(1)
-}
-
 func (m *MockGenerator) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
 	args := m.Called(ctx, messages, tools, opts)
 	if args.Get(0) == nil {
