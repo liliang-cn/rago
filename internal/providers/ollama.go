@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/liliang-cn/ollama-go"
 	"github.com/liliang-cn/rago/internal/domain"
@@ -356,48 +355,6 @@ func (p *OllamaLLMProvider) ExtractMetadata(ctx context.Context, content string,
 	}
 
 	return &metadata, nil
-}
-
-const isAlmostSamePromptTemplate = `You are an expert judge evaluating whether two pieces of text represent the same information. 
-Please compare the original input and the generated output and determine if they convey the same core meaning.
-
-Respond with ONLY "true" if they are essentially the same, or "false" if they are different.
-
-Original input: "%s"
-Generated output: "%s"
-
-Are these essentially the same? Respond with only "true" or "false":`
-
-// IsAlmostSame determines if the input and output are essentially the same using LLM
-func (p *OllamaLLMProvider) IsAlmostSame(ctx context.Context, input, output string) (bool, error) {
-	if input == "" || output == "" {
-		return false, nil
-	}
-
-	prompt := fmt.Sprintf(isAlmostSamePromptTemplate, input, output)
-
-	stream := false
-	req := &ollama.GenerateRequest{
-		Model:  p.config.LLMModel,
-		Prompt: prompt,
-		Stream: &stream,
-	}
-
-	resp, err := p.client.Generate(ctx, req)
-	if err != nil {
-		return false, fmt.Errorf("failed to generate similarity judgment: %w", err)
-	}
-
-	result := strings.TrimSpace(strings.ToLower(resp.Response))
-
-	if strings.Contains(result, "true") {
-		return true, nil
-	}
-	if strings.Contains(result, "false") {
-		return false, nil
-	}
-
-	return false, nil
 }
 
 // OllamaEmbedderProvider wraps the existing Ollama embedder service as a provider

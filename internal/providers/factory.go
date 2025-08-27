@@ -22,6 +22,8 @@ func (f *Factory) CreateLLMProvider(ctx context.Context, config interface{}) (do
 		return NewOllamaLLMProvider(cfg)
 	case *domain.OpenAIProviderConfig:
 		return NewOpenAILLMProvider(cfg)
+	case *domain.LMStudioProviderConfig:
+		return NewLMStudioLLMProvider(cfg)
 	default:
 		return nil, fmt.Errorf("unsupported LLM provider config type: %T", config)
 	}
@@ -34,6 +36,8 @@ func (f *Factory) CreateEmbedderProvider(ctx context.Context, config interface{}
 		return NewOllamaEmbedderProvider(cfg)
 	case *domain.OpenAIProviderConfig:
 		return NewOpenAIEmbedderProvider(cfg)
+	case *domain.LMStudioProviderConfig:
+		return NewLMStudioEmbedderProvider(cfg)
 	default:
 		return nil, fmt.Errorf("unsupported embedder provider config type: %T", config)
 	}
@@ -46,6 +50,9 @@ func DetermineProviderType(config *domain.ProviderConfig) (domain.ProviderType, 
 	}
 	if config.OpenAI != nil {
 		return domain.ProviderOpenAI, nil
+	}
+	if config.LMStudio != nil {
+		return domain.ProviderLMStudio, nil
 	}
 	return "", fmt.Errorf("no valid provider configuration found")
 }
@@ -62,6 +69,8 @@ func GetProviderConfig(config *domain.ProviderConfig) (interface{}, error) {
 		return config.Ollama, nil
 	case domain.ProviderOpenAI:
 		return config.OpenAI, nil
+	case domain.ProviderLMStudio:
+		return config.LMStudio, nil
 	default:
 		return nil, fmt.Errorf("unsupported provider type: %s", providerType)
 	}
@@ -80,6 +89,11 @@ func GetLLMProviderConfig(config *domain.ProviderConfig, defaultProvider string)
 			return nil, fmt.Errorf("openai provider configuration not found")
 		}
 		return config.OpenAI, nil
+	case "lmstudio":
+		if config.LMStudio == nil {
+			return nil, fmt.Errorf("lmstudio provider configuration not found")
+		}
+		return config.LMStudio, nil
 	default:
 		return nil, fmt.Errorf("unsupported default LLM provider: %s", defaultProvider)
 	}
@@ -98,6 +112,11 @@ func GetEmbedderProviderConfig(config *domain.ProviderConfig, defaultProvider st
 			return nil, fmt.Errorf("openai provider configuration not found")
 		}
 		return config.OpenAI, nil
+	case "lmstudio":
+		if config.LMStudio == nil {
+			return nil, fmt.Errorf("lmstudio provider configuration not found")
+		}
+		return config.LMStudio, nil
 	default:
 		return nil, fmt.Errorf("unsupported default embedder provider: %s", defaultProvider)
 	}
