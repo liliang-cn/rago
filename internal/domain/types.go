@@ -84,7 +84,6 @@ type Message struct {
 type Generator interface {
 	Generate(ctx context.Context, prompt string, opts *GenerationOptions) (string, error)
 	Stream(ctx context.Context, prompt string, opts *GenerationOptions, callback func(string)) error
-	IsAlmostSame(ctx context.Context, input, output string) (bool, error)
 	GenerateWithTools(ctx context.Context, messages []Message, tools []ToolDefinition, opts *GenerationOptions) (*GenerationResult, error)
 	StreamWithTools(ctx context.Context, messages []Message, tools []ToolDefinition, opts *GenerationOptions, callback ToolCallCallback) error
 }

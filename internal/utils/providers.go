@@ -44,7 +44,7 @@ func InitializeProviders(ctx context.Context, cfg *config.Config) (domain.Embedd
 // InitializeEmbedder initializes the embedder service using the provider system
 func InitializeEmbedder(ctx context.Context, cfg *config.Config, factory *providers.Factory) (domain.Embedder, error) {
 	// Check if new provider configuration exists
-	if cfg.Providers.ProviderConfigs.Ollama != nil || cfg.Providers.ProviderConfigs.OpenAI != nil {
+	if cfg.Providers.ProviderConfigs.Ollama != nil || cfg.Providers.ProviderConfigs.OpenAI != nil || cfg.Providers.ProviderConfigs.LMStudio != nil {
 		// Use new provider system
 		providerConfig, err := providers.GetEmbedderProviderConfig(&cfg.Providers.ProviderConfigs, cfg.Providers.DefaultEmbedder)
 		if err != nil {
@@ -82,7 +82,7 @@ func InitializeEmbedder(ctx context.Context, cfg *config.Config, factory *provid
 // InitializeLLM initializes the LLM service using the provider system
 func InitializeLLM(ctx context.Context, cfg *config.Config, factory *providers.Factory) (domain.Generator, error) {
 	// Check if new provider configuration exists
-	if cfg.Providers.ProviderConfigs.Ollama != nil || cfg.Providers.ProviderConfigs.OpenAI != nil {
+	if cfg.Providers.ProviderConfigs.Ollama != nil || cfg.Providers.ProviderConfigs.OpenAI != nil || cfg.Providers.ProviderConfigs.LMStudio != nil {
 		// Use new provider system
 		providerConfig, err := providers.GetLLMProviderConfig(&cfg.Providers.ProviderConfigs, cfg.Providers.DefaultLLM)
 		if err != nil {

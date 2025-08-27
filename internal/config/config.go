@@ -394,12 +394,12 @@ func (c *Config) validateProviderConfig() error {
 		return fmt.Errorf("default_embedder cannot be empty")
 	}
 
-	validProviders := map[string]bool{"ollama": true, "openai": true}
+	validProviders := map[string]bool{"ollama": true, "openai": true, "lmstudio": true}
 	if !validProviders[c.Providers.DefaultLLM] {
-		return fmt.Errorf("invalid default_llm provider: %s (supported: ollama, openai)", c.Providers.DefaultLLM)
+		return fmt.Errorf("invalid default_llm provider: %s (supported: ollama, openai, lmstudio)", c.Providers.DefaultLLM)
 	}
 	if !validProviders[c.Providers.DefaultEmbedder] {
-		return fmt.Errorf("invalid default_embedder provider: %s (supported: ollama, openai)", c.Providers.DefaultEmbedder)
+		return fmt.Errorf("invalid default_embedder provider: %s (supported: ollama, openai, lmstudio)", c.Providers.DefaultEmbedder)
 	}
 
 	// Validate individual provider configurations
@@ -415,6 +415,12 @@ func (c *Config) validateProviderConfig() error {
 		}
 	}
 
+	if c.Providers.ProviderConfigs.LMStudio != nil {
+		if err := c.validateLMStudioProviderConfig(c.Providers.ProviderConfigs.LMStudio); err != nil {
+			return fmt.Errorf("invalid lmstudio provider config: %w", err)
+		}
+	}
+
 	// Ensure the default providers have corresponding configurations
 	if c.Providers.DefaultLLM == "ollama" || c.Providers.DefaultEmbedder == "ollama" {
 		if c.Providers.ProviderConfigs.Ollama == nil {
@@ -424,6 +430,11 @@ func (c *Config) validateProviderConfig() error {
 	if c.Providers.DefaultLLM == "openai" || c.Providers.DefaultEmbedder == "openai" {
 		if c.Providers.ProviderConfigs.OpenAI == nil {
 			return fmt.Errorf("openai provider configuration is required when using openai as default provider")
+		}
+	}
+	if c.Providers.DefaultLLM == "lmstudio" || c.Providers.DefaultEmbedder == "lmstudio" {
+		if c.Providers.ProviderConfigs.LMStudio == nil {
+			return fmt.Errorf("lmstudio provider configuration is required when using lmstudio as default provider")
 		}
 	}
 
@@ -457,6 +468,23 @@ func (c *Config) validateOpenAIProviderConfig(config *domain.OpenAIProviderConfi
 	}
 	if config.LLMModel == "" {
 		return fmt.Errorf("llm_model cannot be empty")
+	}
+	if config.Timeout <= 0 {
+		return fmt.Errorf("timeout must be positive: %v", config.Timeout)
+	}
+	return nil
+}
+
+// validateLMStudioProviderConfig validates LM Studio provider configuration
+func (c *Config) validateLMStudioProviderConfig(config *domain.LMStudioProviderConfig) error {
+	if config.BaseURL == "" {
+		return fmt.Errorf("base_url cannot be empty")
+	}
+	if config.LLMModel == "" {
+		return fmt.Errorf("llm_model cannot be empty")
+	}
+	if config.EmbeddingModel == "" {
+		return fmt.Errorf("embedding_model cannot be empty")
 	}
 	if config.Timeout <= 0 {
 		return fmt.Errorf("timeout must be positive: %v", config.Timeout)
