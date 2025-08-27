@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/liliang-cn/rago/internal/domain"
 	openai "github.com/openai/openai-go/v2"
@@ -424,57 +423,6 @@ JSON Output:`, content)
 	}
 
 	return &metadata, nil
-}
-
-// IsAlmostSame determines if input and output are essentially the same using OpenAI API
-func (p *OpenAILLMProvider) IsAlmostSame(ctx context.Context, input, output string) (bool, error) {
-	if input == "" || output == "" {
-		return false, nil
-	}
-
-	prompt := fmt.Sprintf(`You are an expert judge evaluating whether two pieces of text represent the same information. 
-Please compare the original input and the generated output and determine if they convey the same core meaning.
-
-Respond with ONLY "true" if they are essentially the same, or "false" if they are different.
-
-Original input: "%s"
-Generated output: "%s"
-
-Are these essentially the same? Respond with only "true" or "false":`, input, output)
-
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(prompt),
-	}
-
-	params := openai.ChatCompletionNewParams{
-		Model:               shared.ChatModel(p.config.LLMModel),
-		Messages:            messages,
-		MaxCompletionTokens: openai.Int(1),
-		Temperature:         openai.Float(0.0),
-	}
-
-	completion, err := p.client.Chat.Completions.New(ctx, params)
-	if err != nil {
-		return false, fmt.Errorf("failed to generate similarity judgment: %w", err)
-	}
-
-	if len(completion.Choices) == 0 {
-		return false, fmt.Errorf("no choices returned for similarity judgment")
-	}
-
-	result := ""
-	if len(completion.Choices) > 0 {
-		result = completion.Choices[0].Message.Content
-	}
-
-	if strings.Contains(result, "true") {
-		return true, nil
-	}
-	if strings.Contains(result, "false") {
-		return false, nil
-	}
-
-	return false, nil
 }
 
 // OpenAIEmbedderProvider implements EmbedderProvider for OpenAI-compatible services

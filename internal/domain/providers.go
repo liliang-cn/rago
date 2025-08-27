@@ -9,8 +9,9 @@ import (
 type ProviderType string
 
 const (
-	ProviderOllama  ProviderType = "ollama"
-	ProviderOpenAI  ProviderType = "openai"
+	ProviderOllama   ProviderType = "ollama"
+	ProviderOpenAI   ProviderType = "openai"
+	ProviderLMStudio ProviderType = "lmstudio"
 )
 
 // BaseProviderConfig contains common configuration for all providers
@@ -38,10 +39,20 @@ type OpenAIProviderConfig struct {
 	Project            string `mapstructure:"project,omitempty"`
 }
 
+// LMStudioProviderConfig contains LM Studio-specific configuration
+type LMStudioProviderConfig struct {
+	BaseProviderConfig `mapstructure:",squash"`
+	BaseURL            string `mapstructure:"base_url"`
+	LLMModel           string `mapstructure:"llm_model"`
+	EmbeddingModel     string `mapstructure:"embedding_model"`
+	APIKey             string `mapstructure:"api_key,omitempty"` // Optional API key
+}
+
 // ProviderConfig is a union type for provider configurations
 type ProviderConfig struct {
-	Ollama *OllamaProviderConfig `mapstructure:"ollama,omitempty"`
-	OpenAI *OpenAIProviderConfig `mapstructure:"openai,omitempty"`
+	Ollama   *OllamaProviderConfig   `mapstructure:"ollama,omitempty"`
+	OpenAI   *OpenAIProviderConfig   `mapstructure:"openai,omitempty"`
+	LMStudio *LMStudioProviderConfig `mapstructure:"lmstudio,omitempty"`
 }
 
 // LLMProvider wraps the Generator interface with provider-specific information
