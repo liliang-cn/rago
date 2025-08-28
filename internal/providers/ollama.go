@@ -341,6 +341,54 @@ func (p *OllamaLLMProvider) Health(ctx context.Context) error {
 	return nil
 }
 
+// GenerateStructured implements structured JSON output generation for Ollama using native JSON format
+func (p *OllamaLLMProvider) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	if opts == nil {
+		opts = &domain.GenerationOptions{
+			Temperature: 0.1, // Lower temperature for more consistent JSON
+			MaxTokens:   4000,
+		}
+	}
+
+	messages := []ollama.Message{
+		{Role: "user", Content: prompt},
+	}
+
+	// Use Ollama's native structured output with Format field
+	response, err := ollama.Chat(ctx, p.config.LLMModel, messages, func(req *ollama.ChatRequest) {
+		req.Format = schema
+		if opts != nil {
+			options := &ollama.Options{}
+			if opts.Temperature >= 0 {
+				options.Temperature = &opts.Temperature
+			}
+			if opts.MaxTokens > 0 {
+				numPredict := opts.MaxTokens
+				options.NumPredict = &numPredict
+			}
+			req.Options = options
+		}
+	})
+	
+	if err != nil {
+		return nil, fmt.Errorf("Ollama structured generation failed: %w", err)
+	}
+
+	rawJSON := response.Message.Content
+	
+	// Try to parse the JSON into the provided schema
+	var isValid bool
+	if err := json.Unmarshal([]byte(rawJSON), schema); err == nil {
+		isValid = true
+	}
+
+	return &domain.StructuredResult{
+		Data:  schema,
+		Raw:   rawJSON,
+		Valid: isValid,
+	}, nil
+}
+
 const metadataExtractionPromptTemplate = `You are an expert data extractor. Analyze the following document content and return ONLY a single valid JSON object with the following fields:
 - "summary": A concise, one-sentence summary of the document.
 - "keywords": An array of 3 to 5 most relevant keywords.
