@@ -471,9 +471,17 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 		answer = s.cleanThinkingTags(answer)
 	}
 
+	// Prepare sources based on ShowSources flag
+	var sources []domain.Chunk
+	if req.ShowSources {
+		sources = chunks
+	} else {
+		sources = []domain.Chunk{}
+	}
+
 	return domain.QueryResponse{
 			Answer:  answer,
-			Sources: chunks,
+			Sources: sources,
 			Elapsed: time.Since(start).String(),
 		},
 		nil

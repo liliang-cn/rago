@@ -139,6 +139,23 @@ func (c *Client) Query(query string) (domain.QueryResponse, error) {
 		MaxTokens:    25000,
 		Stream:       false, // Changed to false for library use
 		ShowThinking: true,
+		ShowSources:  false, // Default to false for backward compatibility
+	}
+
+	return c.processor.Query(ctx, req)
+}
+
+// QueryWithSources performs a query and returns sources information
+func (c *Client) QueryWithSources(query string, showSources bool) (domain.QueryResponse, error) {
+	ctx := context.Background()
+	req := domain.QueryRequest{
+		Query:        query,
+		TopK:         c.config.Sqvect.TopK,
+		Temperature:  0.7,
+		MaxTokens:    25000,
+		Stream:       false,
+		ShowThinking: true,
+		ShowSources:  showSources,
 	}
 
 	return c.processor.Query(ctx, req)
@@ -186,9 +203,46 @@ func (c *Client) StreamQuery(query string, callback func(string)) error {
 		MaxTokens:    25000,
 		Stream:       true,
 		ShowThinking: true,
+		ShowSources:  false, // Default to false for backward compatibility
 	}
 
 	return c.processor.StreamQuery(ctx, req, callback)
+}
+
+// StreamQueryWithSources performs a streaming query and returns sources at the end
+func (c *Client) StreamQueryWithSources(query string, callback func(string), showSources bool) ([]domain.Chunk, error) {
+	if !showSources {
+		// If sources not requested, use regular streaming
+		return nil, c.StreamQuery(query, callback)
+	}
+
+	// First get the sources by doing a non-streaming query
+	ctx := context.Background()
+	req := domain.QueryRequest{
+		Query:        query,
+		TopK:         c.config.Sqvect.TopK,
+		Temperature:  0.7,
+		MaxTokens:    25000,
+		Stream:       false,
+		ShowThinking: true,
+		ShowSources:  true,
+	}
+
+	// Get sources first
+	resp, err := c.processor.Query(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Now do streaming with the same query
+	req.Stream = true
+	req.ShowSources = false // Don't need sources in streaming response
+	err = c.processor.StreamQuery(ctx, req, callback)
+	if err != nil {
+		return resp.Sources, err
+	}
+
+	return resp.Sources, nil
 }
 
 func (c *Client) StreamQueryWithFilters(query string, filters map[string]interface{}, callback func(string)) error {

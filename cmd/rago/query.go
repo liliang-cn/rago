@@ -20,6 +20,7 @@ var (
 	maxTokens    int
 	stream       bool
 	showThinking bool
+	showSources  bool
 	interactive  bool
 	queryFile    string
 	filterBy     []string
@@ -184,6 +185,7 @@ func processQuery(ctx context.Context, p *processor.Service, query string, tools
 		MaxTokens:    maxTokens,
 		Stream:       stream, // Streaming now works with tools
 		ShowThinking: showThinking,
+		ShowSources:  showSources,
 		Filters:      filters,
 		ToolsEnabled: toolsEnabled,
 		AllowedTools: allowedTools,
@@ -225,13 +227,32 @@ func processQuery(ctx context.Context, p *processor.Service, query string, tools
 		}
 	}
 
-	if verbose && len(resp.Sources) > 0 {
+	// Show sources if requested
+	if (showSources || verbose) && len(resp.Sources) > 0 {
 		fmt.Printf("\nSources (%d):\n", len(resp.Sources))
 		for i, source := range resp.Sources {
 			fmt.Printf("  [%d] Score: %.4f\n", i+1, source.Score)
-			fmt.Printf("      Content: %s...\n", truncateText(source.Content, 100))
-			if len(source.Metadata) > 0 {
-				fmt.Printf("      Metadata: %v\n", source.Metadata)
+			
+			// Extract filename from metadata if available
+			var sourceInfo string
+			if source.Metadata != nil {
+				if filename, ok := source.Metadata["filename"].(string); ok && filename != "" {
+					sourceInfo = filename
+				} else if source_path, ok := source.Metadata["source"].(string); ok && source_path != "" {
+					sourceInfo = source_path
+				} else {
+					sourceInfo = "Unknown source"
+				}
+			} else {
+				sourceInfo = "Unknown source"
+			}
+			
+			fmt.Printf("      Source: %s\n", sourceInfo)
+			if verbose {
+				fmt.Printf("      Content: %s...\n", truncateText(source.Content, 100))
+				if len(source.Metadata) > 0 {
+					fmt.Printf("      Metadata: %v\n", source.Metadata)
+				}
 			}
 		}
 	}
@@ -245,8 +266,29 @@ func processQuery(ctx context.Context, p *processor.Service, query string, tools
 
 func processStreamQuery(ctx context.Context, p *processor.Service, req domain.QueryRequest) error {
 	fmt.Print("Answer: ")
-
+	
+	var sources []domain.Chunk
 	var err error
+	
+	// If sources are requested, we need to get them first
+	if req.ShowSources || verbose {
+		// First get sources by doing a quick non-streaming query
+		tempReq := req
+		tempReq.Stream = false
+		tempReq.ShowSources = true
+		
+		var tempResp domain.QueryResponse
+		if req.ToolsEnabled {
+			tempResp, err = p.QueryWithTools(ctx, tempReq)
+		} else {
+			tempResp, err = p.Query(ctx, tempReq)
+		}
+		if err == nil {
+			sources = tempResp.Sources
+		}
+	}
+
+	// Now do the streaming
 	if req.ToolsEnabled {
 		err = p.StreamQueryWithTools(ctx, req, func(token string) {
 			fmt.Print(token)
@@ -258,6 +300,37 @@ func processStreamQuery(ctx context.Context, p *processor.Service, req domain.Qu
 	}
 
 	fmt.Println()
+	
+	// Show sources after streaming is complete
+	if (req.ShowSources || verbose) && len(sources) > 0 {
+		fmt.Printf("\nSources (%d):\n", len(sources))
+		for i, source := range sources {
+			fmt.Printf("  [%d] Score: %.4f\n", i+1, source.Score)
+			
+			// Extract filename from metadata if available
+			var sourceInfo string
+			if source.Metadata != nil {
+				if filename, ok := source.Metadata["filename"].(string); ok && filename != "" {
+					sourceInfo = filename
+				} else if source_path, ok := source.Metadata["source"].(string); ok && source_path != "" {
+					sourceInfo = source_path
+				} else {
+					sourceInfo = "Unknown source"
+				}
+			} else {
+				sourceInfo = "Unknown source"
+			}
+			
+			fmt.Printf("      Source: %s\n", sourceInfo)
+			if verbose {
+				fmt.Printf("      Content: %s...\n", truncateText(source.Content, 100))
+				if len(source.Metadata) > 0 {
+					fmt.Printf("      Metadata: %v\n", source.Metadata)
+				}
+			}
+		}
+	}
+	
 	return err
 }
 
@@ -290,6 +363,7 @@ func init() {
 	queryCmd.Flags().IntVar(&maxTokens, "max-tokens", 500, "maximum generation length")
 	queryCmd.Flags().BoolVar(&stream, "stream", true, "streaming output")
 	queryCmd.Flags().BoolVar(&showThinking, "show-thinking", true, "show AI thinking process")
+	queryCmd.Flags().BoolVarP(&showSources, "show-sources", "s", false, "show source documents used for answering")
 	queryCmd.Flags().BoolVar(&verbose, "verbose", false, "show verbose output including sources")
 	queryCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "interactive mode")
 	queryCmd.Flags().StringVar(&queryFile, "file", "", "batch query from file")

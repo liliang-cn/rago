@@ -30,6 +30,7 @@ type QueryRequest struct {
 	MaxTokens    int                    `json:"max_tokens"`
 	Stream       bool                   `json:"stream"`
 	ShowThinking bool                   `json:"show_thinking"`
+	ShowSources  bool                   `json:"show_sources"`
 	Filters      map[string]interface{} `json:"filters,omitempty"`
 	ToolsEnabled bool                   `json:"tools_enabled"`
 	AllowedTools []string               `json:"allowed_tools,omitempty"`
