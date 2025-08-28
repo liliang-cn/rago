@@ -191,8 +191,9 @@ func (p *LMStudioLLMProvider) Stream(ctx context.Context, prompt string, opts *d
 				callback(*chunk.Choices[0].Delta.Content)
 			}
 		case err := <-streamResp.Errors:
-			streamResp.Close()
-			return fmt.Errorf("stream error: %w", err)
+			if err != nil {
+				return fmt.Errorf("stream error: %w", err)
+			}
 		case <-ctx.Done():
 			streamResp.Close()
 			return ctx.Err()
@@ -313,10 +314,10 @@ func (p *LMStudioLLMProvider) StreamWithTools(ctx context.Context, messages []do
 					}
 				}
 			case err := <-streamResp.Errors:
-				streamResp.Close()
-				return fmt.Errorf("stream error: %w", err)
+				if err != nil {
+					return fmt.Errorf("stream error: %w", err)
+				}
 			case <-ctx.Done():
-				streamResp.Close()
 				return ctx.Err()
 			}
 		}
