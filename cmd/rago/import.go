@@ -59,21 +59,12 @@ var importCmd = &cobra.Command{
 		fmt.Printf("  Chunks: %d\n", exportData.Metadata.ChunkCount)
 		fmt.Printf("  Vector dimension: %d\n", exportData.Metadata.VectorDim)
 
-		// Check vector dimension compatibility
-		if exportData.Metadata.VectorDim != cfg.Sqvect.VectorDim {
-			if !recomputeVectors {
-				return fmt.Errorf("vector dimension mismatch: export=%d, current=%d (use --recompute-vectors to regenerate)",
-					exportData.Metadata.VectorDim, cfg.Sqvect.VectorDim)
-			}
-			fmt.Printf("  Note: Vector dimensions differ, will recompute embeddings\n")
-		}
+		// Skip vector dimension check since v0.7.0 auto-detects dimensions
+		fmt.Printf("  Note: Using auto-detect dimensions (sqvect v0.7.0+)\n")
 
 		// Initialize stores
 		vectorStore, err := store.NewSQLiteStore(
 			cfg.Sqvect.DBPath,
-			cfg.Sqvect.VectorDim,
-			cfg.Sqvect.MaxConns,
-			cfg.Sqvect.BatchSize,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)

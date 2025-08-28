@@ -342,10 +342,6 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 		Created:  time.Now(),
 	}
 
-	if err := s.documentStore.Store(ctx, doc); err != nil {
-		return domain.IngestResponse{}, fmt.Errorf("failed to store document: %w", err)
-	}
-
 	chunkOptions := domain.ChunkOptions{
 		Size:    req.ChunkSize,
 		Overlap: req.Overlap,
@@ -388,6 +384,11 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 
 	if err := s.vectorStore.Store(ctx, chunks); err != nil {
 		return domain.IngestResponse{}, fmt.Errorf("failed to store vectors: %w", err)
+	}
+
+	// Store document metadata after vectors are stored (sqvect v0.7.0 needs vectors first)
+	if err := s.documentStore.Store(ctx, doc); err != nil {
+		return domain.IngestResponse{}, fmt.Errorf("failed to store document: %w", err)
 	}
 
 	return domain.IngestResponse{
