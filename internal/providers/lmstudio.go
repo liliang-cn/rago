@@ -286,7 +286,7 @@ func (p *LMStudioLLMProvider) StreamWithTools(ctx context.Context, messages []do
 						},
 					}
 				}
-				
+
 				// Send tool calls with empty content
 				if err := callback("", toolCalls); err != nil {
 					return err
@@ -333,12 +333,24 @@ func (p *LMStudioLLMProvider) ProviderType() domain.ProviderType {
 
 // Health checks the health of the LM Studio provider
 func (p *LMStudioLLMProvider) Health(ctx context.Context) error {
-	// Use a simple request to check if LM Studio is responding
-	_, err := p.client.Chat.SimpleChat(ctx, p.llmModel, "Hello")
+	// Test the actual configured model with a strict test
+	response, err := p.client.Chat.SimpleChat(ctx, p.llmModel, "You must respond with exactly 'This is a test' and nothing else. Do not add any additional words, explanations, or punctuation.")
 	if err != nil {
-		return fmt.Errorf("LM Studio health check failed: %w", err)
+		return fmt.Errorf("LLM model health check failed: %w", err)
 	}
-
+	
+	// Check if we got exactly the expected response
+	if response == "" {
+		return fmt.Errorf("LLM model health check failed: empty response from model %s", p.llmModel)
+	}
+	
+	// Trim whitespace and check for exact match
+	trimmedResponse := strings.TrimSpace(response)
+	expectedResponse := "This is a test"
+	if trimmedResponse != expectedResponse {
+		return fmt.Errorf("LLM model health check failed: model %s did not respond correctly. Expected: %q, Got: %q", p.llmModel, expectedResponse, trimmedResponse)
+	}
+	
 	return nil
 }
 
@@ -440,15 +452,20 @@ func (p *LMStudioEmbedderProvider) ProviderType() domain.ProviderType {
 
 // Health checks the health of the LM Studio embedder provider
 func (p *LMStudioEmbedderProvider) Health(ctx context.Context) error {
-	// Test with a simple embedding request
+	// Test the actual configured embedding model with a simple test
 	req := &lmstudio.EmbeddingRequest{
 		Model: p.embeddingModel,
-		Input: []string{"health check"},
+		Input: []string{"test"},
 	}
 
-	_, err := p.client.Embeddings.Create(ctx, req)
+	resp, err := p.client.Embeddings.Create(ctx, req)
 	if err != nil {
-		return fmt.Errorf("LM Studio embedder health check failed: %w", err)
+		return fmt.Errorf("embedding model health check failed: %w", err)
+	}
+
+	// Check if we got a reasonable embedding response
+	if resp == nil || len(resp.Data) == 0 || len(resp.Data[0].Embedding) == 0 {
+		return fmt.Errorf("embedding model health check failed: empty embedding from model %s", p.embeddingModel)
 	}
 
 	return nil

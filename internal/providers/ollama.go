@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/liliang-cn/ollama-go"
 	"github.com/liliang-cn/rago/internal/domain"
@@ -302,10 +303,41 @@ func (p *OllamaLLMProvider) StreamWithTools(ctx context.Context, messages []doma
 
 // Health checks the health of the Ollama service
 func (p *OllamaLLMProvider) Health(ctx context.Context) error {
+	// First check if the service is available
 	_, err := p.client.Version(ctx)
 	if err != nil {
-		return fmt.Errorf("%w: %v", domain.ErrServiceUnavailable, err)
+		return fmt.Errorf("%w: service unavailable: %v", domain.ErrServiceUnavailable, err)
 	}
+	
+	// Now test the actual configured model with a strict test
+	stream := false
+	req := &ollama.GenerateRequest{
+		Model:  p.config.LLMModel,
+		Prompt: "You must respond with exactly 'This is a test' and nothing else. Do not add any additional words, explanations, or punctuation.",
+		Stream: &stream,
+		Options: &ollama.Options{
+			Temperature: &[]float64{0.0}[0], // Set to 0 for deterministic output
+			NumPredict:  &[]int{10}[0], // Limit tokens to prevent extra content
+		},
+	}
+	
+	resp, err := p.client.Generate(ctx, req)
+	if err != nil {
+		return fmt.Errorf("LLM model health check failed: %w", err)
+	}
+	
+	// Check if we got exactly the expected response
+	if resp == nil || resp.Response == "" {
+		return fmt.Errorf("LLM model health check failed: empty response from model %s", p.config.LLMModel)
+	}
+	
+	// Trim whitespace and check for exact match
+	response := strings.TrimSpace(resp.Response)
+	expectedResponse := "This is a test"
+	if response != expectedResponse {
+		return fmt.Errorf("LLM model health check failed: model %s did not respond correctly. Expected: %q, Got: %q", p.config.LLMModel, expectedResponse, response)
+	}
+	
 	return nil
 }
 
@@ -410,9 +442,27 @@ func (p *OllamaEmbedderProvider) Embed(ctx context.Context, text string) ([]floa
 
 // Health checks the health of the Ollama embeddings service
 func (p *OllamaEmbedderProvider) Health(ctx context.Context) error {
+	// First check if the service is available
 	_, err := p.client.Version(ctx)
 	if err != nil {
-		return fmt.Errorf("%w: %v", domain.ErrServiceUnavailable, err)
+		return fmt.Errorf("%w: service unavailable: %v", domain.ErrServiceUnavailable, err)
 	}
+	
+	// Now test the actual configured embedding model with a simple test
+	req := &ollama.EmbedRequest{
+		Model: p.config.EmbeddingModel,
+		Input: "test",
+	}
+	
+	resp, err := p.client.Embed(ctx, req)
+	if err != nil {
+		return fmt.Errorf("embedding model health check failed: %w", err)
+	}
+	
+	// Check if we got a reasonable embedding response
+	if resp == nil || len(resp.Embeddings) == 0 || len(resp.Embeddings[0]) == 0 {
+		return fmt.Errorf("embedding model health check failed: empty embedding from model %s", p.config.EmbeddingModel)
+	}
+	
 	return nil
 }
