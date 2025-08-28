@@ -87,6 +87,7 @@ type Generator interface {
 	Stream(ctx context.Context, prompt string, opts *GenerationOptions, callback func(string)) error
 	GenerateWithTools(ctx context.Context, messages []Message, tools []ToolDefinition, opts *GenerationOptions) (*GenerationResult, error)
 	StreamWithTools(ctx context.Context, messages []Message, tools []ToolDefinition, opts *GenerationOptions, callback ToolCallCallback) error
+	GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *GenerationOptions) (*StructuredResult, error)
 }
 
 type GenerationOptions struct {
@@ -129,6 +130,13 @@ type GenerationResult struct {
 	Content   string     `json:"content"`
 	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
 	Finished  bool       `json:"finished"`
+}
+
+// StructuredResult represents the result of structured generation
+type StructuredResult struct {
+	Data  interface{} `json:"data"`  // Parsed structured data
+	Raw   string      `json:"raw"`   // Raw JSON string  
+	Valid bool        `json:"valid"` // Whether the response passed schema validation
 }
 
 // ToolCallCallback is called during streaming when tool calls are detected

@@ -354,6 +354,66 @@ func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []doma
 	return nil
 }
 
+// GenerateStructured implements structured JSON output generation for OpenAI using native structured output
+func (p *OpenAILLMProvider) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	if opts == nil {
+		opts = &domain.GenerationOptions{
+			Temperature: 0.1, // Lower temperature for more consistent JSON
+			MaxTokens:   4000,
+		}
+	}
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(prompt),
+	}
+
+	// Use OpenAI's native structured output with ResponseFormat
+	schemaParam := openai.ResponseFormatJSONSchemaJSONSchemaParam{
+		Name:        "structured_response",
+		Description: openai.String("Structured response based on the provided schema"),
+		Schema:      schema,
+		Strict:      openai.Bool(true),
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:    shared.ChatModel(p.config.LLMModel),
+		Messages: messages,
+		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
+			OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{JSONSchema: schemaParam},
+		},
+	}
+
+	if opts.Temperature >= 0 {
+		params.Temperature = openai.Float(opts.Temperature)
+	}
+	if opts.MaxTokens > 0 {
+		params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
+	}
+
+	resp, err := p.client.Chat.Completions.New(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("OpenAI structured generation failed: %w", err)
+	}
+
+	if len(resp.Choices) == 0 {
+		return nil, fmt.Errorf("no response choices returned")
+	}
+
+	rawJSON := resp.Choices[0].Message.Content
+	
+	// Try to parse the JSON into the provided schema
+	var isValid bool
+	if err := json.Unmarshal([]byte(rawJSON), schema); err == nil {
+		isValid = true
+	}
+
+	return &domain.StructuredResult{
+		Data:  schema,
+		Raw:   rawJSON,
+		Valid: isValid,
+	}, nil
+}
+
 // Health checks the health of the OpenAI service
 func (p *OpenAILLMProvider) Health(ctx context.Context) error {
 	messages := []openai.ChatCompletionMessageParamUnion{
