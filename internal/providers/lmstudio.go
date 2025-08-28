@@ -331,6 +331,38 @@ func (p *LMStudioLLMProvider) ProviderType() domain.ProviderType {
 	return p.providerType
 }
 
+// GenerateStructured implements structured JSON output generation using LMStudio's native structured output
+func (p *LMStudioLLMProvider) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	if opts == nil {
+		opts = &domain.GenerationOptions{
+			Temperature: 0.1, // Lower temperature for more consistent JSON
+			MaxTokens:   4000,
+		}
+	}
+
+	// Create messages for structured generation
+	messages := []lmstudio.Message{
+		{Role: "user", Content: prompt},
+	}
+
+	// Use LMStudio's native CompleteWithSchema for structured output
+	structuredResp, err := p.client.Chat.CompleteWithSchema(
+		ctx,
+		p.llmModel,
+		messages,
+		schema,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("LM Studio structured generation failed: %w", err)
+	}
+
+	return &domain.StructuredResult{
+		Data:  structuredResp.Parsed, // Use the parsed structured data
+		Raw:   "", // LMStudio doesn't provide raw JSON in this format
+		Valid: true, // CompleteWithSchema ensures validity
+	}, nil
+}
+
 // Health checks the health of the LM Studio provider
 func (p *LMStudioLLMProvider) Health(ctx context.Context) error {
 	// Test the actual configured model with a strict test
