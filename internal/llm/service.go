@@ -38,6 +38,11 @@ func (s *Service) StreamWithTools(ctx context.Context, messages []domain.Message
 	return s.provider.StreamWithTools(ctx, messages, tools, opts, callback)
 }
 
+// GenerateStructured generates structured JSON output using the configured provider
+func (s *Service) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	return s.provider.GenerateStructured(ctx, prompt, schema, opts)
+}
+
 // ExtractMetadata extracts metadata from content
 func (s *Service) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
 	return s.provider.ExtractMetadata(ctx, content, model)
