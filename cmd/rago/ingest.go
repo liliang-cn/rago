@@ -51,9 +51,6 @@ You can also use --text flag to ingest text directly.`,
 		// Initialize stores
 		vectorStore, err := store.NewSQLiteStore(
 			cfg.Sqvect.DBPath,
-			cfg.Sqvect.VectorDim,
-			cfg.Sqvect.MaxConns,
-			cfg.Sqvect.BatchSize,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)

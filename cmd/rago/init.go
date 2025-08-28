@@ -239,9 +239,6 @@ func initializeDatabase(configPath string) error {
 	// Initialize SQLite vector store
 	vectorStore, err := store.NewSQLiteStore(
 		cfg.Sqvect.DBPath,
-		cfg.Sqvect.VectorDim,
-		cfg.Sqvect.MaxConns,
-		cfg.Sqvect.BatchSize,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize vector store: %w", err)

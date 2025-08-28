@@ -301,9 +301,6 @@ func initializeProcessor() (*processor.Service, func(), error) {
 	// Initialize stores
 	vectorStore, err := store.NewSQLiteStore(
 		cfg.Sqvect.DBPath,
-		cfg.Sqvect.VectorDim,
-		cfg.Sqvect.MaxConns,
-		cfg.Sqvect.BatchSize,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create vector store: %w", err)
