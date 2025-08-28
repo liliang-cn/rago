@@ -15,19 +15,9 @@ type SQLiteStore struct {
 	sqvect *sqvect.SQLiteStore
 }
 
-func NewSQLiteStore(dbPath string, vectorDim int, maxConns int, batchSize int) (*SQLiteStore, error) {
-	config := sqvect.DefaultConfig()
-	config.Path = dbPath
-	config.VectorDim = vectorDim
-	config.MaxConns = maxConns
-	config.BatchSize = batchSize
-
-	// Enable HNSW indexing for better performance
-	config.HNSW = sqvect.DefaultHNSWConfig()
-	config.HNSW.Enabled = true
-
-	// Create sqvect store with custom configuration
-	client, err := sqvect.NewWithConfig(config)
+func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
+	// Use dimension 0 for auto-detection with sqvect v0.7.0
+	client, err := sqvect.New(dbPath, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sqvect client: %w", err)
 	}
@@ -76,6 +66,9 @@ func (s *SQLiteStore) Store(ctx context.Context, chunks []domain.Chunk) error {
 				}
 			}
 		}
+		
+		// Mark as chunk for filtering during search
+		metadata["_type"] = "chunk"
 
 		embedding := &sqvect.Embedding{
 			ID:       chunk.ID,
@@ -119,10 +112,15 @@ func (s *SQLiteStore) Search(ctx context.Context, vector []float64, topK int) ([
 		queryVector[i] = float32(v)
 	}
 
-	results, err := s.sqvect.Search(ctx, queryVector, sqvect.SearchOptions{
+	// Use SearchWithFilter to exclude document metadata (v0.8.0 fixes dimension bug)
+	filters := map[string]interface{}{
+		"_type": "chunk", // Only return chunks, not document metadata
+	}
+	
+	results, err := s.sqvect.SearchWithFilter(ctx, queryVector, sqvect.SearchOptions{
 		TopK:      topK,
 		Threshold: 0.0, // Return all results, let caller filter
-	})
+	}, filters)
 	if err != nil {
 		return nil, fmt.Errorf("%w: search failed: %v", domain.ErrVectorStoreFailed, err)
 	}
@@ -182,10 +180,17 @@ func (s *SQLiteStore) SearchWithFilters(ctx context.Context, vector []float64, t
 
 	// Use sqvect's native SearchWithFilter method if filters are provided
 	if len(filters) > 0 {
+		// Add chunk type filter to existing filters to avoid document metadata
+		chunkFilters := make(map[string]interface{})
+		for k, v := range filters {
+			chunkFilters[k] = v
+		}
+		chunkFilters["_type"] = "chunk"
+		
 		results, err := s.sqvect.SearchWithFilter(ctx, queryVector, sqvect.SearchOptions{
 			TopK:      topK,
 			Threshold: 0.0, // Return all results, let caller filter
-		}, filters)
+		}, chunkFilters)
 		if err != nil {
 			return nil, fmt.Errorf("%w: search with filter failed: %v", domain.ErrVectorStoreFailed, err)
 		}
@@ -433,13 +438,7 @@ func NewDocumentStore(sqvectStore *sqvect.SQLiteStore) *DocumentStore {
 }
 
 func (s *DocumentStore) Store(ctx context.Context, doc domain.Document) error {
-	// Get vector dimension from the sqvect store config
-	stats, err := s.sqvect.Stats(ctx)
-	if err != nil {
-		return fmt.Errorf("%w: failed to get store stats: %v", domain.ErrDocumentStoreFailed, err)
-	}
-
-	// Store document as a special embedding with zero vector
+	// Store document as a special embedding with empty vector for metadata-only storage
 	metadata := make(map[string]string)
 	if doc.Metadata != nil {
 		for k, v := range doc.Metadata {
@@ -453,7 +452,7 @@ func (s *DocumentStore) Store(ctx context.Context, doc domain.Document) error {
 
 	embedding := &sqvect.Embedding{
 		ID:       doc.ID,
-		Vector:   make([]float32, stats.Dimensions), // Use actual dimensions from store
+		Vector:   []float32{}, // Empty vector for document metadata
 		Content:  doc.Content,
 		DocID:    doc.ID,
 		Metadata: metadata,

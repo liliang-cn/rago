@@ -146,6 +146,10 @@ github.com/liliang-cn/ollama-go v0.2.1 h1:o4NShm20gvsOnsRD2kWQPfCF2zoLGtUR3TtZZb
 github.com/liliang-cn/ollama-go v0.2.1/go.mod h1:BwwhnboYEbj8EqrjBDMqwXNSnYeFarbm+FQocY3T5Wk=
 github.com/liliang-cn/sqvect v0.6.0 h1:YgQTz9BGHYrV9rViDSBc0lImqSD/QHTb0jBLJ4DJOiQ=
 github.com/liliang-cn/sqvect v0.6.0/go.mod h1:AUZLALBec+pyAN44qRu8XDPKOwwR42esYtNyiVAq8XI=
+github.com/liliang-cn/sqvect v0.7.0 h1:KWMDpW6ivARTCU8xnwnqTIxLQ8pJLxBlv0GgOkqIT0I=
+github.com/liliang-cn/sqvect v0.7.0/go.mod h1:AUZLALBec+pyAN44qRu8XDPKOwwR42esYtNyiVAq8XI=
+github.com/liliang-cn/sqvect v0.8.0 h1:+rBrgD79FDACfj1UvHh5ZEdlm3Ifnxp04hJb0OV7N14=
+github.com/liliang-cn/sqvect v0.8.0/go.mod h1:AUZLALBec+pyAN44qRu8XDPKOwwR42esYtNyiVAq8XI=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=

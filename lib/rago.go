@@ -36,9 +36,6 @@ func New(configPath string) (*Client, error) {
 func NewWithConfig(cfg *config.Config) (*Client, error) {
 	vectorStore, err := store.NewSQLiteStore(
 		cfg.Sqvect.DBPath,
-		cfg.Sqvect.VectorDim,
-		cfg.Sqvect.MaxConns,
-		cfg.Sqvect.BatchSize,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create vector store: %w", err)

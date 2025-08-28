@@ -13,12 +13,12 @@ import (
 )
 
 type Config struct {
-	Server    ServerConfig     `mapstructure:"server"`
-	Providers ProvidersConfig  `mapstructure:"providers"`
-	Sqvect    SqvectConfig     `mapstructure:"sqvect"`
-	Keyword   KeywordConfig    `mapstructure:"keyword"`
-	Chunker   ChunkerConfig    `mapstructure:"chunker"`
-	Ingest    IngestConfig     `mapstructure:"ingest"`
+	Server    ServerConfig    `mapstructure:"server"`
+	Providers ProvidersConfig `mapstructure:"providers"`
+	Sqvect    SqvectConfig    `mapstructure:"sqvect"`
+	Keyword   KeywordConfig   `mapstructure:"keyword"`
+	Chunker   ChunkerConfig   `mapstructure:"chunker"`
+	Ingest    IngestConfig    `mapstructure:"ingest"`
 	Tools     tools.ToolConfig `mapstructure:"tools"`
 	
 	// Deprecated: Use Providers instead
@@ -59,7 +59,6 @@ type OllamaConfig struct {
 
 type SqvectConfig struct {
 	DBPath    string  `mapstructure:"db_path"`
-	VectorDim int     `mapstructure:"vector_dim"`
 	MaxConns  int     `mapstructure:"max_conns"`
 	BatchSize int     `mapstructure:"batch_size"`
 	TopK      int     `mapstructure:"top_k"`
@@ -103,6 +102,11 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	// Auto-configure metadata extraction LLM model if not set
+	if config.Ingest.MetadataExtraction.Enable && config.Ingest.MetadataExtraction.LLMModel == "" {
+		config.Ingest.MetadataExtraction.LLMModel = config.getDefaultLLMModel()
+	}
+
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
@@ -134,9 +138,6 @@ func setDefaults() {
 	viper.SetDefault("ollama.timeout", "30s")
 
 	viper.SetDefault("sqvect.db_path", "./data/rag.db")
-	viper.SetDefault("sqvect.vector_dim", 768)
-	viper.SetDefault("sqvect.max_conns", 10)
-	viper.SetDefault("sqvect.batch_size", 100)
 	viper.SetDefault("sqvect.top_k", 5)
 	viper.SetDefault("sqvect.threshold", 0.0)
 
@@ -147,7 +148,7 @@ func setDefaults() {
 	viper.SetDefault("chunker.method", "sentence")
 
 	viper.SetDefault("ingest.metadata_extraction.enable", false)
-	viper.SetDefault("ingest.metadata_extraction.llm_model", "qwen3") // 默认使用与问答相同的模型
+	// Note: llm_model will be auto-configured to use default LLM if not set
 
 	// Tools configuration defaults
 	toolConfig := tools.DefaultToolConfig()
@@ -339,18 +340,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("keyword index path cannot be empty")
 	}
 
-	if c.Sqvect.VectorDim <= 0 {
-		return fmt.Errorf("vector dimension must be positive: %d", c.Sqvect.VectorDim)
-	}
-
-	if c.Sqvect.MaxConns <= 0 {
-		return fmt.Errorf("max connections must be positive: %d", c.Sqvect.MaxConns)
-	}
-
-	if c.Sqvect.BatchSize <= 0 {
-		return fmt.Errorf("batch size must be positive: %d", c.Sqvect.BatchSize)
-	}
-
 	if c.Sqvect.TopK <= 0 {
 		return fmt.Errorf("topK must be positive: %d", c.Sqvect.TopK)
 	}
@@ -373,7 +362,7 @@ func (c *Config) Validate() error {
 	}
 
 	if c.Ingest.MetadataExtraction.Enable && c.Ingest.MetadataExtraction.LLMModel == "" {
-		return fmt.Errorf("llm_model for metadata extraction cannot be empty when enabled")
+		return fmt.Errorf("llm_model for metadata extraction should be auto-configured but is still empty")
 	}
 
 	// Validate tools configuration
@@ -382,6 +371,28 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// getDefaultLLMModel returns the appropriate LLM model based on configuration
+func (c *Config) getDefaultLLMModel() string {
+	// Use new provider system if available
+	if c.Providers.ProviderConfigs.Ollama != nil {
+		return c.Providers.ProviderConfigs.Ollama.LLMModel
+	}
+	if c.Providers.ProviderConfigs.OpenAI != nil {
+		return c.Providers.ProviderConfigs.OpenAI.LLMModel
+	}
+	if c.Providers.ProviderConfigs.LMStudio != nil {
+		return c.Providers.ProviderConfigs.LMStudio.LLMModel
+	}
+	
+	// Fallback to legacy ollama config
+	if c.Ollama.LLMModel != "" {
+		return c.Ollama.LLMModel
+	}
+	
+	// Final fallback
+	return "qwen3"
 }
 
 // validateProviderConfig validates the new provider configuration

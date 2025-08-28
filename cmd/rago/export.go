@@ -48,9 +48,6 @@ var exportCmd = &cobra.Command{
 
 		vectorStore, err := store.NewSQLiteStore(
 			cfg.Sqvect.DBPath,
-			cfg.Sqvect.VectorDim,
-			cfg.Sqvect.MaxConns,
-			cfg.Sqvect.BatchSize,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)
@@ -97,7 +94,7 @@ var exportCmd = &cobra.Command{
 				Version:       version,
 				DocumentCount: len(documents),
 				ChunkCount:    len(allChunks),
-				VectorDim:     cfg.Sqvect.VectorDim,
+				VectorDim:     768, // Default vector dimension
 			},
 			Documents: documents,
 			Chunks:    allChunks,
@@ -142,7 +139,7 @@ func getChunksForDocument(ctx context.Context, store *store.SQLiteStore, docID s
 	// Since we don't have a direct method to get chunks by document ID,
 	// we'll use a dummy search to get all chunks and filter by document ID
 	// This is not optimal but works with the current API
-	dummyVector := make([]float64, cfg.Sqvect.VectorDim)
+	dummyVector := make([]float64, 768) // Use default 768 dimension
 	for i := range dummyVector {
 		dummyVector[i] = 0.0
 	}
