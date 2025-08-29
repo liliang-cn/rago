@@ -343,11 +343,15 @@ func (p *OllamaLLMProvider) Health(ctx context.Context) error {
 
 // GenerateStructured implements structured JSON output generation for Ollama using native JSON format
 func (p *OllamaLLMProvider) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	if err := ValidateStructuredRequest(prompt, schema); err != nil {
+		return nil, err
+	}
+
 	if opts == nil {
-		opts = &domain.GenerationOptions{
-			Temperature: 0.1, // Lower temperature for more consistent JSON
-			MaxTokens:   4000,
-		}
+		opts = DefaultStructuredOptions()
+	}
+	if err := ValidateGenerationOptions(opts); err != nil {
+		return nil, err
 	}
 
 	messages := []ollama.Message{
@@ -371,7 +375,7 @@ func (p *OllamaLLMProvider) GenerateStructured(ctx context.Context, prompt strin
 	})
 	
 	if err != nil {
-		return nil, fmt.Errorf("Ollama structured generation failed: %w", err)
+		return nil, WrapStructuredOutputError(domain.ProviderOllama, err)
 	}
 
 	rawJSON := response.Message.Content

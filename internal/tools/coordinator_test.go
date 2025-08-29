@@ -72,6 +72,14 @@ func (m *MockGenerator) StreamWithTools(ctx context.Context, messages []domain.M
 	return args.Error(0)
 }
 
+func (m *MockGenerator) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	args := m.Called(ctx, prompt, schema, opts)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.StructuredResult), args.Error(1)
+}
+
 func setupCoordinator(t *testing.T) (*Coordinator, *Registry, *Executor) {
 	config := DefaultToolConfig()
 	// Enable test tools for testing

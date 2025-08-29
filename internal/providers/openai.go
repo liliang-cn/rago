@@ -356,11 +356,15 @@ func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []doma
 
 // GenerateStructured implements structured JSON output generation for OpenAI using native structured output
 func (p *OpenAILLMProvider) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	if err := ValidateStructuredRequest(prompt, schema); err != nil {
+		return nil, err
+	}
+
 	if opts == nil {
-		opts = &domain.GenerationOptions{
-			Temperature: 0.1, // Lower temperature for more consistent JSON
-			MaxTokens:   4000,
-		}
+		opts = DefaultStructuredOptions()
+	}
+	if err := ValidateGenerationOptions(opts); err != nil {
+		return nil, err
 	}
 
 	messages := []openai.ChatCompletionMessageParamUnion{
@@ -392,7 +396,7 @@ func (p *OpenAILLMProvider) GenerateStructured(ctx context.Context, prompt strin
 
 	resp, err := p.client.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("OpenAI structured generation failed: %w", err)
+		return nil, WrapStructuredOutputError(domain.ProviderOpenAI, err)
 	}
 
 	if len(resp.Choices) == 0 {

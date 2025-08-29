@@ -32,7 +32,6 @@ func TestProviderConfigValidation(t *testing.T) {
 			},
 			Sqvect: SqvectConfig{
 				DBPath:    "./test.db",
-				VectorDim: 768,
 				MaxConns:  10,
 				BatchSize: 100,
 				TopK:      5,
@@ -81,7 +80,6 @@ func TestProviderConfigValidation(t *testing.T) {
 			},
 			Sqvect: SqvectConfig{
 				DBPath:    "./test.db",
-				VectorDim: 1536,
 				MaxConns:  10,
 				BatchSize: 100,
 				TopK:      5,
@@ -121,7 +119,6 @@ func TestProviderConfigValidation(t *testing.T) {
 			},
 			Sqvect: SqvectConfig{
 				DBPath:    "./test.db",
-				VectorDim: 768,
 				MaxConns:  10,
 				BatchSize: 100,
 				TopK:      5,
