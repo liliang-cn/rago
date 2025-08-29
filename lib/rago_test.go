@@ -10,10 +10,11 @@ import (
 
 // mockGenerator is a mock implementation of the domain.Generator interface for testing.
 type mockGenerator struct {
-	GenerateFunc          func(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error)
-	StreamFunc            func(ctx context.Context, prompt string, opts *domain.GenerationOptions, callback func(string)) error
-	GenerateWithToolsFunc func(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error)
-	StreamWithToolsFunc   func(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error
+	GenerateFunc           func(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error)
+	StreamFunc             func(ctx context.Context, prompt string, opts *domain.GenerationOptions, callback func(string)) error
+	GenerateWithToolsFunc  func(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error)
+	StreamWithToolsFunc    func(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error
+	GenerateStructuredFunc func(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error)
 }
 
 func (m *mockGenerator) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
@@ -42,6 +43,13 @@ func (m *mockGenerator) StreamWithTools(ctx context.Context, messages []domain.M
 		return m.StreamWithToolsFunc(ctx, messages, tools, opts, callback)
 	}
 	return errors.New("StreamWithTools not implemented")
+}
+
+func (m *mockGenerator) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	if m.GenerateStructuredFunc != nil {
+		return m.GenerateStructuredFunc(ctx, prompt, schema, opts)
+	}
+	return nil, errors.New("GenerateStructured not implemented")
 }
 
 func TestLLMGenerate(t *testing.T) {

@@ -333,11 +333,15 @@ func (p *LMStudioLLMProvider) ProviderType() domain.ProviderType {
 
 // GenerateStructured implements structured JSON output generation using LMStudio's native structured output
 func (p *LMStudioLLMProvider) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	if err := ValidateStructuredRequest(prompt, schema); err != nil {
+		return nil, err
+	}
+
 	if opts == nil {
-		opts = &domain.GenerationOptions{
-			Temperature: 0.1, // Lower temperature for more consistent JSON
-			MaxTokens:   4000,
-		}
+		opts = DefaultStructuredOptions()
+	}
+	if err := ValidateGenerationOptions(opts); err != nil {
+		return nil, err
 	}
 
 	// Create messages for structured generation
@@ -353,7 +357,7 @@ func (p *LMStudioLLMProvider) GenerateStructured(ctx context.Context, prompt str
 		schema,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("LM Studio structured generation failed: %w", err)
+		return nil, WrapStructuredOutputError(p.providerType, err)
 	}
 
 	return &domain.StructuredResult{
