@@ -27,7 +27,6 @@ func TestConfig_Validate(t *testing.T) {
 				},
 				Sqvect: SqvectConfig{
 					DBPath:    "./data/test.db",
-					VectorDim: 768,
 					MaxConns:  10,
 					BatchSize: 100,
 					TopK:      5,
