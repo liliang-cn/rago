@@ -429,16 +429,100 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to register MCP tools: %w", err)
 	}
 
-	// Use regular query with tools enabled - the MCP tools are now registered
-	req := domain.QueryRequest{
+	// Perform search to check relevance (use Query method to get chunks)
+	searchReq := domain.QueryRequest{
 		Query:        query,
+		TopK:         3, // Small number for relevance check
+		ShowSources:  true,
+		ToolsEnabled: false, // Don't use tools for relevance check
+	}
+	
+	searchResp, err := processor.Query(ctx, searchReq)
+	var chunks []domain.Chunk
+	if err == nil {
+		chunks = searchResp.Sources
+	}
+
+	// Determine if RAG context is relevant (threshold: 0.7)
+	const relevanceThreshold = 0.7
+	hasRelevantContext := false
+	var relevantChunks []domain.Chunk
+	
+	if chunks != nil && len(chunks) > 0 {
+		for _, chunk := range chunks {
+			if chunk.Score >= relevanceThreshold {
+				relevantChunks = append(relevantChunks, chunk)
+				hasRelevantContext = true
+			}
+		}
+	}
+
+	// Check for tool-priority scenarios based on query-tool semantic matching
+	shouldPrioritizeTools := shouldPrioritizeMCPTools(query, toolsMap)
+
+	// Choose prompt strategy based on context relevance and tool priority
+	var systemPrompt string
+	var finalQuery string
+	
+	if shouldPrioritizeTools {
+		// Tool-priority mode: Query strongly suggests MCP tool usage
+		systemPrompt = fmt.Sprintf(`You are an AI assistant specialized in using MCP tools to answer user questions directly. The user's question strongly suggests the need for tool-based operations.
+
+Available MCP Tools:
+%s
+
+User Question: %s
+
+Analyze the question and immediately use the most appropriate MCP tools to answer it. Be proactive and direct in tool usage.`,
+			formatMCPToolsForPrompt(toolsMap),
+			query)
+		finalQuery = systemPrompt
+		fmt.Printf("🛠️ Query suggests tool usage - prioritizing MCP tools\n")
+	} else if hasRelevantContext {
+		// High relevance: Combine RAG context with MCP tools
+		contextStr := buildContextString(relevantChunks)
+		systemPrompt = fmt.Sprintf(`You are an AI assistant with access to both document context and MCP tools. 
+
+Available MCP Tools:
+%s
+
+Document Context:
+%s
+
+User Question: %s
+
+Use both the document context and MCP tools as needed to provide a comprehensive answer. Call MCP tools when you need live data or database operations.`,
+			formatMCPToolsForPrompt(toolsMap),
+			contextStr,
+			query)
+		finalQuery = systemPrompt
+		fmt.Printf("📚 High relevance context found - combining RAG and MCP\n")
+	} else {
+		// Low relevance: MCP-only mode with direct instructions
+		systemPrompt = fmt.Sprintf(`You are an AI assistant with access to MCP tools. The user's question doesn't match the available document context, so focus on using MCP tools to answer directly.
+
+Available MCP Tools:
+%s
+
+User Question: %s
+
+Analyze the question and use the appropriate MCP tools to answer it. Be proactive in calling tools when they can help answer the question.`,
+			formatMCPToolsForPrompt(toolsMap),
+			query)
+		finalQuery = systemPrompt
+		fmt.Printf("🔍 Low relevance search results (max score: %.2f) - using MCP-only mode\n", getMaxScore(chunks))
+	}
+
+	// Use regular query with tools enabled
+	req := domain.QueryRequest{
+		Query:        finalQuery,
 		TopK:         5,
 		Temperature:  0.7,
 		MaxTokens:    1000,
 		Stream:       false,
 		ShowSources:  false,
 		ToolsEnabled: true,
-		MaxToolCalls: 3,
+		MaxToolCalls: 5,
 	}
 
 	resp, err := processor.QueryWithTools(ctx, req)
@@ -464,6 +548,146 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// Helper function to format MCP tools for prompt
+func formatMCPToolsForPrompt(toolsMap map[string]*mcp.MCPToolWrapper) string {
+	var tools []string
+	for _, tool := range toolsMap {
+		tools = append(tools, fmt.Sprintf("- %s: %s", tool.Name(), tool.Description()))
+	}
+	return strings.Join(tools, "\n")
+}
+
+// Helper function to build context string from relevant chunks
+func buildContextString(chunks []domain.Chunk) string {
+	if len(chunks) == 0 {
+		return "No relevant context found."
+	}
+	
+	var contexts []string
+	for i, chunk := range chunks {
+		contexts = append(contexts, fmt.Sprintf("[%d] %s (Score: %.2f)", i+1, truncateText(chunk.Content, 200), chunk.Score))
+	}
+	return strings.Join(contexts, "\n")
+}
+
+// Helper function to determine if query should prioritize MCP tools
+func shouldPrioritizeMCPTools(query string, toolsMap map[string]*mcp.MCPToolWrapper) bool {
+	queryLower := strings.ToLower(query)
+	
+	// Define tool priority keywords based on available tool capabilities
+	toolPriorityKeywords := extractToolKeywords(toolsMap)
+	
+	// Check if query contains action verbs that suggest tool usage
+	actionVerbs := []string{
+		"list", "show", "display", "get", "fetch", "retrieve", "find",
+		"create", "make", "generate", "build", "add", "insert",
+		"update", "modify", "change", "edit", "set",
+		"delete", "remove", "drop", "clear", "clean",
+		"query", "search", "select", "execute", "run",
+		"check", "verify", "validate", "test", "analyze",
+		"count", "calculate", "compute", "measure",
+		"export", "import", "backup", "restore",
+	}
+	
+	// Score based on action verbs
+	actionScore := 0
+	for _, verb := range actionVerbs {
+		if strings.Contains(queryLower, verb) {
+			actionScore++
+		}
+	}
+	
+	// Score based on tool-specific keywords
+	keywordScore := 0
+	for _, keyword := range toolPriorityKeywords {
+		if strings.Contains(queryLower, keyword) {
+			keywordScore += 2 // Higher weight for tool-specific terms
+		}
+	}
+	
+	// Check for direct tool invocation patterns
+	directInvocationScore := 0
+	if strings.Contains(queryLower, "use") || strings.Contains(queryLower, "call") || 
+	   strings.Contains(queryLower, "run") || strings.Contains(queryLower, "execute") {
+		directInvocationScore += 3
+	}
+	
+	totalScore := actionScore + keywordScore + directInvocationScore
+	
+	// Prioritize tools if score is high enough
+	return totalScore >= 2
+}
+
+// Helper function to extract relevant keywords from available tools
+func extractToolKeywords(toolsMap map[string]*mcp.MCPToolWrapper) []string {
+	keywords := make(map[string]bool)
+	
+	for _, tool := range toolsMap {
+		toolName := strings.ToLower(tool.Name())
+		description := strings.ToLower(tool.Description())
+		
+		// Extract keywords from tool names (remove mcp_ prefix)
+		if strings.HasPrefix(toolName, "mcp_") {
+			cleanName := toolName[4:] // Remove "mcp_"
+			parts := strings.Split(cleanName, "_")
+			for _, part := range parts {
+				if len(part) > 2 { // Avoid short words
+					keywords[part] = true
+				}
+			}
+		}
+		
+		// Extract keywords from descriptions
+		descriptionWords := strings.Fields(description)
+		for _, word := range descriptionWords {
+			// Clean word and add if significant
+			cleaned := strings.Trim(word, ".,!?()[]{}\"'")
+			if len(cleaned) > 3 && isSignificantWord(cleaned) {
+				keywords[cleaned] = true
+			}
+		}
+	}
+	
+	// Convert map to slice
+	var result []string
+	for keyword := range keywords {
+		result = append(result, keyword)
+	}
+	
+	return result
+}
+
+// Helper function to check if a word is significant for tool matching
+func isSignificantWord(word string) bool {
+	// Skip common English words
+	commonWords := map[string]bool{
+		"the": true, "and": true, "that": true, "have": true, "for": true,
+		"not": true, "with": true, "you": true, "this": true, "but": true,
+		"his": true, "from": true, "they": true, "she": true, "her": true,
+		"been": true, "than": true, "its": true, "who": true, "oil": true,
+		"use": true, "may": true, "these": true, "only": true, "other": true,
+		"new": true, "some": true, "could": true, "time": true, "very": true,
+		"when": true, "much": true, "can": true, "said": true, "each": true,
+	}
+	
+	return !commonWords[strings.ToLower(word)]
+}
+
+// Helper function to get max score from chunks
+func getMaxScore(chunks []domain.Chunk) float64 {
+	if len(chunks) == 0 {
+		return 0.0
+	}
+	
+	maxScore := 0.0
+	for _, chunk := range chunks {
+		if chunk.Score > maxScore {
+			maxScore = chunk.Score
+		}
+	}
+	return maxScore
 }
 
 func formatToolsForPrompt(tools []mcp.ToolSummary) string {
