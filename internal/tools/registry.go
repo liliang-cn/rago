@@ -199,6 +199,11 @@ func (r *Registry) IsEnabled(name string) bool {
 		return true
 	}
 
+	// MCP tools are enabled by default (tools starting with "mcp_")
+	if len(name) > 4 && name[:4] == "mcp_" {
+		return true
+	}
+
 	// Check if tool is in the enabled list
 	if len(r.config.EnabledTools) > 0 {
 		for _, enabledTool := range r.config.EnabledTools {
