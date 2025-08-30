@@ -74,16 +74,6 @@ calls := []rago.ToolCall{
 results, err := client.BatchCallMCPTools(ctx, calls)
 ```
 
-### 数据库快捷方法
-
-```go
-// SQLite操作快捷方法
-result, _ := client.MCPQuickQuery("SELECT COUNT(*) FROM users")
-result, _ := client.MCPQuickExecute("INSERT INTO users (name) VALUES ('Alice')")
-result, _ := client.MCPListTables()
-result, _ := client.MCPDescribeTable("users")
-```
-
 ### LLM集成
 
 ```go
@@ -107,7 +97,9 @@ result, err := client.CallMCPTool(ctx, toolName, llmArgs)
 ```go
 // 结合RAG搜索和数据库查询
 ragResult, _ := client.Query("用户管理相关问题")
-dbResult, _ := client.MCPQuickQuery("SELECT COUNT(*) FROM users WHERE created_at > DATE('now', '-7 days')")
+dbResult, _ := client.CallMCPToolWithTimeout("mcp_sqlite_query", map[string]interface{}{
+    "query": "SELECT COUNT(*) FROM users WHERE created_at > DATE('now', '-7 days')",
+}, 10*time.Second)
 
 // 组合结果提供更完整的答案
 ```
