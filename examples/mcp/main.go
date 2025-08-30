@@ -13,18 +13,18 @@ import (
 func main() {
 	// 创建 MCP 配置
 	config := &mcp.Config{
-		Enabled:                true,
-		LogLevel:               "info",
-		DefaultTimeout:         30 * time.Second,
-		MaxConcurrentRequests:  10,
-		HealthCheckInterval:    60 * time.Second,
+		Enabled:               true,
+		LogLevel:              "info",
+		DefaultTimeout:        30 * time.Second,
+		MaxConcurrentRequests: 10,
+		HealthCheckInterval:   60 * time.Second,
 		Servers: []mcp.ServerConfig{
 			{
 				Name:             "sqlite",
 				Description:      "SQLite database operations",
-				Command:          []string{"node", "./mcp-sqlite-server/dist/index.js"},
-				Args:             []string{"--allowed-dir", "./data"},
-				WorkingDir:       "./data",
+				Command:          []string{"mcp-sqlite-server"},
+				Args:             []string{"--allowed-dir", "/Users/liliang/Things/AI/go/rago/data"},
+				WorkingDir:       "/Users/liliang/Things/AI/go/rago/data",
 				Env:              map[string]string{"DEBUG": "mcp:*"},
 				AutoStart:        true,
 				RestartOnFailure: true,
@@ -57,8 +57,8 @@ func main() {
 
 	// 获取服务器信息
 	if serverInfo := client.GetServerInfo(); serverInfo != nil {
-		fmt.Printf("✅ Connected to server: %s v%s\n", 
-			serverInfo.Name, 
+		fmt.Printf("✅ Connected to server: %s v%s\n",
+			serverInfo.Name,
 			serverInfo.Version,
 		)
 	}
@@ -91,7 +91,7 @@ func main() {
 
 		fmt.Printf("\n🔍 Testing tool call: %s\n", queryTool)
 		result, err := client.CallTool(ctx, queryTool, map[string]interface{}{
-			"sql": "SELECT name FROM sqlite_master WHERE type='table' LIMIT 5",
+			"query": "SELECT name FROM sqlite_master WHERE type='table' LIMIT 5",
 		})
 
 		if err != nil {
