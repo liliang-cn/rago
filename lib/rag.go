@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/liliang-cn/rago/internal/domain"
+	"github.com/liliang-cn/rago/internal/mcp"
 )
 
 // IngestFile ingests a file from the local filesystem
@@ -162,4 +164,53 @@ func (c *Client) Reset() error {
 	defer cancel()
 
 	return c.processor.Reset(ctx)
+}
+
+// QueryWithMCP performs a query using MCP tools for enhanced functionality
+func (c *Client) QueryWithMCP(query string) (domain.QueryResponse, error) {
+	if !c.IsMCPEnabled() {
+		return domain.QueryResponse{}, fmt.Errorf("MCP is not enabled")
+	}
+
+	// Get MCP tools for LLM integration
+	tools, err := c.ListMCPTools()
+	if err != nil {
+		return domain.QueryResponse{}, fmt.Errorf("failed to get MCP tools: %w", err)
+	}
+
+	if len(tools) == 0 {
+		return domain.QueryResponse{}, fmt.Errorf("no MCP tools available")
+	}
+
+	// Format tools for the prompt
+	var toolDescriptions []string
+	for _, tool := range tools {
+		toolDescriptions = append(toolDescriptions, 
+			fmt.Sprintf("- %s_%s (%s): %s", tool.ServerName, tool.Name, tool.ServerName, tool.Description))
+	}
+
+	// Create enhanced prompt that includes tool information
+	systemPrompt := fmt.Sprintf(`You are an AI assistant with access to MCP tools. You can use the following tools to answer questions:
+
+Available MCP Tools:
+%s
+
+User Question: %s
+
+Please analyze the question and determine which MCP tool(s) to use to answer it effectively. Call the appropriate tools with the necessary parameters.`,
+		strings.Join(toolDescriptions, "\n"),
+		query,
+	)
+
+	ctx := context.Background()
+	req := domain.QueryRequest{
+		Query:        systemPrompt,
+		TopK:         c.config.Sqvect.TopK,
+		Temperature:  0.7,
+		MaxTokens:    1000,
+		ToolsEnabled: true,
+		MaxToolCalls: 3,
+	}
+
+	return c.processor.QueryWithTools(ctx, req)
 }
