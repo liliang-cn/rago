@@ -20,6 +20,7 @@ type Client struct {
 	keywordStore *store.KeywordStore
 	embedder     domain.Embedder
 	llm          domain.Generator
+	mcpClient    *MCPClient // MCP functionality
 }
 
 // New creates a new rago client with the specified config file path
