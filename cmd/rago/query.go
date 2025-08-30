@@ -9,6 +9,7 @@ import (
 
 	"github.com/liliang-cn/rago/internal/chunker"
 	"github.com/liliang-cn/rago/internal/domain"
+	"github.com/liliang-cn/rago/internal/mcp"
 	"github.com/liliang-cn/rago/internal/processor"
 	"github.com/liliang-cn/rago/internal/store"
 	"github.com/spf13/cobra"
@@ -27,17 +28,24 @@ var (
 	enableTools  bool
 	allowedTools []string
 	maxToolCalls int
+	useMCP       bool
 )
 
 var queryCmd = &cobra.Command{
 	Use:   "query [question]",
-	Short: "Query knowledge base with automatic tool calling",
-	Long: `Perform semantic search and Q&A based on imported documents.
+	Short: "Query knowledge base with automatic tool calling or MCP tools",
+	Long: `Perform semantic search and Q&A based on imported documents, or call MCP tools.
 You can provide a question as an argument or use interactive mode.
 
 Tool calling is enabled by default based on your configuration file.
-Use --tools to override the configuration setting.`,
+Use --tools to override the configuration setting.
+Use --mcp to enable MCP tool integration for the query.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Handle MCP mode
+		if useMCP {
+			return processMCPQuery(cmd, args)
+		}
+
 		// Initialize stores
 		vectorStore, err := store.NewSQLiteStore(
 			cfg.Sqvect.DBPath,
@@ -354,6 +362,118 @@ func truncateText(text string, maxLen int) string {
 	return text[:maxLen] + "..."
 }
 
+func processMCPQuery(cmd *cobra.Command, args []string) error {
+	if !cfg.MCP.Enabled {
+		return fmt.Errorf("MCP is disabled in configuration")
+	}
+
+	// Get the query
+	var query string
+	if len(args) == 0 {
+		return fmt.Errorf("please provide a question when using --mcp flag")
+	}
+	query = strings.Join(args, " ")
+
+	fmt.Printf("MCP Query: %s\n\n", query)
+
+	// Initialize MCP service
+	mcpService := mcp.NewMCPService(&cfg.MCP)
+	ctx := context.Background()
+	
+	if err := mcpService.Initialize(ctx); err != nil {
+		return fmt.Errorf("failed to start MCP service: %w", err)
+	}
+	defer mcpService.Close()
+
+	// Get available tools
+	toolsMap := mcpService.GetAvailableTools()
+	if len(toolsMap) == 0 {
+		return fmt.Errorf("no MCP tools available")
+	}
+
+	// Initialize processors for LLM functionality
+	vectorStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath)
+	if err != nil {
+		return fmt.Errorf("failed to create vector store: %w", err)
+	}
+	defer vectorStore.Close()
+
+	keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
+	if err != nil {
+		return fmt.Errorf("failed to create keyword store: %w", err)
+	}
+	defer keywordStore.Close()
+
+	docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
+
+	// Initialize services
+	embedService, llmService, metadataExtractor, err := initializeProviders(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to initialize providers: %w", err)
+	}
+
+	chunkerService := chunker.New()
+	processor := processor.New(
+		embedService,
+		llmService,
+		chunkerService,
+		vectorStore,
+		keywordStore,
+		docStore,
+		cfg,
+		metadataExtractor,
+	)
+
+	// Register MCP tools with the processor
+	if err := processor.RegisterMCPTools(mcpService); err != nil {
+		return fmt.Errorf("failed to register MCP tools: %w", err)
+	}
+
+	// Use regular query with tools enabled - the MCP tools are now registered
+	req := domain.QueryRequest{
+		Query:        query,
+		TopK:         5,
+		Temperature:  0.7,
+		MaxTokens:    1000,
+		Stream:       false,
+		ShowSources:  false,
+		ToolsEnabled: true,
+		MaxToolCalls: 3,
+	}
+
+	resp, err := processor.QueryWithTools(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to process MCP query: %w", err)
+	}
+
+	fmt.Printf("Answer: %s\n", resp.Answer)
+
+	// Show tool execution information if available
+	if len(resp.ToolCalls) > 0 {
+		fmt.Printf("\nTool Executions (%d):\n", len(resp.ToolCalls))
+		for i, toolCall := range resp.ToolCalls {
+			status := "Success"
+			if !toolCall.Success {
+				status = "Failed"
+			}
+			fmt.Printf("  [%d] %s - %s (%s)\n", i+1, toolCall.Function.Name, status, toolCall.Elapsed)
+			if toolCall.Error != "" {
+				fmt.Printf("      Error: %s\n", toolCall.Error)
+			}
+		}
+	}
+
+	return nil
+}
+
+func formatToolsForPrompt(tools []mcp.ToolSummary) string {
+	var result []string
+	for _, tool := range tools {
+		result = append(result, fmt.Sprintf("- %s (%s): %s", tool.Name, tool.ServerName, tool.Description))
+	}
+	return strings.Join(result, "\n")
+}
+
 func init() {
 	queryCmd.Flags().IntVar(&topK, "top-k", 5, "number of documents to retrieve")
 	queryCmd.Flags().Float64Var(&temperature, "temperature", 0.7, "generation temperature")
@@ -368,4 +488,5 @@ func init() {
 	queryCmd.Flags().BoolVar(&enableTools, "tools", false, "enable tool calling capabilities (overrides config file setting)")
 	queryCmd.Flags().StringSliceVar(&allowedTools, "allowed-tools", []string{}, "comma-separated list of allowed tools (empty means all enabled tools)")
 	queryCmd.Flags().IntVar(&maxToolCalls, "max-tool-calls", 5, "maximum number of tool calls per query")
+	queryCmd.Flags().BoolVar(&useMCP, "mcp", false, "use MCP tools for query processing")
 }
