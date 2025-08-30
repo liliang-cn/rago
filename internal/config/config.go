@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/internal/domain"
+	"github.com/liliang-cn/rago/internal/mcp"
 	"github.com/liliang-cn/rago/internal/tools"
 	"github.com/spf13/viper"
 )
@@ -20,6 +21,7 @@ type Config struct {
 	Chunker   ChunkerConfig   `mapstructure:"chunker"`
 	Ingest    IngestConfig    `mapstructure:"ingest"`
 	Tools     tools.ToolConfig `mapstructure:"tools"`
+	MCP       mcp.Config      `mapstructure:"mcp"`
 	
 	// Deprecated: Use Providers instead
 	Ollama OllamaConfig `mapstructure:"ollama"`
@@ -167,6 +169,15 @@ func setDefaults() {
 	viper.SetDefault("tools.plugins.enabled", toolConfig.Plugins.Enabled)
 	viper.SetDefault("tools.plugins.plugin_paths", toolConfig.Plugins.PluginPaths)
 	viper.SetDefault("tools.plugins.auto_load", toolConfig.Plugins.AutoLoad)
+
+	// MCP configuration defaults
+	mcpConfig := mcp.DefaultConfig()
+	viper.SetDefault("mcp.enabled", mcpConfig.Enabled)
+	viper.SetDefault("mcp.log_level", mcpConfig.LogLevel)
+	viper.SetDefault("mcp.default_timeout", mcpConfig.DefaultTimeout)
+	viper.SetDefault("mcp.max_concurrent_requests", mcpConfig.MaxConcurrentRequests)
+	viper.SetDefault("mcp.health_check_interval", mcpConfig.HealthCheckInterval)
+	viper.SetDefault("mcp.servers", mcpConfig.Servers)
 }
 
 func bindEnvVars() {
@@ -306,6 +317,23 @@ func bindEnvVars() {
 	if err := viper.BindEnv("tools.plugins.auto_load", "RAGO_TOOLS_PLUGINS_AUTO_LOAD"); err != nil {
 		log.Printf("Warning: failed to bind tools.plugins.auto_load env var: %v", err)
 	}
+
+	// MCP environment variables
+	if err := viper.BindEnv("mcp.enabled", "RAGO_MCP_ENABLED"); err != nil {
+		log.Printf("Warning: failed to bind mcp.enabled env var: %v", err)
+	}
+	if err := viper.BindEnv("mcp.log_level", "RAGO_MCP_LOG_LEVEL"); err != nil {
+		log.Printf("Warning: failed to bind mcp.log_level env var: %v", err)
+	}
+	if err := viper.BindEnv("mcp.default_timeout", "RAGO_MCP_DEFAULT_TIMEOUT"); err != nil {
+		log.Printf("Warning: failed to bind mcp.default_timeout env var: %v", err)
+	}
+	if err := viper.BindEnv("mcp.max_concurrent_requests", "RAGO_MCP_MAX_CONCURRENT_REQUESTS"); err != nil {
+		log.Printf("Warning: failed to bind mcp.max_concurrent_requests env var: %v", err)
+	}
+	if err := viper.BindEnv("mcp.health_check_interval", "RAGO_MCP_HEALTH_CHECK_INTERVAL"); err != nil {
+		log.Printf("Warning: failed to bind mcp.health_check_interval env var: %v", err)
+	}
 }
 
 func (c *Config) Validate() error {
@@ -368,6 +396,11 @@ func (c *Config) Validate() error {
 	// Validate tools configuration
 	if err := c.validateToolsConfig(); err != nil {
 		return fmt.Errorf("invalid tools configuration: %w", err)
+	}
+
+	// Validate MCP configuration
+	if err := c.validateMCPConfig(); err != nil {
+		return fmt.Errorf("invalid MCP configuration: %w", err)
 	}
 
 	return nil
@@ -584,4 +617,70 @@ func GetEnvOrDefaultBool(key string, defaultValue bool) bool {
 		}
 	}
 	return defaultValue
+}
+
+// validateMCPConfig validates the MCP configuration
+func (c *Config) validateMCPConfig() error {
+	if !c.MCP.Enabled {
+		return nil // Skip validation if MCP is disabled
+	}
+
+	if c.MCP.DefaultTimeout <= 0 {
+		return fmt.Errorf("default_timeout must be positive: %v", c.MCP.DefaultTimeout)
+	}
+
+	if c.MCP.MaxConcurrentRequests < 0 {
+		return fmt.Errorf("max_concurrent_requests must be non-negative: %d", c.MCP.MaxConcurrentRequests)
+	}
+
+	if c.MCP.HealthCheckInterval <= 0 {
+		return fmt.Errorf("health_check_interval must be positive: %v", c.MCP.HealthCheckInterval)
+	}
+
+	validLogLevels := map[string]bool{
+		"debug": true,
+		"info":  true,
+		"warn":  true,
+		"error": true,
+	}
+	if c.MCP.LogLevel != "" && !validLogLevels[c.MCP.LogLevel] {
+		return fmt.Errorf("invalid log_level: %s (must be debug, info, warn, or error)", c.MCP.LogLevel)
+	}
+
+	// Validate server configurations
+	for i, server := range c.MCP.Servers {
+		if err := c.validateMCPServerConfig(&server, i); err != nil {
+			return fmt.Errorf("invalid MCP server config at index %d: %w", i, err)
+		}
+	}
+
+	return nil
+}
+
+// validateMCPServerConfig validates individual MCP server configuration
+func (c *Config) validateMCPServerConfig(server *mcp.ServerConfig, index int) error {
+	if server.Name == "" {
+		return fmt.Errorf("server name cannot be empty")
+	}
+
+	if len(server.Command) == 0 {
+		return fmt.Errorf("server command cannot be empty")
+	}
+
+	if server.MaxRestarts < 0 {
+		return fmt.Errorf("max_restarts must be non-negative: %d", server.MaxRestarts)
+	}
+
+	if server.RestartDelay < 0 {
+		return fmt.Errorf("restart_delay must be non-negative: %v", server.RestartDelay)
+	}
+
+	// Check for duplicate server names
+	for j, other := range c.MCP.Servers {
+		if j != index && other.Name == server.Name {
+			return fmt.Errorf("duplicate server name: %s", server.Name)
+		}
+	}
+
+	return nil
 }
