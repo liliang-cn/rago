@@ -124,29 +124,3 @@ type ToolCall struct {
 	ToolName string                 `json:"tool_name"`
 	Args     map[string]interface{} `json:"args"`
 }
-
-// MCPQuickQuery provides a convenient way to query SQLite via MCP
-func (c *Client) MCPQuickQuery(query string) (*mcp.MCPToolResult, error) {
-	return c.CallMCPToolWithTimeout("mcp_sqlite_query", map[string]interface{}{
-		"query": query,
-	}, 30*time.Second)
-}
-
-// MCPQuickExecute provides a convenient way to execute SQLite statements via MCP
-func (c *Client) MCPQuickExecute(sql string) (*mcp.MCPToolResult, error) {
-	return c.CallMCPToolWithTimeout("mcp_sqlite_execute", map[string]interface{}{
-		"sql": sql,
-	}, 30*time.Second)
-}
-
-// MCPListTables lists database tables via MCP
-func (c *Client) MCPListTables() (*mcp.MCPToolResult, error) {
-	return c.CallMCPToolWithTimeout("mcp_sqlite_list_tables", map[string]interface{}{}, 10*time.Second)
-}
-
-// MCPDescribeTable describes a database table via MCP
-func (c *Client) MCPDescribeTable(tableName string) (*mcp.MCPToolResult, error) {
-	return c.CallMCPToolWithTimeout("mcp_sqlite_describe_table", map[string]interface{}{
-		"table": tableName,
-	}, 10*time.Second)
-}
