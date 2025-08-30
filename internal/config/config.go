@@ -109,6 +109,25 @@ func Load(configPath string) (*Config, error) {
 		config.Ingest.MetadataExtraction.LLMModel = config.getDefaultLLMModel()
 	}
 
+	// Initialize MCP config if not properly loaded
+	if config.MCP.DefaultTimeout == 0 {
+		defaultMCP := mcp.DefaultConfig()
+		if config.MCP.LogLevel == "" {
+			config.MCP = defaultMCP
+		} else {
+			// Preserve any values that were set
+			if config.MCP.DefaultTimeout == 0 {
+				config.MCP.DefaultTimeout = defaultMCP.DefaultTimeout
+			}
+			if config.MCP.MaxConcurrentRequests == 0 {
+				config.MCP.MaxConcurrentRequests = defaultMCP.MaxConcurrentRequests
+			}
+			if config.MCP.HealthCheckInterval == 0 {
+				config.MCP.HealthCheckInterval = defaultMCP.HealthCheckInterval
+			}
+		}
+	}
+
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
