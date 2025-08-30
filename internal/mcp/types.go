@@ -8,27 +8,27 @@ import (
 
 // ServerConfig represents the configuration for an MCP server
 type ServerConfig struct {
-	Name             string            `toml:"name" json:"name"`
-	Description      string            `toml:"description" json:"description"`
-	Command          []string          `toml:"command" json:"command"`
-	Args             []string          `toml:"args" json:"args"`
-	WorkingDir       string            `toml:"working_dir" json:"working_dir"`
-	Env              map[string]string `toml:"env" json:"env"`
-	AutoStart        bool              `toml:"auto_start" json:"auto_start"`
-	RestartOnFailure bool              `toml:"restart_on_failure" json:"restart_on_failure"`
-	MaxRestarts      int               `toml:"max_restarts" json:"max_restarts"`
-	RestartDelay     time.Duration     `toml:"restart_delay" json:"restart_delay"`
-	Capabilities     []string          `toml:"capabilities" json:"capabilities"`
+	Name             string            `toml:"name" json:"name" mapstructure:"name"`
+	Description      string            `toml:"description" json:"description" mapstructure:"description"`
+	Command          []string          `toml:"command" json:"command" mapstructure:"command"`
+	Args             []string          `toml:"args" json:"args" mapstructure:"args"`
+	WorkingDir       string            `toml:"working_dir" json:"working_dir" mapstructure:"working_dir"`
+	Env              map[string]string `toml:"env" json:"env" mapstructure:"env"`
+	AutoStart        bool              `toml:"auto_start" json:"auto_start" mapstructure:"auto_start"`
+	RestartOnFailure bool              `toml:"restart_on_failure" json:"restart_on_failure" mapstructure:"restart_on_failure"`
+	MaxRestarts      int               `toml:"max_restarts" json:"max_restarts" mapstructure:"max_restarts"`
+	RestartDelay     time.Duration     `toml:"restart_delay" json:"restart_delay" mapstructure:"restart_delay"`
+	Capabilities     []string          `toml:"capabilities" json:"capabilities" mapstructure:"capabilities"`
 }
 
 // Config represents the overall MCP configuration
 type Config struct {
-	Enabled                bool           `toml:"enabled" json:"enabled"`
-	LogLevel               string         `toml:"log_level" json:"log_level"`
-	DefaultTimeout         time.Duration  `toml:"default_timeout" json:"default_timeout"`
-	MaxConcurrentRequests  int            `toml:"max_concurrent_requests" json:"max_concurrent_requests"`
-	HealthCheckInterval    time.Duration  `toml:"health_check_interval" json:"health_check_interval"`
-	Servers                []ServerConfig `toml:"servers" json:"servers"`
+	Enabled                bool           `toml:"enabled" json:"enabled" mapstructure:"enabled"`
+	LogLevel               string         `toml:"log_level" json:"log_level" mapstructure:"log_level"`
+	DefaultTimeout         time.Duration  `toml:"default_timeout" json:"default_timeout" mapstructure:"default_timeout"`
+	MaxConcurrentRequests  int            `toml:"max_concurrent_requests" json:"max_concurrent_requests" mapstructure:"max_concurrent_requests"`
+	HealthCheckInterval    time.Duration  `toml:"health_check_interval" json:"health_check_interval" mapstructure:"health_check_interval"`
+	Servers                []ServerConfig `toml:"servers" json:"servers" mapstructure:"servers"`
 }
 
 // DefaultConfig returns default MCP configuration
