@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/internal/config"
 	"github.com/liliang-cn/rago/internal/domain"
+	"github.com/liliang-cn/rago/internal/mcp"
 	"github.com/liliang-cn/rago/internal/tools"
 	"github.com/liliang-cn/rago/internal/tools/builtin"
 	"github.com/liliang-cn/rago/internal/utils"
@@ -1086,4 +1087,128 @@ func (s *Service) GetToolRegistry() *tools.Registry {
 // GetToolExecutor returns the tool executor if tools are enabled
 func (s *Service) GetToolExecutor() *tools.Executor {
 	return s.toolExecutor
+}
+
+// RegisterMCPTools registers MCP tools with the processor
+func (s *Service) RegisterMCPTools(mcpService *mcp.MCPService) error {
+	if !s.toolsEnabled {
+		return fmt.Errorf("tools are not enabled in this processor")
+	}
+
+	if s.toolRegistry == nil {
+		return fmt.Errorf("tool registry is not initialized")
+	}
+
+	// Get all available MCP tools
+	mcpTools := mcpService.GetAvailableTools()
+	if len(mcpTools) == 0 {
+		return fmt.Errorf("no MCP tools available")
+	}
+
+	// Register each MCP tool as a domain.Tool
+	for _, mcpTool := range mcpTools {
+		// Create an adapter that implements domain.Tool interface
+		adapter := &MCPToolAdapter{
+			mcpTool:    mcpTool,
+			mcpService: mcpService,
+		}
+
+		// Register the adapter with the tool registry
+		if err := s.toolRegistry.Register(adapter); err != nil {
+			log.Printf("Failed to register MCP tool %s: %v", mcpTool.Name(), err)
+			continue
+		}
+
+		log.Printf("[INFO] Registered MCP tool: %s", mcpTool.Name())
+	}
+
+	return nil
+}
+
+// MCPToolAdapter adapts MCP tools to the domain.Tool interface
+type MCPToolAdapter struct {
+	mcpTool    *mcp.MCPToolWrapper
+	mcpService *mcp.MCPService
+}
+
+// Name returns the tool name
+func (a *MCPToolAdapter) Name() string {
+	return a.mcpTool.Name()
+}
+
+// Description returns the tool description
+func (a *MCPToolAdapter) Description() string {
+	return a.mcpTool.Description()
+}
+
+// Parameters returns the tool parameters in the expected format
+func (a *MCPToolAdapter) Parameters() tools.ToolParameters {
+	// Convert MCP tool schema to tools.ToolParameters
+	schema := a.mcpTool.Schema()
+	
+	params := tools.ToolParameters{
+		Type:       "object",
+		Properties: make(map[string]tools.ToolParameter),
+		Required:   []string{},
+	}
+	
+	if properties, ok := schema["properties"].(map[string]interface{}); ok {
+		for name, prop := range properties {
+			if propMap, ok := prop.(map[string]interface{}); ok {
+				param := tools.ToolParameter{
+					Type:        getString(propMap, "type", "string"),
+					Description: getString(propMap, "description", ""),
+				}
+				params.Properties[name] = param
+			}
+		}
+	}
+	
+	if required, ok := schema["required"].([]string); ok {
+		params.Required = required
+	}
+	
+	return params
+}
+
+// Execute runs the MCP tool with the given arguments
+func (a *MCPToolAdapter) Execute(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error) {
+	result, err := a.mcpTool.Call(ctx, args)
+	if err != nil {
+		return &tools.ToolResult{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	return &tools.ToolResult{
+		Success: result.Success,
+		Data:    result.Data,
+		Error:   result.Error,
+	}, nil
+}
+
+// Validate checks if the provided arguments are valid for this tool
+func (a *MCPToolAdapter) Validate(args map[string]interface{}) error {
+	// Basic validation - could be enhanced based on MCP tool schema
+	params := a.Parameters()
+	
+	// Check required parameters
+	for _, required := range params.Required {
+		if _, exists := args[required]; !exists {
+			return fmt.Errorf("required parameter '%s' is missing", required)
+		}
+	}
+	
+	return nil
+}
+
+// Helper function to safely get string values from map
+func getString(m map[string]interface{}, key, defaultValue string) string {
+	if val, ok := m[key]; ok {
+		if str, ok := val.(string); ok {
+			return str
+		}
+	}
+	return defaultValue
 }
