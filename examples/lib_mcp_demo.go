@@ -89,9 +89,9 @@ func demonstrateBasicMCP(client *rago.Client) {
 }
 
 func demonstrateDatabaseOps(client *rago.Client) {
-	// 列出表
+	// 使用通用的MCP工具调用，而不是快捷方法
 	fmt.Println("   📊 Listing database tables...")
-	result, err := client.MCPListTables()
+	result, err := client.CallMCPToolWithTimeout("mcp_sqlite_list_tables", map[string]interface{}{}, 10*time.Second)
 	if err != nil {
 		fmt.Printf("   ❌ Failed to list tables: %v\n", err)
 		return
@@ -106,7 +106,9 @@ func demonstrateDatabaseOps(client *rago.Client) {
 	
 	// 执行查询
 	fmt.Println("   🔍 Executing sample query...")
-	queryResult, err := client.MCPQuickQuery("SELECT name FROM sqlite_master WHERE type='table' LIMIT 3")
+	queryResult, err := client.CallMCPToolWithTimeout("mcp_sqlite_query", map[string]interface{}{
+		"query": "SELECT name FROM sqlite_master WHERE type='table' LIMIT 3",
+	}, 15*time.Second)
 	if err != nil {
 		fmt.Printf("   ❌ Query failed: %v\n", err)
 		return
@@ -120,9 +122,10 @@ func demonstrateDatabaseOps(client *rago.Client) {
 	
 	// 描述表结构
 	if result.Success {
-		// Try to describe the first table we can find
 		fmt.Println("   📋 Describing table structure...")
-		descResult, err := client.MCPDescribeTable("test_table")
+		descResult, err := client.CallMCPToolWithTimeout("mcp_sqlite_describe_table", map[string]interface{}{
+			"table": "test_table",
+		}, 10*time.Second)
 		if err != nil {
 			fmt.Printf("   ❌ Describe failed: %v\n", err)
 		} else if descResult.Success {
@@ -200,7 +203,9 @@ func demonstrateRAGWithMCP(client *rago.Client, ctx context.Context) {
 	
 	// 2. 使用MCP查询相关的数据库信息
 	fmt.Println("   🗄️ Step 2: Query database for additional context...")
-	dbResult, err := client.MCPQuickQuery("SELECT COUNT(*) as total_tables FROM sqlite_master WHERE type='table'")
+	dbResult, err := client.CallMCPToolWithTimeout("mcp_sqlite_query", map[string]interface{}{
+		"query": "SELECT COUNT(*) as total_tables FROM sqlite_master WHERE type='table'",
+	}, 10*time.Second)
 	if err != nil {
 		fmt.Printf("   ❌ Database query failed: %v\n", err)
 		return
