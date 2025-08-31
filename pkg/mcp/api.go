@@ -216,7 +216,11 @@ func ExampleBasicUsage(config *Config) error {
 	if err := api.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start MCP: %w", err)
 	}
-	defer api.Stop()
+	defer func() {
+		if err := api.Stop(); err != nil {
+			fmt.Printf("failed to stop mcp api: %v\n", err)
+		}
+	}()
 	
 	// List available tools
 	tools := api.ListTools()
@@ -247,7 +251,11 @@ func ExampleLLMIntegration(config *Config) ([]map[string]interface{}, error) {
 	if err := api.Start(ctx); err != nil {
 		return nil, fmt.Errorf("failed to start MCP: %w", err)
 	}
-	defer api.Stop()
+	defer func() {
+		if err := api.Stop(); err != nil {
+			fmt.Printf("failed to stop mcp api: %v\n", err)
+		}
+	}()
 	
 	// Get tools formatted for LLM function calling
 	llmTools := api.GetToolsForLLMIntegration()

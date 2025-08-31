@@ -23,6 +23,11 @@ var RootCmd = &cobra.Command{
 integrating SQLite vector database (sqvect) and local LLM client (ollama-go),
 supporting document ingestion, semantic search, and context-enhanced Q&A.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Skip config loading for commands that don't need existing config
+		if cmd.Name() == "init" || cmd.Name() == "version" {
+			return nil
+		}
+		
 		var err error
 		cfg, err = config.Load(cfgFile)
 		if err != nil {
@@ -61,7 +66,7 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
-	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "configuration file path (default: ./config.toml)")
+	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "configuration file path (default: ~/.rago/rago.toml)")
 	RootCmd.PersistentFlags().StringVar(&dbPath, "db-path", "", "database path (default: ./data/rag.db)")
 	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose logging output")
 	RootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "quiet mode")

@@ -114,24 +114,31 @@ func maskAPIKey(apiKey string) string {
 }
 
 func checkLegacyStatus(ctx context.Context, cfg *config.Config) error {
-	fmt.Println("🔍 Checking legacy Ollama configuration...")
-	fmt.Printf("🔍 Checking Ollama connection to %s...\n", cfg.Ollama.BaseURL)
+	fmt.Println("🔍 Checking Ollama provider configuration...")
+	
+	// Check if Ollama provider is configured
+	if cfg.Providers.ProviderConfigs.Ollama == nil {
+		fmt.Printf("⚠️  Ollama provider not configured in provider system\n")
+		return nil
+	}
+		fmt.Printf("🔍 Checking Ollama connection to %s...\n", cfg.Providers.ProviderConfigs.Ollama.BaseURL)
 
-	// Create legacy Ollama service using new provider system
+
+	// Create Ollama service using provider system
 	factory := providers.NewFactory()
 	
-	legacyConfig := &domain.OllamaProviderConfig{
+	ollamaConfig := &domain.OllamaProviderConfig{
 		BaseProviderConfig: domain.BaseProviderConfig{
 			Type:    domain.ProviderOllama,
-			Timeout: cfg.Ollama.Timeout,
+						Timeout: cfg.Providers.ProviderConfigs.Ollama.Timeout,
 		},
-		BaseURL:        cfg.Ollama.BaseURL,
-		LLMModel:       cfg.Ollama.LLMModel,
-		EmbeddingModel: cfg.Ollama.EmbeddingModel,
+				BaseURL:        cfg.Providers.ProviderConfigs.Ollama.BaseURL,
+		LLMModel:       cfg.Providers.ProviderConfigs.Ollama.LLMModel,
+		EmbeddingModel: cfg.Providers.ProviderConfigs.Ollama.EmbeddingModel,
 	}
 
 	// Check LLM provider
-	llmProvider, err := factory.CreateLLMProvider(ctx, legacyConfig)
+	llmProvider, err := factory.CreateLLMProvider(ctx, ollamaConfig)
 	if err != nil {
 		fmt.Printf("❌ Failed to create Ollama LLM provider: %v\n", err)
 		return nil
@@ -145,14 +152,14 @@ func checkLegacyStatus(ctx context.Context, cfg *config.Config) error {
 		return nil
 	}
 
-	fmt.Printf("✅ Ollama is available at %s\n", cfg.Ollama.BaseURL)
+	fmt.Printf("✅ Ollama is available at %s\n", cfg.Providers.ProviderConfigs.Ollama.BaseURL)
 	fmt.Printf("📋 Configuration:\n")
-	fmt.Printf("   • LLM Model: %s\n", cfg.Ollama.LLMModel)
-	fmt.Printf("   • Embedding Model: %s\n", cfg.Ollama.EmbeddingModel)
-	fmt.Printf("   • Timeout: %s\n", cfg.Ollama.Timeout)
+	fmt.Printf("   • LLM Model: %s\n", cfg.Providers.ProviderConfigs.Ollama.LLMModel)
+	fmt.Printf("   • Embedding Model: %s\n", cfg.Providers.ProviderConfigs.Ollama.EmbeddingModel)
+	fmt.Printf("   • Timeout: %s\n", cfg.Providers.ProviderConfigs.Ollama.Timeout)
 
 	// Check embedder
-	embedderProvider, err := factory.CreateEmbedderProvider(ctx, legacyConfig)
+	embedderProvider, err := factory.CreateEmbedderProvider(ctx, ollamaConfig)
 	if err != nil {
 		fmt.Printf("⚠️  Failed to create embedder provider: %v\n", err)
 		return nil

@@ -225,7 +225,11 @@ func (h *HTTPTool) Execute(ctx context.Context, args map[string]interface{}) (*t
 			},
 		}, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+		defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Printf("Warning: failed to close response body: %v\n", err)
+		}
+	}()
 
 	// Read response body with size limit
 	limitReader := io.LimitReader(resp.Body, h.maxBodySize)

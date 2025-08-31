@@ -142,7 +142,7 @@ func TestHTTPTool_Execute_GET(t *testing.T) {
 		assert.Contains(t, r.Header.Get("User-Agent"), "RAGO-HTTP-Tool")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "success", "method": "GET"}`))
+				_, _ = w.Write([]byte(`{"message": "success", "method": "GET"}`))
 	}))
 	defer server.Close()
 
@@ -178,7 +178,7 @@ func TestHTTPTool_Execute_POST(t *testing.T) {
 		assert.Equal(t, "POST", r.Method)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(`{"created": true}`))
+				_, _ = w.Write([]byte(`{"created": true}`))
 	}))
 	defer server.Close()
 
@@ -207,7 +207,7 @@ func TestHTTPTool_Execute_WithHeaders(t *testing.T) {
 		assert.Equal(t, "Bearer token123", r.Header.Get("Authorization"))
 		assert.Equal(t, "custom-value", r.Header.Get("X-Custom-Header"))
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+				_, _ = w.Write([]byte("OK"))
 	}))
 	defer server.Close()
 
@@ -254,7 +254,9 @@ func TestHTTPTool_Execute_NonJSONResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Plain text response"))
+		if _, err := w.Write([]byte("Plain text response")); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 

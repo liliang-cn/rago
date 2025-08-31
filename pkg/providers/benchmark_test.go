@@ -62,38 +62,7 @@ var personSchema = map[string]interface{}{
 }
 
 // Complex nested schema
-var companySchema = map[string]interface{}{
-	"type": "object",
-	"properties": map[string]interface{}{
-		"name":     map[string]interface{}{"type": "string"},
-		"founded":  map[string]interface{}{"type": "integer"},
-		"industry": map[string]interface{}{"type": "string"},
-		"employees": map[string]interface{}{
-			"type": "array",
-			"items": personSchema,
-		},
-		"revenue":     map[string]interface{}{"type": "number"},
-		"locations":   map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
-		"is_public":   map[string]interface{}{"type": "boolean"},
-		"website":     map[string]interface{}{"type": "string"},
-		"description": map[string]interface{}{"type": "string"},
-		"products": map[string]interface{}{
-			"type": "array",
-			"items": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"name":        map[string]interface{}{"type": "string"},
-					"price":       map[string]interface{}{"type": "number"},
-					"category":    map[string]interface{}{"type": "string"},
-					"in_stock":    map[string]interface{}{"type": "boolean"},
-					"description": map[string]interface{}{"type": "string"},
-					"rating":      map[string]interface{}{"type": "number"},
-					"reviews":     map[string]interface{}{"type": "integer"},
-				},
-			},
-		},
-	},
-}
+
 
 // Benchmark LMStudio structured output with simple data
 func BenchmarkLMStudioStructuredSimple(b *testing.B) {

@@ -131,7 +131,7 @@ var toolsDescribeCmd = &cobra.Command{
 				if param.Default != nil {
 					fmt.Printf("      Default: %v\n", param.Default)
 				}
-				if param.Enum != nil && len(param.Enum) > 0 {
+								if len(param.Enum) > 0 {
 					fmt.Printf("      Allowed values: %v\n", param.Enum)
 				}
 			}
@@ -308,7 +308,9 @@ func initializeProcessor() (*processor.Service, func(), error) {
 
 	keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
 	if err != nil {
-		vectorStore.Close()
+		if err := vectorStore.Close(); err != nil {
+			fmt.Printf("Warning: failed to close vector store during cleanup: %v\n", err)
+		}
 		return nil, nil, fmt.Errorf("failed to create keyword store: %w", err)
 	}
 
@@ -318,8 +320,12 @@ func initializeProcessor() (*processor.Service, func(), error) {
 	ctx := context.Background()
 	embedService, llmService, metadataExtractor, err := initializeProviders(ctx, cfg)
 	if err != nil {
-		vectorStore.Close()
-		keywordStore.Close()
+		if err := vectorStore.Close(); err != nil {
+			fmt.Printf("Warning: failed to close vector store during cleanup: %v\n", err)
+		}
+		if err := keywordStore.Close(); err != nil {
+			fmt.Printf("Warning: failed to close keyword store during cleanup: %v\n", err)
+		}
 		return nil, nil, fmt.Errorf("failed to initialize providers: %w", err)
 	}
 
@@ -337,8 +343,12 @@ func initializeProcessor() (*processor.Service, func(), error) {
 	)
 
 	cleanup := func() {
-		vectorStore.Close()
-		keywordStore.Close()
+		if err := vectorStore.Close(); err != nil {
+			fmt.Printf("Warning: failed to close vector store during cleanup: %v\n", err)
+		}
+		if err := keywordStore.Close(); err != nil {
+			fmt.Printf("Warning: failed to close keyword store during cleanup: %v\n", err)
+		}
 	}
 
 	return processor, cleanup, nil

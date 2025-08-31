@@ -49,13 +49,21 @@ var serveCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)
 		}
-		defer vectorStore.Close()
+		defer func() {
+			if err := vectorStore.Close(); err != nil {
+				fmt.Printf("Warning: failed to close vector store: %v\n", err)
+			}
+		}()
 
 		keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
 		if err != nil {
 			return fmt.Errorf("failed to create keyword store: %w", err)
 		}
-		defer keywordStore.Close()
+		defer func() {
+			if err := keywordStore.Close(); err != nil {
+				fmt.Printf("Warning: failed to close keyword store: %v\n", err)
+			}
+		}()
 
 		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
