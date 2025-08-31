@@ -586,6 +586,10 @@ threshold = 0.0
 [keyword]
 index_path = "./data/keyword.bleve"
 
+[rrf]
+k = 10                                   # RRF 常数（影响分数分布）
+relevance_threshold = 0.05               # 相关性阈值
+
 [chunker]
 chunk_size = 500
 overlap = 50

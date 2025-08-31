@@ -58,6 +58,13 @@ threshold = 0.0                # Similarity threshold for filtering
 index_path = "./data/keyword.bleve"  # Bleve keyword index path
 
 # =============================================================================
+# RECIPROCAL RANK FUSION (RRF) CONFIGURATION
+# =============================================================================
+[rrf]
+k = 10                         # RRF constant (lower = less score compression)
+relevance_threshold = 0.05     # Threshold for considering context relevant
+
+# =============================================================================
 # DOCUMENT CHUNKING CONFIGURATION
 # =============================================================================
 [chunker]

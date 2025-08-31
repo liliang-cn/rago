@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/liliang-cn/rago/internal/domain"
 	"github.com/liliang-cn/rago/internal/mcp"
+	"github.com/liliang-cn/rago/internal/utils"
 )
 
 // MCPClient provides MCP (Model Context Protocol) functionality
@@ -19,21 +21,21 @@ func (c *Client) EnableMCP(ctx context.Context) error {
 	if !c.config.MCP.Enabled {
 		return fmt.Errorf("MCP is disabled in configuration")
 	}
-	
+
 	if c.mcpClient != nil && c.mcpClient.enabled {
 		return nil // Already enabled
 	}
-	
+
 	api := mcp.NewMCPLibraryAPI(&c.config.MCP)
 	if err := api.Start(ctx); err != nil {
 		return fmt.Errorf("failed to start MCP service: %w", err)
 	}
-	
+
 	c.mcpClient = &MCPClient{
 		api:     api,
 		enabled: true,
 	}
-	
+
 	return nil
 }
 
@@ -42,11 +44,11 @@ func (c *Client) DisableMCP() error {
 	if c.mcpClient == nil || !c.mcpClient.enabled {
 		return nil
 	}
-	
+
 	if err := c.mcpClient.api.Stop(); err != nil {
 		return fmt.Errorf("failed to stop MCP service: %w", err)
 	}
-	
+
 	c.mcpClient.enabled = false
 	return nil
 }
@@ -61,7 +63,7 @@ func (c *Client) ListMCPTools() ([]mcp.ToolSummary, error) {
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
-	
+
 	return c.mcpClient.api.ListTools(), nil
 }
 
@@ -70,7 +72,7 @@ func (c *Client) GetMCPToolsForLLM() ([]map[string]interface{}, error) {
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
-	
+
 	return c.mcpClient.api.GetToolsForLLMIntegration(), nil
 }
 
@@ -79,7 +81,7 @@ func (c *Client) CallMCPTool(ctx context.Context, toolName string, args map[stri
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
-	
+
 	return c.mcpClient.api.CallTool(ctx, toolName, args)
 }
 
@@ -88,7 +90,7 @@ func (c *Client) CallMCPToolWithTimeout(toolName string, args map[string]interfa
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
-	
+
 	return c.mcpClient.api.CallToolWithTimeout(toolName, args, timeout)
 }
 
@@ -97,7 +99,7 @@ func (c *Client) GetMCPServerStatus() (map[string]bool, error) {
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
-	
+
 	return c.mcpClient.api.GetServerStatuses(), nil
 }
 
@@ -106,7 +108,7 @@ func (c *Client) BatchCallMCPTools(ctx context.Context, calls []ToolCall) ([]mcp
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
-	
+
 	// Convert to mcp.ToolCall format
 	mcpCalls := make([]mcp.ToolCall, len(calls))
 	for i, call := range calls {
@@ -115,7 +117,7 @@ func (c *Client) BatchCallMCPTools(ctx context.Context, calls []ToolCall) ([]mcp
 			Args:     call.Args,
 		}
 	}
-	
+
 	return c.mcpClient.api.BatchCall(ctx, mcpCalls)
 }
 
@@ -123,4 +125,186 @@ func (c *Client) BatchCallMCPTools(ctx context.Context, calls []ToolCall) ([]mcp
 type ToolCall struct {
 	ToolName string                 `json:"tool_name"`
 	Args     map[string]interface{} `json:"args"`
+}
+
+// MCPChatOptions contains options for MCP chat
+type MCPChatOptions struct {
+	Temperature  float64
+	MaxTokens    int
+	ShowThinking bool
+	AllowedTools []string
+}
+
+// ChatWithMCP performs a direct chat with MCP tools, bypassing RAG
+func (c *Client) ChatWithMCP(message string, opts *MCPChatOptions) (*MCPChatResponse, error) {
+	if opts == nil {
+		opts = &MCPChatOptions{
+			Temperature:  0.7,
+			MaxTokens:    1000,
+			ShowThinking: true,
+		}
+	}
+
+	ctx := context.Background()
+
+	// Initialize LLM service
+	_, llmService, _, err := utils.InitializeProviders(ctx, c.config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize LLM service: %w", err)
+	}
+
+	// Create MCP tool manager
+	mcpManager := mcp.NewMCPToolManager(&c.config.MCP)
+
+	// Get available tools
+	toolsMap := mcpManager.ListTools()
+
+	// Convert to slice for filtering
+	var tools []*mcp.MCPToolWrapper
+	for _, tool := range toolsMap {
+		tools = append(tools, tool)
+	}
+
+	// Filter tools if allowed-tools is specified
+	if len(opts.AllowedTools) > 0 {
+		allowedSet := make(map[string]bool)
+		for _, tool := range opts.AllowedTools {
+			allowedSet[tool] = true
+		}
+
+		var filteredTools []*mcp.MCPToolWrapper
+		for _, tool := range tools {
+			if allowedSet[tool.Name()] {
+				filteredTools = append(filteredTools, tool)
+			}
+		}
+		tools = filteredTools
+	}
+
+	// Build tool definitions for LLM
+	var toolDefinitions []domain.ToolDefinition
+	for _, tool := range tools {
+		definition := domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        tool.Name(),
+				Description: tool.Description(),
+				Parameters:  tool.Schema(),
+			},
+		}
+		toolDefinitions = append(toolDefinitions, definition)
+	}
+
+	// Prepare messages
+	messages := []domain.Message{
+		{
+			Role:    "user",
+			Content: message,
+		},
+	}
+
+	// Generation options
+	genOpts := &domain.GenerationOptions{
+		Temperature: opts.Temperature,
+		MaxTokens:   opts.MaxTokens,
+		Think:       &opts.ShowThinking,
+	}
+
+	// Call LLM with tools
+	result, err := llmService.GenerateWithTools(ctx, messages, toolDefinitions, genOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate response: %w", err)
+	}
+
+	response := &MCPChatResponse{
+		Content:     result.Content,
+		ToolCalls:   make([]MCPToolCallResult, 0),
+		Thinking:    "",
+		HasThinking: opts.ShowThinking,
+	}
+
+	// Handle tool calls
+	if len(result.ToolCalls) > 0 {
+		for _, toolCall := range result.ToolCalls {
+			// Execute tool call via MCP
+			mcpResult, err := mcpManager.CallTool(ctx, toolCall.Function.Name, toolCall.Function.Arguments)
+
+			toolCallResult := MCPToolCallResult{
+				ToolName:  toolCall.Function.Name,
+				Arguments: toolCall.Function.Arguments,
+				Success:   err == nil,
+			}
+
+			if err != nil {
+				toolCallResult.Error = err.Error()
+			} else {
+				toolCallResult.Result = mcpResult.Data
+				if mcpResult.Error != "" {
+					toolCallResult.Error = mcpResult.Error
+					toolCallResult.Success = false
+				}
+			}
+
+			response.ToolCalls = append(response.ToolCalls, toolCallResult)
+		}
+
+		// If we have tool results, send follow-up request for final response
+		if len(response.ToolCalls) > 0 {
+			// Build tool result messages
+			var toolResults []domain.Message
+			for i, toolCall := range result.ToolCalls {
+				var resultContent string
+				if response.ToolCalls[i].Success {
+					if response.ToolCalls[i].Result != nil {
+						resultContent = fmt.Sprintf("%v", response.ToolCalls[i].Result)
+					} else {
+						resultContent = "Tool executed successfully"
+					}
+				} else {
+					resultContent = fmt.Sprintf("Error: %s", response.ToolCalls[i].Error)
+				}
+
+				toolResults = append(toolResults, domain.Message{
+					Role:       "tool",
+					Content:    resultContent,
+					ToolCallID: toolCall.ID,
+				})
+			}
+
+			// Append assistant message with tool calls
+			messages = append(messages, domain.Message{
+				Role:      "assistant",
+				Content:   result.Content,
+				ToolCalls: result.ToolCalls,
+			})
+
+			// Append tool results
+			messages = append(messages, toolResults...)
+
+			followUpResult, err := llmService.GenerateWithTools(ctx, messages, toolDefinitions, genOpts)
+			if err == nil {
+				response.FinalResponse = followUpResult.Content
+			}
+		}
+	}
+
+	return response, nil
+}
+
+// MCPChatResponse represents the response from MCP chat
+type MCPChatResponse struct {
+	Content       string              `json:"content"`
+	FinalResponse string              `json:"final_response,omitempty"`
+	ToolCalls     []MCPToolCallResult `json:"tool_calls,omitempty"`
+	Thinking      string              `json:"thinking,omitempty"`
+	HasThinking   bool                `json:"has_thinking"`
+}
+
+// MCPToolCallResult represents the result of an MCP tool call
+type MCPToolCallResult struct {
+	ToolName  string                 `json:"tool_name"`
+	Arguments map[string]interface{} `json:"arguments"`
+	Result    interface{}            `json:"result,omitempty"`
+	Error     string                 `json:"error,omitempty"`
+	Success   bool                   `json:"success"`
 }

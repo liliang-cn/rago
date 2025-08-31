@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/internal/domain"
-	"github.com/liliang-cn/rago/internal/mcp"
 )
 
 // IngestFile ingests a file from the local filesystem
@@ -185,7 +184,7 @@ func (c *Client) QueryWithMCP(query string) (domain.QueryResponse, error) {
 	// Format tools for the prompt
 	var toolDescriptions []string
 	for _, tool := range tools {
-		toolDescriptions = append(toolDescriptions, 
+		toolDescriptions = append(toolDescriptions,
 			fmt.Sprintf("- %s_%s (%s): %s", tool.ServerName, tool.Name, tool.ServerName, tool.Description))
 	}
 
