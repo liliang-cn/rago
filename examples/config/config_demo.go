@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/liliang-cn/rago/internal/config"
+	"github.com/liliang-cn/rago/pkg/config"
 )
 
 // 演示MCP配置的TOML支持和环境变量绑定

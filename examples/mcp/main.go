@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/liliang-cn/rago/internal/mcp"
+	"github.com/liliang-cn/rago/pkg/mcp"
 )
 
 // MCP 集成概念验证 - 使用 rago 的 MCP 客户端

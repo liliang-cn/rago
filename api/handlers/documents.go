@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/liliang-cn/rago/internal/domain"
-	"github.com/liliang-cn/rago/internal/processor"
+	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/pkg/processor"
 )
 
 type DocumentsHandler struct {

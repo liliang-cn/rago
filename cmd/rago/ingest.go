@@ -9,10 +9,10 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/liliang-cn/rago/internal/chunker"
-	"github.com/liliang-cn/rago/internal/domain"
-	"github.com/liliang-cn/rago/internal/processor"
-	"github.com/liliang-cn/rago/internal/store"
+	"github.com/liliang-cn/rago/pkg/chunker"
+	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/pkg/processor"
+	"github.com/liliang-cn/rago/pkg/store"
 	"github.com/spf13/cobra"
 )
 
