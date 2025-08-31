@@ -203,14 +203,14 @@ func processQuery(ctx context.Context, p *processor.Service, query string, tools
 
 	var resp domain.QueryResponse
 	var err error
-	
+
 	// Use QueryWithTools if tools are enabled
 	if toolsEnabled {
 		resp, err = p.QueryWithTools(ctx, req)
 	} else {
 		resp, err = p.Query(ctx, req)
 	}
-	
+
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func processQuery(ctx context.Context, p *processor.Service, query string, tools
 		fmt.Printf("\nSources (%d):\n", len(resp.Sources))
 		for i, source := range resp.Sources {
 			fmt.Printf("  [%d] Score: %.4f\n", i+1, source.Score)
-			
+
 			// Extract filename from metadata if available
 			var sourceInfo string
 			if source.Metadata != nil {
@@ -251,7 +251,7 @@ func processQuery(ctx context.Context, p *processor.Service, query string, tools
 			} else {
 				sourceInfo = "Unknown source"
 			}
-			
+
 			fmt.Printf("      Source: %s\n", sourceInfo)
 			if verbose {
 				fmt.Printf("      Content: %s...\n", truncateText(source.Content, 100))
@@ -271,17 +271,17 @@ func processQuery(ctx context.Context, p *processor.Service, query string, tools
 
 func processStreamQuery(ctx context.Context, p *processor.Service, req domain.QueryRequest) error {
 	fmt.Print("Answer: ")
-	
+
 	var sources []domain.Chunk
 	var err error
-	
+
 	// If sources are requested, we need to get them first
 	if req.ShowSources || verbose {
 		// First get sources by doing a quick non-streaming query
 		tempReq := req
 		tempReq.Stream = false
 		tempReq.ShowSources = true
-		
+
 		var tempResp domain.QueryResponse
 		if req.ToolsEnabled {
 			tempResp, err = p.QueryWithTools(ctx, tempReq)
@@ -305,13 +305,13 @@ func processStreamQuery(ctx context.Context, p *processor.Service, req domain.Qu
 	}
 
 	fmt.Println()
-	
+
 	// Show sources after streaming is complete
 	if (req.ShowSources || verbose) && len(sources) > 0 {
 		fmt.Printf("\nSources (%d):\n", len(sources))
 		for i, source := range sources {
 			fmt.Printf("  [%d] Score: %.4f\n", i+1, source.Score)
-			
+
 			// Extract filename from metadata if available
 			var sourceInfo string
 			if source.Metadata != nil {
@@ -325,7 +325,7 @@ func processStreamQuery(ctx context.Context, p *processor.Service, req domain.Qu
 			} else {
 				sourceInfo = "Unknown source"
 			}
-			
+
 			fmt.Printf("      Source: %s\n", sourceInfo)
 			if verbose {
 				fmt.Printf("      Content: %s...\n", truncateText(source.Content, 100))
@@ -335,7 +335,7 @@ func processStreamQuery(ctx context.Context, p *processor.Service, req domain.Qu
 			}
 		}
 	}
-	
+
 	return err
 }
 
@@ -379,7 +379,7 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 	// Initialize MCP service
 	mcpService := mcp.NewMCPService(&cfg.MCP)
 	ctx := context.Background()
-	
+
 	if err := mcpService.Initialize(ctx); err != nil {
 		return fmt.Errorf("failed to start MCP service: %w", err)
 	}
@@ -436,18 +436,19 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 		ShowSources:  true,
 		ToolsEnabled: false, // Don't use tools for relevance check
 	}
-	
+
 	searchResp, err := processor.Query(ctx, searchReq)
 	var chunks []domain.Chunk
 	if err == nil {
 		chunks = searchResp.Sources
 	}
 
-	// Determine if RAG context is relevant (threshold: 0.7)
-	const relevanceThreshold = 0.7
+	// Determine if RAG context is relevant (threshold from configuration)
+	// With configurable k value, this threshold is adjusted accordingly
+	relevanceThreshold := cfg.RRF.RelevanceThreshold
 	hasRelevantContext := false
 	var relevantChunks []domain.Chunk
-	
+
 	if chunks != nil && len(chunks) > 0 {
 		for _, chunk := range chunks {
 			if chunk.Score >= relevanceThreshold {
@@ -463,7 +464,7 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 	// Choose prompt strategy based on context relevance and tool priority
 	var systemPrompt string
 	var finalQuery string
-	
+
 	if shouldPrioritizeTools {
 		// Tool-priority mode: Query strongly suggests MCP tool usage
 		systemPrompt = fmt.Sprintf(`You are an AI assistant specialized in using MCP tools to answer user questions directly. The user's question strongly suggests the need for tool-based operations.
@@ -564,7 +565,7 @@ func buildContextString(chunks []domain.Chunk) string {
 	if len(chunks) == 0 {
 		return "No relevant context found."
 	}
-	
+
 	var contexts []string
 	for i, chunk := range chunks {
 		contexts = append(contexts, fmt.Sprintf("[%d] %s (Score: %.2f)", i+1, truncateText(chunk.Content, 200), chunk.Score))
@@ -575,10 +576,10 @@ func buildContextString(chunks []domain.Chunk) string {
 // Helper function to determine if query should prioritize MCP tools
 func shouldPrioritizeMCPTools(query string, toolsMap map[string]*mcp.MCPToolWrapper) bool {
 	queryLower := strings.ToLower(query)
-	
+
 	// Define tool priority keywords based on available tool capabilities
 	toolPriorityKeywords := extractToolKeywords(toolsMap)
-	
+
 	// Check if query contains action verbs that suggest tool usage
 	actionVerbs := []string{
 		"list", "show", "display", "get", "fetch", "retrieve", "find",
@@ -590,7 +591,7 @@ func shouldPrioritizeMCPTools(query string, toolsMap map[string]*mcp.MCPToolWrap
 		"count", "calculate", "compute", "measure",
 		"export", "import", "backup", "restore",
 	}
-	
+
 	// Score based on action verbs
 	actionScore := 0
 	for _, verb := range actionVerbs {
@@ -598,7 +599,7 @@ func shouldPrioritizeMCPTools(query string, toolsMap map[string]*mcp.MCPToolWrap
 			actionScore++
 		}
 	}
-	
+
 	// Score based on tool-specific keywords
 	keywordScore := 0
 	for _, keyword := range toolPriorityKeywords {
@@ -606,16 +607,16 @@ func shouldPrioritizeMCPTools(query string, toolsMap map[string]*mcp.MCPToolWrap
 			keywordScore += 2 // Higher weight for tool-specific terms
 		}
 	}
-	
+
 	// Check for direct tool invocation patterns
 	directInvocationScore := 0
-	if strings.Contains(queryLower, "use") || strings.Contains(queryLower, "call") || 
-	   strings.Contains(queryLower, "run") || strings.Contains(queryLower, "execute") {
+	if strings.Contains(queryLower, "use") || strings.Contains(queryLower, "call") ||
+		strings.Contains(queryLower, "run") || strings.Contains(queryLower, "execute") {
 		directInvocationScore += 3
 	}
-	
+
 	totalScore := actionScore + keywordScore + directInvocationScore
-	
+
 	// Prioritize tools if score is high enough
 	return totalScore >= 2
 }
@@ -623,11 +624,11 @@ func shouldPrioritizeMCPTools(query string, toolsMap map[string]*mcp.MCPToolWrap
 // Helper function to extract relevant keywords from available tools
 func extractToolKeywords(toolsMap map[string]*mcp.MCPToolWrapper) []string {
 	keywords := make(map[string]bool)
-	
+
 	for _, tool := range toolsMap {
 		toolName := strings.ToLower(tool.Name())
 		description := strings.ToLower(tool.Description())
-		
+
 		// Extract keywords from tool names (remove mcp_ prefix)
 		if strings.HasPrefix(toolName, "mcp_") {
 			cleanName := toolName[4:] // Remove "mcp_"
@@ -638,7 +639,7 @@ func extractToolKeywords(toolsMap map[string]*mcp.MCPToolWrapper) []string {
 				}
 			}
 		}
-		
+
 		// Extract keywords from descriptions
 		descriptionWords := strings.Fields(description)
 		for _, word := range descriptionWords {
@@ -649,13 +650,13 @@ func extractToolKeywords(toolsMap map[string]*mcp.MCPToolWrapper) []string {
 			}
 		}
 	}
-	
+
 	// Convert map to slice
 	var result []string
 	for keyword := range keywords {
 		result = append(result, keyword)
 	}
-	
+
 	return result
 }
 
@@ -671,7 +672,7 @@ func isSignificantWord(word string) bool {
 		"new": true, "some": true, "could": true, "time": true, "very": true,
 		"when": true, "much": true, "can": true, "said": true, "each": true,
 	}
-	
+
 	return !commonWords[strings.ToLower(word)]
 }
 
@@ -680,7 +681,7 @@ func getMaxScore(chunks []domain.Chunk) float64 {
 	if len(chunks) == 0 {
 		return 0.0
 	}
-	
+
 	maxScore := 0.0
 	for _, chunk := range chunks {
 		if chunk.Score > maxScore {

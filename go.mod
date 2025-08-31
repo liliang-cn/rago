@@ -10,7 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/liliang-cn/lmstudio-go v1.0.0
 	github.com/liliang-cn/ollama-go v0.2.1
-	github.com/liliang-cn/sqvect v0.8.0
+	github.com/liliang-cn/sqvect v0.9.0
 	github.com/modelcontextprotocol/go-sdk v0.3.1
 	github.com/openai/openai-go/v2 v2.1.1
 	github.com/spf13/cobra v1.9.1
@@ -78,6 +78,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/mozillazg/go-pinyin v0.21.0 // indirect
 	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
