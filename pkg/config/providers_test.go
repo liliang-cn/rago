@@ -44,6 +44,10 @@ func TestProviderConfigValidation(t *testing.T) {
 				Overlap:   50,
 				Method:    "sentence",
 			},
+			RRF: RRFConfig{
+				K:                  10,
+				RelevanceThreshold: 0.05,
+			},
 			Tools: tools.ToolConfig{
 				Enabled:       false,
 				SecurityLevel: "normal",
@@ -92,6 +96,10 @@ func TestProviderConfigValidation(t *testing.T) {
 				Overlap:   50,
 				Method:    "sentence",
 			},
+			RRF: RRFConfig{
+				K:                  10,
+				RelevanceThreshold: 0.05,
+			},
 			Tools: tools.ToolConfig{
 				Enabled:       false,
 				SecurityLevel: "normal",
@@ -130,6 +138,10 @@ func TestProviderConfigValidation(t *testing.T) {
 				ChunkSize: 300,
 				Overlap:   50,
 				Method:    "sentence",
+			},
+			RRF: RRFConfig{
+				K:                  10,
+				RelevanceThreshold: 0.05,
 			},
 			Tools: tools.ToolConfig{
 				Enabled:       false,
