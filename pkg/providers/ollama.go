@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/liliang-cn/ollama-go"
 	"github.com/liliang-cn/rago/pkg/domain"
@@ -311,15 +310,15 @@ func (p *OllamaLLMProvider) Health(ctx context.Context) error {
 		return fmt.Errorf("%w: service unavailable: %v", domain.ErrServiceUnavailable, err)
 	}
 	
-	// Now test the actual configured model with a strict test
+	// Now test the actual configured model - just verify it can respond
 	stream := false
 	req := &ollama.GenerateRequest{
 		Model:  p.config.LLMModel,
-		Prompt: "You must respond with exactly 'This is a test' and nothing else. Do not add any additional words, explanations, or punctuation.",
+		Prompt: "Hello",
 		Stream: &stream,
 		Options: &ollama.Options{
-			Temperature: &[]float64{0.0}[0], // Set to 0 for deterministic output
-			NumPredict:  &[]int{10}[0], // Limit tokens to prevent extra content
+			Temperature: &[]float64{0.7}[0],
+			NumPredict:  &[]int{10}[0], // Keep it short
 		},
 	}
 	
@@ -328,16 +327,9 @@ func (p *OllamaLLMProvider) Health(ctx context.Context) error {
 		return fmt.Errorf("LLM model health check failed: %w", err)
 	}
 	
-	// Check if we got exactly the expected response
+	// Check if we got any response (don't validate content since models like qwen3 have built-in <think> tags)
 	if resp == nil || resp.Response == "" {
 		return fmt.Errorf("LLM model health check failed: empty response from model %s", p.config.LLMModel)
-	}
-	
-	// Trim whitespace and check for exact match
-	response := strings.TrimSpace(resp.Response)
-	expectedResponse := "This is a test"
-	if response != expectedResponse {
-		return fmt.Errorf("LLM model health check failed: model %s did not respond correctly. Expected: %q, Got: %q", p.config.LLMModel, expectedResponse, response)
 	}
 	
 	return nil
