@@ -40,8 +40,8 @@ Thumbs.db
 *.log
 
 # Config files (keep example configs)
-config.toml
-!config.example.toml
+rago.toml
+!rago.example.toml
 
 # Temporary files
 *.tmp
@@ -69,3 +69,5 @@ node_modules/
 web/node_modules/
 
 rago
+
+rago.toml

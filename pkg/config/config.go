@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/liliang-cn/rago/pkg/domain"
@@ -86,15 +88,23 @@ type RRFConfig struct {
 func Load(configPath string) (*Config, error) {
 	config := &Config{}
 
-	viper.SetConfigName("config")
-	viper.SetConfigType("toml")
-
 	if configPath != "" {
 		viper.SetConfigFile(configPath)
 	} else {
-		viper.AddConfigPath(".")
-		viper.AddConfigPath("./config")
-		viper.AddConfigPath("$HOME/.rago")
+		// Default to ~/.rago/rago.toml
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		defaultConfigPath := filepath.Join(homeDir, ".rago", "rago.toml")
+		
+		// Check if default config exists
+		if _, err := os.Stat(defaultConfigPath); err == nil {
+			viper.SetConfigFile(defaultConfigPath)
+		} else {
+			// If default doesn't exist, still try to load from it (will use defaults)
+			viper.SetConfigFile(defaultConfigPath)
+		}
 	}
 
 	setDefaults()
@@ -134,6 +144,9 @@ func Load(configPath string) (*Config, error) {
 		}
 	}
 
+	// Expand home directory paths
+	config.expandPaths()
+
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
@@ -164,16 +177,18 @@ func setDefaults() {
 	viper.SetDefault("ollama.base_url", "http://localhost:11434")
 	viper.SetDefault("ollama.timeout", "30s")
 
-	viper.SetDefault("sqvect.db_path", "./data/rag.db")
+	viper.SetDefault("sqvect.db_path", "~/.rago/rag.db")
+	viper.SetDefault("sqvect.max_conns", 10)
+	viper.SetDefault("sqvect.batch_size", 100)
 	viper.SetDefault("sqvect.top_k", 5)
 	viper.SetDefault("sqvect.threshold", 0.0)
 
-	viper.SetDefault("keyword.index_path", "./data/keyword.bleve")
+	viper.SetDefault("keyword.index_path", "~/.rago/keyword.bleve")
 
 	viper.SetDefault("rrf.k", 10)
 	viper.SetDefault("rrf.relevance_threshold", 0.05)
 
-	viper.SetDefault("chunker.chunk_size", 300)
+	viper.SetDefault("chunker.chunk_size", 500)
 	viper.SetDefault("chunker.overlap", 50)
 	viper.SetDefault("chunker.method", "sentence")
 
@@ -740,4 +755,47 @@ func (c *Config) validateRRFConfig() error {
 	}
 
 	return nil
+}
+
+// expandPaths expands ~ to home directory in file paths
+func (c *Config) expandPaths() {
+	c.Sqvect.DBPath = expandHomePath(c.Sqvect.DBPath)
+	c.Keyword.IndexPath = expandHomePath(c.Keyword.IndexPath)
+	
+	// Ensure directories exist for default paths
+	ensureParentDir(c.Sqvect.DBPath)
+	ensureParentDir(c.Keyword.IndexPath)
+}
+
+// expandHomePath expands ~ to home directory
+func expandHomePath(path string) string {
+	if path == "" {
+		return path
+	}
+	
+	if strings.HasPrefix(path, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			// Fallback to original path if can't get home directory
+			return path
+		}
+		return filepath.Join(homeDir, path[2:])
+	}
+	
+	return path
+}
+
+// ensureParentDir creates the parent directory if it doesn't exist
+func ensureParentDir(filePath string) {
+	if filePath == "" {
+		return
+	}
+	
+	dir := filepath.Dir(filePath)
+	if dir != "." && dir != "/" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			// Log the error but don't fail configuration loading
+			log.Printf("Warning: failed to create directory %s: %v", dir, err)
+		}
+	}
 }

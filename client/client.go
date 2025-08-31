@@ -45,7 +45,9 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 
 	keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
 	if err != nil {
-		vectorStore.Close() // clean up previous store
+		if err := vectorStore.Close(); err != nil {
+			fmt.Printf("Warning: failed to close vector store during cleanup: %v\n", err)
+		}
 		return nil, fmt.Errorf("failed to create keyword store: %w", err)
 	}
 
@@ -55,8 +57,12 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 	ctx := context.Background()
 	embedService, llmService, metadataExtractor, err := utils.InitializeProviders(ctx, cfg)
 	if err != nil {
-		vectorStore.Close()
-		keywordStore.Close()
+		if err := vectorStore.Close(); err != nil {
+			fmt.Printf("Warning: failed to close vector store during cleanup: %v\n", err)
+		}
+		if err := keywordStore.Close(); err != nil {
+			fmt.Printf("Warning: failed to close keyword store during cleanup: %v\n", err)
+		}
 		return nil, fmt.Errorf("failed to initialize providers: %w", err)
 	}
 

@@ -63,11 +63,15 @@ func setupTestDB(t *testing.T) (string, func()) {
 	`)
 	require.NoError(t, err)
 	
-	db.Close()
+	if err := db.Close(); err != nil {
+		t.Logf("Warning: failed to close database: %v", err)
+	}
 	
 	// Return cleanup function
 	cleanup := func() {
-		os.RemoveAll(tmpDir)
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("Warning: failed to remove temp directory: %v", err)
+		}
 	}
 	
 	return dbPath, cleanup

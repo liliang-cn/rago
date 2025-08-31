@@ -16,7 +16,11 @@ func TestKeywordStore_NewKeywordStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	defer store.Close()
+		defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close store: %v", err)
+		}
+	}()
 
 	if store == nil {
 		t.Fatal("Expected store to be non-nil")
@@ -31,7 +35,11 @@ func TestKeywordStore_IndexAndSearch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer store.Close()
+		defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close store: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -81,7 +89,11 @@ func TestKeywordStore_SearchNoResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer store.Close()
+		defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close store: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -104,7 +116,11 @@ func TestKeywordStore_Delete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer store.Close()
+		defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close store: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -182,7 +198,11 @@ func TestKeywordStore_SearchWithNilFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer store.Close()
+		defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close store: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 

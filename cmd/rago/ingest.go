@@ -55,13 +55,21 @@ You can also use --text flag to ingest text directly.`,
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)
 		}
-		defer vectorStore.Close()
+		defer func() {
+			if err := vectorStore.Close(); err != nil {
+				log.Printf("failed to close vector store: %v", err)
+			}
+		}()
 
 		keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
 		if err != nil {
 			return fmt.Errorf("failed to create keyword store: %w", err)
 		}
-		defer keywordStore.Close()
+		defer func() {
+			if err := keywordStore.Close(); err != nil {
+				log.Printf("failed to close keyword store: %v", err)
+			}
+		}()
 
 		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
