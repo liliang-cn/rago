@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/liliang-cn/rago/internal/domain"
-	"github.com/liliang-cn/rago/internal/store"
+	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/pkg/store"
 	"github.com/spf13/cobra"
 )
 

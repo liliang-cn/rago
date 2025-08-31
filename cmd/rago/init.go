@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/liliang-cn/rago/internal/config"
-	"github.com/liliang-cn/rago/internal/store"
+	"github.com/liliang-cn/rago/pkg/config"
+	"github.com/liliang-cn/rago/pkg/store"
 	"github.com/spf13/cobra"
 )
 

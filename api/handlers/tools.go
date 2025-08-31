@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/liliang-cn/rago/internal/tools"
+	"github.com/liliang-cn/rago/pkg/tools"
 )
 
 // ToolsHandler handles tool-related HTTP requests
