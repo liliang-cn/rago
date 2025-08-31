@@ -24,7 +24,7 @@ import (
 
 func main() {
     // Create a client
-    client, err := rago.New("config.toml")
+    client, err := rago.New("rago.toml")
     if err != nil {
         log.Fatal(err)
     }
@@ -46,7 +46,7 @@ func main() {
 
 ```go
 // Create a client from a configuration file
-client, err := rago.New("path/to/config.toml")
+client, err := rago.New("path/to/rago.toml")
 
 // Create a client from a configuration object
 config := &config.Config{...}
@@ -259,7 +259,7 @@ type ToolResult struct {
 
 ## ⚙️ Configuration
 
-Create a `config.toml` file:
+Create a `rago.toml` file:
 
 ```toml
 [providers]
@@ -268,7 +268,7 @@ default_embedder = "ollama"
 
 [llm.ollama]
 base_url = "http://localhost:11434"
-model = "qwen2"
+model = "qwen3"
 
 [embedder.ollama]
 base_url = "http://localhost:11434"

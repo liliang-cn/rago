@@ -1,0 +1,321 @@
+# Rago Configuration Example
+# Copy this file to rago.toml and modify according to your setup
+
+# ========================
+# Server Configuration
+# ========================
+[server]
+# Server port (default: 7127)
+port = 7127
+# Server host (default: "0.0.0.0" - allows LAN access)
+host = "0.0.0.0"
+# Enable web UI (default: false)
+enable_ui = false
+# CORS origins (default: ["*"])
+cors_origins = ["*"]
+
+# ========================
+# Provider Configuration (REQUIRED)
+# You must configure at least one provider
+# ========================
+[providers]
+# Default provider for LLM operations (REQUIRED)
+default_llm = "ollama"
+# Default provider for embedding operations (REQUIRED)
+default_embedder = "ollama"
+
+# --- Ollama Provider (Local LLM) ---
+[providers.ollama]
+type = "ollama"
+# Ollama server URL (REQUIRED)
+base_url = "http://localhost:11434"
+# LLM model name (REQUIRED)
+llm_model = "qwen3"
+# Embedding model name (REQUIRED)
+embedding_model = "nomic-embed-text"
+# Request timeout (REQUIRED)
+timeout = "30s"
+
+# --- OpenAI Provider (Optional) ---
+# Uncomment and configure to use OpenAI
+# [providers.openai]
+# type = "openai"
+# # OpenAI API key (REQUIRED if using OpenAI)
+# api_key = "sk-your-openai-api-key-here"
+# # OpenAI API base URL (optional, defaults to official OpenAI)
+# base_url = "https://api.openai.com/v1"
+# # LLM model name (REQUIRED)
+# llm_model = "gpt-4"
+# # Embedding model name (REQUIRED)
+# embedding_model = "text-embedding-ada-002"
+# # Optional organization ID
+# organization = "your-org-id"
+# # Optional project ID
+# project = "your-project-id"
+# # Request timeout (REQUIRED)
+# timeout = "60s"
+
+# --- LM Studio Provider (Optional) ---
+# Uncomment and configure to use LM Studio
+# [providers.lmstudio]
+# type = "lmstudio"
+# # LM Studio server URL (REQUIRED)
+# base_url = "http://localhost:1234"
+# # LLM model name (REQUIRED)
+# llm_model = "your-model-name"
+# # Embedding model name (REQUIRED)
+# embedding_model = "your-embedding-model"
+# # Optional API key
+# api_key = ""
+# # Request timeout (REQUIRED)
+# timeout = "30s"
+
+# ========================
+# Vector Database Configuration (REQUIRED)
+# ========================
+[sqvect]
+# SQLite database path for vector storage (REQUIRED)
+# Default: ~/.rago/rag.db
+db_path = "~/.rago/rag.db"
+# Maximum database connections (optional, default: 10)
+max_conns = 10
+# Batch size for operations (optional, default: 100)
+batch_size = 100
+# Number of top results to retrieve (default: 5)
+top_k = 5
+# Similarity threshold (0.0 = no threshold, higher = more strict)
+threshold = 0.0
+
+# ========================
+# Keyword Search Configuration (REQUIRED)
+# ========================
+[keyword]
+# Path for keyword search index (REQUIRED)
+# Default: ~/.rago/keyword.bleve
+index_path = "~/.rago/keyword.bleve"
+
+# ========================
+# Text Chunking Configuration (REQUIRED)
+# ========================
+[chunker]
+# Size of text chunks in characters (default: 500)
+chunk_size = 500
+# Overlap between chunks in characters (default: 50)
+overlap = 50
+# Chunking method: "sentence", "paragraph", or "token" (default: "sentence")
+method = "sentence"
+
+# ========================
+# RRF (Reciprocal Rank Fusion) Configuration (REQUIRED)
+# ========================
+[rrf]
+# RRF constant parameter (default: 10)
+k = 10
+# Relevance threshold for filtering results (default: 0.05)
+relevance_threshold = 0.05
+
+# ========================
+# Document Ingestion Configuration (Optional)
+# ========================
+[ingest]
+[ingest.metadata_extraction]
+# Enable automatic metadata extraction during ingestion (default: false)
+enable = false
+# LLM model for metadata extraction (auto-configured from default LLM if empty)
+llm_model = ""
+
+# ========================
+# Tools Configuration (Optional but Recommended)
+# ========================
+[tools]
+# Enable tools functionality (default: true)
+enabled = true
+# Maximum concurrent tool calls (default: 5)
+max_concurrent_calls = 5
+# Timeout for individual tool calls (default: "30s")
+call_timeout = "30s"
+# Security level: "strict", "normal", or "permissive" (default: "normal")
+security_level = "normal"
+# List of enabled tool names (empty = all enabled)
+enabled_tools = []
+# Tool logging level: "debug", "info", "warn", "error" (default: "info")
+log_level = "info"
+
+# --- Rate Limiting ---
+[tools.rate_limit]
+# Calls per minute limit (0 = no limit)
+calls_per_minute = 100
+# Calls per hour limit (0 = no limit)
+calls_per_hour = 1000
+# Burst size for rate limiting
+burst_size = 10
+
+# --- Built-in Tools Configuration ---
+[tools.builtin]
+# File operations tool
+[tools.builtin.file_operations]
+enabled = true
+
+# HTTP request tool
+[tools.builtin.http_client]
+enabled = true
+
+# Web search tool (requires search API key)
+[tools.builtin.web_search]
+enabled = false
+# parameters = { api_key = "your-search-api-key" }
+
+# SQL query tool
+[tools.builtin.sql_query]
+enabled = false
+
+# --- Plugin Configuration ---
+[tools.plugins]
+# Enable plugin system (default: false)
+enabled = false
+# Plugin search paths
+plugin_paths = ["./plugins"]
+# Auto-load plugins on startup
+auto_load = false
+
+# --- SQL Tool Configuration ---
+[tools.sql]
+# Maximum query execution time
+max_execution_time = "30s"
+# Maximum number of rows returned
+max_rows = 1000
+# Allowed SQL operations (SELECT, INSERT, UPDATE, DELETE, etc.)
+allowed_operations = ["SELECT"]
+
+# ========================
+# MCP (Model Context Protocol) Configuration (Optional)
+# ========================
+[mcp]
+# Enable MCP functionality (default: false)
+enabled = false
+# MCP logging level (default: "info")
+log_level = "info"
+# Default timeout for MCP requests (default: "30s")
+default_timeout = "30s"
+# Maximum concurrent MCP requests (default: 10)
+max_concurrent_requests = 10
+# Health check interval for MCP servers (default: "60s")
+health_check_interval = "60s"
+
+# --- MCP Server Configurations ---
+# Example MCP server configurations (uncomment to use)
+
+# SQLite MCP Server - Database operations
+# [[mcp.servers]]
+# name = "sqlite"
+# description = "SQLite database operations"
+# command = ["mcp-sqlite-server"]
+# args = ["--allowed-dir", "./data"]
+# working_dir = "./data"
+# auto_start = true
+# restart_on_failure = true
+# max_restarts = 5
+# restart_delay = "5s"
+# capabilities = ["query", "execute", "list", "create", "drop"]
+# [mcp.servers.env]
+# DEBUG = "mcp:*"
+
+# Filesystem MCP Server - File operations
+# [[mcp.servers]]
+# name = "filesystem"
+# description = "File system operations"
+# command = ["npx", "@modelcontextprotocol/server-filesystem"]
+# args = ["--root", "./workspace"]
+# working_dir = "./workspace"
+# auto_start = false
+# restart_on_failure = true
+# max_restarts = 3
+# restart_delay = "10s"
+# capabilities = ["read", "write", "list", "delete"]
+# [mcp.servers.env]
+# NODE_ENV = "production"
+
+# Git MCP Server - Version control operations
+# [[mcp.servers]]
+# name = "git"
+# description = "Git version control operations"
+# command = ["npx", "@modelcontextprotocol/server-git"]
+# args = ["--repository", "."]
+# working_dir = "."
+# auto_start = false
+# restart_on_failure = true
+# max_restarts = 3
+# restart_delay = "10s"
+# capabilities = ["status", "log", "diff", "commit"]
+
+# Web Search MCP Server - Internet search capabilities
+# [[mcp.servers]]
+# name = "brave-search"
+# description = "Web search using Brave Search API"
+# command = ["npx", "@modelcontextprotocol/server-brave-search"]
+# args = []
+# auto_start = false
+# restart_on_failure = true
+# max_restarts = 3
+# restart_delay = "15s"
+# capabilities = ["search", "news"]
+# [mcp.servers.env]
+# BRAVE_API_KEY = "${BRAVE_API_KEY}"
+
+# HTTP Fetch MCP Server - HTTP requests
+# [[mcp.servers]]
+# name = "fetch"
+# description = "HTTP request operations"
+# command = ["npx", "@modelcontextprotocol/server-fetch"]
+# args = []
+# auto_start = false
+# restart_on_failure = true
+# max_restarts = 3
+# restart_delay = "5s"
+# capabilities = ["get", "post", "put", "delete"]
+
+# ========================
+# REQUIRED SETUP CHECKLIST:
+# ========================
+# 1. Choose and configure at least one provider (Ollama, OpenAI, or LM Studio)
+# 2. Ensure the provider service is running and accessible
+# 3. File paths will be auto-created in ~/.rago/ directory
+# 4. Adjust chunk_size and overlap based on your document types
+# 5. Configure tools based on your needs
+# 6. Set up MCP servers if you need external tool integration
+
+# ========================
+# MINIMAL WORKING CONFIGURATION:
+# ========================
+# For a basic setup, you only need:
+# - [providers] section with one provider configured
+# All other sections have sensible defaults:
+# - sqvect.db_path defaults to ~/.rago/rag.db
+# - keyword.index_path defaults to ~/.rago/keyword.bleve
+# - chunker.chunk_size defaults to 500
+# - chunker.overlap defaults to 50
+# - chunker.method defaults to "sentence"
+# - rrf.k defaults to 10
+# - rrf.relevance_threshold defaults to 0.05
+
+# ========================
+# ESSENTIAL CONFIGURATION FIELDS:
+# ========================
+# REQUIRED (must be set):
+# - providers.default_llm
+# - providers.default_embedder
+# - providers.[provider].base_url (for Ollama/LMStudio)
+# - providers.[provider].api_key (for OpenAI)
+# - providers.[provider].llm_model
+# - providers.[provider].embedding_model
+# - providers.[provider].timeout
+
+# OPTIONAL (have sensible defaults):
+# - server.* (defaults: port=7127, host="0.0.0.0", enable_ui=false)
+# - sqvect.* (defaults: db_path="~/.rago/rag.db", top_k=5, threshold=0.0)
+# - keyword.* (defaults: index_path="~/.rago/keyword.bleve")
+# - chunker.* (defaults: chunk_size=500, overlap=50, method="sentence")
+# - rrf.* (defaults: k=10, relevance_threshold=0.05)
+# - tools.* (defaults: enabled=true, security_level="normal")
+# - mcp.* (defaults: enabled=false)
+# - ingest.* (defaults: metadata extraction disabled)

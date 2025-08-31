@@ -50,7 +50,7 @@ func NewLMStudioLLMProvider(config *domain.LMStudioProviderConfig) (*LMStudioLLM
 // Generate implements the Generator interface for single-turn generation
 func (p *LMStudioLLMProvider) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
 	if opts == nil {
-		opts = &domain.GenerationOptions{
+				_ = &domain.GenerationOptions{
 			Temperature: 0.7,
 			MaxTokens:   4000,
 		}

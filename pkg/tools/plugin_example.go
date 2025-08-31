@@ -180,7 +180,7 @@ go build -buildmode=plugin -o your_plugin.so your_plugin.go
 
 3. Place the .so file in one of the configured plugin directories
 
-4. Configure the plugin in config.toml:
+4. Configure the plugin in rago.toml:
 
 ```toml
 [tools.plugins]
