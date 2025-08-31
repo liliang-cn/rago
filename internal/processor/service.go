@@ -820,7 +820,7 @@ func (s *Service) hybridSearch(ctx context.Context, req domain.QueryRequest) ([]
 
 // fuseResults combines and re-ranks search results using Reciprocal Rank Fusion (RRF).
 func (s *Service) fuseResults(listA, listB []domain.Chunk) []domain.Chunk {
-	const k = 60 // RRF constant
+	k := s.config.RRF.K // Use configurable RRF constant
 
 	scores := make(map[string]float64)
 	chunksMap := make(map[string]domain.Chunk)
@@ -1145,13 +1145,13 @@ func (a *MCPToolAdapter) Description() string {
 func (a *MCPToolAdapter) Parameters() tools.ToolParameters {
 	// Convert MCP tool schema to tools.ToolParameters
 	schema := a.mcpTool.Schema()
-	
+
 	params := tools.ToolParameters{
 		Type:       "object",
 		Properties: make(map[string]tools.ToolParameter),
 		Required:   []string{},
 	}
-	
+
 	if properties, ok := schema["properties"].(map[string]interface{}); ok {
 		for name, prop := range properties {
 			if propMap, ok := prop.(map[string]interface{}); ok {
@@ -1163,11 +1163,11 @@ func (a *MCPToolAdapter) Parameters() tools.ToolParameters {
 			}
 		}
 	}
-	
+
 	if required, ok := schema["required"].([]string); ok {
 		params.Required = required
 	}
-	
+
 	return params
 }
 
@@ -1192,14 +1192,14 @@ func (a *MCPToolAdapter) Execute(ctx context.Context, args map[string]interface{
 func (a *MCPToolAdapter) Validate(args map[string]interface{}) error {
 	// Basic validation - could be enhanced based on MCP tool schema
 	params := a.Parameters()
-	
+
 	// Check required parameters
 	for _, required := range params.Required {
 		if _, exists := args[required]; !exists {
 			return fmt.Errorf("required parameter '%s' is missing", required)
 		}
 	}
-	
+
 	return nil
 }
 
