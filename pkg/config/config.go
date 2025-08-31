@@ -91,19 +91,36 @@ func Load(configPath string) (*Config, error) {
 	if configPath != "" {
 		viper.SetConfigFile(configPath)
 	} else {
-		// Default to ~/.rago/rago.toml
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get user home directory: %w", err)
-		}
-		defaultConfigPath := filepath.Join(homeDir, ".rago", "rago.toml")
+		// Try multiple locations in order of preference
+		var configFound bool
 		
-		// Check if default config exists
-		if _, err := os.Stat(defaultConfigPath); err == nil {
-			viper.SetConfigFile(defaultConfigPath)
-		} else {
-			// If default doesn't exist, still try to load from it (will use defaults)
-			viper.SetConfigFile(defaultConfigPath)
+		// 1. Check ~/.rago/rago.toml (primary location)
+		homeDir, err := os.UserHomeDir()
+		if err == nil {
+			defaultConfigPath := filepath.Join(homeDir, ".rago", "rago.toml")
+			if _, err := os.Stat(defaultConfigPath); err == nil {
+				viper.SetConfigFile(defaultConfigPath)
+				configFound = true
+			}
+		}
+		
+		// 2. Fallback to ./rago.toml (current directory)
+		if !configFound {
+			currentConfigPath := "rago.toml"
+			if _, err := os.Stat(currentConfigPath); err == nil {
+				viper.SetConfigFile(currentConfigPath)
+				configFound = true
+			}
+		}
+		
+		// 3. If no config found, use default path (will use built-in defaults)
+		if !configFound {
+			if homeDir != "" {
+				defaultConfigPath := filepath.Join(homeDir, ".rago", "rago.toml")
+				viper.SetConfigFile(defaultConfigPath)
+			} else {
+				viper.SetConfigFile("rago.toml")
+			}
 		}
 	}
 
