@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/liliang-cn/rago/internal/config"
-	"github.com/liliang-cn/rago/internal/domain"
-	"github.com/liliang-cn/rago/internal/embedder"
-	"github.com/liliang-cn/rago/internal/llm"
-	"github.com/liliang-cn/rago/internal/providers"
+	"github.com/liliang-cn/rago/pkg/config"
+	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/pkg/embedder"
+	"github.com/liliang-cn/rago/pkg/llm"
+	"github.com/liliang-cn/rago/pkg/providers"
 	"github.com/spf13/cobra"
 )
 

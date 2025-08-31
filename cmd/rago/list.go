@@ -6,7 +6,7 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/liliang-cn/rago/internal/store"
+	"github.com/liliang-cn/rago/pkg/store"
 	"github.com/spf13/cobra"
 )
 

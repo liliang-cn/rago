@@ -3,7 +3,7 @@ package rago
 import (
 	"fmt"
 
-	"github.com/liliang-cn/rago/internal/config"
+	"github.com/liliang-cn/rago/pkg/config"
 	"github.com/spf13/cobra"
 )
 

@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/liliang-cn/rago/internal/config"
-	"github.com/liliang-cn/rago/internal/mcp"
+	"github.com/liliang-cn/rago/pkg/config"
+	"github.com/liliang-cn/rago/pkg/mcp"
 )
 
 // 演示如何在CLI和lib中使用MCP工具

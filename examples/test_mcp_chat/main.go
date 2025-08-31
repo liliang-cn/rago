@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	rago "github.com/liliang-cn/rago/lib"
+	rago "github.com/liliang-cn/rago/client"
 )
 
 func main() {
