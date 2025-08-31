@@ -7,8 +7,8 @@ import (
 	"log"
 	"reflect"
 
-	"github.com/liliang-cn/rago/internal/config"
-	"github.com/liliang-cn/rago/internal/mcp"
+	"github.com/liliang-cn/rago/pkg/config"
+	"github.com/liliang-cn/rago/pkg/mcp"
 )
 
 func main() {

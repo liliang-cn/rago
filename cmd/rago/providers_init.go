@@ -2,9 +2,9 @@ package rago
 
 import (
 	"context"
-	"github.com/liliang-cn/rago/internal/config"
-	"github.com/liliang-cn/rago/internal/domain"
-	"github.com/liliang-cn/rago/internal/utils"
+	"github.com/liliang-cn/rago/pkg/config"
+	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/pkg/utils"
 )
 
 // initializeProviders is a wrapper for the shared provider initialization
