@@ -136,8 +136,12 @@ func TestLLMChatStream(t *testing.T) {
 		llm: &mockGenerator{
 			StreamWithToolsFunc: func(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
 				if len(messages) == 1 && messages[0].Content == "chat stream hello" {
-					callback("chat world", nil)
-					callback(" stream", nil)
+					if err := callback("chat world", nil); err != nil {
+						return err
+					}
+					if err := callback(" stream", nil); err != nil {
+						return err
+					}
 					return nil
 				}
 				return errors.New("unexpected messages")
@@ -151,7 +155,7 @@ func TestLLMChatStream(t *testing.T) {
 		},
 	}
 	var result string
-	err := client.LLMChatStream(context.Background(), req, func(s string) {
+		err := client.LLMChatStream(context.Background(), req, func(s string) {
 		result += s
 	})
 

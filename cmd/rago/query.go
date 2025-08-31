@@ -53,13 +53,22 @@ Use --mcp to enable MCP tool integration for the query.`,
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)
 		}
-		defer vectorStore.Close()
+		defer func() {
+			if err := vectorStore.Close(); err != nil {
+				fmt.Printf("failed to close vector store: %v\n", err)
+			}
+		}()
+
 
 		keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
 		if err != nil {
 			return fmt.Errorf("failed to create keyword store: %w", err)
 		}
-		defer keywordStore.Close()
+		defer func() {
+			if err := keywordStore.Close(); err != nil {
+				fmt.Printf("failed to close keyword store: %v\n", err)
+			}
+		}()
 
 		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
@@ -383,7 +392,11 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 	if err := mcpService.Initialize(ctx); err != nil {
 		return fmt.Errorf("failed to start MCP service: %w", err)
 	}
-	defer mcpService.Close()
+	defer func() {
+		if err := mcpService.Close(); err != nil {
+			fmt.Printf("failed to close mcp service: %v\n", err)
+		}
+	}()
 
 	// Get available tools
 	toolsMap := mcpService.GetAvailableTools()
@@ -396,13 +409,21 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create vector store: %w", err)
 	}
-	defer vectorStore.Close()
+	defer func() {
+		if err := vectorStore.Close(); err != nil {
+			fmt.Printf("Warning: failed to close vector store: %v\n", err)
+		}
+	}()
 
 	keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
 	if err != nil {
 		return fmt.Errorf("failed to create keyword store: %w", err)
 	}
-	defer keywordStore.Close()
+	defer func() {
+		if err := keywordStore.Close(); err != nil {
+			fmt.Printf("Warning: failed to close keyword store: %v\n", err)
+		}
+	}()
 
 	docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
@@ -449,7 +470,7 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 	hasRelevantContext := false
 	var relevantChunks []domain.Chunk
 
-	if chunks != nil && len(chunks) > 0 {
+		if len(chunks) > 0 {
 		for _, chunk := range chunks {
 			if chunk.Score >= relevanceThreshold {
 				relevantChunks = append(relevantChunks, chunk)
@@ -691,13 +712,7 @@ func getMaxScore(chunks []domain.Chunk) float64 {
 	return maxScore
 }
 
-func formatToolsForPrompt(tools []mcp.ToolSummary) string {
-	var result []string
-	for _, tool := range tools {
-		result = append(result, fmt.Sprintf("- %s (%s): %s", tool.Name, tool.ServerName, tool.Description))
-	}
-	return strings.Join(result, "\n")
-}
+
 
 func init() {
 	queryCmd.Flags().IntVar(&topK, "top-k", 5, "number of documents to retrieve")

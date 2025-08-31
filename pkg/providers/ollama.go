@@ -66,7 +66,9 @@ func toOllamaMessages(messages []domain.Message) []ollama.Message {
 				// This is not ideal, as we are converting back and forth. But it's a safe way to handle the anonymous struct.
 				var tempToolCall ollama.ToolCall
 				bytes, _ := json.Marshal(toolCallMap)
-				json.Unmarshal(bytes, &tempToolCall)
+								if err := json.Unmarshal(bytes, &tempToolCall); err != nil {
+					fmt.Printf("Warning: failed to unmarshal tool call: %v\n", err)
+				}
 				ollamaMsg.ToolCalls[i] = tempToolCall
 			}
 		}

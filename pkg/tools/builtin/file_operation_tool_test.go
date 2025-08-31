@@ -84,7 +84,11 @@ func TestFileOperationTool_IsPathAllowed(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir, err := os.MkdirTemp("", "file_tool_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+		defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("failed to remove temp dir: %v", err)
+		}
+	}()
 
 	tool := NewFileOperationTool([]string{tmpDir}, 1024)
 
@@ -109,7 +113,11 @@ func TestFileOperationTool_WriteAndRead(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir, err := os.MkdirTemp("", "file_tool_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+		defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("failed to remove temp dir: %v", err)
+		}
+	}()
 
 	tool := NewFileOperationTool([]string{tmpDir}, 1024)
 	ctx := context.Background()
@@ -150,7 +158,11 @@ func TestFileOperationTool_ReadWithLineLimit(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir, err := os.MkdirTemp("", "file_tool_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+		defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("failed to remove temp dir: %v", err)
+		}
+	}()
 
 	tool := NewFileOperationTool([]string{tmpDir}, 1024)
 	ctx := context.Background()
@@ -189,7 +201,11 @@ func TestFileOperationTool_List(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir, err := os.MkdirTemp("", "file_tool_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+		defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("failed to remove temp dir: %v", err)
+		}
+	}()
 
 	tool := NewFileOperationTool([]string{tmpDir}, 1024)
 	ctx := context.Background()
@@ -258,7 +274,11 @@ func TestFileOperationTool_Exists(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir, err := os.MkdirTemp("", "file_tool_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+		defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("failed to remove temp dir: %v", err)
+		}
+	}()
 
 	tool := NewFileOperationTool([]string{tmpDir}, 1024)
 	ctx := context.Background()
@@ -298,7 +318,11 @@ func TestFileOperationTool_Stat(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir, err := os.MkdirTemp("", "file_tool_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+		defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("failed to remove temp dir: %v", err)
+		}
+	}()
 
 	tool := NewFileOperationTool([]string{tmpDir}, 1024)
 	ctx := context.Background()
@@ -332,7 +356,11 @@ func TestFileOperationTool_Delete(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir, err := os.MkdirTemp("", "file_tool_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+		defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("failed to remove temp dir: %v", err)
+		}
+	}()
 
 	tool := NewFileOperationTool([]string{tmpDir}, 1024)
 	ctx := context.Background()
@@ -363,7 +391,11 @@ func TestFileOperationTool_SecurityChecks(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir, err := os.MkdirTemp("", "file_tool_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+		defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("failed to remove temp dir: %v", err)
+		}
+	}()
 
 	tool := NewFileOperationTool([]string{tmpDir}, 1024)
 	ctx := context.Background()
@@ -382,7 +414,11 @@ func TestFileOperationTool_FileSizeLimit(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir, err := os.MkdirTemp("", "file_tool_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+		defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("failed to remove temp dir: %v", err)
+		}
+	}()
 
 	tool := NewFileOperationTool([]string{tmpDir}, 10) // 10 bytes limit
 	ctx := context.Background()
@@ -426,7 +462,11 @@ func TestFileOperationTool_ErrorCases(t *testing.T) {
 	// Create temporary directory for testing
 	tmpDir, err := os.MkdirTemp("", "file_tool_test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+		defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("failed to remove temp dir: %v", err)
+		}
+	}()
 
 	tool := NewFileOperationTool([]string{tmpDir}, 1024)
 	ctx := context.Background()

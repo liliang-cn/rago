@@ -31,7 +31,7 @@ RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system writte
 3. **Download Models**
    ```bash
    ollama pull nomic-embed-text  # Embedding model
-   ollama pull qwen2.5          # Generation model (or qwen3)
+   ollama pull qwen3          # Generation model (or qwen3)
    ```
 
 **Option 2: For OpenAI Setup**
@@ -66,7 +66,7 @@ After building the project with `make build`, you can use the `rago` binary in t
 1. **Initialize Configuration**
 
    ```bash
-   ./build/rago init                    # Create config.toml with Ollama defaults
+   ./build/rago init                    # Create rago.toml with Ollama defaults
    ./build/rago init --force            # Overwrite existing config file
    ./build/rago init -o custom.toml     # Create config at custom path
    ```
@@ -81,7 +81,7 @@ After building the project with `make build`, you can use the `rago` binary in t
 
 2. **Configure Providers** (if using OpenAI)
 
-   Edit the generated `config.toml` and uncomment the OpenAI section:
+   Edit the generated `rago.toml` and uncomment the OpenAI section:
 
    ```toml
    [providers]
@@ -396,8 +396,8 @@ import "github.com/liliang-cn/rago/lib"
 #### Create a client
 
 ```go
-// Using default config file (config.toml in current directory)
-client, err := rago.New("config.toml")
+// Using default config file (rago.toml in current directory)
+client, err := rago.New("rago.toml")
 if err != nil {
     log.Fatal(err)
 }
@@ -461,9 +461,9 @@ The library uses the same configuration format as the CLI tool. You can either:
 The library will read configuration from:
 
 - Specified config file path
-- `./config.toml` (current directory)
-- `./config/config.toml`
-- `$HOME/.rago/config.toml`
+- `./rago.toml` (current directory)
+- `./config/rago.toml`
+- `$HOME/.rago/rago.toml`
 
 #### Example
 
@@ -499,14 +499,14 @@ go run library_usage.go
 RAGO provides an `init` command to quickly generate a modern configuration file with provider-based architecture:
 
 ```bash
-# Create config.toml with Ollama defaults and directory structure
+# Create rago.toml with Ollama defaults and directory structure
 rago init
 
 # Overwrite existing configuration file
 rago init --force
 
 # Create configuration at custom path
-rago init --output /path/to/config.toml
+rago init --output /path/to/rago.toml
 ```
 
 The `init` command automatically:
@@ -531,7 +531,7 @@ default_embedder = "ollama"
 [providers.ollama]
 type = "ollama"
 base_url = "http://localhost:11434"
-llm_model = "qwen2.5"
+llm_model = "qwen3"
 embedding_model = "nomic-embed-text"
 timeout = "120s"
 ```
@@ -630,7 +630,7 @@ default_embedder = "ollama"
 [providers.ollama]
 type = "ollama"
 base_url = "http://localhost:11434"
-llm_model = "qwen2.5"
+llm_model = "qwen3"
 embedding_model = "nomic-embed-text"
 timeout = "120s"
 
@@ -652,7 +652,7 @@ method = "sentence"                      # sentence, paragraph, token
 
 [ingest.metadata_extraction]
 enable = false                           # Enable automatic metadata extraction
-llm_model = "qwen2.5"                   # Model for metadata extraction
+llm_model = "qwen3"                   # Model for metadata extraction
 
 [tools]
 enabled = true
@@ -835,7 +835,7 @@ docker run -d \
   --name rago \
   -p 7127:7127 \
   -v $(pwd)/data:/app/data \
-  -v $(pwd)/config.toml:/app/config.toml \
+  -v $(pwd)/rago.toml:/app/rago.toml \
   rago:latest
 ```
 
@@ -857,7 +857,7 @@ services:
       - "7127:7127"
     volumes:
       - ./data:/app/data
-      - ./config.toml:/app/config.toml
+      - ./rago.toml:/app/rago.toml
     depends_on:
       - ollama
     environment:

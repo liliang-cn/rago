@@ -363,7 +363,7 @@ func (w *PluginToolWrapper) Execute(ctx context.Context, args map[string]interfa
 	result, err := w.Tool.Execute(ctx, args)
 	if err != nil {
 		return nil, fmt.Errorf("plugin %s tool %s execution failed: %w",
-			w.pluginName, w.Tool.Name(), err)
+						w.pluginName, w.Name(), err)
 	}
 	return result, nil
 }

@@ -59,24 +59,8 @@ func InitializeEmbedder(ctx context.Context, cfg *config.Config, factory *provid
 		return embedder.NewService(provider), nil
 	}
 
-	// Fallback to legacy Ollama configuration for backward compatibility
-	// Create legacy Ollama provider using the new provider system
-	legacyConfig := &domain.OllamaProviderConfig{
-		BaseProviderConfig: domain.BaseProviderConfig{
-			Type:    domain.ProviderOllama,
-			Timeout: cfg.Ollama.Timeout,
-		},
-		BaseURL:        cfg.Ollama.BaseURL,
-		LLMModel:       cfg.Ollama.LLMModel,
-		EmbeddingModel: cfg.Ollama.EmbeddingModel,
-	}
-	
-	provider, err := factory.CreateEmbedderProvider(ctx, legacyConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create legacy Ollama embedder provider: %w", err)
-	}
-
-	return embedder.NewService(provider), nil
+	// No provider configured
+	return nil, fmt.Errorf("no embedder provider configured")
 }
 
 // InitializeLLM initializes the LLM service using the provider system
@@ -97,24 +81,8 @@ func InitializeLLM(ctx context.Context, cfg *config.Config, factory *providers.F
 		return llm.NewService(provider), nil
 	}
 
-	// Fallback to legacy Ollama configuration for backward compatibility
-	// Create legacy Ollama provider using the new provider system
-	legacyConfig := &domain.OllamaProviderConfig{
-		BaseProviderConfig: domain.BaseProviderConfig{
-			Type:    domain.ProviderOllama,
-			Timeout: cfg.Ollama.Timeout,
-		},
-		BaseURL:        cfg.Ollama.BaseURL,
-		LLMModel:       cfg.Ollama.LLMModel,
-		EmbeddingModel: cfg.Ollama.EmbeddingModel,
-	}
-	
-	provider, err := factory.CreateLLMProvider(ctx, legacyConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create legacy Ollama LLM provider: %w", err)
-	}
-
-	return llm.NewService(provider), nil
+	// No provider configured
+	return nil, fmt.Errorf("no LLM provider configured")
 }
 
 // CheckProviderHealth checks the health of provider services

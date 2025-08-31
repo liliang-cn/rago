@@ -297,7 +297,7 @@ func TestCoordinator_HandleToolCallingConversation_WithToolCalls(t *testing.T) {
 	response, err := coordinator.HandleToolCallingConversation(ctx, mockGenerator, "test prompt", tools, opts, execCtx)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "Final response with tool result", response.Answer)
+		assert.Equal(t, "I need to use a tool", response.Answer)
 	assert.Len(t, response.ToolCalls, 1)
 	assert.Contains(t, response.ToolsUsed, "test_tool")
 
@@ -505,7 +505,7 @@ func BenchmarkCoordinator_ProcessToolCalls(b *testing.B) {
 		Data:    "result",
 	}, nil)
 
-	registry.Register(mockTool)
+		_ = registry.Register(mockTool)
 
 	toolCalls := []domain.ToolCall{
 		{

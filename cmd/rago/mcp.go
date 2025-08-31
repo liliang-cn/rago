@@ -299,7 +299,11 @@ func runMCPStatus(cmd *cobra.Command, args []string) error {
 
 	// Create tool manager
 	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
-	defer toolManager.Close()
+	defer func() {
+		if err := toolManager.Close(); err != nil {
+			fmt.Printf("failed to close tool manager: %v\n", err)
+		}
+	}()
 
 	// Get server status
 	serverStatus := toolManager.GetServerStatus()
@@ -340,7 +344,11 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 	}
 
 	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
-	defer toolManager.Close()
+	defer func() {
+		if err := toolManager.Close(); err != nil {
+			fmt.Printf("failed to close tool manager: %v\n", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -378,7 +386,11 @@ func runMCPStop(cmd *cobra.Command, args []string) error {
 	}
 
 	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
-	defer toolManager.Close()
+	defer func() {
+		if err := toolManager.Close(); err != nil {
+			fmt.Printf("failed to close tool manager: %v\n", err)
+		}
+	}()
 
 	if len(args) == 0 {
 		// Stop all servers
@@ -414,7 +426,11 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 	}
 
 	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
-	defer toolManager.Close()
+	defer func() {
+		if err := toolManager.Close(); err != nil {
+			fmt.Printf("failed to close tool manager: %v\n", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -505,7 +521,11 @@ func runMCPCall(cmd *cobra.Command, args []string) error {
 	}
 
 	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
-	defer toolManager.Close()
+	defer func() {
+		if err := toolManager.Close(); err != nil {
+			fmt.Printf("failed to close tool manager: %v\n", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout+10*time.Second)
 	defer cancel()

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/blevesearch/bleve/v2"
@@ -146,6 +147,7 @@ func (s *KeywordStore) Delete(ctx context.Context, documentID string) error {
 func (s *KeywordStore) Reset(ctx context.Context) error {
 	if err := s.index.Close(); err != nil {
 		// Log error but continue, as we are about to delete the directory anyway
+		fmt.Printf("Warning: failed to close index during reset: %v\n", err)
 	}
 
 	if err := os.RemoveAll(s.path); err != nil {
@@ -160,7 +162,7 @@ func (s *KeywordStore) Reset(ctx context.Context) error {
 	return nil
 }
 
-// Close closes the underlying Bleve index.
+	// Close closes the underlying Bleve index.
 func (s *KeywordStore) Close() error {
 	if s.index != nil {
 		err := s.index.Close()

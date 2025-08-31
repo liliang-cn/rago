@@ -213,7 +213,11 @@ func (w *WebSearchTool) searchDuckDuckGoHTML(ctx context.Context, query string) 
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+		defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Printf("Warning: failed to close response body: %v\n", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP returned status code: %d", resp.StatusCode)

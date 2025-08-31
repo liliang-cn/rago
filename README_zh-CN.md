@@ -29,7 +29,7 @@ RAGO（Retrieval-Augmented Generation Offline）是一个完全本地运行的 R
 3. **下载模型**
    ```bash
    ollama pull nomic-embed-text  # 嵌入模型
-   ollama pull qwen2.5          # 生成模型（或 qwen3）
+   ollama pull qwen3          # 生成模型（或 qwen3）
    ```
 
 **方式二：使用 OpenAI**
@@ -79,7 +79,7 @@ rago --help
 
 2. **配置提供商**（如果使用 OpenAI）
 
-   编辑生成的 `config.toml` 文件，取消注释 OpenAI 部分：
+   编辑生成的 `rago.toml` 文件，取消注释 OpenAI 部分：
 
    ```toml
    [providers]
@@ -337,8 +337,8 @@ import "github.com/liliang-cn/rago/lib"
 #### 创建客户端
 
 ```go
-// 使用默认配置文件（当前目录下的 config.toml）
-client, err := rago.New("config.toml")
+// 使用默认配置文件（当前目录下的 rago.toml）
+client, err := rago.New("rago.toml")
 if err != nil {
     log.Fatal(err)
 }
@@ -402,9 +402,9 @@ err = client.Reset()
 库将从以下位置读取配置：
 
 - 指定的配置文件路径
-- `./config.toml`（当前目录）
-- `./config/config.toml`
-- `$HOME/.rago/config.toml`
+- `./rago.toml`（当前目录）
+- `./config/rago.toml`
+- `$HOME/.rago/rago.toml`
 
 #### 示例
 
@@ -440,14 +440,14 @@ go run library_usage.go
 RAGO 提供 `init` 命令来快速生成基于 provider 架构的现代配置文件：
 
 ```bash
-# 创建默认设置的 config.toml（使用 Ollama 和目录结构）
+# 创建默认设置的 rago.toml（使用 Ollama 和目录结构）
 rago init
 
 # 覆盖现有配置文件
 rago init --force
 
 # 在自定义路径创建配置文件
-rago init --output /path/to/config.toml
+rago init --output /path/to/rago.toml
 ```
 
 `init` 命令自动：
@@ -472,7 +472,7 @@ default_embedder = "ollama"
 [providers.ollama]
 type = "ollama"
 base_url = "http://localhost:11434"
-llm_model = "qwen2.5"
+llm_model = "qwen3"
 embedding_model = "nomic-embed-text"
 timeout = "120s"
 ```
@@ -571,7 +571,7 @@ default_embedder = "ollama"
 [providers.ollama]
 type = "ollama"
 base_url = "http://localhost:11434"
-llm_model = "qwen2.5"
+llm_model = "qwen3"
 embedding_model = "nomic-embed-text"
 timeout = "120s"
 
@@ -597,7 +597,7 @@ method = "sentence"                      # sentence、paragraph、token
 
 [ingest.metadata_extraction]
 enable = false                           # 启用自动元数据提取
-llm_model = "qwen2.5"                   # 用于元数据提取的模型
+llm_model = "qwen3"                   # 用于元数据提取的模型
 
 [tools]
 enabled = true
@@ -780,7 +780,7 @@ docker run -d \
   --name rago \
   -p 7127:7127 \
   -v $(pwd)/data:/app/data \
-  -v $(pwd)/config.toml:/app/config.toml \
+  -v $(pwd)/rago.toml:/app/rago.toml \
   rago:latest
 ```
 
@@ -802,7 +802,7 @@ services:
       - "7127:7127"
     volumes:
       - ./data:/app/data
-      - ./config.toml:/app/config.toml
+      - ./rago.toml:/app/rago.toml
     depends_on:
       - ollama
     environment:

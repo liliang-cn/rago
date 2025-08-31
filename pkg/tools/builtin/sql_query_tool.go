@@ -112,7 +112,11 @@ func (t *SQLQueryTool) Execute(ctx context.Context, args map[string]interface{})
 			Error:   fmt.Sprintf("failed to connect to database: %v", err),
 		}, nil
 	}
-	defer db.Close()
+		defer func() {
+		if err := db.Close(); err != nil {
+			fmt.Printf("Warning: failed to close database: %v\n", err)
+		}
+	}()
 
 	// Set connection timeout
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, t.queryTimeout)
@@ -247,7 +251,11 @@ func (t *SQLQueryTool) executeQuery(ctx context.Context, db *sql.DB, args map[st
 			Error:   fmt.Sprintf("query execution failed: %v", err),
 		}, nil
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	// Get column names
 	columns, err := rows.Columns()
@@ -337,7 +345,11 @@ func (t *SQLQueryTool) getSchema(ctx context.Context, db *sql.DB) (*tools.ToolRe
 			Error:   fmt.Sprintf("failed to get schema: %v", err),
 		}, nil
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	var tables []map[string]interface{}
 	for rows.Next() {
@@ -380,7 +392,11 @@ func (t *SQLQueryTool) getTables(ctx context.Context, db *sql.DB) (*tools.ToolRe
 			Error:   fmt.Sprintf("failed to get tables: %v", err),
 		}, nil
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	var tables []string
 	for rows.Next() {
@@ -427,7 +443,11 @@ func (t *SQLQueryTool) describeTable(ctx context.Context, db *sql.DB, args map[s
 			Error:   fmt.Sprintf("failed to describe table: %v", err),
 		}, nil
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", err)
+		}
+	}()
 
 	var columns []map[string]interface{}
 	for rows.Next() {
@@ -481,7 +501,7 @@ func (t *SQLQueryTool) validateTableName(tableName string) error {
 
 	// Allow only alphanumeric characters and underscores
 	for _, r := range tableName {
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+				if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '_' {
 			return fmt.Errorf("table name contains invalid characters")
 		}
 	}

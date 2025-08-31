@@ -177,7 +177,7 @@ func (c *Coordinator) HandleToolCallingConversation(ctx context.Context,
 		}
 
 		if len(result.ToolCalls) == 0 {
-			messages = append(messages, assistantMsg)
+			_ = append(messages, assistantMsg)
 			break
 		}
 
@@ -272,7 +272,6 @@ func (c *Coordinator) StreamToolCallingConversation(ctx context.Context,
 		}
 
 		if len(roundToolCalls) == 0 {
-			messages = append(messages, assistantMsg)
 			break
 		}
 

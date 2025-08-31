@@ -329,7 +329,7 @@ func (t *FileOperationTool) listFiles(path string, args map[string]interface{}) 
 	var files []map[string]interface{}
 
 	if recursive {
-		err = filepath.WalkDir(path, func(filePath string, d fs.DirEntry, err error) error {
+			if err := filepath.WalkDir(path, func(filePath string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return nil // Skip files with errors
 			}
@@ -358,7 +358,12 @@ func (t *FileOperationTool) listFiles(path string, args map[string]interface{}) 
 				})
 			}
 			return nil
-		})
+		}); err != nil {
+			return &tools.ToolResult{
+				Success: false,
+				Error:   fmt.Sprintf("failed to walk directory: %v", err),
+			}, nil
+		}
 	} else {
 		entries, err := os.ReadDir(path)
 		if err != nil {

@@ -48,7 +48,7 @@ func (c *Client) Connect(ctx context.Context) error {
 	}
 
 	// Create command transport
-	transport := mcp.NewCommandTransport(cmd)
+		transport := &mcp.CommandTransport{Command: cmd}
 	
 	// Create MCP client with implementation info
 	clientImpl := &mcp.Implementation{
