@@ -14,15 +14,16 @@ import (
 )
 
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	Providers ProvidersConfig `mapstructure:"providers"`
-	Sqvect    SqvectConfig    `mapstructure:"sqvect"`
-	Keyword   KeywordConfig   `mapstructure:"keyword"`
-	Chunker   ChunkerConfig   `mapstructure:"chunker"`
-	Ingest    IngestConfig    `mapstructure:"ingest"`
+	Server    ServerConfig     `mapstructure:"server"`
+	Providers ProvidersConfig  `mapstructure:"providers"`
+	Sqvect    SqvectConfig     `mapstructure:"sqvect"`
+	Keyword   KeywordConfig    `mapstructure:"keyword"`
+	Chunker   ChunkerConfig    `mapstructure:"chunker"`
+	Ingest    IngestConfig     `mapstructure:"ingest"`
 	Tools     tools.ToolConfig `mapstructure:"tools"`
-	MCP       mcp.Config      `mapstructure:"mcp"`
-	
+	MCP       mcp.Config       `mapstructure:"mcp"`
+	RRF       RRFConfig        `mapstructure:"rrf"`
+
 	// Deprecated: Use Providers instead
 	Ollama OllamaConfig `mapstructure:"ollama"`
 }
@@ -30,7 +31,7 @@ type Config struct {
 type ProvidersConfig struct {
 	// The default provider to use for LLM operations
 	DefaultLLM string `mapstructure:"default_llm"`
-	// The default provider to use for embedding operations  
+	// The default provider to use for embedding operations
 	DefaultEmbedder string `mapstructure:"default_embedder"`
 	// Provider configurations
 	ProviderConfigs domain.ProviderConfig `mapstructure:",squash"`
@@ -75,6 +76,11 @@ type ChunkerConfig struct {
 	ChunkSize int    `mapstructure:"chunk_size"`
 	Overlap   int    `mapstructure:"overlap"`
 	Method    string `mapstructure:"method"`
+}
+
+type RRFConfig struct {
+	K                  int     `mapstructure:"k"`                   // RRF constant (default: 10)
+	RelevanceThreshold float64 `mapstructure:"relevance_threshold"` // Threshold for considering context relevant (default: 0.05)
 }
 
 func Load(configPath string) (*Config, error) {
@@ -144,7 +150,7 @@ func setDefaults() {
 	// Provider defaults
 	viper.SetDefault("providers.default_llm", "ollama")
 	viper.SetDefault("providers.default_embedder", "ollama")
-	
+
 	// Ollama provider defaults (backward compatibility)
 	viper.SetDefault("providers.ollama.type", "ollama")
 	viper.SetDefault("providers.ollama.embedding_model", "nomic-embed-text")
@@ -163,6 +169,9 @@ func setDefaults() {
 	viper.SetDefault("sqvect.threshold", 0.0)
 
 	viper.SetDefault("keyword.index_path", "./data/keyword.bleve")
+
+	viper.SetDefault("rrf.k", 10)
+	viper.SetDefault("rrf.relevance_threshold", 0.05)
 
 	viper.SetDefault("chunker.chunk_size", 300)
 	viper.SetDefault("chunker.overlap", 50)
@@ -295,6 +304,13 @@ func bindEnvVars() {
 		log.Printf("Warning: failed to bind keyword.index_path env var: %v", err)
 	}
 
+	if err := viper.BindEnv("rrf.k", "RAGO_RRF_K"); err != nil {
+		log.Printf("Warning: failed to bind rrf.k env var: %v", err)
+	}
+	if err := viper.BindEnv("rrf.relevance_threshold", "RAGO_RRF_RELEVANCE_THRESHOLD"); err != nil {
+		log.Printf("Warning: failed to bind rrf.relevance_threshold env var: %v", err)
+	}
+
 	if err := viper.BindEnv("chunker.chunk_size", "RAGO_CHUNKER_CHUNK_SIZE"); err != nil {
 		log.Printf("Warning: failed to bind chunker.chunk_size env var: %v", err)
 	}
@@ -365,7 +381,7 @@ func (c *Config) Validate() error {
 	}
 
 	// Validate provider configurations only if they exist
-	if c.Providers.DefaultLLM != "" || c.Providers.DefaultEmbedder != "" || 
+	if c.Providers.DefaultLLM != "" || c.Providers.DefaultEmbedder != "" ||
 		c.Providers.ProviderConfigs.Ollama != nil || c.Providers.ProviderConfigs.OpenAI != nil {
 		if err := c.validateProviderConfig(); err != nil {
 			return fmt.Errorf("invalid provider configuration: %w", err)
@@ -422,6 +438,11 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid MCP configuration: %w", err)
 	}
 
+	// Validate RRF configuration
+	if err := c.validateRRFConfig(); err != nil {
+		return fmt.Errorf("invalid RRF configuration: %w", err)
+	}
+
 	return nil
 }
 
@@ -437,12 +458,12 @@ func (c *Config) getDefaultLLMModel() string {
 	if c.Providers.ProviderConfigs.LMStudio != nil {
 		return c.Providers.ProviderConfigs.LMStudio.LLMModel
 	}
-	
+
 	// Fallback to legacy ollama config
 	if c.Ollama.LLMModel != "" {
 		return c.Ollama.LLMModel
 	}
-	
+
 	// Final fallback
 	return "qwen3"
 }
@@ -699,6 +720,23 @@ func (c *Config) validateMCPServerConfig(server *mcp.ServerConfig, index int) er
 		if j != index && other.Name == server.Name {
 			return fmt.Errorf("duplicate server name: %s", server.Name)
 		}
+	}
+
+	return nil
+}
+
+// validateRRFConfig validates RRF configuration
+func (c *Config) validateRRFConfig() error {
+	if c.RRF.K <= 0 {
+		return fmt.Errorf("RRF k value must be positive: %d", c.RRF.K)
+	}
+
+	if c.RRF.RelevanceThreshold < 0 {
+		return fmt.Errorf("relevance threshold must be non-negative: %f", c.RRF.RelevanceThreshold)
+	}
+
+	if c.RRF.RelevanceThreshold > 1.0 {
+		return fmt.Errorf("relevance threshold must be <= 1.0: %f", c.RRF.RelevanceThreshold)
 	}
 
 	return nil

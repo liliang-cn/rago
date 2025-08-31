@@ -2,9 +2,10 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
-	
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -24,11 +25,11 @@ type MCPTool interface {
 
 // MCPToolResult represents the result of an MCP tool call
 type MCPToolResult struct {
-	Success    bool        `json:"success"`
-	Data       interface{} `json:"data,omitempty"`
-	Error      string      `json:"error,omitempty"`
-	ServerName string      `json:"server_name"`
-	ToolName   string      `json:"tool_name"`
+	Success    bool          `json:"success"`
+	Data       interface{}   `json:"data,omitempty"`
+	Error      string        `json:"error,omitempty"`
+	ServerName string        `json:"server_name"`
+	ToolName   string        `json:"tool_name"`
 	Duration   time.Duration `json:"duration"`
 }
 
@@ -63,50 +64,54 @@ func (w *MCPToolWrapper) ServerName() string {
 }
 
 func (w *MCPToolWrapper) Schema() map[string]interface{} {
-	// Convert MCP tool schema to our format
-	schema := make(map[string]interface{})
+	// Try to convert the actual InputSchema to our format
 	if w.tool.InputSchema != nil {
-		// The InputSchema is a *jsonschema.Schema, we need to convert it
-		// For now, create a basic schema structure
-		schema["type"] = "object"
-		schema["properties"] = make(map[string]interface{})
-		
-		// TODO: Properly convert jsonschema.Schema to map[string]interface{}
-		// This would require inspecting the schema structure
-	} else {
-		// Ensure we have a basic schema structure
-		schema["type"] = "object"
-		schema["properties"] = make(map[string]interface{})
+		// Use JSON marshaling/unmarshaling to convert jsonschema.Schema to map[string]interface{}
+		schemaBytes, err := json.Marshal(w.tool.InputSchema)
+		if err == nil {
+			var schemaMap map[string]interface{}
+			if err := json.Unmarshal(schemaBytes, &schemaMap); err == nil {
+				// Successfully converted the schema
+				return schemaMap
+			}
+		}
 	}
-	
+
+	// Fallback: create a basic schema structure if conversion fails
+	// This provides a generic object schema that allows any parameters
+	schema := make(map[string]interface{})
+	schema["type"] = "object"
+	schema["properties"] = make(map[string]interface{})
+	schema["additionalProperties"] = true // Allow any additional properties
+
 	return schema
 }
 
 func (w *MCPToolWrapper) Call(ctx context.Context, args map[string]interface{}) (*MCPToolResult, error) {
 	start := time.Now()
-	
+
 	result := &MCPToolResult{
 		ServerName: w.serverName,
 		ToolName:   w.toolName,
 		Duration:   0,
 	}
-	
+
 	// Call the underlying MCP tool
 	toolResult, err := w.client.CallTool(ctx, w.toolName, args)
 	result.Duration = time.Since(start)
-	
+
 	if err != nil {
 		result.Success = false
 		result.Error = fmt.Sprintf("MCP tool call failed: %v", err)
 		return result, nil // Don't return error, return failed result
 	}
-	
+
 	result.Success = toolResult.Success
 	result.Data = toolResult.Data
 	if !toolResult.Success {
 		result.Error = toolResult.Error
 	}
-	
+
 	return result, nil
 }
 
@@ -129,7 +134,7 @@ func (tm *MCPToolManager) Start(ctx context.Context) error {
 	if !tm.manager.config.Enabled {
 		return fmt.Errorf("MCP is disabled in configuration")
 	}
-	
+
 	// Start auto-start servers
 	for _, serverConfig := range tm.manager.config.Servers {
 		if serverConfig.AutoStart {
@@ -138,7 +143,7 @@ func (tm *MCPToolManager) Start(ctx context.Context) error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -148,14 +153,14 @@ func (tm *MCPToolManager) StartServer(ctx context.Context, serverName string) er
 	if err != nil {
 		return fmt.Errorf("failed to start MCP server %s: %w", serverName, err)
 	}
-	
+
 	// Load tools from the server
 	tools := client.GetTools()
 	for _, tool := range tools {
 		wrapper := NewMCPToolWrapper(client, serverName, tool)
 		tm.tools[wrapper.Name()] = wrapper
 	}
-	
+
 	return nil
 }
 
@@ -167,7 +172,7 @@ func (tm *MCPToolManager) StopServer(serverName string) error {
 			delete(tm.tools, name)
 		}
 	}
-	
+
 	return tm.manager.StopServer(serverName)
 }
 
@@ -203,14 +208,14 @@ func (tm *MCPToolManager) CallTool(ctx context.Context, toolName string, args ma
 	if !exists {
 		return nil, fmt.Errorf("MCP tool '%s' not found", toolName)
 	}
-	
+
 	return tool.Call(ctx, args)
 }
 
 // GetToolsForLLM returns tools in a format suitable for LLM function calling
 func (tm *MCPToolManager) GetToolsForLLM() []map[string]interface{} {
 	var llmTools []map[string]interface{}
-	
+
 	for _, tool := range tm.tools {
 		llmTool := map[string]interface{}{
 			"type": "function",
@@ -222,7 +227,7 @@ func (tm *MCPToolManager) GetToolsForLLM() []map[string]interface{} {
 		}
 		llmTools = append(llmTools, llmTool)
 	}
-	
+
 	return llmTools
 }
 
@@ -230,18 +235,18 @@ func (tm *MCPToolManager) GetToolsForLLM() []map[string]interface{} {
 func (tm *MCPToolManager) GetServerStatus() map[string]bool {
 	status := make(map[string]bool)
 	clients := tm.manager.ListClients()
-	
+
 	for name, client := range clients {
 		status[name] = client.IsConnected()
 	}
-	
+
 	// Also check configured servers that might not be running
 	for _, serverConfig := range tm.manager.config.Servers {
 		if _, exists := status[serverConfig.Name]; !exists {
 			status[serverConfig.Name] = false
 		}
 	}
-	
+
 	return status
 }
 
@@ -253,14 +258,14 @@ func (tm *MCPToolManager) Close() error {
 
 // ToolUsageStats represents usage statistics for MCP tools
 type ToolUsageStats struct {
-	ToolName     string        `json:"tool_name"`
-	ServerName   string        `json:"server_name"`
-	CallCount    int64         `json:"call_count"`
-	SuccessCount int64         `json:"success_count"`
-	ErrorCount   int64         `json:"error_count"`
+	ToolName      string        `json:"tool_name"`
+	ServerName    string        `json:"server_name"`
+	CallCount     int64         `json:"call_count"`
+	SuccessCount  int64         `json:"success_count"`
+	ErrorCount    int64         `json:"error_count"`
 	TotalDuration time.Duration `json:"total_duration"`
-	AvgDuration  time.Duration `json:"avg_duration"`
-	LastUsed     time.Time     `json:"last_used"`
+	AvgDuration   time.Duration `json:"avg_duration"`
+	LastUsed      time.Time     `json:"last_used"`
 }
 
 // GetUsageStats returns usage statistics for all tools (placeholder for future implementation)
