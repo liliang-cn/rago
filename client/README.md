@@ -1,13 +1,13 @@
 # RAGO Library Usage Guide
 
-RAGO can be used not only as a standalone CLI tool but also as a Go library integrated into your projects, providing powerful RAG (Retrieval-Augmented Generation) and tool-calling capabilities for your applications.
+RAGO can be used not only as a standalone CLI tool but also as a Go library integrated into your projects, providing powerful RAG (Retrieval-Augmented Generation) and MCP (Model Context Protocol) tool integration for your applications.
 
 ## 🚀 Quick Start
 
 ### Installation
 
 ```bash
-go get github.com/liliang-cn/rago/lib
+go get github.com/liliang-cn/rago/v2/client
 ```
 
 ### Basic Usage
@@ -19,12 +19,12 @@ import (
     "fmt"
     "log"
 
-    rago "github.com/liliang-cn/rago/lib"
+    "github.com/liliang-cn/rago/v2/client"
 )
 
 func main() {
     // Create a client
-    client, err := rago.New("rago.toml")
+    client, err := client.New("rago.toml")
     if err != nil {
         log.Fatal(err)
     }
@@ -46,14 +46,14 @@ func main() {
 
 ```go
 // Create a client from a configuration file
-client, err := rago.New("path/to/rago.toml")
+client, err := client.New("path/to/rago.toml")
 
 // Create a client from a configuration object
 config := &config.Config{...}
-client, err := rago.NewWithConfig(config)
+client, err := client.NewWithConfig(config)
 
 // Remember to close the client to release resources
-def client.Close()
+defer client.Close()
 ```
 
 ### 📝 Document Management
@@ -131,27 +131,43 @@ err := client.LLMChatStream(context.Background(), streamChatReq, func(chunk stri
 })
 ```
 
-### ⚙️ Tool Calling Functions
+### 🛠️ MCP Tool Integration
+
+RAGO now uses MCP (Model Context Protocol) for tool integration, providing enhanced functionality and extensibility.
 
 ```go
-// Query with tools enabled
-response, err := client.QueryWithTools(
-    "What time is it?",
-    []string{"datetime"},  // List of allowed tools, empty means all are allowed
-    5,                     // Maximum number of tool calls
-)
+// Enable MCP functionality
+ctx := context.Background()
+err := client.EnableMCP(ctx)
+if err != nil {
+    log.Fatal(err)
+}
 
-// Execute a tool directly
-result, err := client.ExecuteTool("datetime", map[string]interface{}{
-    "action": "now",
+// Check if MCP is enabled
+if client.IsMCPEnabled() {
+    fmt.Println("MCP is ready!")
+}
+
+// List available MCP tools
+tools, err := client.ListMCPTools()
+if err != nil {
+    log.Fatal(err)
+}
+
+// Call an MCP tool directly
+result, err := client.CallMCPTool(ctx, "filesystem_read", map[string]interface{}{
+    "path": "./README.md",
 })
 
-// List available tools
-tools := client.ListAvailableTools()  // All tools
-enabled := client.ListEnabledTools()  // Only enabled tools
+// Query with MCP tools enabled (automatic tool calling)
+response, err := client.QueryWithMCP("List files in the current directory")
 
-// Get tool statistics
-stats := client.GetToolStats()
+// Chat with MCP tools (bypassing RAG)
+mcpResponse, err := client.ChatWithMCP("What's the current time?", &client.MCPChatOptions{
+    Temperature:  0.7,
+    MaxTokens:    1000,
+    AllowedTools: []string{"datetime", "filesystem"},
+})
 ```
 
 ### 🔧 System Management
@@ -166,72 +182,67 @@ fmt.Printf("LLM Provider: %s\n", status.LLMProvider)
 config := client.GetConfig()
 ```
 
-## 🛠️ Available Tools
+## 🛠️ MCP Server Configuration
 
-RAGO comes with several powerful built-in tools:
+RAGO uses MCP servers to provide tool functionality. Configure your MCP servers in your configuration file:
 
-### 1. DateTime Tool (datetime)
+### Setting up MCP Servers
 
-- **Functionality**: Date and time operations
-- **Usage**:
-  ```go
-  client.ExecuteTool("datetime", map[string]interface{}{
-      "action": "now",
-  })
-  ```
+Create or update your `mcpServers.json` file:
 
-### 2. File Operations Tool (file_operations)
+```json
+{
+  "filesystem": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@modelcontextprotocol/server-filesystem", 
+      "/path/to/allowed/directory"
+    ]
+  },
+  "sqlite": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@modelcontextprotocol/server-sqlite",
+      "/path/to/database.db"
+    ]
+  },
+  "brave-search": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+    "env": {
+      "BRAVE_API_KEY": "your-api-key"
+    }
+  }
+}
+```
 
-- **Functionality**: Secure file system operations
-- **Usage**:
+### Available MCP Servers
 
-  ```go
-  // Read a file
-  client.ExecuteTool("file_operations", map[string]interface{}{
-      "action": "read",
-      "path":   "./README.md",
-  })
+Popular MCP servers you can use:
 
-  // List a directory
-  client.ExecuteTool("file_operations", map[string]interface{}{
-      "action": "list",
-      "path":   "./",
-  })
-  ```
+1. **Filesystem Server** - File operations
+   ```bash
+   npx -y @modelcontextprotocol/server-filesystem /allowed/path
+   ```
 
-### 3. RAG Search Tool (rag_search)
+2. **SQLite Server** - Database queries
+   ```bash
+   npx -y @modelcontextprotocol/server-sqlite /path/to/db.sqlite
+   ```
 
-- **Functionality**: Knowledge base search
-- **Usage**:
-  ```go
-  client.ExecuteTool("rag_search", map[string]interface{}{
-      "query": "machine learning",
-      "top_k": 5,
-  })
-  ```
+3. **Brave Search** - Web search
+   ```bash
+   npx -y @modelcontextprotocol/server-brave-search
+   ```
 
-### 4. Document Info Tool (document_info)
+4. **GitHub Server** - Repository operations
+   ```bash
+   npx -y @modelcontextprotocol/server-github
+   ```
 
-- **Functionality**: Document management
-- **Usage**:
-  ```go
-  // Get document count
-  client.ExecuteTool("document_info", map[string]interface{}{
-      "action": "count",
-  })
-  ```
-
-### 5. SQL Query Tool (sql_query)
-
-- **Functionality**: Secure database queries
-- **Usage**:
-  ```go
-  client.ExecuteTool("sql_query", map[string]interface{}{
-      "action":   "query",
-      "database": "main",
-      "sql":      "SELECT * FROM documents LIMIT 5",
-  })
-  ```
+For a complete list of available MCP servers, visit the [MCP Servers Registry](https://github.com/modelcontextprotocol/servers).
 
 ## 📋 Response Formats
 
@@ -240,19 +251,31 @@ RAGO comes with several powerful built-in tools:
 ```go
 type QueryResponse struct {
     Answer    string                 // Generated answer
-    Sources   []Chunk               // Relevant document chunks
+    Sources   []Chunk               // Relevant document chunks  
     Elapsed   string                // Query duration
-    ToolCalls []ExecutedToolCall   // Executed tool calls (if tools are used)
-    ToolsUsed []string             // List of tool names used
+    ToolCalls []ExecutedToolCall   // Executed MCP tool calls (if tools are used)
+    ToolsUsed []string             // List of MCP tool names used
 }
 ```
 
-### ToolResult
+### MCPChatResponse
 
 ```go
-type ToolResult struct {
+type MCPChatResponse struct {
+    Content       string              // Initial LLM response
+    FinalResponse string              // Final response after tool execution
+    ToolCalls     []MCPToolCallResult // MCP tool call results
+    Thinking      string              // Reasoning process (if enabled)
+    HasThinking   bool                // Whether thinking was enabled
+}
+```
+
+### MCPToolResult
+
+```go
+type MCPToolResult struct {
     Success bool        // Whether the execution was successful
-    Data    interface{} // Result data
+    Data    interface{} // Result data from MCP server
     Error   string      // Error message (if failed)
 }
 ```
@@ -266,53 +289,44 @@ Create a `rago.toml` file:
 default_llm = "ollama"
 default_embedder = "ollama"
 
-[llm.ollama]
+[providers.ollama]
 base_url = "http://localhost:11434"
-model = "qwen3"
+llm_model = "qwen3"
+embedding_model = "nomic-embed-text"
 
-[embedder.ollama]
-base_url = "http://localhost:11434"
-model = "nomic-embed-text"
+[mcp]
+enabled = true
+servers_config_path = "./mcpServers.json"
+log_level = "info"
+default_timeout = "30s"
+max_concurrent_requests = 5
 
+# Built-in tools are deprecated - use MCP servers instead
 [tools]
-enabled = true
-
-[tools.builtin.datetime]
-enabled = true
-
-[tools.builtin.file_operations]
-enabled = true
-[tools.builtin.file_operations.parameters]
-allowed_paths = "./knowledge,./data,./examples"
-max_file_size = "10485760"
-
-[tools.builtin.rag_search]
-enabled = true
-
-[tools.builtin.document_info]
-enabled = true
+enabled = false  # Disable built-in tools - use MCP instead
 ```
 
 ## 🔒 Security Features
 
-- **Path Restriction**: File operations are restricted to configured allowed paths.
-- **SQL Safety**: Only SELECT queries are allowed to prevent SQL injection.
-- **Rate Limiting**: Configurable rate limiting for tool calls.
-- **File Size Limit**: Prevents processing of overly large files.
+- **MCP Server Isolation**: Each MCP server runs in its own isolated process
+- **Configurable Timeouts**: Prevent long-running tool calls from hanging
+- **Rate Limiting**: Built-in rate limiting for tool execution
+- **Access Control**: Granular control over which MCP servers are enabled
+- **Sandboxed Execution**: MCP servers operate in controlled environments
 
 ## 📱 Complete Example
 
-Check out [examples/library_usage.go](examples/library_usage.go) for a complete usage example.
+Check out [examples/library_usage.go](examples/library_usage.go) for a complete usage example demonstrating MCP integration.
 
 ## 🎯 Integration Scenarios
 
-The RAGO library is ideal for the following scenarios:
+The RAGO library with MCP integration is ideal for:
 
-1. **Intelligent Customer Service Systems**: Answering user questions based on a corporate knowledge base.
-2. **Document Q&A Applications**: Intelligent search and Q&A for large volumes of documents.
-3. **AI Assistants**: Smart assistants with capabilities like file operations and time queries.
-4. **Knowledge Management Systems**: Intelligent management of internal corporate knowledge bases.
-5. **Automation Tools**: Automation scripts combining AI and tool calls.
+1. **Intelligent Customer Service Systems**: Answer questions using both knowledge base and external APIs
+2. **Development Assistant Tools**: Combine code documentation with real-time system information  
+3. **Data Analysis Applications**: Query databases while providing contextual analysis
+4. **Process Automation**: Integrate AI reasoning with system operations
+5. **Knowledge Management Platforms**: Enhanced search with live data integration
 
 ## 📞 Support
 
