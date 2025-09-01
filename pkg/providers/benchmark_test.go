@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 // Test data structures for benchmarks

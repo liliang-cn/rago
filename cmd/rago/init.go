@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/liliang-cn/rago/pkg/config"
-	"github.com/liliang-cn/rago/pkg/store"
+	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/store"
 	"github.com/spf13/cobra"
 )
 

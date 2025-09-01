@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/liliang-cn/rago/client"
+	"github.com/liliang-cn/rago/v2/client"
 )
 
 func main() {

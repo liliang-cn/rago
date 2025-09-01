@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/liliang-cn/rago/pkg/config"
-	"github.com/liliang-cn/rago/pkg/domain"
-	"github.com/liliang-cn/rago/pkg/embedder"
-	"github.com/liliang-cn/rago/pkg/llm"
-	"github.com/liliang-cn/rago/pkg/providers"
+	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/embedder"
+	"github.com/liliang-cn/rago/v2/pkg/llm"
+	"github.com/liliang-cn/rago/v2/pkg/providers"
 )
 
 // InitializeProviders is a helper function to initialize services using the provider system

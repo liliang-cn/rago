@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/liliang-cn/rago/pkg/config"
-	"github.com/liliang-cn/rago/pkg/domain"
-	"github.com/liliang-cn/rago/pkg/processor"
-	"github.com/liliang-cn/rago/pkg/scheduler"
+	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/processor"
+	"github.com/liliang-cn/rago/v2/pkg/scheduler"
 )
 
 // QueryExecutor executes RAG query tasks

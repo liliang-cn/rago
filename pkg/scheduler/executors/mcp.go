@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/liliang-cn/rago/pkg/config"
-	"github.com/liliang-cn/rago/pkg/domain"
-	"github.com/liliang-cn/rago/pkg/mcp"
-	"github.com/liliang-cn/rago/pkg/scheduler"
+	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	"github.com/liliang-cn/rago/v2/pkg/scheduler"
 )
 
 // MCPTaskOutput represents the output of an MCP task execution

@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/blevesearch/bleve/v2"
-	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 // KeywordStore provides an interface for full-text search on document chunks.

@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/liliang-cn/rago/pkg/chunker"
-	"github.com/liliang-cn/rago/pkg/config"
-	"github.com/liliang-cn/rago/pkg/domain"
-	"github.com/liliang-cn/rago/pkg/processor"
-	"github.com/liliang-cn/rago/pkg/store"
-	"github.com/liliang-cn/rago/pkg/utils"
+	"github.com/liliang-cn/rago/v2/pkg/chunker"
+	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/processor"
+	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/rago/v2/pkg/utils"
 )
 
 // Client represents the main rago client

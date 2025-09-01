@@ -5,7 +5,7 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/liliang-cn/rago/cmd/rago"
+	"github.com/liliang-cn/rago/v2/cmd/rago"
 )
 
 // version is set during build time
