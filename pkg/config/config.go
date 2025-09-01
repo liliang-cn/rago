@@ -161,6 +161,11 @@ func Load(configPath string) (*Config, error) {
 		}
 	}
 
+	// Load MCP servers from external JSON file if specified
+	if err := config.MCP.LoadServersFromJSON(); err != nil {
+		return nil, fmt.Errorf("failed to load MCP servers from JSON: %w", err)
+	}
+
 	// Expand home directory paths
 	config.expandPaths()
 
@@ -223,7 +228,7 @@ func setDefaults() {
 	viper.SetDefault("tools.rate_limit.calls_per_minute", toolConfig.RateLimit.CallsPerMinute)
 	viper.SetDefault("tools.rate_limit.calls_per_hour", toolConfig.RateLimit.CallsPerHour)
 	viper.SetDefault("tools.rate_limit.burst_size", toolConfig.RateLimit.BurstSize)
-	viper.SetDefault("tools.builtin", toolConfig.BuiltinTools)
+	// Built-in tools have been removed - use MCP servers instead
 
 	// Plugin configuration defaults
 	viper.SetDefault("tools.plugins.enabled", toolConfig.Plugins.Enabled)
@@ -237,6 +242,7 @@ func setDefaults() {
 	viper.SetDefault("mcp.default_timeout", mcpConfig.DefaultTimeout)
 	viper.SetDefault("mcp.max_concurrent_requests", mcpConfig.MaxConcurrentRequests)
 	viper.SetDefault("mcp.health_check_interval", mcpConfig.HealthCheckInterval)
+	viper.SetDefault("mcp.servers_config_path", mcpConfig.ServersConfigPath)
 	viper.SetDefault("mcp.servers", mcpConfig.Servers)
 }
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -84,6 +85,212 @@ func (s *Service) initializeTools() {
 
 	// Built-in tools have been deprecated and removed
 	// Use MCP servers for all tool functionality
+}
+
+// Built-in tools have been completely removed - use MCP servers instead
+// func registerBuiltinTools() - DELETED
+	// Register datetime tool
+	if s.config.Tools.BuiltinTools["datetime"].Enabled {
+		datetimeTool := builtin.NewDateTimeTool()
+		if err := s.toolRegistry.Register(datetimeTool); err != nil {
+			log.Printf("Failed to register datetime tool: %v", err)
+		}
+	}
+
+	// Register RAG search tool
+	if s.config.Tools.BuiltinTools["rag_search"].Enabled {
+		ragSearchTool := builtin.NewRAGSearchTool(s)
+		if err := s.toolRegistry.Register(ragSearchTool); err != nil {
+			log.Printf("Failed to register rag_search tool: %v", err)
+		}
+	}
+
+	// Register document info tool
+	if s.config.Tools.BuiltinTools["document_info"].Enabled {
+		docInfoTool := builtin.NewDocumentInfoTool(s)
+		if err := s.toolRegistry.Register(docInfoTool); err != nil {
+			log.Printf("Failed to register document_info tool: %v", err)
+		}
+	}
+
+	// Register file operations tool
+	if s.config.Tools.BuiltinTools["file_operations"].Enabled {
+		// Parse configuration
+		allowedPaths := []string{"./knowledge", "./data", "./examples"} // Default paths
+		maxFileSize := int64(10 * 1024 * 1024)                          // Default 10MB
+
+		if params := s.config.Tools.BuiltinTools["file_operations"].Parameters; params != nil {
+			if pathsStr, ok := params["allowed_paths"]; ok {
+				allowedPaths = strings.Split(pathsStr, ",")
+				// Trim whitespace from paths
+				for i, path := range allowedPaths {
+					allowedPaths[i] = strings.TrimSpace(path)
+				}
+			}
+			if sizeStr, ok := params["max_file_size"]; ok {
+				if size, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
+					maxFileSize = size
+				}
+			}
+		}
+
+		fileOpsTool := builtin.NewFileOperationTool(allowedPaths, maxFileSize)
+		if err := s.toolRegistry.Register(fileOpsTool); err != nil {
+			log.Printf("Failed to register file_operations tool: %v", err)
+		}
+	}
+
+	// Register SQL query tool - check if enabled via registry
+	if s.toolRegistry.IsEnabled("sql_query") {
+		// Parse configuration
+		allowedDBs := make(map[string]string)
+		maxRows := 1000
+		queryTimeout := 30 * time.Second
+
+		// Check if SQL tool has specific configuration
+		if builtinConfig, exists := s.config.Tools.BuiltinTools["sql_query"]; exists && builtinConfig.Parameters != nil {
+			params := builtinConfig.Parameters
+			if dbsStr, ok := params["allowed_databases"]; ok {
+				// Parse "name:path,name2:path2" format
+				pairs := strings.Split(dbsStr, ",")
+				for _, pair := range pairs {
+					parts := strings.SplitN(strings.TrimSpace(pair), ":", 2)
+					if len(parts) == 2 {
+						allowedDBs[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+					}
+				}
+			}
+			if rowsStr, ok := params["max_rows"]; ok {
+				if rows, err := strconv.Atoi(rowsStr); err == nil && rows > 0 {
+					maxRows = rows
+				}
+			}
+			if timeoutStr, ok := params["query_timeout"]; ok {
+				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
+					queryTimeout = timeout
+				}
+			}
+		}
+
+		// Check for tools.sql configuration (new format)
+		if s.config.Tools.SQL.Enabled {
+			maxRows = s.config.Tools.SQL.MaxRows
+			if timeout, err := time.ParseDuration(s.config.Tools.SQL.QueryTimeout); err == nil {
+				queryTimeout = timeout
+			}
+			// Convert new format to old format
+			for _, db := range s.config.Tools.SQL.AllowedDatabases {
+				allowedDBs[db.Name] = db.Path
+			}
+		}
+
+		// Only register if we have configured databases
+		if len(allowedDBs) > 0 {
+			sqlQueryTool := builtin.NewSQLQueryTool(allowedDBs, maxRows, queryTimeout)
+			if err := s.toolRegistry.Register(sqlQueryTool); err != nil {
+				log.Printf("Failed to register sql_query tool: %v", err)
+			}
+		} else {
+			log.Printf("SQL query tool enabled but no databases configured, skipping registration")
+		}
+	}
+
+	// Register HTTP request tool
+	if s.config.Tools.BuiltinTools["http_request"].Enabled {
+		// Parse configuration
+		config := builtin.HTTPToolConfig{
+			Timeout:        30 * time.Second,
+			MaxBodySize:    10 * 1024 * 1024, // 10MB default
+			UserAgent:      "RAGO-HTTP-Tool/1.0",
+			FollowRedirect: true,
+		}
+
+		if params := s.config.Tools.BuiltinTools["http_request"].Parameters; params != nil {
+			if timeoutStr, ok := params["timeout"]; ok {
+				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
+					config.Timeout = timeout
+				}
+			}
+			if sizeStr, ok := params["max_body_size"]; ok {
+				if size, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
+					config.MaxBodySize = size
+				}
+			}
+			if userAgent, ok := params["user_agent"]; ok {
+				config.UserAgent = userAgent
+			}
+			if followStr, ok := params["follow_redirect"]; ok {
+				if follow, err := strconv.ParseBool(followStr); err == nil {
+					config.FollowRedirect = follow
+				}
+			}
+			if allowedHosts, ok := params["allowed_hosts"]; ok {
+				config.AllowedHosts = strings.Split(allowedHosts, ",")
+				for i, host := range config.AllowedHosts {
+					config.AllowedHosts[i] = strings.TrimSpace(host)
+				}
+			}
+			if blockedHosts, ok := params["blocked_hosts"]; ok {
+				config.BlockedHosts = strings.Split(blockedHosts, ",")
+				for i, host := range config.BlockedHosts {
+					config.BlockedHosts[i] = strings.TrimSpace(host)
+				}
+			}
+		}
+
+		httpTool := builtin.NewHTTPTool(config)
+		if err := s.toolRegistry.Register(httpTool); err != nil {
+			log.Printf("Failed to register http_request tool: %v", err)
+		}
+	}
+
+	// Register Open URL tool
+	if s.config.Tools.BuiltinTools["open_url"].Enabled {
+		// Parse configuration
+		config := builtin.OpenURLConfig{
+			Timeout: 60 * time.Second,
+		}
+
+		if params := s.config.Tools.BuiltinTools["open_url"].Parameters; params != nil {
+			if timeoutStr, ok := params["timeout"]; ok {
+				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
+					config.Timeout = timeout
+				}
+			}
+		}
+
+		openUrlTool := builtin.NewOpenURLTool(config)
+		if err := s.toolRegistry.Register(openUrlTool); err != nil {
+			log.Printf("Failed to register open_url tool: %v", err)
+		}
+	}
+
+	// Register Web Search tool
+	if s.config.Tools.BuiltinTools["web_search"].Enabled {
+		// Parse configuration
+		config := builtin.WebSearchConfig{
+			MaxResults: 10,
+			Timeout:    60 * time.Second,
+		}
+
+		if params := s.config.Tools.BuiltinTools["web_search"].Parameters; params != nil {
+			if maxResultsStr, ok := params["max_results"]; ok {
+				if maxResults, err := strconv.Atoi(maxResultsStr); err == nil && maxResults > 0 {
+					config.MaxResults = maxResults
+				}
+			}
+			if timeoutStr, ok := params["search_timeout"]; ok {
+				if timeout, err := time.ParseDuration(timeoutStr); err == nil {
+					config.Timeout = timeout
+				}
+			}
+		}
+
+		webSearchTool := builtin.NewWebSearchTool(config)
+		if err := s.toolRegistry.Register(webSearchTool); err != nil {
+			log.Printf("Failed to register web_search tool: %v", err)
+		}
+	}
 }
 
 func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.IngestResponse, error) {

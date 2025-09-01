@@ -82,18 +82,11 @@ type ToolConfig struct {
 	CallTimeout    time.Duration               `toml:"call_timeout" mapstructure:"call_timeout"`
 	SecurityLevel  string                      `toml:"security_level" mapstructure:"security_level"` // strict, normal, permissive
 	EnabledTools   []string                    `toml:"enabled_tools" mapstructure:"enabled_tools"`
-	BuiltinTools   map[string]BuiltinToolCfg   `toml:"builtin" mapstructure:"builtin"`
 	CustomTools    map[string]CustomToolConfig `toml:"custom" mapstructure:"custom"`
 	LogLevel       string                      `toml:"log_level" mapstructure:"log_level"`
 	RateLimit      RateLimitConfig             `toml:"rate_limit" mapstructure:"rate_limit"`
 	Plugins        PluginConfig                `toml:"plugins" mapstructure:"plugins"`
 	SQL            SQLToolConfig               `toml:"sql" mapstructure:"sql"`
-}
-
-// BuiltinToolCfg represents configuration for a built-in tool
-type BuiltinToolCfg struct {
-	Enabled    bool              `toml:"enabled" mapstructure:"enabled"`
-	Parameters map[string]string `toml:"parameters,omitempty" mapstructure:"parameters"`
 }
 
 // CustomToolConfig represents configuration for a custom tool
@@ -145,32 +138,7 @@ func DefaultToolConfig() ToolConfig {
 			CallsPerHour:   300,
 			BurstSize:      5,
 		},
-		BuiltinTools: map[string]BuiltinToolCfg{
-			"datetime":      {Enabled: true},
-			"rag_search":    {Enabled: true},
-			"document_info": {Enabled: true},
-			"file_operations": {Enabled: true, Parameters: map[string]string{
-				"allowed_paths": "./knowledge,./data,./examples",
-				"max_file_size": "10485760", // 10MB
-			}},
-			// sql_query is now enabled by default via builtinTools map
-			"http_request": {Enabled: true, Parameters: map[string]string{
-				"timeout":         "30s",
-				"max_body_size":   "10485760", // 10MB
-				"user_agent":      "RAGO-HTTP-Tool/1.0",
-				"follow_redirect": "true",
-			}},
-			"open_url": {Enabled: true, Parameters: map[string]string{
-				"timeout":         "60s",
-				"max_content_len": "102400", // 100KB
-				"user_agent":      "RAGO-Web-Tool/1.0",
-			}},
-			"web_search": {Enabled: true, Parameters: map[string]string{
-				"max_results":    "10",
-				"search_timeout": "60s",
-				"user_agent":     "RAGO-Search-Tool/1.0",
-			}},
-		},
+		// Built-in tools have been removed - use MCP servers instead
 		Plugins: DefaultPluginConfig(),
 	}
 }
