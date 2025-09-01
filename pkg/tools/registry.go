@@ -3,6 +3,7 @@ package tools
 import (
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -92,6 +93,13 @@ func (r *Registry) Register(tool Tool) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// Check if this is a built-in tool and warn about deprecation
+	if r.isBuiltinTool(name) {
+		r.logger.Warn("DEPRECATION WARNING: Built-in tool '%s' is deprecated and will be removed in a future version. Consider using MCP servers instead for better functionality.", name)
+		// Also print to stderr for immediate visibility
+		fmt.Fprintf(os.Stderr, "⚠️  DEPRECATION WARNING: Built-in tool '%s' is deprecated. Use MCP servers instead.\n", name)
+	}
+
 	// Check if tool already exists
 	if _, exists := r.tools[name]; exists {
 		return fmt.Errorf("tool with name '%s' already registered", name)
@@ -164,23 +172,30 @@ func (r *Registry) ListEnabled() []ToolInfo {
 	return enabled
 }
 
-// builtinTools defines the list of built-in tools that are enabled by default
+// builtinTools defines the list of built-in tools that are disabled (deprecated - use MCP tools instead)
 var builtinTools = map[string]bool{
-	"datetime":        true,
-	"sql_query":       true,
-	"rag_search":      true,
-	"document_count":  true,
-	"document_info":   true,
-	"stats_query":     true,
-	"file_read":       true,
-	"file_list":       true,
-	"file_write":      true,
-	"file_exists":     true,
-	"file_stat":       true,
-	"file_delete":     true,
-	"http_request":    true,
-	"web_search":      true,
-	"open_url":        true,
+	"datetime":        false, // DEPRECATED: Use MCP servers instead
+	"sql_query":       false, // DEPRECATED: Use sqlite MCP server instead
+	"rag_search":      false, // DEPRECATED: Use MCP servers instead
+	"document_count":  false, // DEPRECATED: Use MCP servers instead
+	"document_info":   false, // DEPRECATED: Use MCP servers instead
+	"stats_query":     false, // DEPRECATED: Use MCP servers instead
+	"file_read":       false, // DEPRECATED: Use filesystem MCP server instead
+	"file_list":       false, // DEPRECATED: Use filesystem MCP server instead
+	"file_write":      false, // DEPRECATED: Use filesystem MCP server instead
+	"file_exists":     false, // DEPRECATED: Use filesystem MCP server instead
+	"file_stat":       false, // DEPRECATED: Use filesystem MCP server instead
+	"file_delete":     false, // DEPRECATED: Use filesystem MCP server instead
+	"file_operations": false, // DEPRECATED: Use filesystem MCP server instead
+	"http_request":    false, // DEPRECATED: Use fetch MCP server instead
+	"web_search":      false, // DEPRECATED: Use brave-search MCP server instead
+	"open_url":        false, // DEPRECATED: Use MCP servers instead
+}
+
+// isBuiltinTool checks if a tool name corresponds to a built-in tool
+func (r *Registry) isBuiltinTool(name string) bool {
+	_, exists := builtinTools[name]
+	return exists
 }
 
 // IsEnabled checks if a tool is enabled in the configuration
@@ -189,19 +204,15 @@ func (r *Registry) IsEnabled(name string) bool {
 		return false
 	}
 
-	// Built-in tools are enabled by default, but can be explicitly disabled
-	if _, isBuiltin := builtinTools[name]; isBuiltin {
-		// Check if explicitly disabled in builtin tool configuration
-		if builtinConfig, exists := r.config.BuiltinTools[name]; exists {
-			return builtinConfig.Enabled
-		}
-		// Default enabled for built-in tools
+	// MCP tools are enabled by default and preferred (tools starting with "mcp_")
+	if len(name) > 4 && name[:4] == "mcp_" {
 		return true
 	}
 
-	// MCP tools are enabled by default (tools starting with "mcp_")
-	if len(name) > 4 && name[:4] == "mcp_" {
-		return true
+	// Built-in tools are completely DISABLED - use MCP servers instead
+	if _, isBuiltin := builtinTools[name]; isBuiltin {
+		// All built-in tools are disabled - return false
+		return false
 	}
 
 	// Check if tool is in the enabled list
