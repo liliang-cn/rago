@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 // mockGenerator is a mock implementation of the domain.Generator interface for testing.

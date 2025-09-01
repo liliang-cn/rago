@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/liliang-cn/lmstudio-go"
-	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 // LMStudioLLMProvider implements the LLMProvider interface using LM Studio

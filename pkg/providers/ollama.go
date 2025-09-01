@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/liliang-cn/ollama-go"
-	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 // OllamaLLMProvider wraps the existing Ollama LLM service as a provider

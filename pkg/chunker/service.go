@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 type Service struct{}

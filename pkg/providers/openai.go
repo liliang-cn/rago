@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 	openai "github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 	"github.com/openai/openai-go/v2/shared"

@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/liliang-cn/rago/pkg/domain"
-	"github.com/liliang-cn/rago/pkg/processor"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/processor"
 )
 
 type IngestHandler struct {
