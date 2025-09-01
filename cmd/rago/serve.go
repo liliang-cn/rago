@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/liliang-cn/rago/api/handlers"
-	"github.com/liliang-cn/rago/pkg/chunker"
-	"github.com/liliang-cn/rago/pkg/config"
-	"github.com/liliang-cn/rago/pkg/processor"
-	"github.com/liliang-cn/rago/pkg/store"
-	"github.com/liliang-cn/rago/pkg/web"
+	"github.com/liliang-cn/rago/v2/api/handlers"
+	"github.com/liliang-cn/rago/v2/pkg/chunker"
+	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/processor"
+	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/rago/v2/pkg/web"
 	"github.com/spf13/cobra"
 )
 

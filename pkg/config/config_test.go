@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/liliang-cn/rago/pkg/tools"
+	"github.com/liliang-cn/rago/v2/pkg/tools"
 )
 
 func TestConfig_Validate(t *testing.T) {

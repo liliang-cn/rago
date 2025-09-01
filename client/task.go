@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/liliang-cn/rago/pkg/scheduler"
-	"github.com/liliang-cn/rago/pkg/scheduler/executors"
+	"github.com/liliang-cn/rago/v2/pkg/scheduler"
+	"github.com/liliang-cn/rago/v2/pkg/scheduler/executors"
 )
 
 // TaskClient provides task scheduling functionality

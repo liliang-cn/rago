@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/liliang-cn/rago/pkg/utils"
+	"github.com/liliang-cn/rago/v2/pkg/utils"
 )
 
 // StatusResult represents the result of a status check
