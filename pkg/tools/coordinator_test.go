@@ -84,7 +84,7 @@ func setupCoordinator(t *testing.T) (*Coordinator, *Registry, *Executor) {
 	config := DefaultToolConfig()
 	// Enable test tools for testing
 	config.EnabledTools = []string{"test_tool"}
-	config.BuiltinTools["test_tool"] = BuiltinToolCfg{Enabled: true}
+	// Built-in tools are no longer supported - use MCP servers
 
 	registry := NewRegistry(&config)
 

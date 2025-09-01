@@ -34,7 +34,7 @@ llm_model = "qwen3"
 # Embedding model name (REQUIRED)
 embedding_model = "nomic-embed-text"
 # Request timeout (REQUIRED)
-timeout = "30s"
+timeout = "120s"
 
 # --- OpenAI Provider (Optional) ---
 # Uncomment and configure to use OpenAI
@@ -53,22 +53,22 @@ timeout = "30s"
 # # Optional project ID
 # project = "your-project-id"
 # # Request timeout (REQUIRED)
-# timeout = "60s"
+# timeout = "120s"
 
 # --- LM Studio Provider (Optional) ---
 # Uncomment and configure to use LM Studio
-# [providers.lmstudio]
-# type = "lmstudio"
+[providers.lmstudio]
+type = "lmstudio"
 # # LM Studio server URL (REQUIRED)
-# base_url = "http://localhost:1234"
+base_url = "http://localhost:1234"
 # # LLM model name (REQUIRED)
-# llm_model = "your-model-name"
+llm_model = "qwen/qwen3-8b"
 # # Embedding model name (REQUIRED)
-# embedding_model = "your-embedding-model"
+embedding_model = "text-embedding-qwen3-embedding-4b"
 # # Optional API key
 # api_key = ""
 # # Request timeout (REQUIRED)
-# timeout = "30s"
+timeout = "120s"
 
 # ========================
 # Vector Database Configuration (REQUIRED)
@@ -125,23 +125,25 @@ enable = false
 llm_model = ""
 
 # ========================
-# Tools Configuration (Optional but Recommended)
+# Tools Configuration (MCP ONLY)
+# Built-in tools have been COMPLETELY REMOVED.
+# Use MCP (Model Context Protocol) servers for ALL tool functionality.
 # ========================
 [tools]
-# Enable tools functionality (default: true)
+# Enable tools functionality (required for MCP tools)
 enabled = true
-# Maximum concurrent tool calls (default: 5)
+# Maximum concurrent tool calls (applies to MCP tools)
 max_concurrent_calls = 5
-# Timeout for individual tool calls (default: "30s")
+# Timeout for individual tool calls
 call_timeout = "30s"
-# Security level: "strict", "normal", or "permissive" (default: "normal")
+# Security level: "strict", "normal", or "permissive"
 security_level = "normal"
-# List of enabled tool names (empty = all enabled)
-enabled_tools = []
-# Tool logging level: "debug", "info", "warn", "error" (default: "info")
+# Built-in tools are no longer supported - use MCP servers
+enabled_tools = []  # Deprecated - MCP tools are auto-discovered
+# Tool logging level
 log_level = "info"
 
-# --- Rate Limiting ---
+# --- Rate Limiting (applies to MCP tools) ---
 [tools.rate_limit]
 # Calls per minute limit (0 = no limit)
 calls_per_minute = 100
@@ -150,48 +152,8 @@ calls_per_hour = 1000
 # Burst size for rate limiting
 burst_size = 10
 
-# --- Built-in Tools Configuration ---
-[tools.builtin]
-# File operations tool
-[tools.builtin.file_operations]
-enabled = true
-
-# HTTP request tool
-[tools.builtin.http_client]
-enabled = true
-
-# Web search tool (requires search API key)
-[tools.builtin.web_search]
-enabled = false
-# parameters = { api_key = "your-search-api-key" }
-
-# SQL query tool
-[tools.builtin.sql_query]
-enabled = false
-
-# --- Plugin Configuration ---
-[tools.plugins]
-# Enable plugin system (default: false)
-enabled = false
-# Plugin search paths
-plugin_paths = ["./plugins"]
-# Auto-load plugins on startup
-auto_load = false
-
-# --- SQL Tool Configuration ---
-[tools.sql]
-# Maximum query execution time
-max_execution_time = "30s"
-# Maximum number of rows returned
-max_rows = 1000
-# Allowed SQL operations (SELECT, INSERT, UPDATE, DELETE, etc.)
-allowed_operations = ["SELECT"]
-
-# ========================
-# MCP (Model Context Protocol) Configuration (Optional)
-# ========================
 [mcp]
-# Enable MCP functionality (default: false)
+# Enable MCP functionality (RECOMMENDED: set to true for production)
 enabled = false
 # MCP logging level (default: "info")
 log_level = "info"
@@ -201,78 +163,37 @@ default_timeout = "30s"
 max_concurrent_requests = 10
 # Health check interval for MCP servers (default: "60s")
 health_check_interval = "60s"
+# Path to external JSON file containing MCP server configurations
+# Searches in current directory first, then ~/.rago/ directory
+# Set this to enable JSON-based MCP server configuration
+# servers_config_path = "mcpServers.json"
 
-# --- MCP Server Configurations ---
-# Example MCP server configurations (uncomment to use)
+# --- MCP Server Configuration Options ---
+# Option 1: Use external JSON file (RECOMMENDED)
+#   Set servers_config_path above and create a JSON file with your MCP servers
+#   JSON format allows for easier management and sharing of configurations
+#
+# Option 2: Inline TOML configuration (Legacy)  
+#   Use the [[mcp.servers]] sections below for direct configuration
+#   This method is being phased out in favor of JSON configuration
 
-# SQLite MCP Server - Database operations
-# [[mcp.servers]]
-# name = "sqlite"
-# description = "SQLite database operations"
-# command = ["mcp-sqlite-server"]
-# args = ["--allowed-dir", "./data"]
-# working_dir = "./data"
-# auto_start = true
-# restart_on_failure = true
-# max_restarts = 5
-# restart_delay = "5s"
-# capabilities = ["query", "execute", "list", "create", "drop"]
-# [mcp.servers.env]
-# DEBUG = "mcp:*"
-
-# Filesystem MCP Server - File operations
-# [[mcp.servers]]
-# name = "filesystem"
-# description = "File system operations"
-# command = ["npx", "@modelcontextprotocol/server-filesystem"]
-# args = ["--root", "./workspace"]
-# working_dir = "./workspace"
-# auto_start = false
-# restart_on_failure = true
-# max_restarts = 3
-# restart_delay = "10s"
-# capabilities = ["read", "write", "list", "delete"]
-# [mcp.servers.env]
-# NODE_ENV = "production"
-
-# Git MCP Server - Version control operations
-# [[mcp.servers]]
-# name = "git"
-# description = "Git version control operations"
-# command = ["npx", "@modelcontextprotocol/server-git"]
-# args = ["--repository", "."]
-# working_dir = "."
-# auto_start = false
-# restart_on_failure = true
-# max_restarts = 3
-# restart_delay = "10s"
-# capabilities = ["status", "log", "diff", "commit"]
-
-# Web Search MCP Server - Internet search capabilities
-# [[mcp.servers]]
-# name = "brave-search"
-# description = "Web search using Brave Search API"
-# command = ["npx", "@modelcontextprotocol/server-brave-search"]
-# args = []
-# auto_start = false
-# restart_on_failure = true
-# max_restarts = 3
-# restart_delay = "15s"
-# capabilities = ["search", "news"]
-# [mcp.servers.env]
-# BRAVE_API_KEY = "${BRAVE_API_KEY}"
-
-# HTTP Fetch MCP Server - HTTP requests
-# [[mcp.servers]]
-# name = "fetch"
-# description = "HTTP request operations"
-# command = ["npx", "@modelcontextprotocol/server-fetch"]
-# args = []
-# auto_start = false
-# restart_on_failure = true
-# max_restarts = 3
-# restart_delay = "5s"
-# capabilities = ["get", "post", "put", "delete"]
+# Example JSON configuration (mcpServers.json):
+# {
+#   "mcpServers": {
+#     "sqlite": {
+#       "command": "mcp-sqlite-server",
+#       "args": ["./data"],
+#       "env": {
+#         "DEBUG": "mcp:*"
+#       }
+#     },
+#     "filesystem": {
+#       "command": "npx",
+#       "args": ["@modelcontextprotocol/server-filesystem", "--root", "./workspace"],
+#       "working_dir": "./workspace"
+#     }
+#   }
+# }
 
 # ========================
 # REQUIRED SETUP CHECKLIST:
@@ -281,8 +202,26 @@ health_check_interval = "60s"
 # 2. Ensure the provider service is running and accessible
 # 3. File paths will be auto-created in ~/.rago/ directory
 # 4. Adjust chunk_size and overlap based on your document types
-# 5. Configure tools based on your needs
-# 6. Set up MCP servers if you need external tool integration
+# 5. Configure MCP servers for enhanced tool functionality (RECOMMENDED)
+# 6. Disable built-in tools and use MCP servers for production workloads
+
+# ========================
+# TOOL MIGRATION GUIDE:
+# ========================
+# DEPRECATED Built-in Tool -> RECOMMENDED MCP Server
+# file_operations          -> filesystem MCP server
+# http_client              -> fetch MCP server  
+# web_search               -> brave-search MCP server
+# sql_query                -> sqlite MCP server (using mcp-sqlite-server)
+# 
+# MCP servers provide:
+# - Better isolation and security
+# - More functionality and flexibility  
+# - Standard protocol for tool integration
+# - Active development and community support
+#
+# The custom mcp-sqlite-server offers enhanced SQLite functionality
+# compared to the standard @modelcontextprotocol/server-sqlite
 
 # ========================
 # MINIMAL WORKING CONFIGURATION:

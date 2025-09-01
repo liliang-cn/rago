@@ -78,5 +78,4 @@ func init() {
 	RootCmd.AddCommand(listCmd)
 	RootCmd.AddCommand(resetCmd)
 	RootCmd.AddCommand(serveCmd)
-	RootCmd.AddCommand(toolsCmd)
 }
