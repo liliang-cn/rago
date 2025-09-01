@@ -13,11 +13,11 @@ import (
 
 	pdf "github.com/dslipak/pdf"
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/pkg/config"
-	"github.com/liliang-cn/rago/pkg/domain"
-	"github.com/liliang-cn/rago/pkg/mcp"
-	"github.com/liliang-cn/rago/pkg/tools"
-	"github.com/liliang-cn/rago/pkg/utils"
+	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	"github.com/liliang-cn/rago/v2/pkg/tools"
+	"github.com/liliang-cn/rago/v2/pkg/utils"
 )
 
 type Service struct {

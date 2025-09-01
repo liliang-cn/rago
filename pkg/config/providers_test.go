@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liliang-cn/rago/pkg/domain"
-	"github.com/liliang-cn/rago/pkg/tools"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/tools"
 )
 
 func TestProviderConfigValidation(t *testing.T) {

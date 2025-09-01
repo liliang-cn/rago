@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/liliang-cn/rago/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 func TestFactoryCreateProviders(t *testing.T) {

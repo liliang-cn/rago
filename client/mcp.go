@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/liliang-cn/rago/pkg/domain"
-	"github.com/liliang-cn/rago/pkg/mcp"
-	"github.com/liliang-cn/rago/pkg/utils"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	"github.com/liliang-cn/rago/v2/pkg/utils"
 )
 
 // MCPClient provides MCP (Model Context Protocol) functionality
