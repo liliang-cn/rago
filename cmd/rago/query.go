@@ -33,13 +33,12 @@ var (
 
 var queryCmd = &cobra.Command{
 	Use:   "query [question]",
-	Short: "Query knowledge base with automatic tool calling or MCP tools",
-	Long: `Perform semantic search and Q&A based on imported documents, or call MCP tools.
+	Short: "Query knowledge base with MCP tool integration",
+	Long: `Perform semantic search and Q&A based on imported documents with MCP tool integration.
 You can provide a question as an argument or use interactive mode.
 
-Tool calling is enabled by default based on your configuration file.
-Use --tools to override the configuration setting.
-Use --mcp to enable MCP tool integration for the query.`,
+Use --mcp to enable MCP tool integration for the query.
+MCP tools provide enhanced functionality for file operations, database queries, and more.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Handle MCP mode
 		if useMCP {
@@ -357,11 +356,11 @@ func printHelp() {
 	fmt.Println()
 	fmt.Println("Available flags:")
 	fmt.Println("  --filter key=value    - Filter results by metadata")
-	fmt.Println("  --tools               - Enable/disable tool calling (overrides config)")
+	fmt.Println("  --mcp                 - Enable MCP tool integration")
 	fmt.Println("  --allowed-tools tool1,tool2 - Specify allowed tools")
 	fmt.Println("  --max-tool-calls N    - Maximum tool calls per query")
 	fmt.Println()
-	fmt.Println("Note: Tool calling is enabled by default based on config.toml settings.")
+	fmt.Println("Note: Use --mcp flag to enable MCP tool integration for enhanced functionality.")
 }
 
 func truncateText(text string, maxLen int) string {
