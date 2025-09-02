@@ -301,7 +301,10 @@ func runMCPStatus(cmd *cobra.Command, args []string) error {
 	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
 	defer func() {
 		if err := toolManager.Close(); err != nil {
-			fmt.Printf("failed to close tool manager: %v\n", err)
+			// Only print error if it's not a signal-related termination
+			if !strings.Contains(err.Error(), "signal: killed") {
+				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
+			}
 		}
 	}()
 
@@ -346,7 +349,10 @@ func runMCPStart(cmd *cobra.Command, args []string) error {
 	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
 	defer func() {
 		if err := toolManager.Close(); err != nil {
-			fmt.Printf("failed to close tool manager: %v\n", err)
+			// Only print error if it's not a signal-related termination
+			if !strings.Contains(err.Error(), "signal: killed") {
+				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
+			}
 		}
 	}()
 
@@ -388,7 +394,10 @@ func runMCPStop(cmd *cobra.Command, args []string) error {
 	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
 	defer func() {
 		if err := toolManager.Close(); err != nil {
-			fmt.Printf("failed to close tool manager: %v\n", err)
+			// Only print error if it's not a signal-related termination
+			if !strings.Contains(err.Error(), "signal: killed") {
+				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
+			}
 		}
 	}()
 
@@ -428,7 +437,10 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
 	defer func() {
 		if err := toolManager.Close(); err != nil {
-			fmt.Printf("failed to close tool manager: %v\n", err)
+			// Only print error if it's not a signal-related termination
+			if !strings.Contains(err.Error(), "signal: killed") {
+				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
+			}
 		}
 	}()
 
@@ -523,7 +535,10 @@ func runMCPCall(cmd *cobra.Command, args []string) error {
 	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
 	defer func() {
 		if err := toolManager.Close(); err != nil {
-			fmt.Printf("failed to close tool manager: %v\n", err)
+			// Only print error if it's not a signal-related termination
+			if !strings.Contains(err.Error(), "signal: killed") {
+				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
+			}
 		}
 	}()
 
