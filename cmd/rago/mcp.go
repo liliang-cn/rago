@@ -277,6 +277,10 @@ func runMCPChat(cmd *cobra.Command, args []string) error {
 }
 
 func runMCPStatus(cmd *cobra.Command, args []string) error {
+	// Check runtime environments first
+	envStatus := CheckMCPEnvironment()
+	PrintMCPEnvironmentStatus(envStatus)
+
 	if cfg == nil {
 		var err error
 		cfg, err = config.Load(cfgFile)
@@ -286,11 +290,13 @@ func runMCPStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	if !cfg.MCP.Enabled {
-		fmt.Println("❌ MCP is disabled in configuration")
+		fmt.Println("\n❌ MCP is disabled in configuration")
+		fmt.Println("   To enable: Set mcp.enabled = true in rago.toml")
 		return nil
 	}
 
-	fmt.Println("🔧 MCP Status")
+	fmt.Println("\n⚙️  MCP Configuration")
+	fmt.Println("=" + strings.Repeat("=", 50))
 	fmt.Printf("   Enabled: %v\n", cfg.MCP.Enabled)
 	fmt.Printf("   Log Level: %s\n", cfg.MCP.LogLevel)
 	fmt.Printf("   Default Timeout: %v\n", cfg.MCP.DefaultTimeout)
