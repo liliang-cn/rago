@@ -1,11 +1,13 @@
 # Binaries
 /build/
 /dist/
+/bin/
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+rago-agents
 
 # Test binary, built with `go test -c`
 *.test
