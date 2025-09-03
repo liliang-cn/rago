@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -110,7 +109,7 @@ func (m *MCPToolExecutor) ValidateToolInputs(ctx context.Context, toolName strin
 	// Basic validation - in a real implementation, you'd validate against the JSON schema
 	if tool.InputSchema != nil {
 		// Simplified validation - check required fields exist
-		if properties, ok := tool.InputSchema["properties"].(map[string]interface{}); ok {
+		if _, ok := tool.InputSchema["properties"].(map[string]interface{}); ok {
 			if required, ok := tool.InputSchema["required"].([]interface{}); ok {
 				for _, req := range required {
 					if reqField, ok := req.(string); ok {

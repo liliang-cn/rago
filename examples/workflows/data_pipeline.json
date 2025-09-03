@@ -1,0 +1,94 @@
+{
+  "steps": [
+    {
+      "id": "fetch_data",
+      "name": "Fetch Raw Data",
+      "type": "tool",
+      "tool": "sqlite_query",
+      "inputs": {
+        "query": "SELECT * FROM {{input.table_name}} WHERE created_at >= '{{input.start_date}}'",
+        "database": "{{input.database_path}}"
+      },
+      "outputs": {
+        "result": "raw_data",
+        "rowCount": "row_count"
+      }
+    },
+    {
+      "id": "validate_data",
+      "name": "Validate Data Quality",
+      "type": "variable",
+      "inputs": {
+        "data": "{{raw_data}}",
+        "row_count": "{{row_count}}",
+        "validation_rules": {
+          "min_rows": 1,
+          "required_fields": ["id", "name", "value"],
+          "max_null_percentage": 0.1
+        }
+      },
+      "outputs": {
+        "data": "validated_data",
+        "validation_report": "validation_results"
+      }
+    },
+    {
+      "id": "transform_data",
+      "name": "Transform Data",
+      "type": "tool",
+      "tool": "data_transformer",
+      "inputs": {
+        "data": "{{validated_data}}",
+        "transformations": [
+          {
+            "type": "normalize",
+            "fields": ["value"]
+          },
+          {
+            "type": "aggregate",
+            "group_by": ["category"],
+            "metrics": ["sum", "avg", "count"]
+          }
+        ]
+      },
+      "outputs": {
+        "transformed_data": "processed_data",
+        "metadata": "transformation_metadata"
+      }
+    },
+    {
+      "id": "store_results",
+      "name": "Store Processed Data",
+      "type": "tool",
+      "tool": "sqlite_query",
+      "inputs": {
+        "query": "INSERT INTO processed_data (data, metadata, processed_at) VALUES (?, ?, ?)",
+        "parameters": ["{{processed_data}}", "{{transformation_metadata}}", "{{current_timestamp}}"],
+        "database": "{{input.output_database}}"
+      },
+      "outputs": {
+        "affected_rows": "stored_count"
+      }
+    }
+  ],
+  "triggers": [
+    {
+      "id": "daily_trigger",
+      "type": "schedule",
+      "name": "Daily Data Processing",
+      "schedule": "0 2 * * *",
+      "conditions": []
+    }
+  ],
+  "variables": {
+    "current_timestamp": "2024-01-01T00:00:00Z",
+    "batch_size": 1000,
+    "processing_mode": "incremental"
+  },
+  "error_policy": {
+    "strategy": "fail",
+    "max_retries": 2,
+    "retry_delay": 10000000000,
+    "notify_on": ["failed", "error"]
+  }
+}
