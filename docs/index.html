@@ -4,13 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval</title>
+    <title>RAGO v2 - Advanced RAG System with MCP Integration | Next-Gen Document Intelligence</title>
     <meta name="description"
-        content="Fully local RAG system that protects data privacy, supports multiple document formats, and provides efficient semantic search and intelligent Q&A features">
+        content="RAGO v2 - Advanced local RAG system with MCP (Model Context Protocol) integration, multi-provider support, and powerful HTTP APIs for intelligent document retrieval and processing">
 
     <!-- SEO Meta Tags -->
     <meta name="keywords"
-        content="RAG system,local RAG,Ollama,Golang,Go language,vector database,semantic search,document retrieval,AI QA,privacy protection,knowledge base,local AI,document processing,intelligent search,open source RAG">
+        content="RAGO v2,RAG system,MCP integration,Model Context Protocol,local RAG,multi-provider,OpenAI,Ollama,LM Studio,Golang,vector database,semantic search,document retrieval,AI QA,HTTP API,REST API,privacy protection,knowledge base">
     <meta name="author" content="RAGO Team">
     <meta name="robots" content="index, follow">
     <meta name="language" content="en">
@@ -19,73 +19,14 @@
 
     <!-- Open Graph Meta Tags -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval">
+    <meta property="og:title" content="RAGO v2 - Advanced RAG System with MCP Integration">
     <meta property="og:description"
-        content="Fully local RAG system powered by Ollama, providing powerful document retrieval and intelligent Q&A while protecting your data privacy">
+        content="Next-generation local RAG system with MCP support, multi-provider flexibility, and powerful HTTP APIs for enterprise-grade document intelligence">
     <meta property="og:url" content="https://github.com/liliang-cn/rago">
-    <meta property="og:site_name" content="RAGO">
-    <meta property="og:locale" content="en_US">
-    <meta property="og:locale:alternate" content="zh_CN">
-
-    <!-- Twitter Card Meta Tags -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval">
-    <meta name="twitter:description"
-        content="Fully local RAG system powered by Ollama, providing powerful document retrieval and intelligent Q&A">
-    <meta name="twitter:creator" content="@liliang_cn">
-
-    <!-- Canonical URL -->
-    <link rel="canonical" href="https://github.com/liliang-cn/rago">
-
-    <!-- Alternate Language Links -->
-    <link rel="alternate" hreflang="en" href="https://github.com/liliang-cn/rago">
-    <link rel="alternate" hreflang="zh-CN" href="https://github.com/liliang-cn/rago?lang=zh">
-    <link rel="alternate" hreflang="x-default" href="https://github.com/liliang-cn/rago">
-
-    <!-- Structured Data for SEO -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "RAGO",
-      "applicationCategory": "DeveloperApplication",
-      "description": "Fully local RAG system powered by Ollama, providing powerful document retrieval and intelligent Q&A",
-      "operatingSystem": ["Windows", "macOS", "Linux"],
-      "programmingLanguage": "Go",
-      "author": {
-        "@type": "Organization",
-        "name": "RAGO Team"
-      },
-      "url": "https://github.com/liliang-cn/rago",
-      "downloadUrl": "https://github.com/liliang-cn/rago/releases",
-      "codeRepository": "https://github.com/liliang-cn/rago",
-      "license": "MIT",
-      "keywords": ["RAG", "local RAG", "Ollama", "Golang", "Go language", "vector database", "semantic search", "document retrieval", "AI QA", "privacy protection"],
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": "5",
-        "ratingCount": "1"
-      }
-    }
-    </script>
-
-    <!-- Preload Critical Resources -->
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
-        as="style">
-    <link rel="preload" href="https://unpkg.com/lucide@latest/dist/umd/lucide.js" as="script">
-
-    <!-- DNS Prefetch -->
-    <link rel="dns-prefetch" href="//fonts.googleapis.com">
-    <link rel="dns-prefetch" href="//unpkg.com">
-    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+    <meta property="og:site_name" content="RAGO v2">
 
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
@@ -101,58 +42,41 @@
             box-sizing: border-box;
         }
 
+        :root {
+            --primary: #059669;
+            --primary-dark: #047857;
+            --primary-light: #10b981;
+            --secondary: #3b82f6;
+            --accent: #8b5cf6;
+            --dark: #1f2937;
+            --gray: #6b7280;
+            --light-gray: #f3f4f6;
+            --white: #ffffff;
+            --shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            --radius: 1rem;
+        }
+
         body {
-            font-family: 'DM Sans', sans-serif;
+            font-family: 'Inter', sans-serif;
             line-height: 1.6;
-            color: #1f2937;
+            color: var(--dark);
+            overflow-x: hidden;
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1280px;
             margin: 0 auto;
             padding: 0 1rem;
         }
 
-        /* 添加语言切换按钮样式 */
-        .language-toggle {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            background: #f3f4f6;
-            border-radius: 0.5rem;
-            padding: 0.25rem;
-            border: none;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .language-toggle:hover {
-            background: #e5e7eb;
-        }
-
-        .lang-option {
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.25rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #6b7280;
-            transition: all 0.3s;
-            cursor: pointer;
-        }
-
-        .lang-option.active {
-            background: #059669;
-            color: white;
-        }
-
-        /* Header Styles */
+        /* Header */
         .header {
             position: sticky;
             top: 0;
-            z-index: 50;
-            background: rgba(255, 255, 255, 0.8);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(12px);
-            border-bottom: 1px solid #d1fae5;
+            border-bottom: 1px solid rgba(5, 150, 105, 0.1);
             padding: 1rem 0;
         }
 
@@ -162,34 +86,39 @@
             justify-content: space-between;
         }
 
-        /* 更新导航区域布局，确保语言切换按钮始终可见 */
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
         .logo {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.75rem;
+            text-decoration: none;
         }
 
         .logo-icon {
-            width: 2rem;
-            height: 2rem;
-            background: #059669;
-            border-radius: 0.5rem;
+            width: 2.5rem;
+            height: 2.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: 0.75rem;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
         }
 
         .logo-text {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: #1f2937;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--dark);
+        }
+
+        .version-badge {
+            background: linear-gradient(135deg, var(--secondary), var(--accent));
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
         }
 
         .nav {
@@ -205,23 +134,24 @@
         }
 
         .nav-link {
-            color: #6b7280;
+            color: var(--gray);
             text-decoration: none;
+            font-weight: 500;
             transition: color 0.3s;
         }
 
         .nav-link:hover {
-            color: #059669;
+            color: var(--primary);
         }
 
         .btn {
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 600;
             transition: all 0.3s;
             cursor: pointer;
             border: none;
@@ -229,83 +159,102 @@
         }
 
         .btn-primary {
-            background: #059669;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
             color: white;
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
         }
 
         .btn-primary:hover {
-            background: #047857;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(5, 150, 105, 0.4);
         }
 
         .btn-outline {
             background: transparent;
-            color: #059669;
-            border: 1px solid #059669;
+            color: var(--primary);
+            border: 2px solid var(--primary);
         }
 
         .btn-outline:hover {
-            background: #ecfdf5;
-        }
-
-        .btn-lg {
-            padding: 0.75rem 2rem;
-            font-size: 1.125rem;
-        }
-
-        .btn-white {
-            background: white;
-            color: #059669;
-        }
-
-        .btn-white:hover {
-            background: #f9fafb;
+            background: var(--primary);
+            color: white;
         }
 
         /* Hero Section */
         .hero {
-            background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 100%);
-            padding: 5rem 1rem;
-            text-align: center;
+            background: linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 50%, #ffffff 100%);
+            padding: 7rem 1rem 5rem;
+            position: relative;
+            overflow: hidden;
         }
 
-        .badge {
-            display: inline-block;
-            background: #d1fae5;
-            color: #065f46;
-            padding: 0.5rem 1rem;
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 60%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(5, 150, 105, 0.05) 0%, transparent 70%);
+            animation: float 20s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(10deg); }
+        }
+
+        .hero-content {
+            max-width: 900px;
+            margin: 0 auto;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, var(--secondary), var(--accent));
+            color: white;
+            padding: 0.5rem 1.25rem;
             border-radius: 9999px;
             font-size: 0.875rem;
-            font-weight: 500;
-            margin-bottom: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 2rem;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
 
         .hero-title {
-            font-size: 3rem;
-            font-weight: 700;
+            font-size: 3.5rem;
+            font-weight: 800;
             line-height: 1.1;
             margin-bottom: 1.5rem;
-            opacity: 0;
-            transform: translateY(50px);
+            background: linear-gradient(135deg, var(--dark) 0%, var(--primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         @media (min-width: 768px) {
             .hero-title {
-                font-size: 4rem;
+                font-size: 4.5rem;
             }
-        }
-
-        .hero-highlight {
-            color: #059669;
-            display: block;
         }
 
         .hero-subtitle {
             font-size: 1.25rem;
-            color: #6b7280;
-            max-width: 48rem;
-            margin: 0 auto 2rem;
-            opacity: 0;
-            transform: translateY(30px);
+            color: var(--gray);
+            margin-bottom: 3rem;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .hero-buttons {
@@ -313,8 +262,7 @@
             flex-direction: column;
             gap: 1rem;
             align-items: center;
-            opacity: 0;
-            transform: translateY(20px);
+            margin-bottom: 3rem;
         }
 
         @media (min-width: 640px) {
@@ -324,7 +272,31 @@
             }
         }
 
-        /* Features Section */
+        .hero-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 2rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            color: var(--gray);
+            font-size: 0.875rem;
+        }
+
+        /* Features Grid */
         .features {
             padding: 5rem 1rem;
             background: white;
@@ -335,187 +307,116 @@
             margin-bottom: 4rem;
         }
 
-        .section-title {
-            font-size: 2.5rem;
-            font-weight: 700;
+        .section-badge {
+            display: inline-block;
+            background: rgba(5, 150, 105, 0.1);
+            color: var(--primary);
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
             margin-bottom: 1rem;
         }
 
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            color: var(--dark);
+        }
+
         .section-subtitle {
-            font-size: 1.25rem;
-            color: #6b7280;
-            max-width: 48rem;
+            font-size: 1.125rem;
+            color: var(--gray);
+            max-width: 700px;
             margin: 0 auto;
         }
 
         .features-grid {
             display: grid;
             gap: 2rem;
-            grid-template-columns: 1fr;
-        }
-
-        @media (min-width: 768px) {
-            .features-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (min-width: 1024px) {
-            .features-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
         }
 
         .feature-card {
             background: white;
-            border: 1px solid #d1fae5;
-            border-radius: 1rem;
+            border: 1px solid rgba(5, 150, 105, 0.1);
+            border-radius: var(--radius);
             padding: 2rem;
             transition: all 0.3s;
-            opacity: 0;
-            transform: translateY(30px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-light), var(--secondary));
+            transform: scaleX(0);
+            transition: transform 0.3s;
         }
 
         .feature-card:hover {
-            border-color: #a7f3d0;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            transform: translateY(-5px);
+            box-shadow: var(--shadow);
+        }
+
+        .feature-card:hover::before {
+            transform: scaleX(1);
         }
 
         .feature-icon {
-            color: #059669;
+            width: 3rem;
+            height: 3rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
             margin-bottom: 1rem;
         }
 
         .feature-title {
             font-size: 1.25rem;
-            font-weight: 600;
+            font-weight: 700;
             margin-bottom: 0.5rem;
+            color: var(--dark);
         }
 
         .feature-description {
-            color: #6b7280;
-        }
-
-        /* Installation Section */
-        .installation {
-            padding: 5rem 1rem;
-            background: #f9fafb;
-        }
-
-        .installation-content {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .install-command {
-            background: white;
-            border: 1px solid #d1fae5;
-            border-radius: 1rem;
-            padding: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        }
-
-        .command-header {
-            margin-bottom: 1.5rem;
-        }
-
-        .command-header h3 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            color: #1f2937;
-        }
-
-        .command-header p {
-            color: #6b7280;
-            font-size: 0.875rem;
-        }
-
-        /* Configuration Section */
-        .configuration {
-            padding: 5rem 1rem;
-            background: white;
-        }
-
-        .config-content {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .config-example {
-            background: #f9fafb;
-            border: 1px solid #d1fae5;
-            border-radius: 1rem;
-            overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        }
-
-        .config-example h3 {
-            font-size: 1.25rem;
-            font-weight: 600;
+            color: var(--gray);
             margin-bottom: 1rem;
-            color: #1f2937;
-            padding: 1.5rem 1.5rem 0;
         }
 
-        .code-block {
-            background: white;
-            border-radius: 0.5rem;
-            margin: 1.5rem;
-            border: 1px solid #e5e7eb;
+        .feature-list {
+            list-style: none;
         }
 
-        .code-header {
+        .feature-list li {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            padding: 0.75rem 1rem;
-            background: #f3f4f6;
-            border-bottom: 1px solid #e5e7eb;
+            gap: 0.5rem;
+            color: var(--gray);
             font-size: 0.875rem;
-            font-weight: 500;
+            margin-bottom: 0.5rem;
         }
 
-        .copy-btn {
-            background: #059669;
-            color: white;
-            border: none;
-            padding: 0.25rem 0.75rem;
-            border-radius: 0.375rem;
-            font-size: 0.75rem;
-            cursor: pointer;
-            transition: all 0.3s;
+        .feature-list i {
+            color: var(--primary);
         }
 
-        .copy-btn:hover {
-            background: #047857;
-        }
-
-        .code-block pre {
-            margin: 0;
-            padding: 1rem;
-            background: white;
-            overflow-x: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 0.875rem;
-            line-height: 1.5;
-            color: #1f2937;
-        }
-
-        .code-block code {
-            background: none;
-            padding: 0;
-            border-radius: 0;
-            font-size: inherit;
-        }
-
-        /* Benefits Section */
-        .benefits {
+        /* MCP Section */
+        .mcp-section {
             padding: 5rem 1rem;
-            background: linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 100%);
+            background: linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 100%);
         }
 
-        .benefits-grid {
+        .mcp-grid {
             display: grid;
             gap: 3rem;
             align-items: center;
@@ -523,186 +424,232 @@
         }
 
         @media (min-width: 1024px) {
-            .benefits-grid {
-                grid-template-columns: repeat(2, 1fr);
+            .mcp-grid {
+                grid-template-columns: 1fr 1fr;
             }
         }
 
-        .benefits-content h2 {
+        .mcp-content h2 {
             font-size: 2.5rem;
-            font-weight: 700;
+            font-weight: 800;
             margin-bottom: 1.5rem;
+            color: var(--dark);
         }
 
-        .benefits-content p {
-            font-size: 1.25rem;
-            color: #6b7280;
+        .mcp-content p {
+            font-size: 1.125rem;
+            color: var(--gray);
             margin-bottom: 2rem;
         }
 
-        .benefits-list {
-            display: flex;
-            flex-direction: column;
+        .mcp-features {
+            display: grid;
             gap: 1rem;
         }
 
-        .benefit-item {
+        .mcp-feature {
             display: flex;
             align-items: flex-start;
-            gap: 0.75rem;
-            opacity: 0;
-            transform: translateX(-30px);
+            gap: 1rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 0.75rem;
+            border: 1px solid rgba(5, 150, 105, 0.1);
         }
 
-        .benefit-icon {
-            color: #059669;
-            margin-top: 0.125rem;
+        .mcp-feature-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            background: linear-gradient(135deg, var(--secondary), var(--accent));
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
             flex-shrink: 0;
         }
 
-        .terminal {
-            position: relative;
-            background: white;
-            border-radius: 1rem;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+        .mcp-demo {
+            background: var(--dark);
+            border-radius: var(--radius);
             padding: 2rem;
-            border: 1px solid #d1fae5;
+            color: white;
+            font-family: 'Courier New', monospace;
+            box-shadow: var(--shadow);
         }
 
-        .terminal-header {
+        .mcp-demo-header {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.5rem;
             margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .terminal-dot {
+        .demo-dot {
             width: 0.75rem;
             height: 0.75rem;
             border-radius: 50%;
         }
 
-        .terminal-dot.red {
-            background: #ef4444;
-        }
+        .demo-dot.red { background: #ef4444; }
+        .demo-dot.yellow { background: #eab308; }
+        .demo-dot.green { background: #22c55e; }
 
-        .terminal-dot.yellow {
-            background: #eab308;
-        }
-
-        .terminal-dot.green {
-            background: #22c55e;
-        }
-
-        .terminal-content {
-            font-family: 'Courier New', monospace;
+        .mcp-demo-content {
             font-size: 0.875rem;
             line-height: 1.6;
         }
 
-        .terminal-command {
-            color: #059669;
+        .demo-comment {
+            color: #10b981;
         }
 
-        .terminal-output {
-            color: #6b7280;
+        .demo-command {
+            color: #3b82f6;
         }
 
-        /* CTA Section */
-        .cta {
+        .demo-output {
+            color: #a78bfa;
+        }
+
+        /* API Section */
+        .api-section {
             padding: 5rem 1rem;
-            background: #059669;
-            color: white;
-            text-align: center;
-        }
-
-        .cta h2 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 1.5rem;
-        }
-
-        .cta p {
-            font-size: 1.25rem;
-            color: #a7f3d0;
-            max-width: 48rem;
-            margin: 0 auto 2rem;
-        }
-
-        .cta-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            align-items: center;
-        }
-
-        @media (min-width: 640px) {
-            .cta-buttons {
-                flex-direction: row;
-                justify-content: center;
-            }
-        }
-
-        .btn-outline-white {
-            background: transparent;
-            color: white;
-            border: 1px solid white;
-        }
-
-        .btn-outline-white:hover {
             background: white;
-            color: #059669;
+        }
+
+        .api-grid {
+            display: grid;
+            gap: 2rem;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .api-card {
+            background: var(--light-gray);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            transition: all 0.3s;
+        }
+
+        .api-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow);
+        }
+
+        .api-method {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .method-get { background: #3b82f6; color: white; }
+        .method-post { background: #10b981; color: white; }
+        .method-put { background: #f59e0b; color: white; }
+        .method-delete { background: #ef4444; color: white; }
+
+        .api-endpoint {
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .api-description {
+            color: var(--gray);
+            font-size: 0.875rem;
+        }
+
+        /* Installation */
+        .installation {
+            padding: 5rem 1rem;
+            background: var(--light-gray);
+        }
+
+        .install-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .install-tab {
+            padding: 0.75rem 1.5rem;
+            background: white;
+            border: 2px solid transparent;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .install-tab.active {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .install-content {
+            background: white;
+            border-radius: var(--radius);
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .code-block {
+            background: var(--dark);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
+
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            color: var(--gray);
+            font-size: 0.75rem;
+        }
+
+        .copy-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-dark);
         }
 
         /* Footer */
         .footer {
             padding: 3rem 1rem;
-            background: #1f2937;
+            background: var(--dark);
             color: white;
         }
 
         .footer-grid {
             display: grid;
             gap: 2rem;
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             margin-bottom: 2rem;
         }
 
-        @media (min-width: 768px) {
-            .footer-grid {
-                grid-template-columns: repeat(4, 1fr);
-            }
-        }
-
-        .footer-brand {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .footer-brand-icon {
-            width: 2rem;
-            height: 2rem;
-            background: #059669;
-            border-radius: 0.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-        }
-
-        .footer-brand-text {
-            font-size: 1.25rem;
-            font-weight: 700;
-        }
-
-        .footer-description {
-            color: #9ca3af;
-        }
-
         .footer-section h3 {
-            font-weight: 600;
+            font-weight: 700;
             margin-bottom: 1rem;
         }
 
@@ -720,7 +667,7 @@
         }
 
         .footer-links a:hover {
-            color: white;
+            color: var(--primary-light);
         }
 
         .footer-bottom {
@@ -737,59 +684,67 @@
     <header class="header">
         <div class="container">
             <div class="header-content">
-                <div class="logo">
+                <a href="#" class="logo">
                     <div class="logo-icon">
-                        <i data-lucide="database"></i>
+                        <i data-lucide="layers"></i>
                     </div>
                     <span class="logo-text">RAGO</span>
-                </div>
-                <!-- 重新组织头部右侧区域，确保语言切换按钮始终可见 -->
-                <div class="header-right">
-                    <nav class="nav">
-                        <a href="#features" class="nav-link" data-i18n="nav.features">Features</a>
-                        <a href="#installation" class="nav-link" data-i18n="nav.installation">Installation</a>
-                        <a href="#configuration" class="nav-link" data-i18n="nav.configuration">Configuration</a>
-                        <a href="#benefits" class="nav-link" data-i18n="nav.benefits">Benefits</a>
-                        <a href="#docs" class="nav-link" data-i18n="nav.docs">Docs</a>
-                        <a href="https://github.com/liliang-cn/rago" target="_blank" rel="noopener noreferrer"
-                            class="btn btn-outline">
-                            <i data-lucide="github"></i>
-                            GitHub
-                        </a>
-                    </nav>
-                    <!-- 语言切换按钮现在独立于导航菜单 -->
-                    <div class="language-toggle">
-                        <span class="lang-option" data-lang="zh">中文</span>
-                        <span class="lang-option active" data-lang="en">EN</span>
-                    </div>
-                </div>
+                    <span class="version-badge">v2.0</span>
+                </a>
+                <nav class="nav">
+                    <a href="#features" class="nav-link">Features</a>
+                    <a href="#mcp" class="nav-link">MCP</a>
+                    <a href="#api" class="nav-link">API</a>
+                    <a href="#installation" class="nav-link">Installation</a>
+                    <a href="https://github.com/liliang-cn/rago" target="_blank" class="btn btn-outline">
+                        <i data-lucide="github"></i>
+                        GitHub
+                    </a>
+                </nav>
             </div>
         </div>
     </header>
 
     <!-- Hero Section -->
-    <section class="hero" id="hero">
+    <section class="hero">
         <div class="container">
-            <div class="badge" data-i18n="hero.badge">Local RAG System Based on Ollama</div>
-            <h1 class="hero-title">
-                <span data-i18n="hero.title.part1">Empower Your Data with</span>
-                <span class="hero-highlight" data-i18n="hero.title.part2">Local AI Capabilities</span>
-            </h1>
-            <p class="hero-subtitle" data-i18n="hero.subtitle">
-                RAGO is a fully local RAG system that provides powerful document retrieval and intelligent Q&A through
-                Ollama, protecting your data privacy and improving work efficiency
-            </p>
-            <div class="hero-buttons">
-                <a href="https://github.com/liliang-cn/rago/releases" class="btn btn-primary btn-lg">
-                    <i data-lucide="download"></i>
-                    <span data-i18n="hero.download">Download Now</span>
-                    <i data-lucide="arrow-right"></i>
-                </a>
-                <a href="https://github.com/liliang-cn/rago" target="_blank" rel="noopener noreferrer"
-                    class="btn btn-outline btn-lg">
-                    <i data-lucide="github"></i>
-                    <span data-i18n="hero.source">View Source</span>
-                </a>
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <i data-lucide="sparkles"></i>
+                    Next-Generation RAG with MCP Integration
+                </div>
+                <h1 class="hero-title">
+                    Advanced Document Intelligence<br>
+                    Powered by RAGO v2
+                </h1>
+                <p class="hero-subtitle">
+                    The most powerful local RAG system with Model Context Protocol (MCP) support,
+                    multi-provider flexibility, and enterprise-grade HTTP APIs
+                </p>
+                <div class="hero-buttons">
+                    <a href="#installation" class="btn btn-primary">
+                        <i data-lucide="download"></i>
+                        Get Started
+                    </a>
+                    <a href="/api/health" class="btn btn-outline">
+                        <i data-lucide="play"></i>
+                        Try Live Demo
+                    </a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat-item">
+                        <div class="stat-number">19+</div>
+                        <div class="stat-label">MCP Tools</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">3</div>
+                        <div class="stat-label">LLM Providers</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">100%</div>
+                        <div class="stat-label">Local & Private</div>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -798,60 +753,234 @@
     <section id="features" class="features">
         <div class="container">
             <div class="section-header">
-                <h2 class="section-title" data-i18n="features.title">Core Features</h2>
-                <p class="section-subtitle" data-i18n="features.subtitle">
-                    RAGO provides a complete local RAG solution, from document processing to intelligent Q&A, meeting
-                    all your needs in one stop
+                <div class="section-badge">Core Capabilities</div>
+                <h2 class="section-title">Enterprise-Grade RAG Features</h2>
+                <p class="section-subtitle">
+                    Built for production with advanced capabilities, seamless integrations, and unmatched performance
                 </p>
             </div>
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">
-                        <i data-lucide="shield" size="32"></i>
+                        <i data-lucide="cpu"></i>
                     </div>
-                    <h3 class="feature-title" data-i18n="features.local.title">Fully Local</h3>
-                    <p class="feature-description" data-i18n="features.local.desc">No external APIs required, protecting
-                        data privacy and security, all processing done locally</p>
+                    <h3 class="feature-title">Multi-Provider Support</h3>
+                    <p class="feature-description">
+                        Seamlessly switch between Ollama, OpenAI, and LM Studio providers
+                    </p>
+                    <ul class="feature-list">
+                        <li><i data-lucide="check"></i> Ollama for local models</li>
+                        <li><i data-lucide="check"></i> OpenAI API integration</li>
+                        <li><i data-lucide="check"></i> LM Studio compatibility</li>
+                    </ul>
                 </div>
+
                 <div class="feature-card">
                     <div class="feature-icon">
-                        <i data-lucide="database" size="32"></i>
+                        <i data-lucide="database"></i>
                     </div>
-                    <h3 class="feature-title" data-i18n="features.formats.title">Multi-format Support</h3>
-                    <p class="feature-description" data-i18n="features.formats.desc">Supports TXT, Markdown, PDF and other
-                        document formats, easily build knowledge base</p>
+                    <h3 class="feature-title">Advanced Vector Search</h3>
+                    <p class="feature-description">
+                        High-performance semantic search with SQLite vector database
+                    </p>
+                    <ul class="feature-list">
+                        <li><i data-lucide="check"></i> Hybrid search (vector + keyword)</li>
+                        <li><i data-lucide="check"></i> RRF ranking algorithm</li>
+                        <li><i data-lucide="check"></i> Batch processing support</li>
+                    </ul>
                 </div>
+
                 <div class="feature-card">
                     <div class="feature-icon">
-                        <i data-lucide="zap" size="32"></i>
+                        <i data-lucide="file-text"></i>
                     </div>
-                    <h3 class="feature-title" data-i18n="features.performance.title">High Performance</h3>
-                    <p class="feature-description" data-i18n="features.performance.desc">Based on SQLite vector
-                        database, providing fast and accurate semantic search</p>
+                    <h3 class="feature-title">Smart Document Processing</h3>
+                    <p class="feature-description">
+                        Intelligent chunking and metadata extraction for all document types
+                    </p>
+                    <ul class="feature-list">
+                        <li><i data-lucide="check"></i> PDF, Markdown, TXT support</li>
+                        <li><i data-lucide="check"></i> Auto metadata extraction</li>
+                        <li><i data-lucide="check"></i> Configurable chunking strategies</li>
+                    </ul>
                 </div>
+
                 <div class="feature-card">
                     <div class="feature-icon">
-                        <i data-lucide="cpu" size="32"></i>
+                        <i data-lucide="globe"></i>
                     </div>
-                    <h3 class="feature-title" data-i18n="features.llm.title">Local LLM</h3>
-                    <p class="feature-description" data-i18n="features.llm.desc">Call local models through Ollama, no
-                        dependence on cloud services</p>
+                    <h3 class="feature-title">RESTful HTTP APIs</h3>
+                    <p class="feature-description">
+                        Complete HTTP API for all RAG operations and MCP tools
+                    </p>
+                    <ul class="feature-list">
+                        <li><i data-lucide="check"></i> Document ingestion endpoints</li>
+                        <li><i data-lucide="check"></i> Query & search APIs</li>
+                        <li><i data-lucide="check"></i> MCP tool execution</li>
+                    </ul>
                 </div>
+
                 <div class="feature-card">
                     <div class="feature-icon">
-                        <i data-lucide="globe" size="32"></i>
+                        <i data-lucide="shield"></i>
                     </div>
-                    <h3 class="feature-title" data-i18n="features.web.title">Web Interface</h3>
-                    <p class="feature-description" data-i18n="features.web.desc">Built-in modern web interface,
-                        supporting drag-and-drop upload and real-time chat</p>
+                    <h3 class="feature-title">Privacy First</h3>
+                    <p class="feature-description">
+                        Complete data privacy with 100% local processing option
+                    </p>
+                    <ul class="feature-list">
+                        <li><i data-lucide="check"></i> No data leaves your server</li>
+                        <li><i data-lucide="check"></i> Self-hosted deployment</li>
+                        <li><i data-lucide="check"></i> Enterprise security ready</li>
+                    </ul>
                 </div>
+
                 <div class="feature-card">
                     <div class="feature-icon">
-                        <i data-lucide="file-text" size="32"></i>
+                        <i data-lucide="zap"></i>
                     </div>
-                    <h3 class="feature-title" data-i18n="features.interface.title">Dual Interface</h3>
-                    <p class="feature-description" data-i18n="features.interface.desc">Provides both CLI tools and HTTP
-                        API to meet different usage scenarios</p>
+                    <h3 class="feature-title">High Performance</h3>
+                    <p class="feature-description">
+                        Optimized Go implementation for maximum speed and efficiency
+                    </p>
+                    <ul class="feature-list">
+                        <li><i data-lucide="check"></i> Low memory footprint</li>
+                        <li><i data-lucide="check"></i> Concurrent processing</li>
+                        <li><i data-lucide="check"></i> Streaming responses</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MCP Section -->
+    <section id="mcp" class="mcp-section">
+        <div class="container">
+            <div class="mcp-grid">
+                <div class="mcp-content">
+                    <div class="section-badge">MCP Integration</div>
+                    <h2>Model Context Protocol Support</h2>
+                    <p>
+                        RAGO v2 features full MCP integration, enabling powerful tool usage through a standardized protocol.
+                        Connect to any MCP server and leverage its tools directly through our HTTP API.
+                    </p>
+                    <div class="mcp-features">
+                        <div class="mcp-feature">
+                            <div class="mcp-feature-icon">
+                                <i data-lucide="plug"></i>
+                            </div>
+                            <div>
+                                <strong>19+ SQLite Tools</strong>
+                                <p>Full database operations via mcp-sqlite-server</p>
+                            </div>
+                        </div>
+                        <div class="mcp-feature">
+                            <div class="mcp-feature-icon">
+                                <i data-lucide="terminal"></i>
+                            </div>
+                            <div>
+                                <strong>HTTP API Access</strong>
+                                <p>Execute MCP tools through RESTful endpoints</p>
+                            </div>
+                        </div>
+                        <div class="mcp-feature">
+                            <div class="mcp-feature-icon">
+                                <i data-lucide="layers"></i>
+                            </div>
+                            <div>
+                                <strong>Multi-Server Support</strong>
+                                <p>Connect to multiple MCP servers simultaneously</p>
+                            </div>
+                        </div>
+                        <div class="mcp-feature">
+                            <div class="mcp-feature-icon">
+                                <i data-lucide="code"></i>
+                            </div>
+                            <div>
+                                <strong>LLM Integration Ready</strong>
+                                <p>Tools formatted for OpenAI function calling</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mcp-demo">
+                    <div class="mcp-demo-header">
+                        <div class="demo-dot red"></div>
+                        <div class="demo-dot yellow"></div>
+                        <div class="demo-dot green"></div>
+                        <span style="margin-left: auto; font-size: 0.75rem; color: #6b7280;">MCP Tool Execution</span>
+                    </div>
+                    <div class="mcp-demo-content">
+                        <div><span class="demo-comment"># List available MCP tools</span></div>
+                        <div><span class="demo-command">curl http://localhost:7127/api/mcp/tools</span></div>
+                        <div><span class="demo-output">{"tools": 19, "servers": {"sqlite": true}}</span></div>
+                        <div style="margin-top: 1rem;"></div>
+                        <div><span class="demo-comment"># Execute MCP tool</span></div>
+                        <div><span class="demo-command">curl -X POST /api/mcp/tools/call \</span></div>
+                        <div><span class="demo-command">  -d '{"tool_name": "mcp_sqlite_query",</span></div>
+                        <div><span class="demo-command">       "args": {"query": "SELECT * FROM docs"}}'</span></div>
+                        <div><span class="demo-output">{"success": true, "data": [...]}</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- API Section -->
+    <section id="api" class="api-section">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-badge">HTTP API</div>
+                <h2 class="section-title">Comprehensive REST APIs</h2>
+                <p class="section-subtitle">
+                    Full-featured HTTP endpoints for all RAG operations, MCP tools, and system management
+                </p>
+            </div>
+            <div class="api-grid">
+                <div class="api-card">
+                    <span class="api-method method-post">POST</span>
+                    <div class="api-endpoint">/api/ingest</div>
+                    <div class="api-description">Ingest documents into the RAG system</div>
+                </div>
+                <div class="api-card">
+                    <span class="api-method method-post">POST</span>
+                    <div class="api-endpoint">/api/query</div>
+                    <div class="api-description">Query documents with semantic search</div>
+                </div>
+                <div class="api-card">
+                    <span class="api-method method-post">POST</span>
+                    <div class="api-endpoint">/api/query-stream</div>
+                    <div class="api-description">Stream query responses in real-time</div>
+                </div>
+                <div class="api-card">
+                    <span class="api-method method-get">GET</span>
+                    <div class="api-endpoint">/api/mcp/tools</div>
+                    <div class="api-description">List all available MCP tools</div>
+                </div>
+                <div class="api-card">
+                    <span class="api-method method-post">POST</span>
+                    <div class="api-endpoint">/api/mcp/tools/call</div>
+                    <div class="api-description">Execute an MCP tool</div>
+                </div>
+                <div class="api-card">
+                    <span class="api-method method-post">POST</span>
+                    <div class="api-endpoint">/api/mcp/tools/batch</div>
+                    <div class="api-description">Execute multiple tools in parallel</div>
+                </div>
+                <div class="api-card">
+                    <span class="api-method method-get">GET</span>
+                    <div class="api-endpoint">/api/mcp/servers</div>
+                    <div class="api-description">Get MCP server status</div>
+                </div>
+                <div class="api-card">
+                    <span class="api-method method-get">GET</span>
+                    <div class="api-endpoint">/api/documents</div>
+                    <div class="api-description">List ingested documents</div>
+                </div>
+                <div class="api-card">
+                    <span class="api-method method-delete">DELETE</span>
+                    <div class="api-endpoint">/api/documents/:id</div>
+                    <div class="api-description">Delete a specific document</div>
                 </div>
             </div>
         </div>
@@ -861,176 +990,91 @@
     <section id="installation" class="installation">
         <div class="container">
             <div class="section-header">
-                <h2 class="section-title" data-i18n="installation.title">Build from Source</h2>
-                <p class="section-subtitle" data-i18n="installation.subtitle">
-                    Use make to build the RAGO binary
+                <div class="section-badge">Getting Started</div>
+                <h2 class="section-title">Quick Installation</h2>
+                <p class="section-subtitle">
+                    Get RAGO v2 up and running in minutes with multiple installation options
                 </p>
             </div>
-            <div class="installation-content">
-                <div class="install-command">
-                    <div class="command-header">
-                        <h3 data-i18n="installation.command.title">Build Command</h3>
-                    </div>
-                    <div class="terminal">
-                        <div class="terminal-header">
-                            <div class="terminal-dot red"></div>
-                            <div class="terminal-dot yellow"></div>
-                            <div class="terminal-dot green"></div>
+            <div class="install-tabs">
+                <button class="install-tab active" onclick="showInstall('binary')">Binary Release</button>
+                <button class="install-tab" onclick="showInstall('source')">From Source</button>
+                <button class="install-tab" onclick="showInstall('docker')">Docker</button>
+                <button class="install-tab" onclick="showInstall('config')">Configuration</button>
+            </div>
+            <div class="install-content">
+                <div id="install-binary" class="install-panel">
+                    <h3>Download Pre-built Binary</h3>
+                    <p>Download the latest release for your platform:</p>
+                    <div class="code-block">
+                        <div class="code-header">
+                            <span>Terminal</span>
+                            <button class="copy-btn" onclick="copyCode('binary-code')">Copy</button>
                         </div>
-                        <div class="terminal-content">
-                            <div class="terminal-command">$ git clone https://github.com/liliang-cn/rago.git</div>
-                            <div class="terminal-command">$ cd rago</div>
-                            <div class="terminal-command">$ make build</div>
-                            <div class="terminal-output" data-i18n="installation.help">The binary is in ./build/rago</div>
-                        </div>
+                        <code id="binary-code"># Linux/Mac
+wget https://github.com/liliang-cn/rago/releases/latest/download/rago-linux-amd64
+chmod +x rago-linux-amd64
+./rago-linux-amd64 serve
+
+# Windows
+# Download from: https://github.com/liliang-cn/rago/releases</code>
                     </div>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Configuration Section -->
-    <section id="configuration" class="configuration">
-        <div class="container">
-            <div class="section-header">
-                <h2 class="section-title" data-i18n="config.title">Basic Configuration</h2>
-                <p class="section-subtitle" data-i18n="config.subtitle">
-                    Create configuration file to customize RAGO behavior and parameters
-                </p>
-            </div>
-            <div class="config-content">
-                <div class="config-example">
-                    <h3 data-i18n="config.create.title">Create rago.toml</h3>
+                <div id="install-source" class="install-panel" style="display:none;">
+                    <h3>Build from Source</h3>
+                    <p>Clone the repository and build using Make:</p>
+                    <div class="code-block">
+                        <div class="code-header">
+                            <span>Terminal</span>
+                            <button class="copy-btn" onclick="copyCode('source-code')">Copy</button>
+                        </div>
+                        <code id="source-code">git clone https://github.com/liliang-cn/rago.git
+cd rago
+make build
+./build/rago serve</code>
+                    </div>
+                </div>
+                <div id="install-docker" class="install-panel" style="display:none;">
+                    <h3>Run with Docker</h3>
+                    <p>Use Docker for containerized deployment:</p>
+                    <div class="code-block">
+                        <div class="code-header">
+                            <span>Terminal</span>
+                            <button class="copy-btn" onclick="copyCode('docker-code')">Copy</button>
+                        </div>
+                        <code id="docker-code">docker run -d \
+  -p 7127:7127 \
+  -v ~/.rago:/root/.rago \
+  liliang/rago:latest serve</code>
+                    </div>
+                </div>
+                <div id="install-config" class="install-panel" style="display:none;">
+                    <h3>Configuration</h3>
+                    <p>Create a rago.toml file with your settings:</p>
                     <div class="code-block">
                         <div class="code-header">
                             <span>rago.toml</span>
-                            <button class="copy-btn" onclick="copyToClipboard('config-content')"
-                                data-i18n="config.copy">Copy</button>
+                            <button class="copy-btn" onclick="copyCode('config-code')">Copy</button>
                         </div>
-                        <pre id="config-content"><code>[server]
+                        <code id="config-code">[server]
 port = 7127
-host = "localhost"
-enable_ui = true
-cors_origins = ["*"]
+host = "0.0.0.0"
 
-[ollama]
-embedding_model = "nomic-embed-text"
-llm_model = "qwen3"
+[providers]
+default_llm = "ollama"
+default_embedder = "ollama"
+
+[providers.ollama]
+type = "ollama"
 base_url = "http://localhost:11434"
-timeout = "30s"
+llm_model = "llama3"
+embedding_model = "nomic-embed-text"
 
-[sqvect]
-# SQLite vector database configuration
-db_path = "./data/rag.db"
-vector_dim = 768
-max_conns = 10
-batch_size = 100
-top_k = 5
-threshold = 0.0
-</code></pre>
+[mcp]
+enabled = true
+servers_config_path = "mcpServers.json"</code>
                     </div>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Benefits Section -->
-    <section id="benefits" class="benefits">
-        <div class="container">
-            <div class="benefits-grid">
-                <div class="benefits-content">
-                    <h2 data-i18n="benefits.title">Why Choose RAGO?</h2>
-                    <p data-i18n="benefits.description">
-                        RAGO is not just a RAG system, but the perfect combination of your data security and AI
-                        capabilities. We focus on local deployment to ensure your sensitive data never leaves your
-                        control.
-                    </p>
-                    <div class="benefits-list">
-                        <div class="benefit-item">
-                            <div class="benefit-icon">
-                                <i data-lucide="check-circle" size="24"></i>
-                            </div>
-                            <span data-i18n="benefits.privacy">🔒 Data Privacy Protection - All data processing is done
-                                completely locally</span>
-                        </div>
-                        <div class="benefit-item">
-                            <div class="benefit-icon">
-                                <i data-lucide="check-circle" size="24"></i>
-                            </div>
-                            <span data-i18n="benefits.speed">⚡ High Response Speed - Go implementation, low memory
-                                usage</span>
-                        </div>
-                        <div class="benefit-item">
-                            <div class="benefit-icon">
-                                <i data-lucide="check-circle" size="24"></i>
-                            </div>
-                            <span data-i18n="benefits.extensible">🔧 Easy to Extend - Modular design, supports custom
-                                functions</span>
-                        </div>
-                        <div class="benefit-item">
-                            <div class="benefit-icon">
-                                <i data-lucide="check-circle" size="24"></i>
-                            </div>
-                            <span data-i18n="benefits.crossplatform">📱 Cross-platform Support - Supports Windows,
-                                macOS, Linux</span>
-                        </div>
-                        <div class="benefit-item">
-                            <div class="benefit-icon">
-                                <i data-lucide="check-circle" size="24"></i>
-                            </div>
-                            <span data-i18n="benefits.accurate">🎯 Accurate Retrieval - Intelligent search based on
-                                semantic understanding</span>
-                        </div>
-                        <div class="benefit-item">
-                            <div class="benefit-icon">
-                                <i data-lucide="check-circle" size="24"></i>
-                            </div>
-                            <span data-i18n="benefits.deploy">🚀 Quick Deployment - Docker support, one-click
-                                startup</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="terminal">
-                    <div class="terminal-header">
-                        <div class="terminal-dot red"></div>
-                        <div class="terminal-dot yellow"></div>
-                        <div class="terminal-dot green"></div>
-                    </div>
-                    <div class="terminal-content">
-                        <div class="terminal-command">$ rago ingest knowledge/sound-and-book-bar.md</div>
-                        <div class="terminal-output" data-i18n="terminal.processing">✓ Processing document:
-                            sound-and-book-bar.md
-                        </div>
-                        <div class="terminal-output" data-i18n="terminal.vectors">✓ Generated vectors: 12 chunks
-                        </div>
-                        <div class="terminal-command">$ rago query "<span data-i18n="terminal.query">where is yinshu
-                                bar</span>"</div>
-                        <div class="terminal-output" data-i18n="terminal.answer">🤖 Yinshu Bar is located at 3rd Floor,
-                            Wanda Plaza, No. 188 Aviation Road, Shuangliu District, Chengdu City. This is the official
-                            business address mentioned in the document...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="cta">
-        <div class="container">
-            <h2 data-i18n="cta.title">Ready to Get Started?</h2>
-            <p data-i18n="cta.description">
-                Download RAGO now and experience the powerful features of local RAG system, making your document data
-                more valuable
-            </p>
-            <div class="cta-buttons">
-                <a href="https://github.com/liliang-cn/rago/releases" class="btn btn-white btn-lg">
-                    <i data-lucide="download"></i>
-                    <span data-i18n="cta.download">Download RAGO</span>
-                </a>
-                <a href="https://github.com/liliang-cn/rago" target="_blank" rel="noopener noreferrer"
-                    class="btn btn-outline-white btn-lg">
-                    <span data-i18n="cta.docs">View Documentation</span>
-                </a>
             </div>
         </div>
     </section>
@@ -1040,279 +1084,164 @@ threshold = 0.0
         <div class="container">
             <div class="footer-grid">
                 <div>
-                    <div class="footer-brand">
-                        <div class="footer-brand-icon">
-                            <i data-lucide="database"></i>
-                        </div>
-                        <span class="footer-brand-text">RAGO</span>
-                    </div>
-                    <p class="footer-description" data-i18n="footer.description">Local RAG system, protecting your data
-                        privacy and enhancing AI capabilities</p>
+                    <h3>RAGO v2</h3>
+                    <p style="color: #9ca3af; margin-top: 0.5rem;">
+                        Next-generation RAG system with MCP integration
+                    </p>
                 </div>
-                <div class="footer-section">
-                    <h3 data-i18n="footer.product">Product</h3>
+                <div>
+                    <h3>Documentation</h3>
                     <ul class="footer-links">
-                        <li><a href="#features" data-i18n="footer.features">Features</a></li>
-                        <li><a href="#benefits" data-i18n="footer.docs">Documentation</a></li>
-                        <li><a href="#" data-i18n="footer.api">API</a></li>
+                        <li><a href="/docs/api">API Reference</a></li>
+                        <li><a href="/docs/mcp_http_api.md">MCP HTTP API</a></li>
+                        <li><a href="https://github.com/liliang-cn/rago/wiki">Wiki</a></li>
+                        <li><a href="https://github.com/liliang-cn/rago/tree/main/examples">Examples</a></li>
                     </ul>
                 </div>
-                <div class="footer-section">
-                    <h3 data-i18n="footer.resources">Resources</h3>
+                <div>
+                    <h3>Community</h3>
                     <ul class="footer-links">
                         <li><a href="https://github.com/liliang-cn/rago">GitHub</a></li>
-                        <li><a href="#" data-i18n="footer.examples">Examples</a></li>
-                        <li><a href="#" data-i18n="footer.community">Community</a></li>
+                        <li><a href="https://github.com/liliang-cn/rago/issues">Issues</a></li>
+                        <li><a href="https://github.com/liliang-cn/rago/discussions">Discussions</a></li>
+                        <li><a href="https://github.com/liliang-cn/rago/releases">Releases</a></li>
                     </ul>
                 </div>
-                <div class="footer-section">
-                    <h3 data-i18n="footer.contact">Contact</h3>
+                <div>
+                    <h3>Resources</h3>
                     <ul class="footer-links">
-                        <li><a href="mailto:liliang.imut@gmail.com" data-i18n="footer.email">Email</a></li>
-                        <li><a href="#" data-i18n="footer.feedback">Feedback</a></li>
+                        <li><a href="https://modelcontextprotocol.io">MCP Protocol</a></li>
+                        <li><a href="https://ollama.ai">Ollama</a></li>
+                        <li><a href="https://openai.com">OpenAI</a></li>
+                        <li><a href="https://lmstudio.ai">LM Studio</a></li>
                     </ul>
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>&copy; 2025 RAGO. MIT License.</p>
+                <p>&copy; 2025 RAGO. Released under the MIT License.</p>
             </div>
         </div>
     </footer>
 
     <script>
-        const translations = {
-            zh: {
-                'nav.features': '特性',
-                'nav.installation': '安装',
-                'nav.configuration': '配置',
-                'nav.benefits': '优势',
-                'nav.docs': '文档',
-                'hero.badge': '基于Ollama的本地RAG系统',
-                'hero.title.part1': '让您的数据拥有',
-                'hero.title.part2': '本地化AI能力',
-                'hero.subtitle': 'RAGO是一个完全本地化的RAG系统，通过Ollama提供强大的文档检索和智能问答功能，保护您的数据隐私，提升工作效率',
-                'hero.download': '立即下载',
-                'hero.source': '查看源码',
-                'features.title': '核心特性',
-                'features.subtitle': 'RAGO提供完整的本地RAG解决方案，从文档处理到智能问答，一站式满足您的需求',
-                'features.local.title': '完全本地化',
-                'features.local.desc': '无需外部API，保护数据隐私安全，所有处理都在本地完成',
-                'features.formats.title': '多格式支持',
-                'features.formats.desc': '支持TXT、Markdown、PDF等多种文档格式，轻松构建知识库',
-                'features.performance.title': '高性能检索',
-                'features.performance.desc': '基于SQLite向量数据库，提供快速准确的语义搜索',
-                'features.llm.title': '本地LLM',
-                'features.llm.desc': '通过Ollama调用本地模型，无需依赖云端服务',
-                'features.web.title': 'Web界面',
-                'features.web.desc': '内置现代化Web界面，支持拖拽上传和实时对话',
-                'features.interface.title': '双重接口',
-                'features.interface.desc': '同时提供CLI工具和HTTP API，满足不同使用场景',
-                'installation.title': '从源码构建',
-                'installation.subtitle': '使用 make 构建 RAGO 二进制文件',
-                'installation.command.title': '构建命令',
-                'installation.help': '二进制文件位于 ./build/rago',
-                'config.title': '基本配置',
-                'config.subtitle': '创建配置文件以自定义RAGO的行为和参数',
-                'config.create.title': '创建 rago.toml',
-                'config.copy': '复制',
-                'benefits.title': '为什么选择RAGO？',
-                'benefits.description': 'RAGO不仅仅是一个RAG系统，更是您数据安全和AI能力的完美结合。我们专注于本地化部署，确保您的敏感数据永远不会离开您的控制范围。',
-                'benefits.privacy': '🔒 数据隐私保护 - 所有数据处理完全在本地进行',
-                'benefits.speed': '⚡ 高效响应速度 - Go语言实现，低内存占用',
-                'benefits.extensible': '🔧 易于扩展 - 模块化设计，支持自定义功能',
-                'benefits.crossplatform': '📱 跨平台支持 - 支持Windows、macOS、Linux',
-                'benefits.accurate': '🎯 精准检索 - 基于语义理解的智能搜索',
-                'benefits.deploy': '🚀 快速部署 - Docker支持，一键启动',
-                'terminal.processing': '✓ 处理文档: 音书酒吧.md',
-                'terminal.vectors': '✓ 生成向量: 12个片段',
-                'terminal.query': '音书酒吧在哪里',
-                'terminal.answer': '🤖 音书酒吧（Yinshu Bar）位于成都市双流区航空路188号万达广场3楼。该地址是文档中明确标注的唯一营业地址...',
-                'cta.title': '准备开始了吗？',
-                'cta.description': '立即下载RAGO，体验本地化RAG系统的强大功能，让您的文档数据发挥更大价值',
-                'cta.download': '下载RAGO',
-                'cta.docs': '查看文档',
-                'footer.description': '本地化RAG系统，保护您的数据隐私，提升AI能力',
-                'footer.product': '产品',
-                'footer.features': '特性',
-                'footer.docs': '文档',
-                'footer.api': 'API',
-                'footer.resources': '资源',
-                'footer.examples': '示例',
-                'footer.community': '社区',
-                'footer.contact': '联系',
-                'footer.email': '邮箱',
-                'footer.feedback': '问题反馈'
-            },
-            en: {
-                'nav.features': 'Features',
-                'nav.installation': 'Installation',
-                'nav.configuration': 'Configuration',
-                'nav.benefits': 'Benefits',
-                'nav.docs': 'Docs',
-                'hero.badge': 'Local RAG System Based on Ollama',
-                'hero.title.part1': 'Empower Your Data with',
-                'hero.title.part2': 'Local AI Capabilities',
-                'hero.subtitle': 'RAGO is a fully local RAG system that provides powerful document retrieval and intelligent Q&A through Ollama, protecting your data privacy and improving work efficiency',
-                'hero.download': 'Download Now',
-                'hero.source': 'View Source',
-                'features.title': 'Core Features',
-                'features.subtitle': 'RAGO provides a complete local RAG solution, from document processing to intelligent Q&A, meeting all your needs in one stop',
-                'features.local.title': 'Fully Local',
-                'features.local.desc': 'No external APIs required, protecting data privacy and security, all processing done locally',
-                'features.formats.title': 'Multi-format Support',
-                'features.formats.desc': 'Supports TXT, Markdown, PDF and other document formats, easily build knowledge base',
-                'features.performance.title': 'High Performance',
-                'features.performance.desc': 'Based on SQLite vector database, providing fast and accurate semantic search',
-                'features.llm.title': 'Local LLM',
-                'features.llm.desc': 'Call local models through Ollama, no dependence on cloud services',
-                'features.web.title': 'Web Interface',
-                'features.web.desc': 'Built-in modern web interface, supporting drag-and-drop upload and real-time chat',
-                'features.interface.title': 'Dual Interface',
-                'features.interface.desc': 'Provides both CLI tools and HTTP API to meet different usage scenarios',
-                'installation.title': 'Build from Source',
-                'installation.subtitle': 'Use make to build the RAGO binary',
-                'installation.command.title': 'Build Command',
-                'installation.help': 'The binary is in ./build/rago',
-                'config.title': 'Basic Configuration',
-                'config.subtitle': 'Create configuration file to customize RAGO behavior and parameters',
-                'config.create.title': 'Create rago.toml',
-                'config.copy': 'Copy',
-                'benefits.title': 'Why Choose RAGO?',
-                'benefits.description': 'RAGO is not just a RAG system, but the perfect combination of your data security and AI capabilities. We focus on local deployment to ensure your sensitive data never leaves your control.',
-                'benefits.privacy': '🔒 Data Privacy Protection - All data processing is done completely locally',
-                'benefits.speed': '⚡ High Response Speed - Go implementation, low memory usage',
-                'benefits.extensible': '🔧 Easy to Extend - Modular design, supports custom functions',
-                'benefits.crossplatform': '📱 Cross-platform Support - Supports Windows, macOS, Linux',
-                'benefits.accurate': '🎯 Accurate Retrieval - Intelligent search based on semantic understanding',
-                'benefits.deploy': '🚀 Quick Deployment - Docker support, one-click startup',
-                'terminal.processing': '✓ Processing document: sound-and-book-bar.md',
-                'terminal.vectors': '✓ Generated vectors: 12 chunks',
-                'terminal.query': 'where is yinshu bar',
-                'terminal.answer': '🤖 Yinshu Bar is located at 3rd Floor, Wanda Plaza, No. 188 Aviation Road, Shuangliu District, Chengdu City. This is the official business address mentioned in the document...',
-                'cta.title': 'Ready to Get Started?',
-                'cta.description': 'Download RAGO now and experience the powerful features of local RAG system, making your document data more valuable',
-                'cta.download': 'Download RAGO',
-                'cta.docs': 'View Documentation',
-                'footer.description': 'Local RAG system, protecting your data privacy and enhancing AI capabilities',
-                'footer.product': 'Product',
-                'footer.features': 'Features',
-                'footer.docs': 'Documentation',
-                'footer.api': 'API',
-                'footer.resources': 'Resources',
-                'footer.examples': 'Examples',
-                'footer.community': 'Community',
-                'footer.contact': 'Contact',
-                'footer.email': 'Email',
-                'footer.feedback': 'Feedback'
-            }
-        };
-
-        let currentLang = 'en';
-
-        function updateLanguage(lang) {
-            currentLang = lang;
-            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
-
-            // 更新页面标题和meta描述
-            if (lang === 'en') {
-                document.title = 'RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval';
-                document.querySelector('meta[name="description"]').content = 'Fully local RAG system that protects data privacy, supports multiple document formats, and provides efficient semantic search and intelligent Q&A features';
-                document.querySelector('meta[name="keywords"]').content = 'RAG system,local RAG,Ollama,Golang,Go language,vector database,semantic search,document retrieval,AI QA,privacy protection,knowledge base,local AI,document processing,intelligent search,open source RAG';
-                document.querySelector('meta[property="og:title"]').content = 'RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval';
-                document.querySelector('meta[property="og:description"]').content = 'Fully local RAG system powered by Ollama, providing powerful document retrieval and intelligent Q&A while protecting your data privacy';
-                document.querySelector('meta[name="twitter:title"]').content = 'RAGO - Local RAG System | Ollama-based Intelligent Document Retrieval';
-                document.querySelector('meta[name="twitter:description"]').content = 'Fully local RAG system powered by Ollama, providing powerful document retrieval and intelligent Q&A';
-            } else {
-                document.title = 'RAGO - 本地RAG系统 | 基于Ollama的智能文档检索';
-                document.querySelector('meta[name="description"]').content = '完全本地化的RAG系统，保护数据隐私，支持多格式文档，提供高效的语义搜索和智能问答功能';
-                document.querySelector('meta[name="keywords"]').content = 'RAG系统,本地RAG,Ollama,Golang,Go语言,向量数据库,语义搜索,文档检索,AI问答,隐私保护,知识库,本地化AI,文档处理,智能搜索,开源RAG';
-                document.querySelector('meta[property="og:title"]').content = 'RAGO - 本地RAG系统 | 基于Ollama的智能文档检索';
-                document.querySelector('meta[property="og:description"]').content = '完全本地化的RAG系统，基于Ollama提供强大的文档检索和智能问答功能，保护您的数据隐私';
-                document.querySelector('meta[name="twitter:title"]').content = 'RAGO - 本地RAG系统 | 基于Ollama的智能文档检索';
-                document.querySelector('meta[name="twitter:description"]').content = '完全本地化的RAG系统，基于Ollama提供强大的文档检索和智能问答功能';
-            }
-
-            // 更新所有带有data-i18n属性的元素
-            document.querySelectorAll('[data-i18n]').forEach(element => {
-                const key = element.getAttribute('data-i18n');
-                if (translations[lang] && translations[lang][key]) {
-                    element.textContent = translations[lang][key];
-                }
-            });
-
-            // 更新语言切换按钮状态
-            document.querySelectorAll('.lang-option').forEach(option => {
-                option.classList.remove('active');
-                if (option.getAttribute('data-lang') === lang) {
-                    option.classList.add('active');
-                }
-            });
-
-            // 保存语言偏好
-            localStorage.setItem('preferred-language', lang);
-        }
-
-        // 初始化Lucide图标
+        // Initialize Lucide icons
         lucide.createIcons();
 
-        // GSAP动画
+        // GSAP Animations
         gsap.registerPlugin(ScrollTrigger);
 
-        // Hero区域动画
+        // Hero animations
+        gsap.fromTo(".hero-badge", 
+            { opacity: 0, y: 20 },
+            { opacity: 1, y: 0, duration: 0.6, delay: 0.2 }
+        );
+
         gsap.fromTo(".hero-title",
-            { opacity: 0, y: 50 },
-            { opacity: 1, y: 0, duration: 1, ease: "power3.out" }
+            { opacity: 0, y: 30 },
+            { opacity: 1, y: 0, duration: 0.8, delay: 0.4 }
         );
 
         gsap.fromTo(".hero-subtitle",
-            { opacity: 0, y: 30 },
-            { opacity: 1, y: 0, duration: 1, delay: 0.2, ease: "power3.out" }
+            { opacity: 0, y: 20 },
+            { opacity: 1, y: 0, duration: 0.8, delay: 0.6 }
         );
 
         gsap.fromTo(".hero-buttons",
             { opacity: 0, y: 20 },
-            { opacity: 1, y: 0, duration: 1, delay: 0.4, ease: "power3.out" }
+            { opacity: 1, y: 0, duration: 0.8, delay: 0.8 }
         );
 
-        // 特性卡片动画
+        gsap.fromTo(".stat-item",
+            { opacity: 0, scale: 0.8 },
+            { 
+                opacity: 1, 
+                scale: 1, 
+                duration: 0.6, 
+                stagger: 0.1,
+                delay: 1
+            }
+        );
+
+        // Feature cards animation
         gsap.fromTo(".feature-card",
             { opacity: 0, y: 30 },
             {
                 opacity: 1,
                 y: 0,
-                duration: 0.8,
+                duration: 0.6,
                 stagger: 0.1,
                 scrollTrigger: {
                     trigger: ".features",
-                    start: "top 80%",
-                    end: "bottom 20%",
+                    start: "top 80%"
                 }
             }
         );
 
-        // 优势区域动画
-        gsap.fromTo(".benefit-item",
+        // MCP section animation
+        gsap.fromTo(".mcp-feature",
             { opacity: 0, x: -30 },
             {
                 opacity: 1,
                 x: 0,
-                duration: 0.8,
-                stagger: 0.15,
+                duration: 0.6,
+                stagger: 0.1,
                 scrollTrigger: {
-                    trigger: ".benefits",
-                    start: "top 80%",
+                    trigger: ".mcp-section",
+                    start: "top 80%"
                 }
             }
         );
 
-        document.querySelectorAll('.lang-option').forEach(option => {
-            option.addEventListener('click', () => {
-                const lang = option.getAttribute('data-lang');
-                updateLanguage(lang);
-            });
-        });
+        // API cards animation
+        gsap.fromTo(".api-card",
+            { opacity: 0, scale: 0.9 },
+            {
+                opacity: 1,
+                scale: 1,
+                duration: 0.5,
+                stagger: 0.05,
+                scrollTrigger: {
+                    trigger: ".api-section",
+                    start: "top 80%"
+                }
+            }
+        );
 
-        // 平滑滚动
+        // Installation tabs
+        function showInstall(tab) {
+            // Hide all panels
+            document.querySelectorAll('.install-panel').forEach(panel => {
+                panel.style.display = 'none';
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.install-tab').forEach(tabBtn => {
+                tabBtn.classList.remove('active');
+            });
+            
+            // Show selected panel
+            document.getElementById('install-' + tab).style.display = 'block';
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+
+        // Copy code function
+        function copyCode(elementId) {
+            const codeElement = document.getElementById(elementId);
+            const text = codeElement.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            });
+        }
+
+        // Smooth scrolling for anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
                 e.preventDefault();
@@ -1326,43 +1255,35 @@ threshold = 0.0
             });
         });
 
-        // 复制到剪贴板函数
-        function copyToClipboard(elementId) {
-            const element = document.getElementById(elementId);
-            const text = element.textContent;
+        // Number counter animation for stats
+        const animateValue = (element, start, end, duration) => {
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const value = Math.floor(progress * (end - start) + start);
+                element.textContent = value + (element.textContent.includes('+') ? '+' : '');
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                }
+            };
+            window.requestAnimationFrame(step);
+        };
 
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(text).then(function () {
-                    // 显示复制成功提示
-                    const btn = event.target;
-                    const originalText = btn.textContent;
-                    btn.textContent = currentLang === 'zh' ? '已复制!' : 'Copied!';
-                    setTimeout(() => {
-                        btn.textContent = originalText;
-                    }, 2000);
-                });
-            } else {
-                // 兼容旧浏览器
-                const textArea = document.createElement('textarea');
-                textArea.value = text;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-
-                const btn = event.target;
-                const originalText = btn.textContent;
-                btn.textContent = currentLang === 'zh' ? '已复制!' : 'Copied!';
-                setTimeout(() => {
-                    btn.textContent = originalText;
-                }, 2000);
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedLang = localStorage.getItem('preferred-language') || 'en';
-            updateLanguage(savedLang);
+        // Trigger number animation when stats section is visible
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const statNumbers = document.querySelectorAll('.stat-number');
+                    statNumbers[0].textContent = '19+';
+                    statNumbers[1].textContent = '3';
+                    animateValue(statNumbers[2], 0, 100, 1500);
+                    observer.disconnect();
+                }
+            });
         });
+
+        observer.observe(document.querySelector('.hero-stats'));
     </script>
 </body>
 

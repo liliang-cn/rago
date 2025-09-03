@@ -15,6 +15,7 @@ import (
 	"github.com/liliang-cn/rago/v2/api/handlers"
 	"github.com/liliang-cn/rago/v2/pkg/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/processor"
 	"github.com/liliang-cn/rago/v2/pkg/store"
 	"github.com/liliang-cn/rago/v2/pkg/web"
@@ -180,6 +181,50 @@ func setupRouter(processor *processor.Service, cfg *config.Config) (*gin.Engine,
 		}
 
 		api.POST("/reset", handlers.NewResetHandler(processor).Handle)
+
+		// MCP API endpoints (only if MCP is enabled)
+		if cfg.MCP.Enabled {
+			// Initialize MCP configuration
+			mcpConfig := &mcp.Config{
+				Enabled:  cfg.MCP.Enabled,
+				Servers:  cfg.MCP.Servers,
+				LogLevel: cfg.MCP.LogLevel,
+			}
+			
+			// Initialize MCP handler
+			mcpHandler, err := handlers.NewMCPHandler(mcpConfig)
+			if err != nil {
+				log.Printf("Warning: failed to initialize MCP handler: %v", err)
+			} else {
+				// Setup MCP routes
+				mcpGroup := api.Group("/mcp")
+				{
+					// Tool operations
+					mcpGroup.GET("/tools", mcpHandler.ListTools)
+					mcpGroup.GET("/tools/:name", mcpHandler.GetTool)
+					mcpGroup.POST("/tools/call", mcpHandler.CallTool)
+					mcpGroup.POST("/tools/batch", mcpHandler.BatchCallTools)
+					
+					// Server operations
+					mcpGroup.GET("/servers", mcpHandler.GetServerStatus)
+					mcpGroup.GET("/servers/:server/tools", mcpHandler.GetToolsByServer)
+					mcpGroup.POST("/servers/start", mcpHandler.StartServer)
+					mcpGroup.POST("/servers/stop", mcpHandler.StopServer)
+					
+					// LLM integration
+					mcpGroup.GET("/llm/tools", mcpHandler.GetToolsForLLM)
+				}
+				
+				// Register cleanup on server shutdown
+				router.Use(func(c *gin.Context) {
+					c.Next()
+					// This will be called when server shuts down
+					if c.Request.Context().Err() != nil {
+						_ = mcpHandler.Close()
+					}
+				})
+			}
+		}
 	}
 
 	if enableUI {
