@@ -2,7 +2,59 @@
   "mcpServers": {
     "sqlite": {
       "command": "/home/ubuntu/go/bin/mcp-sqlite-server",
-      "args": ["./data"]
+      "args": ["./data"],
+      "description": "SQLite database operations with vector search support"
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-filesystem", "--allowed-directories", "./", "/tmp"],
+      "description": "File system operations with sandboxed directory access",
+      "env": {
+        "NODE_OPTIONS": "--max-old-space-size=4096"
+      }
+    },
+    "fetch": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-fetch"],
+      "description": "HTTP/HTTPS fetch operations for web content retrieval",
+      "env": {
+        "FETCH_USER_AGENT": "RAGO-MCP/2.0"
+      }
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-memory"],
+      "description": "In-memory key-value store for temporary data storage",
+      "env": {
+        "MEMORY_MAX_SIZE": "100MB"
+      }
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-sequential-thinking"],
+      "description": "Enhanced reasoning through step-by-step problem decomposition",
+      "env": {
+        "THINKING_MAX_DEPTH": "10"
+      }
+    },
+    "time": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-time"],
+      "description": "Time and date utilities with timezone support",
+      "env": {
+        "TZ": "UTC"
+      }
     }
+  },
+  "serverDefaults": {
+    "timeout": 30000,
+    "retryAttempts": 3,
+    "retryDelay": 1000
+  },
+  "serverGroups": {
+    "core": ["filesystem", "fetch", "memory"],
+    "reasoning": ["sequential-thinking"],
+    "utilities": ["time", "sqlite"],
+    "all": ["filesystem", "fetch", "memory", "sequential-thinking", "time", "sqlite"]
   }
 }

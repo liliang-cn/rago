@@ -78,6 +78,7 @@ type AgentInterface interface {
 	GetName() string
 	GetType() AgentType
 	GetStatus() AgentStatus
+	GetAgent() *Agent
 	Execute(ctx ExecutionContext) (*ExecutionResult, error)
 	Validate() error
 }
