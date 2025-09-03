@@ -29,6 +29,38 @@ export interface APIResponse<T> {
   data?: T
   error?: string
   message?: string
+  success?: boolean
+}
+
+export interface MCPTool {
+  name: string
+  description: string
+  server_name: string
+}
+
+export interface MCPServer {
+  name: string
+  status: boolean
+}
+
+export interface MCPToolResult {
+  success: boolean
+  data: any
+  error?: string
+  server_name: string
+  tool_name: string
+  duration: number
+}
+
+export interface MCPToolCall {
+  tool_name: string
+  args: Record<string, any>
+}
+
+export interface TaskItem {
+  content: string
+  status: 'pending' | 'in_progress' | 'completed'
+  activeForm: string
 }
 
 class APIClient {
@@ -116,6 +148,55 @@ class APIClient {
 
   async health() {
     return this.request('/health')
+  }
+
+  // MCP API methods
+  async getMCPTools(): Promise<APIResponse<{ tools: MCPTool[]; count: number }>> {
+    return this.request('/mcp/tools')
+  }
+
+  async getMCPTool(name: string): Promise<APIResponse<MCPTool & { schema: any }>> {
+    return this.request(`/mcp/tools/${name}`)
+  }
+
+  async callMCPTool(toolName: string, args: Record<string, any>, timeout = 30): Promise<APIResponse<MCPToolResult>> {
+    return this.request('/mcp/tools/call', {
+      method: 'POST',
+      body: JSON.stringify({ tool_name: toolName, args, timeout }),
+    })
+  }
+
+  async batchCallMCPTools(calls: MCPToolCall[], timeout = 60): Promise<APIResponse<{ results: MCPToolResult[]; count: number }>> {
+    return this.request('/mcp/tools/batch', {
+      method: 'POST',
+      body: JSON.stringify({ calls, timeout }),
+    })
+  }
+
+  async getMCPServers(): Promise<APIResponse<{ servers: Record<string, boolean>; enabled: boolean }>> {
+    return this.request('/mcp/servers')
+  }
+
+  async startMCPServer(serverName: string): Promise<APIResponse<any>> {
+    return this.request('/mcp/servers/start', {
+      method: 'POST',
+      body: JSON.stringify({ server_name: serverName }),
+    })
+  }
+
+  async stopMCPServer(serverName: string): Promise<APIResponse<any>> {
+    return this.request('/mcp/servers/stop', {
+      method: 'POST',
+      body: JSON.stringify({ server_name: serverName }),
+    })
+  }
+
+  async getMCPToolsForLLM(): Promise<APIResponse<{ tools: any[]; count: number }>> {
+    return this.request('/mcp/llm/tools')
+  }
+
+  async getMCPToolsByServer(serverName: string): Promise<APIResponse<{ server: string; tools: MCPTool[]; count: number }>> {
+    return this.request(`/mcp/servers/${serverName}/tools`)
   }
 }
 

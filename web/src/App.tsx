@@ -2,7 +2,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { IngestTab } from '@/components/IngestTab'
 import { ChatTab } from '@/components/ChatTab'
 import { DocumentsTab } from '@/components/DocumentsTab'
-import { Database, MessageSquare, FileText, Github } from 'lucide-react'
+import { MCPTab } from '@/components/MCPTab'
+import { TasksTab } from '@/components/TasksTab'
+import { StatusTab } from '@/components/StatusTab'
+import { Database, MessageSquare, FileText, Github, Zap, ListTodo, Activity, Layers } from 'lucide-react'
 import './App.css'
 
 function App() {
@@ -12,10 +15,10 @@ function App() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Database className="h-8 w-8 text-blue-600" />
+              <Layers className="h-8 w-8 text-blue-600" />
               <div className="text-left">
-                <h1 className="text-2xl font-bold text-gray-900 text-left">RAGO</h1>
-                <p className="text-sm text-gray-600 text-left">Local RAG based on Ollama</p>
+                <h1 className="text-2xl font-bold text-gray-900 text-left">RAGO v2</h1>
+                <p className="text-sm text-gray-600 text-left">Advanced RAG with MCP Integration</p>
               </div>
             </div>
             <a
@@ -33,7 +36,7 @@ function App() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="chat" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8">
+          <TabsList className="grid w-full grid-cols-6 mb-8">
             <TabsTrigger value="chat" className="flex items-center gap-2">
               <MessageSquare className="h-4 w-4" />
               Chat
@@ -45,6 +48,18 @@ function App() {
             <TabsTrigger value="documents" className="flex items-center gap-2">
               <Database className="h-4 w-4" />
               Documents
+            </TabsTrigger>
+            <TabsTrigger value="mcp" className="flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              MCP
+            </TabsTrigger>
+            <TabsTrigger value="tasks" className="flex items-center gap-2">
+              <ListTodo className="h-4 w-4" />
+              Tasks
+            </TabsTrigger>
+            <TabsTrigger value="status" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Status
             </TabsTrigger>
           </TabsList>
           
@@ -58,6 +73,18 @@ function App() {
           
           <TabsContent value="documents">
             <DocumentsTab />
+          </TabsContent>
+          
+          <TabsContent value="mcp">
+            <MCPTab />
+          </TabsContent>
+          
+          <TabsContent value="tasks">
+            <TasksTab />
+          </TabsContent>
+          
+          <TabsContent value="status">
+            <StatusTab />
           </TabsContent>
         </Tabs>
       </main>

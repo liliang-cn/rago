@@ -1,12 +1,8 @@
 {
   "mcpServers": {
     "sqlite": {
-      "command": "mcp-sqlite-server",
+      "command": "/home/ubuntu/go/bin/mcp-sqlite-server",
       "args": ["./data"]
-    },
-    "filesystem": {
-      "command": "mcp-filesystem-server",
-      "args": ["./workspace"]
     }
   }
 }
