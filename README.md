@@ -1,30 +1,40 @@
-# RAGO - Advanced RAG System with Agent Automation
+# RAGO - Local RAG System with Agent Automation
 
 [中文文档](README_zh-CN.md)
 
-RAGO (Retrieval-Augmented Generation Offline) is a powerful local RAG system with agent automation capabilities, supporting natural language workflow generation, MCP tools integration, and multi-provider LLM support.
+RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system written in Go, integrating SQLite vector database and multi-provider LLM support for document ingestion, semantic search, and context-enhanced Q&A.
 
 ## 🌟 Core Features
 
-### 🤖 **Agent Automation**
-- **Natural Language → Workflow** - Convert plain text requests into executable workflows
+### 📚 **RAG System (Core)**
+- **Document Ingestion** - Import text, markdown, PDF files with automatic chunking
+- **Vector Database** - SQLite-based vector storage with sqvect for high-performance search  
+- **Semantic Search** - Find relevant documents using embedding similarity
+- **Smart Chunking** - Configurable text splitting (sentence, paragraph, token methods)
+- **Q&A Generation** - Context-enhanced answers using retrieved documents
+
+### 🔧 **Multi-Provider LLM Support**
+- **Ollama Integration** - Local LLM inference with ollama-go client
+- **OpenAI Compatible** - Support for OpenAI API and compatible services
+- **LM Studio** - Local model serving with LM Studio integration
+- **Provider Switching** - Easy configuration switching between providers
+
+### 🛠️ **MCP Tools Integration**
+- **Model Context Protocol** - Standard tool integration framework
+- **Built-in Tools** - filesystem, fetch, memory, time, sequential-thinking
+- **External Servers** - Connect to any MCP-compatible tool server
+- **Query Enhancement** - Use tools during RAG queries for richer answers
+
+### 🤖 **Agent Automation **
+- **Natural Language Workflows** - Generate workflows from plain text descriptions
+- **MCP Tool Orchestration** - Coordinate multiple tools in automated workflows
 - **Async Execution** - Parallel step execution with dependency resolution
-- **MCP Tools Integration** - Built-in tools for filesystem, web, memory, time, and LLM reasoning
 
-### 📚 **Advanced RAG System**
-- **Multi-Provider Support** - Seamlessly switch between Ollama, OpenAI, and LM Studio
-- **Vector Search** - High-performance semantic search with SQLite vector database
-- **Smart Chunking** - Intelligent document processing with configurable strategies
-
-### ⚡ **Workflow Automation**
-- **JSON Workflow Spec** - Define complex workflows programmatically
-- **Variable Passing** - Data flow between steps using `{{variable}}` syntax
-- **Tool Orchestration** - Coordinate multiple MCP tools in workflows
-
-### 🔧 **Enterprise Ready**
-- **HTTP APIs** - Complete REST API for all operations
-- **100% Local Option** - Full privacy with local LLM providers
+### 🏢 **Production Ready**
+- **100% Local** - Complete offline operation with local providers
+- **HTTP API** - RESTful endpoints for all operations
 - **High Performance** - Optimized Go implementation
+- **Configurable** - Extensive configuration options via TOML
 
 ## 🚀 Quick Start
 
@@ -48,38 +58,79 @@ go build -o rago ./cmd/rago
 ./rago init
 ```
 
-### 🎯 Agent Examples
+### 🎯 RAG Examples
 
 ```bash
-# Natural language to workflow
+# Import documents
+./rago ingest ./docs --recursive
+./rago ingest document.pdf
+
+# Query your documents
+./rago query "What is the main concept explained?"
+./rago query "How to configure the system?" --show-sources
+
+# Interactive mode
+./rago query -i
+
+# With MCP tools
+./rago query "Analyze this data and save results" --mcp
+```
+
+### 🤖 Agent Examples 
+
+```bash
+# Natural language workflows
 ./rago agent run "get current time and tell me if it's morning or evening"
+./rago agent run "fetch weather for San Francisco and analyze conditions"
 
-# GitHub integration
-./rago agent run "get information about golang/go repository"
-
-# Complex workflows
-./rago agent run "fetch weather for San Francisco and analyze if it's good for outdoor activities"
-
-# Save workflows
+# Save workflows for reuse
 ./rago agent run "monitor github.com/golang/go for new releases" --save
 ```
 
 ## 📖 Library Usage
 
-Use RAGO as a Go library in your applications:
+Use RAGO as a Go library for RAG operations:
+
+```go
+import (
+    "github.com/liliang-cn/rago/v2/pkg/config"
+    "github.com/liliang-cn/rago/v2/pkg/store"
+    "github.com/liliang-cn/rago/v2/pkg/processor"
+)
+
+// Initialize RAGO
+cfg, _ := config.Load("rago.toml")
+store, _ := store.NewSQLiteStore(cfg.Sqvect.DBPath)
+processor := processor.New(cfg, store)
+
+// Ingest documents
+doc := domain.Document{
+    ID:      "doc1",
+    Content: "Your document content here",
+    Path:    "/path/to/doc.txt",
+}
+
+err := processor.IngestDocument(ctx, doc)
+
+// Query documents
+req := domain.QueryRequest{
+    Query:       "What is this about?",
+    TopK:        5,
+    Temperature: 0.7,
+    MaxTokens:   500,
+}
+
+response, _ := processor.Query(ctx, req)
+fmt.Println(response.Answer)
+```
+
+### Agent Library Usage 
 
 ```go
 import (
     "github.com/liliang-cn/rago/v2/pkg/agents/execution"
     "github.com/liliang-cn/rago/v2/pkg/agents/types"
-    "github.com/liliang-cn/rago/v2/pkg/config"
-    "github.com/liliang-cn/rago/v2/pkg/utils"
 )
-
-// Load config and initialize
-cfg, _ := config.Load("")
-ctx := context.Background()
-_, llmService, _, _ := utils.InitializeProviders(ctx, cfg)
 
 // Define workflow
 workflow := &types.WorkflowSpec{
@@ -90,20 +141,11 @@ workflow := &types.WorkflowSpec{
             Inputs: map[string]interface{}{
                 "url": "https://api.github.com/repos/golang/go",
             },
-            Outputs: map[string]string{"data": "result"},
-        },
-        {
-            ID:   "analyze",
-            Tool: "sequential-thinking",
-            Inputs: map[string]interface{}{
-                "prompt": "Analyze this data",
-                "data":   "{{result}}",
-            },
         },
     },
 }
 
-// Execute
+// Execute workflow
 executor := execution.NewWorkflowExecutor(cfg, llmService)
 result, _ := executor.Execute(ctx, workflow)
 ```
@@ -117,7 +159,7 @@ result, _ := executor.Execute(ctx, workflow)
 - **memory** - Temporary key-value storage  
 - **time** - Date/time operations
 - **sequential-thinking** - LLM analysis and reasoning
-- **playwright** - Browser automation (optional)
+- **playwright** - Browser automation 
 
 ### Tool Configuration
 
@@ -148,11 +190,21 @@ Start the API server:
 
 ### Core Endpoints
 
-- `POST /api/ingest` - Ingest documents
-- `POST /api/query` - Query with RAG
-- `GET /api/mcp/tools` - List MCP tools
+#### RAG Operations
+- `POST /api/ingest` - Ingest documents into vector database
+- `POST /api/query` - Perform RAG query with context retrieval
+- `GET /api/list` - List indexed documents
+- `DELETE /api/reset` - Clear vector database
+
+#### MCP Tools
+- `GET /api/mcp/tools` - List available MCP tools
 - `POST /api/mcp/tools/call` - Execute MCP tool
-- `POST /api/agent/run` - Run natural language workflow
+- `GET /api/mcp/status` - Check MCP server status
+
+#### Agent Automation 
+- `POST /api/agent/run` - Generate and execute workflows
+- `GET /api/agent/list` - List saved agents
+- `POST /api/agent/create` - Create new agent
 
 ## ⚙️ Configuration
 
@@ -165,15 +217,34 @@ default_embedder = "lmstudio"
 
 [providers.lmstudio]
 type = "lmstudio"
-base_url = "http://localhost:1234/v1"
-llm_model = "qwen/qwen3-4b"
-embedding_model = "nomic-embed-text"
+base_url = "http://localhost:1234"
+llm_model = "qwen/qwen3-4b-2507"
+embedding_model = "text-embedding-qwen3-embedding-4b"
+timeout = "120s"
 
 [providers.ollama]
 type = "ollama"
 base_url = "http://localhost:11434"
-llm_model = "llama3"
+llm_model = "qwen3"
 embedding_model = "nomic-embed-text"
+timeout = "120s"
+
+# Vector database configuration
+[sqvect]
+db_path = "~/.rago/rag.db"
+top_k = 5
+threshold = 0.0
+
+# Text chunking configuration
+[chunker]
+chunk_size = 500
+overlap = 50
+method = "sentence"
+
+# MCP tools configuration
+[mcp]
+enabled = true
+servers_config_path = "mcpServers.json"
 ```
 
 ## 📚 Documentation
