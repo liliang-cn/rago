@@ -120,7 +120,7 @@ func (r *ResearchAgent) Execute(ctx types.ExecutionContext) (*types.ExecutionRes
 
 	// Add research-specific logic here
 	r.logInfo(result, "Executing research workflow", nil)
-	
+
 	// Research agents focus on data gathering and analysis
 	result.Outputs["research_type"] = "document_analysis"
 	result.Results["findings"] = "Research completed successfully"
@@ -150,7 +150,7 @@ func (w *WorkflowAgent) Execute(ctx types.ExecutionContext) (*types.ExecutionRes
 
 	// Add workflow-specific logic here
 	w.logInfo(result, "Executing workflow automation", nil)
-	
+
 	// Workflow agents focus on multi-step processes
 	result.Outputs["workflow_type"] = "automation"
 	result.Results["steps_executed"] = len(w.agent.Workflow.Steps)
@@ -180,7 +180,7 @@ func (m *MonitoringAgent) Execute(ctx types.ExecutionContext) (*types.ExecutionR
 
 	// Add monitoring-specific logic here
 	m.logInfo(result, "Executing monitoring workflow", nil)
-	
+
 	// Monitoring agents focus on system health and alerts
 	result.Outputs["monitoring_type"] = "health_check"
 	result.Results["status"] = "all_systems_operational"
@@ -193,16 +193,6 @@ func (a *BaseAgent) logInfo(result *types.ExecutionResult, message string, data 
 	result.Logs = append(result.Logs, types.ExecutionLog{
 		Timestamp: time.Now(),
 		Level:     types.LogLevelInfo,
-		Message:   message,
-		Data:      data,
-	})
-}
-
-// Helper method to add error log entries
-func (a *BaseAgent) logError(result *types.ExecutionResult, message string, data interface{}) {
-	result.Logs = append(result.Logs, types.ExecutionLog{
-		Timestamp: time.Now(),
-		Level:     types.LogLevelError,
 		Message:   message,
 		Data:      data,
 	})

@@ -10,21 +10,21 @@ import (
 
 // CreateAgentRequest represents a request to create a new agent
 type CreateAgentRequest struct {
-	ID          string              `json:"id,omitempty"`
-	Name        string              `json:"name"`
-	Description string              `json:"description"`
-	Type        types.AgentType     `json:"type"`
-	Config      types.AgentConfig   `json:"config"`
-	Workflow    types.WorkflowSpec  `json:"workflow"`
+	ID          string             `json:"id,omitempty"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Type        types.AgentType    `json:"type"`
+	Config      types.AgentConfig  `json:"config"`
+	Workflow    types.WorkflowSpec `json:"workflow"`
 }
 
 // UpdateAgentRequest represents a request to update an agent
 type UpdateAgentRequest struct {
-	Name        string               `json:"name,omitempty"`
-	Description string               `json:"description,omitempty"`
-	Status      types.AgentStatus    `json:"status,omitempty"`
-	Config      *types.AgentConfig   `json:"config,omitempty"`
-	Workflow    *types.WorkflowSpec  `json:"workflow,omitempty"`
+	Name        string              `json:"name,omitempty"`
+	Description string              `json:"description,omitempty"`
+	Status      types.AgentStatus   `json:"status,omitempty"`
+	Config      *types.AgentConfig  `json:"config,omitempty"`
+	Workflow    *types.WorkflowSpec `json:"workflow,omitempty"`
 }
 
 // ExecuteAgentRequest represents a request to execute an agent
@@ -141,10 +141,10 @@ type AgentFilter struct {
 
 // ExecutionFilter represents filtering options for executions
 type ExecutionFilter struct {
-	AgentID    string              `json:"agent_id,omitempty" form:"agent_id"`
-	Status     types.ExecutionStatus `json:"status,omitempty" form:"status"`
-	StartTime  *time.Time           `json:"start_time,omitempty" form:"start_time"`
-	EndTime    *time.Time           `json:"end_time,omitempty" form:"end_time"`
+	AgentID   string                `json:"agent_id,omitempty" form:"agent_id"`
+	Status    types.ExecutionStatus `json:"status,omitempty" form:"status"`
+	StartTime *time.Time            `json:"start_time,omitempty" form:"start_time"`
+	EndTime   *time.Time            `json:"end_time,omitempty" form:"end_time"`
 }
 
 // Sorting types
@@ -165,55 +165,55 @@ type BatchAgentOperation struct {
 
 // BatchAgentResponse represents the response for batch operations
 type BatchAgentResponse struct {
-	Success     []string `json:"success"`
-	Failed      []string `json:"failed"`
-	Errors      []string `json:"errors,omitempty"`
-	TotalCount  int      `json:"total_count"`
-	SuccessCount int     `json:"success_count"`
-	FailedCount int      `json:"failed_count"`
+	Success      []string `json:"success"`
+	Failed       []string `json:"failed"`
+	Errors       []string `json:"errors,omitempty"`
+	TotalCount   int      `json:"total_count"`
+	SuccessCount int      `json:"success_count"`
+	FailedCount  int      `json:"failed_count"`
 }
 
 // Metrics types
 
 // AgentMetrics represents metrics for an agent
 type AgentMetrics struct {
-	AgentID           string        `json:"agent_id"`
-	TotalExecutions   int           `json:"total_executions"`
-	SuccessfulExecutions int        `json:"successful_executions"`
-	FailedExecutions  int           `json:"failed_executions"`
+	AgentID              string        `json:"agent_id"`
+	TotalExecutions      int           `json:"total_executions"`
+	SuccessfulExecutions int           `json:"successful_executions"`
+	FailedExecutions     int           `json:"failed_executions"`
 	AverageExecutionTime time.Duration `json:"average_execution_time"`
-	LastExecutionTime *time.Time     `json:"last_execution_time,omitempty"`
-	SuccessRate       float64       `json:"success_rate"`
+	LastExecutionTime    *time.Time    `json:"last_execution_time,omitempty"`
+	SuccessRate          float64       `json:"success_rate"`
 }
 
 // SystemMetrics represents overall system metrics
 type SystemMetrics struct {
-	TotalAgents        int           `json:"total_agents"`
-	ActiveAgents       int           `json:"active_agents"`
-	TotalExecutions    int           `json:"total_executions"`
-	ActiveExecutions   int           `json:"active_executions"`
-	ExecutionsLastHour int           `json:"executions_last_hour"`
+	TotalAgents          int           `json:"total_agents"`
+	ActiveAgents         int           `json:"active_agents"`
+	TotalExecutions      int           `json:"total_executions"`
+	ActiveExecutions     int           `json:"active_executions"`
+	ExecutionsLastHour   int           `json:"executions_last_hour"`
 	AverageExecutionTime time.Duration `json:"average_execution_time"`
-	SystemUptime       time.Duration `json:"system_uptime"`
-	Timestamp          time.Time     `json:"timestamp"`
+	SystemUptime         time.Duration `json:"system_uptime"`
+	Timestamp            time.Time     `json:"timestamp"`
 }
 
 // Export/Import types
 
 // AgentExport represents exported agent data
 type AgentExport struct {
-	Agents    []*types.Agent           `json:"agents"`
+	Agents     []*types.Agent           `json:"agents"`
 	Executions []*types.ExecutionResult `json:"executions,omitempty"`
-	Templates []WorkflowTemplate        `json:"templates,omitempty"`
-	Metadata  ExportMetadata           `json:"metadata"`
+	Templates  []WorkflowTemplate       `json:"templates,omitempty"`
+	Metadata   ExportMetadata           `json:"metadata"`
 }
 
 // ExportMetadata represents metadata for exports
 type ExportMetadata struct {
-	ExportTime    time.Time `json:"export_time"`
-	Version       string    `json:"version"`
-	TotalAgents   int       `json:"total_agents"`
-	TotalExecutions int      `json:"total_executions"`
+	ExportTime      time.Time `json:"export_time"`
+	Version         string    `json:"version"`
+	TotalAgents     int       `json:"total_agents"`
+	TotalExecutions int       `json:"total_executions"`
 }
 
 // WebSocket message types
@@ -229,7 +229,7 @@ type WSMessage struct {
 type WSExecutionUpdate struct {
 	ExecutionID  string                 `json:"execution_id"`
 	AgentID      string                 `json:"agent_id"`
-	Status       types.ExecutionStatus   `json:"status"`
+	Status       types.ExecutionStatus  `json:"status"`
 	CurrentStep  string                 `json:"current_step"`
 	Progress     float64                `json:"progress"`
 	Results      map[string]interface{} `json:"results,omitempty"`
@@ -248,15 +248,15 @@ type WSAgentStatus struct {
 
 // APIConfig represents configuration for the agents API
 type APIConfig struct {
-	Host                  string        `json:"host" yaml:"host"`
-	Port                  int           `json:"port" yaml:"port"`
-	EnableCORS           bool          `json:"enable_cors" yaml:"enable_cors"`
-	EnableMetrics        bool          `json:"enable_metrics" yaml:"enable_metrics"`
-	EnableWebSocket      bool          `json:"enable_websocket" yaml:"enable_websocket"`
-	RateLimitEnabled     bool          `json:"rate_limit_enabled" yaml:"rate_limit_enabled"`
-	RateLimitRPS         int           `json:"rate_limit_rps" yaml:"rate_limit_rps"`
-	MaxRequestSize       int64         `json:"max_request_size" yaml:"max_request_size"`
-	ReadTimeout          time.Duration `json:"read_timeout" yaml:"read_timeout"`
-	WriteTimeout         time.Duration `json:"write_timeout" yaml:"write_timeout"`
-	ShutdownTimeout      time.Duration `json:"shutdown_timeout" yaml:"shutdown_timeout"`
+	Host             string        `json:"host" yaml:"host"`
+	Port             int           `json:"port" yaml:"port"`
+	EnableCORS       bool          `json:"enable_cors" yaml:"enable_cors"`
+	EnableMetrics    bool          `json:"enable_metrics" yaml:"enable_metrics"`
+	EnableWebSocket  bool          `json:"enable_websocket" yaml:"enable_websocket"`
+	RateLimitEnabled bool          `json:"rate_limit_enabled" yaml:"rate_limit_enabled"`
+	RateLimitRPS     int           `json:"rate_limit_rps" yaml:"rate_limit_rps"`
+	MaxRequestSize   int64         `json:"max_request_size" yaml:"max_request_size"`
+	ReadTimeout      time.Duration `json:"read_timeout" yaml:"read_timeout"`
+	WriteTimeout     time.Duration `json:"write_timeout" yaml:"write_timeout"`
+	ShutdownTimeout  time.Duration `json:"shutdown_timeout" yaml:"shutdown_timeout"`
 }

@@ -29,7 +29,7 @@ func NewSimpleClient() (*SimpleClient, error) {
 
 	// Ensure MCP is enabled
 	cfg.MCP.Enabled = true
-	
+
 	// Add default MCP servers if not configured
 	ensureDefaultServers(cfg)
 
@@ -89,7 +89,7 @@ func ensureDefaultServers(cfg *config.Config) {
 		for _, s := range cfg.MCP.Servers {
 			existing[s.Name] = true
 		}
-		
+
 		for _, s := range defaultServers {
 			if !existing[s.Name] {
 				cfg.MCP.Servers = append(cfg.MCP.Servers, s)

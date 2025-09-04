@@ -155,7 +155,7 @@ func TestLLMChatStream(t *testing.T) {
 		},
 	}
 	var result string
-		err := client.LLMChatStream(context.Background(), req, func(s string) {
+	err := client.LLMChatStream(context.Background(), req, func(s string) {
 		result += s
 	})
 

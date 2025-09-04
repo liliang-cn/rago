@@ -49,7 +49,7 @@ func NewStorage(dbPath string) (*Storage, error) {
 
 	storage := &Storage{db: db}
 	if err := storage.initTables(); err != nil {
-			if err := db.Close(); err != nil {
+		if err := db.Close(); err != nil {
 			fmt.Printf("Warning: failed to close database during cleanup: %v\n", err)
 		}
 		return nil, fmt.Errorf("failed to initialize tables: %w", err)
@@ -57,7 +57,7 @@ func NewStorage(dbPath string) (*Storage, error) {
 
 	// Run migrations
 	if err := storage.migrate(); err != nil {
-			if err := db.Close(); err != nil {
+		if err := db.Close(); err != nil {
 			fmt.Printf("Warning: failed to close database during cleanup: %v\n", err)
 		}
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
@@ -245,7 +245,7 @@ func (s *Storage) ListTasks(includeDisabled bool) ([]*Task, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query tasks: %w", err)
 	}
-		defer func() {
+	defer func() {
 		if err := rows.Close(); err != nil {
 			fmt.Printf("Warning: failed to close rows: %v\n", err)
 		}
@@ -348,7 +348,7 @@ func (s *Storage) DeleteTask(id string) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-		defer func() {
+	defer func() {
 		if err := tx.Rollback(); err != nil {
 			fmt.Printf("Warning: failed to rollback transaction: %v\n", err)
 		}
@@ -482,7 +482,7 @@ func (s *Storage) GetTaskExecutions(taskID string, limit int) ([]*TaskExecution,
 	if err != nil {
 		return nil, fmt.Errorf("failed to query executions: %w", err)
 	}
-		defer func() {
+	defer func() {
 		if err := rows.Close(); err != nil {
 			fmt.Printf("Warning: failed to close rows: %v\n", err)
 		}
@@ -565,7 +565,7 @@ func (s *Storage) GetTasksDueForExecution() ([]*Task, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query due tasks: %w", err)
 	}
-		defer func() {
+	defer func() {
 		if err := rows.Close(); err != nil {
 			fmt.Printf("Warning: failed to close rows: %v\n", err)
 		}

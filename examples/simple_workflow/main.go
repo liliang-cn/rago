@@ -14,7 +14,7 @@ import (
 func main() {
 	fmt.Println("📚 RAGO Library Usage - Simple Workflow Example")
 	fmt.Println("===============================================")
-	fmt.Println("This example runs without requiring LLM service\n")
+	fmt.Println("This example runs without requiring LLM service")
 
 	// Create minimal config (no LLM required for this workflow)
 	cfg := &config.Config{}
@@ -55,8 +55,8 @@ func main() {
 				Type: types.StepType("tool"),
 				Tool: "filesystem",
 				Inputs: map[string]interface{}{
-					"action": "write",
-					"path":   "/tmp/simple_workflow_report.txt",
+					"action":  "write",
+					"path":    "/tmp/simple_workflow_report.txt",
 					"content": "Simple Workflow Report\n======================\n\nExecution Time: {{current_time}}\nStatus: Success\n\nThis workflow demonstrates:\n- Time retrieval\n- Memory storage\n- File writing\n\nAll operations completed successfully.",
 				},
 				Outputs: map[string]string{

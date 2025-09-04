@@ -16,7 +16,7 @@ func TestKeywordStore_NewKeywordStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-		defer func() {
+	defer func() {
 		if err := store.Close(); err != nil {
 			t.Logf("failed to close store: %v", err)
 		}
@@ -35,7 +35,7 @@ func TestKeywordStore_IndexAndSearch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-		defer func() {
+	defer func() {
 		if err := store.Close(); err != nil {
 			t.Logf("failed to close store: %v", err)
 		}
@@ -89,7 +89,7 @@ func TestKeywordStore_SearchNoResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-		defer func() {
+	defer func() {
 		if err := store.Close(); err != nil {
 			t.Logf("failed to close store: %v", err)
 		}
@@ -116,7 +116,7 @@ func TestKeywordStore_Delete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-		defer func() {
+	defer func() {
 		if err := store.Close(); err != nil {
 			t.Logf("failed to close store: %v", err)
 		}
@@ -198,7 +198,7 @@ func TestKeywordStore_SearchWithNilFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-		defer func() {
+	defer func() {
 		if err := store.Close(); err != nil {
 			t.Logf("failed to close store: %v", err)
 		}

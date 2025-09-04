@@ -19,15 +19,15 @@ type MCPHandler struct {
 func NewMCPHandler(config *mcp.Config) (*MCPHandler, error) {
 	mcpAPI := mcp.NewMCPLibraryAPI(config)
 	mcpService := mcp.NewMCPService(config)
-	
+
 	// Initialize MCP service
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	if err := mcpAPI.Start(ctx); err != nil {
 		return nil, err
 	}
-	
+
 	return &MCPHandler{
 		mcpService: mcpService,
 		mcpAPI:     mcpAPI,
@@ -37,7 +37,7 @@ func NewMCPHandler(config *mcp.Config) (*MCPHandler, error) {
 // ListTools returns all available MCP tools
 func (h *MCPHandler) ListTools(c *gin.Context) {
 	tools := h.mcpAPI.ListTools()
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -50,7 +50,7 @@ func (h *MCPHandler) ListTools(c *gin.Context) {
 // GetTool returns details of a specific tool
 func (h *MCPHandler) GetTool(c *gin.Context) {
 	toolName := c.Param("name")
-	
+
 	tools := h.mcpService.GetAvailableTools()
 	tool, exists := tools[toolName]
 	if !exists {
@@ -60,7 +60,7 @@ func (h *MCPHandler) GetTool(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -89,13 +89,13 @@ func (h *MCPHandler) CallTool(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Set timeout
 	timeout := 30 * time.Second
 	if req.Timeout > 0 {
 		timeout = time.Duration(req.Timeout) * time.Second
 	}
-	
+
 	// Call tool with timeout
 	result, err := h.mcpAPI.CallToolWithTimeout(req.ToolName, req.Args, timeout)
 	if err != nil {
@@ -105,7 +105,7 @@ func (h *MCPHandler) CallTool(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    result,
@@ -128,16 +128,16 @@ func (h *MCPHandler) BatchCallTools(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Set timeout
 	timeout := 60 * time.Second
 	if req.Timeout > 0 {
 		timeout = time.Duration(req.Timeout) * time.Second
 	}
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	
+
 	// Execute batch calls
 	results, err := h.mcpAPI.BatchCall(ctx, req.Calls)
 	if err != nil {
@@ -147,7 +147,7 @@ func (h *MCPHandler) BatchCallTools(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -160,7 +160,7 @@ func (h *MCPHandler) BatchCallTools(c *gin.Context) {
 // GetServerStatus returns the status of all MCP servers
 func (h *MCPHandler) GetServerStatus(c *gin.Context) {
 	statuses := h.mcpService.GetServerStatus()
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -185,10 +185,10 @@ func (h *MCPHandler) StartServer(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	if err := h.mcpService.StartServer(ctx, req.ServerName); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -196,7 +196,7 @@ func (h *MCPHandler) StartServer(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Server started successfully",
@@ -218,7 +218,7 @@ func (h *MCPHandler) StopServer(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	if err := h.mcpService.StopServer(req.ServerName); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -226,7 +226,7 @@ func (h *MCPHandler) StopServer(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Server stopped successfully",
@@ -236,7 +236,7 @@ func (h *MCPHandler) StopServer(c *gin.Context) {
 // GetToolsForLLM returns tools formatted for LLM integration
 func (h *MCPHandler) GetToolsForLLM(c *gin.Context) {
 	tools := h.mcpAPI.GetToolsForLLMIntegration()
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -249,7 +249,7 @@ func (h *MCPHandler) GetToolsForLLM(c *gin.Context) {
 // GetToolsByServer returns tools from a specific server
 func (h *MCPHandler) GetToolsByServer(c *gin.Context) {
 	serverName := c.Param("server")
-	
+
 	tools := h.mcpService.GetToolsByServer(serverName)
 	if len(tools) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -258,7 +258,7 @@ func (h *MCPHandler) GetToolsByServer(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	// Convert to simplified format
 	toolList := make([]map[string]interface{}, 0, len(tools))
 	for _, tool := range tools {
@@ -268,7 +268,7 @@ func (h *MCPHandler) GetToolsByServer(c *gin.Context) {
 			"schema":      tool.Schema(),
 		})
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{

@@ -34,7 +34,11 @@ func (c *MCPClient) ListTools() error {
 	if err != nil {
 		return fmt.Errorf("failed to list tools: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -57,7 +61,11 @@ func (c *MCPClient) GetTool(toolName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get tool: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -90,7 +98,11 @@ func (c *MCPClient) CallTool(toolName string, args map[string]interface{}) error
 	if err != nil {
 		return fmt.Errorf("failed to call tool: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -122,7 +134,11 @@ func (c *MCPClient) BatchCallTools(calls []map[string]interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to batch call tools: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -140,7 +156,11 @@ func (c *MCPClient) GetServerStatus() error {
 	if err != nil {
 		return fmt.Errorf("failed to get server status: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -171,7 +191,11 @@ func (c *MCPClient) StartServer(serverName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -202,7 +226,11 @@ func (c *MCPClient) StopServer(serverName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to stop server: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -220,7 +248,11 @@ func (c *MCPClient) GetLLMTools() error {
 	if err != nil {
 		return fmt.Errorf("failed to get LLM tools: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -236,7 +268,7 @@ func main() {
 	// Create MCP client
 	client := NewMCPClient(baseURL)
 
-	fmt.Println("=== MCP HTTP API Client Example ===\n")
+	fmt.Println("=== MCP HTTP API Client Example ===")
 
 	// 1. Get server status
 	fmt.Println("1. Getting server status...")
@@ -301,7 +333,7 @@ func main() {
 	// if err := client.StartServer("filesystem"); err != nil {
 	//     log.Printf("Error: %v\n", err)
 	// }
-	// 
+	//
 	// fmt.Println("8. Stopping a server...")
 	// if err := client.StopServer("filesystem"); err != nil {
 	//     log.Printf("Error: %v\n", err)

@@ -7,15 +7,18 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/store"
 	"github.com/spf13/cobra"
 )
 
 var (
-	forceInit   bool
-	outputPath  string
-	enableMCP   bool
+	forceInit    bool
+	outputPath   string
+	enableMCP    bool
 	skipDatabase bool
 )
 
@@ -89,7 +92,7 @@ Data storage uses ~/.rago/ directory by default.`,
 		// Generate config based on provider type
 		var configContent string
 		var err error
-		
+
 		switch providerType {
 		case "ollama":
 			configContent, err = generateOllamaConfig(enableMCP)
@@ -102,7 +105,7 @@ Data storage uses ~/.rago/ directory by default.`,
 		default:
 			return fmt.Errorf("unsupported provider type: %s", providerType)
 		}
-		
+
 		if err != nil {
 			return fmt.Errorf("failed to generate config for %s: %w", providerType, err)
 		}
@@ -159,11 +162,11 @@ func promptForProvider() (string, error) {
 	fmt.Println("  3) LM Studio (Local, GUI-based)")
 	fmt.Println("  4) Custom (OpenAI-compatible API)")
 	fmt.Print("\nEnter your choice (1-4) [default: 1]: ")
-	
+
 	reader := bufio.NewReader(os.Stdin)
 	input, _ := reader.ReadString('\n')
 	input = strings.TrimSpace(input)
-	
+
 	switch input {
 	case "", "1":
 		return "ollama", nil
@@ -212,7 +215,7 @@ func generateOpenAIConfig(enableMCP bool) (string, error) {
 	fmt.Print("\n🔑 Enter your OpenAI API key: ")
 	apiKey, _ := reader.ReadString('\n')
 	apiKey = strings.TrimSpace(apiKey)
-	
+
 	if apiKey == "" {
 		return "", fmt.Errorf("OpenAI API key is required")
 	}
@@ -246,11 +249,11 @@ enabled = true
 // generateLMStudioConfig generates configuration for LM Studio provider
 func generateLMStudioConfig(enableMCP bool) (string, error) {
 	reader := bufio.NewReader(os.Stdin)
-	
+
 	fmt.Print("\n🖥️  Enter LM Studio server URL [http://localhost:1234]: ")
 	baseURL, _ := reader.ReadString('\n')
 	baseURL = strings.TrimSpace(baseURL)
-	
+
 	if baseURL == "" {
 		baseURL = "http://localhost:1234"
 	}
@@ -258,7 +261,7 @@ func generateLMStudioConfig(enableMCP bool) (string, error) {
 	fmt.Print("Enter LLM model name (as shown in LM Studio): ")
 	llmModel, _ := reader.ReadString('\n')
 	llmModel = strings.TrimSpace(llmModel)
-	
+
 	if llmModel == "" {
 		return "", fmt.Errorf("LLM model name is required")
 	}
@@ -266,7 +269,7 @@ func generateLMStudioConfig(enableMCP bool) (string, error) {
 	fmt.Print("Enter embedding model name (as shown in LM Studio): ")
 	embeddingModel, _ := reader.ReadString('\n')
 	embeddingModel = strings.TrimSpace(embeddingModel)
-	
+
 	if embeddingModel == "" {
 		return "", fmt.Errorf("embedding model name is required")
 	}
@@ -306,7 +309,7 @@ func printProviderSpecificInstructions(providerType, configPath string) {
 	if enableMCP {
 		fmt.Println("   • ~/.rago/mcpServers.json - MCP server configuration")
 	}
-	
+
 	fmt.Printf("\n📝 Configuration Summary:\n")
 	fmt.Printf("   • Provider: %s\n", strings.ToUpper(string(providerType[0]))+providerType[1:])
 	fmt.Printf("   • Config file: %s\n", configPath)
@@ -317,7 +320,7 @@ func printProviderSpecificInstructions(providerType, configPath string) {
 	}
 
 	fmt.Println("\n🚀 Next Steps:")
-	
+
 	switch providerType {
 	case "ollama":
 		fmt.Println("   1. Make sure Ollama is running:")
@@ -357,7 +360,7 @@ func printProviderSpecificInstructions(providerType, configPath string) {
 		fmt.Println("   4. Open http://localhost:7127 in your browser")
 		fmt.Println("\n   💡 Tip: Use 'rago status --verbose' for detailed connectivity info")
 	}
-	
+
 	fmt.Println("\n📚 Quick Start Commands:")
 	fmt.Println("   • Ingest documents:  rago ingest document.pdf")
 	fmt.Println("   • Query knowledge:   rago query \"What is this about?\"")
@@ -435,46 +438,46 @@ Thumbs.db
 // generateCustomConfig generates configuration for a custom OpenAI-compatible provider
 func generateCustomConfig(enableMCP bool) (string, error) {
 	reader := bufio.NewReader(os.Stdin)
-	
+
 	fmt.Println("\n🔧 Configure custom OpenAI-compatible provider")
-	
+
 	fmt.Print("Provider name (e.g., 'localai', 'groq'): ")
 	providerName, _ := reader.ReadString('\n')
 	providerName = strings.TrimSpace(providerName)
 	if providerName == "" {
 		providerName = "custom"
 	}
-	
+
 	fmt.Print("API Base URL (e.g., http://localhost:8080/v1): ")
 	baseURL, _ := reader.ReadString('\n')
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {
 		return "", fmt.Errorf("API base URL is required")
 	}
-	
+
 	fmt.Print("API Key (press Enter if not required): ")
 	apiKey, _ := reader.ReadString('\n')
 	apiKey = strings.TrimSpace(apiKey)
-	
+
 	fmt.Print("LLM model name: ")
 	llmModel, _ := reader.ReadString('\n')
 	llmModel = strings.TrimSpace(llmModel)
 	if llmModel == "" {
 		return "", fmt.Errorf("LLM model name is required")
 	}
-	
+
 	fmt.Print("Embedding model name: ")
 	embeddingModel, _ := reader.ReadString('\n')
 	embeddingModel = strings.TrimSpace(embeddingModel)
 	if embeddingModel == "" {
 		return "", fmt.Errorf("embedding model name is required")
 	}
-	
+
 	apiKeyLine := ""
 	if apiKey != "" {
 		apiKeyLine = fmt.Sprintf("api_key = \"%s\"\n", apiKey)
 	}
-	
+
 	config := fmt.Sprintf(`# RAGO Configuration - %s (Custom OpenAI-Compatible)
 # Only essential settings are included. All others use sensible defaults.
 
@@ -488,7 +491,7 @@ type = "openai"  # OpenAI-compatible interface
 %sbase_url = "%s"
 llm_model = "%s"
 embedding_model = "%s"
-`, strings.Title(providerName), providerName, providerName, providerName, apiKeyLine, baseURL, llmModel, embeddingModel)
+`, cases.Title(language.English).String(providerName), providerName, providerName, providerName, apiKeyLine, baseURL, llmModel, embeddingModel)
 
 	if enableMCP {
 		config += `
@@ -504,12 +507,12 @@ enabled = true
 // initializeMCPServers creates the MCP servers configuration
 func initializeMCPServers(configDir string) error {
 	mcpConfigPath := filepath.Join(configDir, "mcpServers.json")
-	
+
 	// Check if MCP config already exists
 	if _, err := os.Stat(mcpConfigPath); err == nil {
 		return nil // Already exists, skip
 	}
-	
+
 	// Create a basic MCP servers configuration
 	mcpConfig := `{
   "mcpServers": {
@@ -526,11 +529,11 @@ func initializeMCPServers(configDir string) error {
   }
 }
 `
-	
+
 	if err := os.WriteFile(mcpConfigPath, []byte(mcpConfig), 0644); err != nil {
 		return fmt.Errorf("failed to create MCP servers configuration: %w", err)
 	}
-	
+
 	return nil
 }
 
