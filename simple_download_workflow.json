@@ -1,0 +1,78 @@
+{
+  "steps": [
+    {
+      "id": "get_timestamp",
+      "name": "Get Current Timestamp",
+      "type": "tool",
+      "tool": "time",
+      "inputs": {
+        "action": "now",
+        "format": "2006-01-02_15-04-05"
+      },
+      "outputs": {
+        "time": "download_time"
+      }
+    },
+    {
+      "id": "download_data",
+      "name": "Download JSON Data",
+      "type": "tool",
+      "tool": "fetch",
+      "inputs": {
+        "url": "https://api.github.com/repos/golang/go/releases/latest",
+        "method": "GET",
+        "headers": {
+          "Accept": "application/json",
+          "User-Agent": "RAGO-Workflow"
+        }
+      },
+      "outputs": {
+        "body": "api_response",
+        "status": "http_status"
+      }
+    },
+    {
+      "id": "create_download_dir",
+      "name": "Create Downloads Directory",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "mkdir",
+        "path": "./downloads"
+      }
+    },
+    {
+      "id": "save_response",
+      "name": "Save Downloaded Data",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "write",
+        "path": "./downloads/golang_release_{{download_time}}.json",
+        "content": "{{api_response}}"
+      }
+    },
+    {
+      "id": "create_log_entry",
+      "name": "Log Download Success",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "append",
+        "path": "./downloads/download.log",
+        "content": "[{{download_time}}] Downloaded Go latest release info - Status: {{http_status}}\n"
+      }
+    },
+    {
+      "id": "store_last_download",
+      "name": "Remember Last Download Time",
+      "type": "tool",
+      "tool": "memory",
+      "inputs": {
+        "action": "store",
+        "key": "last_golang_check",
+        "value": "{{download_time}}"
+      }
+    }
+  ]
+}
