@@ -58,7 +58,6 @@ MCP tools provide enhanced functionality for file operations, database queries, 
 			}
 		}()
 
-
 		keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
 		if err != nil {
 			return fmt.Errorf("failed to create keyword store: %w", err)
@@ -469,7 +468,7 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 	hasRelevantContext := false
 	var relevantChunks []domain.Chunk
 
-		if len(chunks) > 0 {
+	if len(chunks) > 0 {
 		for _, chunk := range chunks {
 			if chunk.Score >= relevanceThreshold {
 				relevantChunks = append(relevantChunks, chunk)
@@ -710,8 +709,6 @@ func getMaxScore(chunks []domain.Chunk) float64 {
 	}
 	return maxScore
 }
-
-
 
 func init() {
 	queryCmd.Flags().IntVar(&topK, "top-k", 5, "number of documents to retrieve")

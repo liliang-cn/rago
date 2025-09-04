@@ -27,7 +27,7 @@ supporting document ingestion, semantic search, and context-enhanced Q&A.`,
 		if cmd.Name() == "init" || cmd.Name() == "version" {
 			return nil
 		}
-		
+
 		var err error
 		cfg, err = config.Load(cfgFile)
 		if err != nil {

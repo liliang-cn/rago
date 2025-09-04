@@ -63,7 +63,6 @@ var personSchema = map[string]interface{}{
 
 // Complex nested schema
 
-
 // Benchmark LMStudio structured output with simple data
 func BenchmarkLMStudioStructuredSimple(b *testing.B) {
 	if testing.Short() {

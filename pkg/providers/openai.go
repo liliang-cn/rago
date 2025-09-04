@@ -404,7 +404,7 @@ func (p *OpenAILLMProvider) GenerateStructured(ctx context.Context, prompt strin
 	}
 
 	rawJSON := resp.Choices[0].Message.Content
-	
+
 	// Try to parse the JSON into the provided schema
 	var isValid bool
 	if err := json.Unmarshal([]byte(rawJSON), schema); err == nil {

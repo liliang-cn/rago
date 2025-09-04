@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/liliang-cn/rago/v2/pkg/agents/generation"
 	"github.com/liliang-cn/rago/v2/pkg/agents/types"
 	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/spf13/cobra"
 )
 
 var agentGenerateCmd = &cobra.Command{
@@ -35,7 +35,7 @@ var (
 
 func init() {
 	agentCmd.AddCommand(agentGenerateCmd)
-	
+
 	agentGenerateCmd.Flags().StringVarP(&generateType, "type", "t", "workflow", "Agent type: workflow, research, or monitoring")
 	agentGenerateCmd.Flags().BoolVarP(&generateSave, "save", "s", false, "Save the generated agent to file")
 	agentGenerateCmd.Flags().StringVarP(&generateOutput, "output", "o", "", "Output file path (implies --save)")
@@ -43,7 +43,7 @@ func init() {
 
 func runAgentGenerate(cmd *cobra.Command, args []string) error {
 	description := strings.Join(args, " ")
-	
+
 	// Map string to agent type
 	var agentType types.AgentType
 	switch strings.ToLower(generateType) {
@@ -56,11 +56,11 @@ func runAgentGenerate(cmd *cobra.Command, args []string) error {
 	default:
 		return fmt.Errorf("invalid agent type: %s (use workflow, research, or monitoring)", generateType)
 	}
-	
+
 	fmt.Printf("🤖 Generating %s Agent\n", agentType)
 	fmt.Printf("📝 Description: %s\n", description)
 	fmt.Println("=" + strings.Repeat("=", 50))
-	
+
 	// Load config if needed
 	if cfg == nil {
 		var err error
@@ -69,36 +69,36 @@ func runAgentGenerate(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 	}
-	
+
 	// Initialize LLM provider
 	ctx := context.Background()
 	_, llmService, _, err := initializeProviders(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to initialize LLM service: %w", err)
 	}
-	
+
 	// Create generator
 	generator := generation.NewAgentGenerator(llmService)
 	if verbose {
 		generator.SetVerbose(true)
 	}
-	
+
 	// Generate the agent
 	fmt.Println("\n🧠 Using LLM to generate agent definition...")
 	agent, err := generator.GenerateAgent(ctx, description, agentType)
 	if err != nil {
 		return fmt.Errorf("failed to generate agent: %w", err)
 	}
-	
+
 	fmt.Println("✅ Agent generated successfully!")
-	
+
 	// Display agent summary
 	fmt.Printf("\n📋 Generated Agent:\n")
 	fmt.Printf("   Name: %s\n", agent.Name)
 	fmt.Printf("   Type: %s\n", agent.Type)
 	fmt.Printf("   Description: %s\n", agent.Description)
 	fmt.Printf("   Autonomy Level: %s\n", agent.Config.AutonomyLevel)
-	
+
 	if len(agent.Workflow.Steps) > 0 {
 		fmt.Printf("\n   Workflow Steps (%d):\n", len(agent.Workflow.Steps))
 		for i, step := range agent.Workflow.Steps {
@@ -116,7 +116,7 @@ func runAgentGenerate(cmd *cobra.Command, args []string) error {
 			fmt.Printf("   %d. %s %s (%s)\n", i+1, emoji, step.Name, step.Tool)
 		}
 	}
-	
+
 	// Save if requested
 	if generateSave || generateOutput != "" {
 		outputPath := generateOutput
@@ -124,16 +124,16 @@ func runAgentGenerate(cmd *cobra.Command, args []string) error {
 			safeName := strings.ReplaceAll(strings.ToLower(agent.Name), " ", "_")
 			outputPath = fmt.Sprintf("%s_agent.json", safeName)
 		}
-		
+
 		agentJSON, err := json.MarshalIndent(agent, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal agent: %w", err)
 		}
-		
-		if err := ioutil.WriteFile(outputPath, agentJSON, 0644); err != nil {
+
+		if err := os.WriteFile(outputPath, agentJSON, 0644); err != nil {
 			return fmt.Errorf("failed to save agent: %w", err)
 		}
-		
+
 		fmt.Printf("\n💾 Agent saved to: %s\n", outputPath)
 		fmt.Printf("   You can now run it with: rago agent execute -f %s\n", outputPath)
 	} else {
@@ -142,10 +142,10 @@ func runAgentGenerate(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal agent: %w", err)
 		}
-		
+
 		fmt.Printf("\n📄 Full Agent Definition:\n")
 		fmt.Println(string(agentJSON))
 	}
-	
+
 	return nil
 }

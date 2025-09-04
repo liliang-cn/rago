@@ -59,7 +59,7 @@ func TestNewClient(t *testing.T) {
 
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
-	
+
 	assert.False(t, config.Enabled) // Should start disabled
 	assert.Equal(t, "info", config.LogLevel)
 	assert.Equal(t, 30*time.Second, config.DefaultTimeout)
@@ -74,13 +74,13 @@ func TestNewManager(t *testing.T) {
 			Enabled:  true,
 			LogLevel: "debug",
 		}
-		
+
 		manager := NewManager(config)
 		assert.NotNil(t, manager)
 		assert.Equal(t, config, manager.config)
 		assert.NotNil(t, manager.clients)
 	})
-	
+
 	t.Run("with nil config", func(t *testing.T) {
 		manager := NewManager(nil)
 		assert.NotNil(t, manager)
@@ -93,7 +93,7 @@ func TestNewManager(t *testing.T) {
 
 func TestManager_GetClient_NotFound(t *testing.T) {
 	manager := NewManager(nil)
-	
+
 	client, exists := manager.GetClient("nonexistent")
 	assert.Nil(t, client)
 	assert.False(t, exists)
@@ -109,10 +109,10 @@ func TestManager_StartServer_ConfigNotFound(t *testing.T) {
 			},
 		},
 	}
-	
+
 	manager := NewManager(config)
 	ctx := context.Background()
-	
+
 	_, err := manager.StartServer(ctx, "nonexistent-server")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "server configuration not found")
@@ -124,18 +124,18 @@ func TestToolResult(t *testing.T) {
 			Success: true,
 			Data:    "test data",
 		}
-		
+
 		assert.True(t, result.Success)
 		assert.Equal(t, "test data", result.Data)
 		assert.Empty(t, result.Error)
 	})
-	
+
 	t.Run("error result", func(t *testing.T) {
 		result := &ToolResult{
 			Success: false,
 			Error:   "test error",
 		}
-		
+
 		assert.False(t, result.Success)
 		assert.Equal(t, "test error", result.Error)
 		assert.Nil(t, result.Data)
@@ -146,7 +146,7 @@ func TestToolResult(t *testing.T) {
 // For now, we'll skip it since we don't have a test MCP server set up
 func TestMCPIntegration_Skip(t *testing.T) {
 	t.Skip("Integration test requires external MCP server - implement when mcp-sqlite-server is available")
-	
+
 	// This test would:
 	// 1. Start a test MCP server (like mcp-sqlite-server)
 	// 2. Create a client and connect

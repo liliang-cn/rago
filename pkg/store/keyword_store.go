@@ -162,7 +162,7 @@ func (s *KeywordStore) Reset(ctx context.Context) error {
 	return nil
 }
 
-	// Close closes the underlying Bleve index.
+// Close closes the underlying Bleve index.
 func (s *KeywordStore) Close() error {
 	if s.index != nil {
 		err := s.index.Close()

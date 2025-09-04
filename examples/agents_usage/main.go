@@ -71,7 +71,7 @@ func basicStandaloneUsage() error {
 			MaxConcurrentExecutions: 1,
 			DefaultTimeout:          5 * time.Minute,
 			EnableMetrics:           true,
-			AutonomyLevel:          types.AutonomyManual,
+			AutonomyLevel:           types.AutonomyManual,
 		},
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -80,7 +80,7 @@ func basicStandaloneUsage() error {
 					Name: "Greeting Step",
 					Type: types.StepTypeVariable,
 					Inputs: map[string]interface{}{
-						"message": "Hello from RAGO Agents!",
+						"message":   "Hello from RAGO Agents!",
 						"timestamp": time.Now().Format(time.RFC3339),
 					},
 					Outputs: map[string]string{
@@ -195,11 +195,11 @@ func workflowAutomationExample() error {
 			Name: "Process User Data",
 			Type: types.StepTypeVariable,
 			Inputs: map[string]interface{}{
-				"users_data":     "{{active_users}}",
+				"users_data":      "{{active_users}}",
 				"processing_date": time.Now().Format("2006-01-02"),
 			},
 			Outputs: map[string]string{
-				"users_data":     "processed_users",
+				"users_data":      "processed_users",
 				"processing_date": "last_processed",
 			},
 		},
@@ -260,8 +260,8 @@ func mcpIntegrationExample() error {
 	mcpClient.SetMockResult("web_search", map[string]interface{}{
 		"results": []map[string]interface{}{
 			{
-				"title": "RAGO Documentation",
-				"url":   "https://github.com/liliang-cn/rago",
+				"title":   "RAGO Documentation",
+				"url":     "https://github.com/liliang-cn/rago",
 				"snippet": "Advanced RAG system with MCP integration",
 			},
 		},
@@ -290,14 +290,14 @@ func mcpIntegrationExample() error {
 	}
 
 	fmt.Printf("\n🔍 Executing web search with query: %s\n", searchInputs["query"])
-	
+
 	searchResult, err := toolExecutor.ExecuteTool(ctx, "web_search", searchInputs)
 	if err != nil {
 		return fmt.Errorf("failed to execute web search: %w", err)
 	}
 
 	fmt.Printf("✅ Search completed successfully in %v\n", searchResult.Duration)
-	
+
 	// Pretty print the result
 	if searchResult.Result != nil {
 		resultJSON, _ := json.MarshalIndent(searchResult.Result, "", "  ")
