@@ -93,31 +93,36 @@ func Load(configPath string) (*Config, error) {
 	} else {
 		// Try multiple locations in order of preference
 		var configFound bool
+		homeDir, _ := os.UserHomeDir()
 		
-		// 1. Check ~/.rago/rago.toml (primary location)
-		homeDir, err := os.UserHomeDir()
-		if err == nil {
-			defaultConfigPath := filepath.Join(homeDir, ".rago", "rago.toml")
-			if _, err := os.Stat(defaultConfigPath); err == nil {
-				viper.SetConfigFile(defaultConfigPath)
+		// Priority order:
+		// 1. ./rago.toml (current directory)
+		// 2. ./.rago/rago.toml (current directory .rago folder)
+		// 3. ~/.rago/rago.toml (user home directory)
+		
+		configPaths := []string{
+			"rago.toml",                                        // Current directory
+			filepath.Join(".rago", "rago.toml"),               // Current .rago directory
+		}
+		
+		// Add home directory path if available
+		if homeDir != "" {
+			configPaths = append(configPaths, filepath.Join(homeDir, ".rago", "rago.toml"))
+		}
+		
+		// Try each path in order
+		for _, path := range configPaths {
+			if _, err := os.Stat(path); err == nil {
+				viper.SetConfigFile(path)
 				configFound = true
+				break
 			}
 		}
 		
-		// 2. Fallback to ./rago.toml (current directory)
-		if !configFound {
-			currentConfigPath := "rago.toml"
-			if _, err := os.Stat(currentConfigPath); err == nil {
-				viper.SetConfigFile(currentConfigPath)
-				configFound = true
-			}
-		}
-		
-		// 3. If no config found, use default path (will use built-in defaults)
+		// If no config found, use default path (will use built-in defaults)
 		if !configFound {
 			if homeDir != "" {
-				defaultConfigPath := filepath.Join(homeDir, ".rago", "rago.toml")
-				viper.SetConfigFile(defaultConfigPath)
+				viper.SetConfigFile(filepath.Join(homeDir, ".rago", "rago.toml"))
 			} else {
 				viper.SetConfigFile("rago.toml")
 			}
