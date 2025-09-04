@@ -27,25 +27,25 @@ type ServerConfig struct {
 
 // Config represents the overall MCP configuration
 type Config struct {
-	Enabled                bool           `toml:"enabled" json:"enabled" mapstructure:"enabled"`
-	LogLevel               string         `toml:"log_level" json:"log_level" mapstructure:"log_level"`
-	DefaultTimeout         time.Duration  `toml:"default_timeout" json:"default_timeout" mapstructure:"default_timeout"`
-	MaxConcurrentRequests  int            `toml:"max_concurrent_requests" json:"max_concurrent_requests" mapstructure:"max_concurrent_requests"`
-	HealthCheckInterval    time.Duration  `toml:"health_check_interval" json:"health_check_interval" mapstructure:"health_check_interval"`
-	ServersConfigPath      string         `toml:"servers_config_path" json:"servers_config_path" mapstructure:"servers_config_path"` // Path to external JSON config
-	Servers                []ServerConfig `toml:"servers" json:"servers" mapstructure:"servers"`
+	Enabled               bool           `toml:"enabled" json:"enabled" mapstructure:"enabled"`
+	LogLevel              string         `toml:"log_level" json:"log_level" mapstructure:"log_level"`
+	DefaultTimeout        time.Duration  `toml:"default_timeout" json:"default_timeout" mapstructure:"default_timeout"`
+	MaxConcurrentRequests int            `toml:"max_concurrent_requests" json:"max_concurrent_requests" mapstructure:"max_concurrent_requests"`
+	HealthCheckInterval   time.Duration  `toml:"health_check_interval" json:"health_check_interval" mapstructure:"health_check_interval"`
+	ServersConfigPath     string         `toml:"servers_config_path" json:"servers_config_path" mapstructure:"servers_config_path"` // Path to external JSON config
+	Servers               []ServerConfig `toml:"servers" json:"servers" mapstructure:"servers"`
 }
 
 // DefaultConfig returns default MCP configuration
 func DefaultConfig() Config {
 	return Config{
-		Enabled:                false, // Start disabled by default
-		LogLevel:               "info",
-		DefaultTimeout:         30 * time.Second,
-		MaxConcurrentRequests:  10,
-		HealthCheckInterval:    60 * time.Second,
-		ServersConfigPath:      "", // Empty by default, can be set to "./mcpServers.json" or similar
-		Servers:                []ServerConfig{},
+		Enabled:               false, // Start disabled by default
+		LogLevel:              "info",
+		DefaultTimeout:        30 * time.Second,
+		MaxConcurrentRequests: 10,
+		HealthCheckInterval:   60 * time.Second,
+		ServersConfigPath:     "", // Empty by default, can be set to "./mcpServers.json" or similar
+		Servers:               []ServerConfig{},
 	}
 }
 

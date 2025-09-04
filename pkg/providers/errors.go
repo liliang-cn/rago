@@ -21,7 +21,7 @@ func WrapStructuredOutputError(providerType domain.ProviderType, err error) erro
 	return WrapProviderError(providerType, "structured generation", err)
 }
 
-// WrapGenerationError creates consistent generation error messages  
+// WrapGenerationError creates consistent generation error messages
 func WrapGenerationError(providerType domain.ProviderType, err error) error {
 	return WrapProviderError(providerType, "generation", err)
 }

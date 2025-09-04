@@ -34,12 +34,12 @@ func (c *Client) Connect(ctx context.Context) error {
 
 	// Create command for the MCP server
 	cmd := exec.CommandContext(ctx, c.config.Command[0], c.config.Args...)
-	
+
 	// Set working directory if specified
 	if c.config.WorkingDir != "" {
 		cmd.Dir = c.config.WorkingDir
 	}
-	
+
 	// Set environment variables
 	if len(c.config.Env) > 0 {
 		for key, value := range c.config.Env {
@@ -48,8 +48,8 @@ func (c *Client) Connect(ctx context.Context) error {
 	}
 
 	// Create command transport
-		transport := &mcp.CommandTransport{Command: cmd}
-	
+	transport := &mcp.CommandTransport{Command: cmd}
+
 	// Create MCP client with implementation info
 	clientImpl := &mcp.Implementation{
 		Name:    "rago",

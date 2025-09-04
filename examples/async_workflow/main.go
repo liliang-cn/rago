@@ -18,7 +18,7 @@ func main() {
 	fmt.Println("================================================")
 	fmt.Println()
 	fmt.Println("This example shows parallel execution of independent steps")
-	fmt.Println("and dependency resolution for sequential steps.\n")
+	fmt.Println("and dependency resolution for sequential steps.")
 
 	// Load configuration
 	cfg, err := config.Load("")
@@ -162,9 +162,9 @@ Generated: {{current_time}}
 	executor.SetVerbose(true)
 
 	fmt.Println("⚙️  Starting async workflow execution...")
-	fmt.Println("   Watch for parallel step execution!\n")
-	
-	startTime := time.Now()
+	fmt.Println("   Watch for parallel step execution!")
+
+	_ = time.Now() // startTime - removed unused variable
 	result, err := executor.Execute(ctx, workflow)
 	if err != nil {
 		log.Fatalf("Workflow execution failed: %v", err)
@@ -194,7 +194,7 @@ Generated: {{current_time}}
 		fmt.Printf("\n💾 Report saved to: %v\n", file)
 	}
 
-	fmt.Printf("\n🚀 Async execution saved approximately %.2f seconds compared to sequential!\n", 
+	fmt.Printf("\n🚀 Async execution saved approximately %.2f seconds compared to sequential!\n",
 		calculateTimeSaved(result))
 }
 
@@ -203,11 +203,11 @@ func calculateTimeSaved(result *types.ExecutionResult) float64 {
 	// In sequential execution, all steps would run one after another
 	// In parallel execution, independent steps run simultaneously
 	// This is a rough estimate based on the workflow structure
-	
+
 	// Assume each fetch takes ~1 second, analyses take ~2 seconds
 	sequentialEstimate := 3.0 + 2.0 + 2.0 + 1.0 + 0.5 // All steps sequential
 	actualTime := result.Duration.Seconds()
-	
+
 	saved := sequentialEstimate - actualTime
 	if saved < 0 {
 		return 0

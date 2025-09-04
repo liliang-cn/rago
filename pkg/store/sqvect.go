@@ -66,7 +66,7 @@ func (s *SQLiteStore) Store(ctx context.Context, chunks []domain.Chunk) error {
 				}
 			}
 		}
-		
+
 		// Mark as chunk for filtering during search
 		metadata["_type"] = "chunk"
 
@@ -100,7 +100,7 @@ func (s *SQLiteStore) Search(ctx context.Context, vector []float64, topK int) ([
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to check vector count: %v", domain.ErrVectorStoreFailed, err)
 	}
-	
+
 	if count == 0 {
 		// Return empty results if no vectors exist
 		return []domain.Chunk{}, nil
@@ -116,7 +116,7 @@ func (s *SQLiteStore) Search(ctx context.Context, vector []float64, topK int) ([
 	filters := map[string]interface{}{
 		"_type": "chunk", // Only return chunks, not document metadata
 	}
-	
+
 	results, err := s.sqvect.SearchWithFilter(ctx, queryVector, sqvect.SearchOptions{
 		TopK:      topK,
 		Threshold: 0.0, // Return all results, let caller filter
@@ -166,7 +166,7 @@ func (s *SQLiteStore) SearchWithFilters(ctx context.Context, vector []float64, t
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to check vector count: %v", domain.ErrVectorStoreFailed, err)
 	}
-	
+
 	if count == 0 {
 		// Return empty results if no vectors exist
 		return []domain.Chunk{}, nil
@@ -186,7 +186,7 @@ func (s *SQLiteStore) SearchWithFilters(ctx context.Context, vector []float64, t
 			chunkFilters[k] = v
 		}
 		chunkFilters["_type"] = "chunk"
-		
+
 		results, err := s.sqvect.SearchWithFilter(ctx, queryVector, sqvect.SearchOptions{
 			TopK:      topK,
 			Threshold: 0.0, // Return all results, let caller filter

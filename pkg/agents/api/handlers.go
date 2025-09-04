@@ -39,17 +39,17 @@ func (h *AgentHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/agents/{id}", h.GetAgent).Methods("GET")
 	router.HandleFunc("/agents/{id}", h.UpdateAgent).Methods("PUT")
 	router.HandleFunc("/agents/{id}", h.DeleteAgent).Methods("DELETE")
-	
+
 	// Execution control
 	router.HandleFunc("/agents/{id}/execute", h.ExecuteAgent).Methods("POST")
 	router.HandleFunc("/agents/{id}/executions", h.GetExecutions).Methods("GET")
 	router.HandleFunc("/executions/{exec_id}", h.GetExecution).Methods("GET")
 	router.HandleFunc("/executions/{exec_id}/stop", h.StopExecution).Methods("POST")
-	
+
 	// Workflow management
 	router.HandleFunc("/workflows/templates", h.GetWorkflowTemplates).Methods("GET")
 	router.HandleFunc("/workflows/validate", h.ValidateWorkflow).Methods("POST")
-	
+
 	// Status and monitoring
 	router.HandleFunc("/agents/status", h.GetAgentsStatus).Methods("GET")
 	router.HandleFunc("/executions/active", h.GetActiveExecutions).Methods("GET")
@@ -62,12 +62,12 @@ func (h *AgentHandler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
-	
+
 	// Generate ID if not provided
 	if req.ID == "" {
 		req.ID = uuid.New().String()
 	}
-	
+
 	// Create agent structure
 	agent := &types.Agent{
 		ID:          req.ID,
@@ -80,30 +80,33 @@ func (h *AgentHandler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-	
+
 	// Validate agent
 	agentImpl, err := h.factory.CreateAgent(agent)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create agent: %v", err), http.StatusBadRequest)
 		return
 	}
-	
+
 	if err := agentImpl.Validate(); err != nil {
 		http.Error(w, fmt.Sprintf("Agent validation failed: %v", err), http.StatusBadRequest)
 		return
 	}
-	
+
 	// Save agent
 	if err := h.storage.SaveAgent(agent); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to save agent: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(CreateAgentResponse{
+	if err := json.NewEncoder(w).Encode(CreateAgentResponse{
 		Agent:   agent,
 		Message: "Agent created successfully",
-	})
+	}); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // ListAgents lists all agents
@@ -113,47 +116,53 @@ func (h *AgentHandler) ListAgents(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to list agents: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ListAgentsResponse{
+	if err := json.NewEncoder(w).Encode(ListAgentsResponse{
 		Agents: agents,
 		Count:  len(agents),
-	})
+	}); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // GetAgent retrieves a specific agent
 func (h *AgentHandler) GetAgent(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	
+
 	agent, err := h.storage.GetAgent(id)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Agent not found: %v", err), http.StatusNotFound)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(agent)
+	if err := json.NewEncoder(w).Encode(agent); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // UpdateAgent updates an existing agent
 func (h *AgentHandler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	
+
 	var req UpdateAgentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
-	
+
 	// Get existing agent
 	agent, err := h.storage.GetAgent(id)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Agent not found: %v", err), http.StatusNotFound)
 		return
 	}
-	
+
 	// Update fields
 	if req.Name != "" {
 		agent.Name = req.Name
@@ -170,60 +179,66 @@ func (h *AgentHandler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 	if req.Workflow != nil {
 		agent.Workflow = *req.Workflow
 	}
-	
+
 	agent.UpdatedAt = time.Now()
-	
+
 	// Save updated agent
 	if err := h.storage.SaveAgent(agent); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to update agent: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(agent)
+	if err := json.NewEncoder(w).Encode(agent); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // DeleteAgent deletes an agent
 func (h *AgentHandler) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	
+
 	if err := h.storage.DeleteAgent(id); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to delete agent: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"message": "Agent deleted successfully",
-	})
+	}); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // ExecuteAgent executes an agent
 func (h *AgentHandler) ExecuteAgent(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	
+
 	var req ExecuteAgentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, fmt.Sprintf("Invalid request body: %v", err), http.StatusBadRequest)
 		return
 	}
-	
+
 	// Get agent
 	agent, err := h.storage.GetAgent(id)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Agent not found: %v", err), http.StatusNotFound)
 		return
 	}
-	
+
 	// Create agent implementation
 	agentImpl, err := h.factory.CreateAgent(agent)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create agent: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	// Execute agent
 	ctx := context.Background()
 	if req.Timeout > 0 {
@@ -231,75 +246,90 @@ func (h *AgentHandler) ExecuteAgent(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel = context.WithTimeout(ctx, time.Duration(req.Timeout)*time.Second)
 		defer cancel()
 	}
-	
+
 	result, err := h.workflow.ExecuteWorkflow(ctx, agentImpl, req.Variables)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Agent execution failed: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // GetExecutions returns execution history for an agent
 func (h *AgentHandler) GetExecutions(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	agentID := vars["id"]
-	
+
 	executions, err := h.storage.ListExecutions(agentID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to list executions: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ListExecutionsResponse{
+	if err := json.NewEncoder(w).Encode(ListExecutionsResponse{
 		Executions: executions,
 		Count:      len(executions),
-	})
+	}); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // GetExecution returns details of a specific execution
 func (h *AgentHandler) GetExecution(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	execID := vars["exec_id"]
-	
+
 	execution, err := h.storage.GetExecution(execID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Execution not found: %v", err), http.StatusNotFound)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(execution)
+	if err := json.NewEncoder(w).Encode(execution); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // StopExecution stops a running execution
 func (h *AgentHandler) StopExecution(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	execID := vars["exec_id"]
-	
+
 	if err := h.executor.CancelExecution(execID); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to stop execution: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	if err := json.NewEncoder(w).Encode(map[string]string{
 		"message": "Execution stopped successfully",
-	})
+	}); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // GetWorkflowTemplates returns available workflow templates
 func (h *AgentHandler) GetWorkflowTemplates(w http.ResponseWriter, r *http.Request) {
 	templates := h.getBuiltinTemplates()
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(WorkflowTemplatesResponse{
+	if err := json.NewEncoder(w).Encode(WorkflowTemplatesResponse{
 		Templates: templates,
 		Count:     len(templates),
-	})
+	}); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // ValidateWorkflow validates a workflow definition
@@ -309,22 +339,28 @@ func (h *AgentHandler) ValidateWorkflow(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, fmt.Sprintf("Invalid workflow definition: %v", err), http.StatusBadRequest)
 		return
 	}
-	
+
 	validator := core.NewWorkflowValidator()
 	if err := validator.Validate(workflow); err != nil {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ValidateWorkflowResponse{
+		if err := json.NewEncoder(w).Encode(ValidateWorkflowResponse{
 			Valid:        false,
 			ErrorMessage: err.Error(),
-		})
+		}); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+			return
+		}
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ValidateWorkflowResponse{
+	if err := json.NewEncoder(w).Encode(ValidateWorkflowResponse{
 		Valid:   true,
 		Message: "Workflow is valid",
-	})
+	}); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // GetAgentsStatus returns overall status of all agents
@@ -334,45 +370,51 @@ func (h *AgentHandler) GetAgentsStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to get agent status: %v", err), http.StatusInternalServerError)
 		return
 	}
-	
+
 	status := AgentsStatusResponse{
 		TotalAgents: len(agents),
 		StatusCount: make(map[string]int),
 		TypeCount:   make(map[string]int),
 		Timestamp:   time.Now(),
 	}
-	
+
 	for _, agent := range agents {
 		status.StatusCount[string(agent.Status)]++
 		status.TypeCount[string(agent.Type)]++
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
+	if err := json.NewEncoder(w).Encode(status); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // GetActiveExecutions returns currently running executions
 func (h *AgentHandler) GetActiveExecutions(w http.ResponseWriter, r *http.Request) {
 	activeExecutions := h.executor.GetActiveExecutions()
-	
+
 	executions := make([]ActiveExecutionInfo, 0, len(activeExecutions))
 	for id, instance := range activeExecutions {
 		executions = append(executions, ActiveExecutionInfo{
-			ExecutionID:  id,
-			AgentID:      instance.Agent.GetID(),
-			AgentName:    instance.Agent.GetName(),
-			Status:       string(instance.Status),
-			StartTime:    instance.StartTime,
-			CurrentStep:  instance.CurrentStep,
-			Duration:     time.Since(instance.StartTime),
+			ExecutionID: id,
+			AgentID:     instance.Agent.GetID(),
+			AgentName:   instance.Agent.GetName(),
+			Status:      string(instance.Status),
+			StartTime:   instance.StartTime,
+			CurrentStep: instance.CurrentStep,
+			Duration:    time.Since(instance.StartTime),
 		})
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ActiveExecutionsResponse{
+	if err := json.NewEncoder(w).Encode(ActiveExecutionsResponse{
 		Executions: executions,
 		Count:      len(executions),
-	})
+	}); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to encode response: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 // getBuiltinTemplates returns built-in workflow templates

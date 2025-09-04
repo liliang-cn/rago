@@ -9,19 +9,23 @@ import (
 
 func main() {
 	fmt.Println("🚀 RAGO Task Scheduling Example")
-	
+
 	// Create client
 	c, err := client.New("")
 	if err != nil {
 		log.Fatal("Failed to create RAGO client:", err)
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			log.Printf("Failed to close client: %v", err)
+		}
+	}()
 
 	fmt.Println("✅ Client created successfully!")
 
 	// Example 1: Query about task management capabilities
 	fmt.Println("\n📋 Testing query about task management...")
-	
+
 	response, err := c.Query("How can I schedule and manage automated tasks?")
 	if err != nil {
 		log.Printf("Query failed: %v", err)
@@ -29,7 +33,7 @@ func main() {
 	}
 
 	fmt.Println("🤖 Response:", response.Answer)
-	
+
 	// Show tool usage if any
 	if len(response.ToolsUsed) > 0 {
 		fmt.Printf("🛠️  Tools used: %v\n", response.ToolsUsed)
@@ -37,7 +41,7 @@ func main() {
 
 	// Example 2: Demonstrate workflow-style queries
 	fmt.Println("\n⚡ Testing workflow-style processing...")
-	
+
 	// First, ingest some sample data
 	sampleData := `
 # Daily Tasks
@@ -46,14 +50,14 @@ func main() {
 - Schedule team meetings
 - Process user feedback
 `
-	
+
 	err = c.IngestText(sampleData, "daily_tasks")
 	if err != nil {
 		log.Printf("Failed to ingest sample data: %v", err)
 	} else {
 		fmt.Println("✅ Sample task data ingested")
 	}
-	
+
 	// Then query it
 	response, err = c.Query("What are my daily tasks and how should I prioritize them?")
 	if err != nil {

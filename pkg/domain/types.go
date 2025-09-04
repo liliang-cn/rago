@@ -135,7 +135,7 @@ type GenerationResult struct {
 // StructuredResult represents the result of structured generation
 type StructuredResult struct {
 	Data  interface{} `json:"data"`  // Parsed structured data
-	Raw   string      `json:"raw"`   // Raw JSON string  
+	Raw   string      `json:"raw"`   // Raw JSON string
 	Valid bool        `json:"valid"` // Whether the response passed schema validation
 }
 

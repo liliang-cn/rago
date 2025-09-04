@@ -94,22 +94,22 @@ func Load(configPath string) (*Config, error) {
 		// Try multiple locations in order of preference
 		var configFound bool
 		homeDir, _ := os.UserHomeDir()
-		
+
 		// Priority order:
 		// 1. ./rago.toml (current directory)
 		// 2. ./.rago/rago.toml (current directory .rago folder)
 		// 3. ~/.rago/rago.toml (user home directory)
-		
+
 		configPaths := []string{
-			"rago.toml",                                        // Current directory
-			filepath.Join(".rago", "rago.toml"),               // Current .rago directory
+			"rago.toml",                         // Current directory
+			filepath.Join(".rago", "rago.toml"), // Current .rago directory
 		}
-		
+
 		// Add home directory path if available
 		if homeDir != "" {
 			configPaths = append(configPaths, filepath.Join(homeDir, ".rago", "rago.toml"))
 		}
-		
+
 		// Try each path in order
 		for _, path := range configPaths {
 			if _, err := os.Stat(path); err == nil {
@@ -118,7 +118,7 @@ func Load(configPath string) (*Config, error) {
 				break
 			}
 		}
-		
+
 		// If no config found, use default path (will use built-in defaults)
 		if !configFound {
 			if homeDir != "" {
@@ -789,7 +789,7 @@ func (c *Config) validateRRFConfig() error {
 func (c *Config) expandPaths() {
 	c.Sqvect.DBPath = expandHomePath(c.Sqvect.DBPath)
 	c.Keyword.IndexPath = expandHomePath(c.Keyword.IndexPath)
-	
+
 	// Ensure directories exist for default paths
 	ensureParentDir(c.Sqvect.DBPath)
 	ensureParentDir(c.Keyword.IndexPath)
@@ -800,7 +800,7 @@ func expandHomePath(path string) string {
 	if path == "" {
 		return path
 	}
-	
+
 	if strings.HasPrefix(path, "~/") {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -809,7 +809,7 @@ func expandHomePath(path string) string {
 		}
 		return filepath.Join(homeDir, path[2:])
 	}
-	
+
 	return path
 }
 
@@ -818,7 +818,7 @@ func ensureParentDir(filePath string) {
 	if filePath == "" {
 		return
 	}
-	
+
 	dir := filepath.Dir(filePath)
 	if dir != "." && dir != "/" {
 		if err := os.MkdirAll(dir, 0755); err != nil {

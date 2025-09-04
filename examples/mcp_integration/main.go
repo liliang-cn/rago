@@ -9,19 +9,23 @@ import (
 
 func main() {
 	fmt.Println("🚀 RAGO MCP Integration Example")
-	
+
 	// Create client
 	c, err := client.New("")
 	if err != nil {
 		log.Fatal("Failed to create RAGO client:", err)
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			log.Printf("Failed to close client: %v", err)
+		}
+	}()
 
 	fmt.Println("✅ Client created successfully!")
 
 	// Example: Query with potential MCP integration
 	fmt.Println("\n💬 Testing query that may use MCP tools...")
-	
+
 	response, err := c.Query("What tools are available to help me with my tasks?")
 	if err != nil {
 		log.Printf("Query failed: %v", err)
@@ -29,12 +33,12 @@ func main() {
 	}
 
 	fmt.Println("🤖 Response:", response.Answer)
-	
+
 	// Show tool usage if any
 	if len(response.ToolsUsed) > 0 {
 		fmt.Printf("🛠️  Tools used: %v\n", response.ToolsUsed)
 	}
-	
+
 	// Show tool calls if any
 	if len(response.ToolCalls) > 0 {
 		fmt.Printf("🔧 Tool calls executed: %d\n", len(response.ToolCalls))

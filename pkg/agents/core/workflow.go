@@ -24,22 +24,22 @@ func NewWorkflowEngine(executor *AgentExecutor) *WorkflowEngine {
 		templateEngine: NewSimpleTemplateEngine(),
 		validator:      NewWorkflowValidator(),
 	}
-	
+
 	executor.SetTemplateEngine(engine.templateEngine)
 	executor.SetValidator(engine.validator)
-	
+
 	return engine
 }
 
 // ExecuteWorkflow executes a workflow with full automation support
 func (w *WorkflowEngine) ExecuteWorkflow(ctx context.Context, agent types.AgentInterface, variables map[string]interface{}) (*types.ExecutionResult, error) {
 	workflow := agent.GetAgent().Workflow
-	
+
 	// Validate workflow
 	if err := w.validator.Validate(workflow); err != nil {
 		return nil, fmt.Errorf("workflow validation failed: %w", err)
 	}
-	
+
 	// Create enhanced execution context
 	execCtx := types.ExecutionContext{
 		RequestID: fmt.Sprintf("workflow_%d", time.Now().UnixNano()),
@@ -47,7 +47,7 @@ func (w *WorkflowEngine) ExecuteWorkflow(ctx context.Context, agent types.AgentI
 		StartTime: time.Now(),
 		Timeout:   30 * time.Minute,
 	}
-	
+
 	// Merge initial variables
 	for k, v := range workflow.Variables {
 		execCtx.Variables[k] = v
@@ -55,7 +55,7 @@ func (w *WorkflowEngine) ExecuteWorkflow(ctx context.Context, agent types.AgentI
 	for k, v := range variables {
 		execCtx.Variables[k] = v
 	}
-	
+
 	return w.executor.Execute(ctx, agent)
 }
 
@@ -71,22 +71,22 @@ func NewSimpleTemplateEngine() *SimpleTemplateEngine {
 func (t *SimpleTemplateEngine) Render(template string, variables map[string]interface{}) (string, error) {
 	// Simple variable substitution using {{variable}} syntax
 	re := regexp.MustCompile(`\{\{([^}]+)\}\}`)
-	
+
 	result := re.ReplaceAllStringFunc(template, func(match string) string {
 		// Extract variable name (remove {{ and }})
 		varName := strings.Trim(match, "{}")
 		varName = strings.TrimSpace(varName)
-		
+
 		// Handle nested paths like "steps.extract.text_content"
 		value := t.getNestedValue(variables, varName)
 		if value != nil {
 			return fmt.Sprintf("%v", value)
 		}
-		
+
 		// Return original if variable not found
 		return match
 	})
-	
+
 	return result, nil
 }
 
@@ -124,7 +124,7 @@ func (t *SimpleTemplateEngine) RenderObject(obj interface{}, variables map[strin
 func (t *SimpleTemplateEngine) getNestedValue(variables map[string]interface{}, path string) interface{} {
 	parts := strings.Split(path, ".")
 	var current interface{} = variables
-	
+
 	for _, part := range parts {
 		switch v := current.(type) {
 		case map[string]interface{}:
@@ -134,12 +134,12 @@ func (t *SimpleTemplateEngine) getNestedValue(variables map[string]interface{}, 
 		default:
 			return nil
 		}
-		
+
 		if current == nil {
 			return nil
 		}
 	}
-	
+
 	return current
 }
 
@@ -156,20 +156,20 @@ func (v *WorkflowValidator) Validate(workflow types.WorkflowSpec) error {
 	if len(workflow.Steps) == 0 {
 		return fmt.Errorf("workflow must have at least one step")
 	}
-	
+
 	// Validate individual steps
 	for i, step := range workflow.Steps {
 		if err := v.ValidateStep(step); err != nil {
 			return fmt.Errorf("step %d validation failed: %w", i, err)
 		}
 	}
-	
+
 	// Validate step dependencies
 	stepIDs := make(map[string]bool)
 	for _, step := range workflow.Steps {
 		stepIDs[step.ID] = true
 	}
-	
+
 	for _, step := range workflow.Steps {
 		for _, depID := range step.DependsOn {
 			if !stepIDs[depID] {
@@ -177,7 +177,7 @@ func (v *WorkflowValidator) Validate(workflow types.WorkflowSpec) error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -192,7 +192,7 @@ func (v *WorkflowValidator) ValidateStep(step types.WorkflowStep) error {
 	if step.Type == "" {
 		return fmt.Errorf("step type is required")
 	}
-	
+
 	// Validate step type specific requirements
 	switch step.Type {
 	case types.StepTypeTool:
@@ -216,7 +216,7 @@ func (v *WorkflowValidator) ValidateStep(step types.WorkflowStep) error {
 	default:
 		return fmt.Errorf("unsupported step type: %s", step.Type)
 	}
-	
+
 	return nil
 }
 
@@ -244,12 +244,12 @@ func (t *ToolChainExecutor) ExecuteChain(ctx context.Context, chain types.ToolCh
 		StepResults: make([]ChainStepResult, 0),
 		Variables:   make(map[string]interface{}),
 	}
-	
+
 	// Initialize variables
 	for k, v := range chain.Variables {
 		result.Variables[k] = v
 	}
-	
+
 	// Execute steps
 	if chain.Parallel {
 		return t.executeParallel(ctx, chain, result)
@@ -267,10 +267,10 @@ func (t *ToolChainExecutor) executeSequential(ctx context.Context, chain types.T
 			return result, ctx.Err()
 		default:
 		}
-		
+
 		stepResult, err := t.executeChainStep(ctx, step, result.Variables)
 		result.StepResults = append(result.StepResults, *stepResult)
-		
+
 		if err != nil {
 			result.Status = "failed"
 			result.ErrorMessage = fmt.Sprintf("step %d failed: %v", i, err)
@@ -279,18 +279,18 @@ func (t *ToolChainExecutor) executeSequential(ctx context.Context, chain types.T
 			result.Duration = endTime.Sub(result.StartTime)
 			return result, err
 		}
-		
+
 		// Merge step outputs into variables
 		for k, v := range stepResult.Outputs {
 			result.Variables[k] = v
 		}
 	}
-	
+
 	result.Status = "completed"
 	endTime := time.Now()
 	result.EndTime = &endTime
 	result.Duration = endTime.Sub(result.StartTime)
-	
+
 	return result, nil
 }
 
@@ -311,7 +311,7 @@ func (t *ToolChainExecutor) executeChainStep(ctx context.Context, step types.Cha
 		Inputs:    make(map[string]interface{}),
 		Outputs:   make(map[string]interface{}),
 	}
-	
+
 	// Render inputs
 	renderedInputs := make(map[string]interface{})
 	for k, v := range step.Inputs {
@@ -324,7 +324,7 @@ func (t *ToolChainExecutor) executeChainStep(ctx context.Context, step types.Cha
 		renderedInputs[k] = rendered
 	}
 	stepResult.Inputs = renderedInputs
-	
+
 	// Execute tool (mock implementation)
 	toolResult := map[string]interface{}{
 		"tool":     step.ToolName,
@@ -332,19 +332,19 @@ func (t *ToolChainExecutor) executeChainStep(ctx context.Context, step types.Cha
 		"result":   "Tool executed successfully",
 		"inputs":   renderedInputs,
 	}
-	
+
 	// Map outputs
 	for outputKey, variableName := range step.Outputs {
 		if value, exists := toolResult[outputKey]; exists {
 			stepResult.Outputs[variableName] = value
 		}
 	}
-	
+
 	stepResult.Status = "completed"
 	endTime := time.Now()
 	stepResult.EndTime = &endTime
 	stepResult.Duration = endTime.Sub(stepResult.StartTime)
-	
+
 	return stepResult, nil
 }
 

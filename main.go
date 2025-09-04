@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	
+
 	cmd "github.com/liliang-cn/rago/v2/cmd/rago"
 )
 

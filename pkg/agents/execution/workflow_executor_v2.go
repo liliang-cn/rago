@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -57,7 +58,7 @@ func (e *WorkflowExecutorV2) Execute(ctx context.Context, workflow *types.Workfl
 
 	// Build dependency graph
 	stepDeps := e.buildDependencyGraph(workflow)
-	
+
 	// Execute steps with dependency resolution
 	completed := make(map[string]bool)
 	results := make(map[string]interface{})
@@ -68,7 +69,7 @@ func (e *WorkflowExecutorV2) Execute(ctx context.Context, workflow *types.Workfl
 	for len(completed) < len(workflow.Steps) {
 		// Find steps that can be executed (all deps satisfied)
 		readySteps := e.findReadySteps(workflow.Steps, stepDeps, completed)
-		
+
 		if len(readySteps) == 0 && len(completed) < len(workflow.Steps) {
 			return result, fmt.Errorf("circular dependency detected or no executable steps")
 		}
@@ -78,7 +79,7 @@ func (e *WorkflowExecutorV2) Execute(ctx context.Context, workflow *types.Workfl
 			wg.Add(1)
 			go func(s types.WorkflowStep) {
 				defer wg.Done()
-				
+
 				if e.verbose {
 					fmt.Printf("\n⚡ Starting Step (async): %s\n", s.Name)
 				}
@@ -200,7 +201,7 @@ func (e *WorkflowExecutorV2) executeStep(ctx context.Context, step types.Workflo
 // buildDependencyGraph analyzes steps to find dependencies
 func (e *WorkflowExecutorV2) buildDependencyGraph(workflow *types.WorkflowSpec) map[string][]string {
 	deps := make(map[string][]string)
-	
+
 	// Build output to step mapping
 	outputToStep := make(map[string]string)
 	for _, step := range workflow.Steps {
@@ -214,12 +215,12 @@ func (e *WorkflowExecutorV2) buildDependencyGraph(workflow *types.WorkflowSpec) 
 	// Find dependencies based on variable usage
 	for _, step := range workflow.Steps {
 		deps[step.ID] = []string{}
-		
+
 		// Check if step uses variables from other steps
 		inputStr := fmt.Sprintf("%v", step.Inputs)
 		for varName, producerStep := range outputToStep {
-			if strings.Contains(inputStr, "{{"+varName+"}}") || 
-			   strings.Contains(inputStr, "{{$"+varName+"}}") {
+			if strings.Contains(inputStr, "{{"+varName+"}}") ||
+				strings.Contains(inputStr, "{{$"+varName+"}}") {
 				deps[step.ID] = append(deps[step.ID], producerStep)
 			}
 		}
@@ -295,9 +296,9 @@ func (e *WorkflowExecutorV2) executeFetch(ctx context.Context, inputs map[string
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +312,6 @@ func (e *WorkflowExecutorV2) executeFetch(ctx context.Context, inputs map[string
 	// Return as string if not JSON
 	return string(body), nil
 }
-
 
 // Other execute methods remain similar but with proper async handling
 func (e *WorkflowExecutorV2) executeFilesystem(ctx context.Context, inputs map[string]interface{}) (interface{}, error) {
@@ -337,7 +337,7 @@ func (e *WorkflowExecutorV2) executeFilesystem(ctx context.Context, inputs map[s
 		if !ok {
 			return nil, fmt.Errorf("read requires 'path' input")
 		}
-		data, err := ioutil.ReadFile(path)
+		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
@@ -354,7 +354,7 @@ func (e *WorkflowExecutorV2) executeFilesystem(ctx context.Context, inputs map[s
 		} else if c, ok := inputs["data"].(string); ok {
 			content = c
 		}
-		err := ioutil.WriteFile(path, []byte(content), 0644)
+		err := os.WriteFile(path, []byte(content), 0644)
 		if err != nil {
 			return nil, err
 		}
@@ -369,9 +369,9 @@ func (e *WorkflowExecutorV2) executeFilesystem(ctx context.Context, inputs map[s
 		if c, ok := inputs["content"].(string); ok {
 			content = c
 		}
-		existing, _ := ioutil.ReadFile(path)
+		existing, _ := os.ReadFile(path)
 		newContent := string(existing) + content
-		err := ioutil.WriteFile(path, []byte(newContent), 0644)
+		err := os.WriteFile(path, []byte(newContent), 0644)
 		if err != nil {
 			return nil, err
 		}
@@ -513,14 +513,14 @@ func (e *WorkflowExecutorV2) resolveString(str string, variables map[string]inte
 		default:
 			valueStr = fmt.Sprintf("%v", value)
 		}
-		
+
 		patterns := []string{
 			fmt.Sprintf("{{%s}}", key),
 			fmt.Sprintf("{{outputs.%s}}", key),
 			fmt.Sprintf("{{$%s}}", key),
 			fmt.Sprintf("{{$outputs.%s}}", key),
 		}
-		
+
 		for _, pattern := range patterns {
 			result = strings.ReplaceAll(result, pattern, valueStr)
 		}

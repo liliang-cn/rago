@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
-	"os/exec"
+	"os"
 	"strings"
 	"time"
 
@@ -26,10 +26,7 @@ type WorkflowExecutor struct {
 
 // MCPClient represents a connection to an MCP server
 type MCPClient struct {
-	name    string
-	command string
-	args    []string
-	process *exec.Cmd
+	// Note: This type is currently unused but kept for future MCP integration
 }
 
 // NewWorkflowExecutor creates a new workflow executor
@@ -178,9 +175,9 @@ func (e *WorkflowExecutor) executeFetch(ctx context.Context, inputs map[string]i
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +191,6 @@ func (e *WorkflowExecutor) executeFetch(ctx context.Context, inputs map[string]i
 	// Return as string if not JSON
 	return string(body), nil
 }
-
 
 // executeFilesystem handles file operations
 func (e *WorkflowExecutor) executeFilesystem(ctx context.Context, inputs map[string]interface{}) (interface{}, error) {
@@ -220,7 +216,7 @@ func (e *WorkflowExecutor) executeFilesystem(ctx context.Context, inputs map[str
 		if !ok {
 			return nil, fmt.Errorf("read requires 'path' input")
 		}
-		data, err := ioutil.ReadFile(path)
+		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
@@ -237,7 +233,7 @@ func (e *WorkflowExecutor) executeFilesystem(ctx context.Context, inputs map[str
 		} else if c, ok := inputs["data"].(string); ok {
 			content = c
 		}
-		err := ioutil.WriteFile(path, []byte(content), 0644)
+		err := os.WriteFile(path, []byte(content), 0644)
 		if err != nil {
 			return nil, err
 		}
@@ -253,10 +249,10 @@ func (e *WorkflowExecutor) executeFilesystem(ctx context.Context, inputs map[str
 			content = c
 		}
 		// Read existing content
-		existing, _ := ioutil.ReadFile(path)
+		existing, _ := os.ReadFile(path)
 		// Append new content
 		newContent := string(existing) + content
-		err := ioutil.WriteFile(path, []byte(newContent), 0644)
+		err := os.WriteFile(path, []byte(newContent), 0644)
 		if err != nil {
 			return nil, err
 		}
@@ -282,8 +278,7 @@ func (e *WorkflowExecutor) executeMemory(ctx context.Context, inputs map[string]
 		// If no action, try to infer it
 		if key, ok := inputs["key"].(string); ok {
 			if value, ok := inputs["value"]; ok {
-				// Default to store action
-				action = "store"
+				// Store value directly and return
 				e.memory[key] = value
 				return value, nil
 			} else {
@@ -430,7 +425,7 @@ func (e *WorkflowExecutor) resolveString(str string, variables map[string]interf
 		default:
 			valueStr = fmt.Sprintf("%v", value)
 		}
-		
+
 		// Try multiple variable formats
 		patterns := []string{
 			fmt.Sprintf("{{%s}}", key),
@@ -438,7 +433,7 @@ func (e *WorkflowExecutor) resolveString(str string, variables map[string]interf
 			fmt.Sprintf("{{$%s}}", key),
 			fmt.Sprintf("{{$outputs.%s}}", key),
 		}
-		
+
 		for _, pattern := range patterns {
 			result = strings.ReplaceAll(result, pattern, valueStr)
 		}

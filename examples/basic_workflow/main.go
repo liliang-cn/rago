@@ -77,8 +77,8 @@ func main() {
 				Type: types.StepType("tool"),
 				Tool: "filesystem",
 				Inputs: map[string]interface{}{
-					"action": "write",
-					"path":   "/tmp/weather_report.txt",
+					"action":  "write",
+					"path":    "/tmp/weather_report.txt",
 					"content": "Weather Report\n==============\nTime: {{current_time}}\n\n{{weather_analysis}}",
 				},
 				Outputs: map[string]string{

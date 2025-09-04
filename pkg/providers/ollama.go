@@ -65,7 +65,7 @@ func toOllamaMessages(messages []domain.Message) []ollama.Message {
 				// This is not ideal, as we are converting back and forth. But it's a safe way to handle the anonymous struct.
 				var tempToolCall ollama.ToolCall
 				bytes, _ := json.Marshal(toolCallMap)
-								if err := json.Unmarshal(bytes, &tempToolCall); err != nil {
+				if err := json.Unmarshal(bytes, &tempToolCall); err != nil {
 					fmt.Printf("Warning: failed to unmarshal tool call: %v\n", err)
 				}
 				ollamaMsg.ToolCalls[i] = tempToolCall
@@ -309,7 +309,7 @@ func (p *OllamaLLMProvider) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("%w: service unavailable: %v", domain.ErrServiceUnavailable, err)
 	}
-	
+
 	// Now test the actual configured model - just verify it can respond
 	stream := false
 	req := &ollama.GenerateRequest{
@@ -321,17 +321,17 @@ func (p *OllamaLLMProvider) Health(ctx context.Context) error {
 			NumPredict:  &[]int{10}[0], // Keep it short
 		},
 	}
-	
+
 	resp, err := p.client.Generate(ctx, req)
 	if err != nil {
 		return fmt.Errorf("LLM model health check failed: %w", err)
 	}
-	
+
 	// Check if we got any response (don't validate content since models like qwen3 have built-in <think> tags)
 	if resp == nil || resp.Response == "" {
 		return fmt.Errorf("LLM model health check failed: empty response from model %s", p.config.LLMModel)
 	}
-	
+
 	return nil
 }
 
@@ -367,13 +367,13 @@ func (p *OllamaLLMProvider) GenerateStructured(ctx context.Context, prompt strin
 			req.Options = options
 		}
 	})
-	
+
 	if err != nil {
 		return nil, WrapStructuredOutputError(domain.ProviderOllama, err)
 	}
 
 	rawJSON := response.Message.Content
-	
+
 	// Try to parse the JSON into the provided schema
 	var isValid bool
 	if err := json.Unmarshal([]byte(rawJSON), schema); err == nil {
@@ -493,22 +493,22 @@ func (p *OllamaEmbedderProvider) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("%w: service unavailable: %v", domain.ErrServiceUnavailable, err)
 	}
-	
+
 	// Now test the actual configured embedding model with a simple test
 	req := &ollama.EmbedRequest{
 		Model: p.config.EmbeddingModel,
 		Input: "test",
 	}
-	
+
 	resp, err := p.client.Embed(ctx, req)
 	if err != nil {
 		return fmt.Errorf("embedding model health check failed: %w", err)
 	}
-	
+
 	// Check if we got a reasonable embedding response
 	if resp == nil || len(resp.Embeddings) == 0 || len(resp.Embeddings[0]) == 0 {
 		return fmt.Errorf("embedding model health check failed: empty embedding from model %s", p.config.EmbeddingModel)
 	}
-	
+
 	return nil
 }

@@ -1,12 +1,13 @@
 module github.com/liliang-cn/rago/v2
 
-go 1.24.6
+go 1.23.0
 
 require (
 	github.com/blevesearch/bleve/v2 v2.5.3
 	github.com/dslipak/pdf v0.0.2
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
+	github.com/gorilla/mux v1.8.1
 	github.com/liliang-cn/lmstudio-go v1.0.0
 	github.com/liliang-cn/ollama-go v0.2.1
 	github.com/liliang-cn/sqvect v0.9.0
@@ -16,6 +17,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
+	golang.org/x/text v0.21.0
 	golang.org/x/time v0.12.0
 	modernc.org/sqlite v1.38.2
 )
@@ -62,7 +64,6 @@ require (
 	github.com/golang/protobuf v1.5.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/jsonschema-go v0.2.1-0.20250825175020-748c325cec76 // indirect
-	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -101,7 +102,6 @@ require (
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/protobuf v1.36.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.66.3 // indirect

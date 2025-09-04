@@ -76,7 +76,7 @@ var templates = []WorkflowTemplate{
 
 func init() {
 	agentCmd.AddCommand(workflowTemplateCmd)
-	
+
 	workflowTemplateCmd.Flags().StringP("output", "o", "", "Output file path (default: template_name_workflow.json)")
 	workflowTemplateCmd.Flags().BoolP("list", "l", false, "List available templates")
 	workflowTemplateCmd.Flags().BoolP("execute", "e", false, "Execute the workflow immediately after generation")
@@ -88,18 +88,18 @@ func generateFromTemplate(cmd *cobra.Command, args []string) error {
 	if list {
 		return listTemplates()
 	}
-	
+
 	// Require arguments if not listing
 	if len(args) == 0 {
 		return fmt.Errorf("please provide a description or use --list to see available templates")
 	}
-	
+
 	description := strings.ToLower(strings.Join(args, " "))
 	outputPath, _ := cmd.Flags().GetString("output")
 	execute, _ := cmd.Flags().GetBool("execute")
-	
+
 	fmt.Printf("🤖 Generating workflow from template for: %s\n\n", description)
-	
+
 	// Find matching template
 	template := findBestTemplate(description)
 	if template == nil {
@@ -110,61 +110,61 @@ func generateFromTemplate(cmd *cobra.Command, args []string) error {
 			Generator: generateGenericWorkflow,
 		}
 	}
-	
+
 	fmt.Printf("📋 Using template: %s\n", template.Name)
 	if template.Description != "" {
 		fmt.Printf("   Description: %s\n", template.Description)
 	}
-	
+
 	// Extract parameters from description
 	params := extractParameters(description)
-	
+
 	// Generate workflow
 	workflow := template.Generator(params)
-	
+
 	// Determine output path
 	if outputPath == "" {
 		safeName := strings.ReplaceAll(strings.ToLower(template.Name), " ", "_")
 		outputPath = fmt.Sprintf("%s_workflow.json", safeName)
 	}
-	
+
 	// Save workflow
 	workflowJSON, err := json.MarshalIndent(workflow, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal workflow: %w", err)
 	}
-	
+
 	if err := os.WriteFile(outputPath, workflowJSON, 0644); err != nil {
 		return fmt.Errorf("failed to write workflow file: %w", err)
 	}
-	
+
 	fmt.Printf("\n✅ Workflow generated successfully!\n")
 	fmt.Printf("📁 Saved to: %s\n", outputPath)
-	
+
 	// Display summary
 	fmt.Printf("\n📊 Workflow Summary:\n")
 	fmt.Printf("  - Steps: %d\n", len(workflow.Steps))
 	for i, step := range workflow.Steps {
 		fmt.Printf("    %d. %s (%s)\n", i+1, step.Name, step.Type)
 	}
-	
+
 	// Execute if requested
 	if execute {
 		fmt.Println("\n🚀 Executing generated workflow...")
 		return executeGeneratedWorkflow(outputPath)
 	}
-	
+
 	fmt.Printf("\n💡 To use this workflow:\n")
 	fmt.Printf("  rago agent create --name \"My Agent\" --type workflow --workflow-file %s\n", outputPath)
 	fmt.Printf("  rago agent execute [agent-id]\n")
-	
+
 	return nil
 }
 
 func listTemplates() error {
 	fmt.Println("📚 Available Workflow Templates")
 	fmt.Println("=" + strings.Repeat("=", 50))
-	
+
 	for i, template := range templates {
 		fmt.Printf("\n%d. %s\n", i+1, template.Name)
 		if template.Description != "" {
@@ -172,19 +172,19 @@ func listTemplates() error {
 		}
 		fmt.Printf("   Keywords: %s\n", strings.Join(template.Keywords, ", "))
 	}
-	
+
 	fmt.Println("\n💡 Usage examples:")
 	fmt.Println("  rago agent generate-template \"monitor website changes\"")
 	fmt.Println("  rago agent generate-template \"backup files daily\"")
 	fmt.Println("  rago agent generate-template \"process JSON files in folder\"")
-	
+
 	return nil
 }
 
 func findBestTemplate(description string) *WorkflowTemplate {
 	var bestMatch *WorkflowTemplate
 	maxScore := 0
-	
+
 	for i := range templates {
 		score := 0
 		for _, keyword := range templates[i].Keywords {
@@ -197,7 +197,7 @@ func findBestTemplate(description string) *WorkflowTemplate {
 			bestMatch = &templates[i]
 		}
 	}
-	
+
 	if maxScore == 0 {
 		return nil
 	}
@@ -206,7 +206,7 @@ func findBestTemplate(description string) *WorkflowTemplate {
 
 func extractParameters(description string) map[string]string {
 	params := make(map[string]string)
-	
+
 	// Extract URLs
 	if strings.Contains(description, "http://") || strings.Contains(description, "https://") {
 		words := strings.Fields(description)
@@ -217,7 +217,7 @@ func extractParameters(description string) map[string]string {
 			}
 		}
 	}
-	
+
 	// Extract file patterns
 	patterns := []string{".json", ".txt", ".md", ".go", ".py", ".js", ".csv", ".yaml", ".xml"}
 	for _, pattern := range patterns {
@@ -226,7 +226,7 @@ func extractParameters(description string) map[string]string {
 			break
 		}
 	}
-	
+
 	// Extract time intervals
 	timeWords := map[string]string{
 		"hourly":  "0 * * * *",
@@ -243,7 +243,7 @@ func extractParameters(description string) map[string]string {
 			break
 		}
 	}
-	
+
 	// Extract directory paths
 	if strings.Contains(description, "/") {
 		words := strings.Fields(description)
@@ -254,7 +254,7 @@ func extractParameters(description string) map[string]string {
 			}
 		}
 	}
-	
+
 	return params
 }
 
@@ -265,7 +265,7 @@ func generateWebsiteMonitor(params map[string]string) *types.WorkflowSpec {
 	if url == "" {
 		url = "{{input.url}}"
 	}
-	
+
 	return &types.WorkflowSpec{
 		Steps: []types.WorkflowStep{
 			{
@@ -341,12 +341,12 @@ func generateFileProcessor(params map[string]string) *types.WorkflowSpec {
 	if pattern == "" {
 		pattern = "*.*"
 	}
-	
+
 	path := params["path"]
 	if path == "" {
 		path = "{{input.directory}}"
 	}
-	
+
 	return &types.WorkflowSpec{
 		Steps: []types.WorkflowStep{
 			{
@@ -424,7 +424,7 @@ func generateDataFetcher(params map[string]string) *types.WorkflowSpec {
 	if url == "" {
 		url = "{{input.api_url}}"
 	}
-	
+
 	return &types.WorkflowSpec{
 		Steps: []types.WorkflowStep{
 			{
@@ -490,12 +490,12 @@ func generateReportGenerator(params map[string]string) *types.WorkflowSpec {
 	if path == "" {
 		path = "{{input.data_directory}}"
 	}
-	
+
 	pattern := params["file_pattern"]
 	if pattern == "" {
 		pattern = "*.json"
 	}
-	
+
 	return &types.WorkflowSpec{
 		Steps: []types.WorkflowStep{
 			{
@@ -574,7 +574,7 @@ func generateBackupWorkflow(params map[string]string) *types.WorkflowSpec {
 	if sourcePath == "" {
 		sourcePath = "{{input.source_directory}}"
 	}
-	
+
 	return &types.WorkflowSpec{
 		Steps: []types.WorkflowStep{
 			{

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/liliang-cn/rago/v2/pkg/agents/execution"
 	"github.com/liliang-cn/rago/v2/pkg/agents/types"
@@ -29,7 +28,7 @@ func main() {
 	fmt.Printf("📋 Configuration loaded:\n")
 	fmt.Printf("   - Default LLM Provider: %s\n", cfg.Providers.DefaultLLM)
 	fmt.Printf("   - Default Embedder Provider: %s\n", cfg.Providers.DefaultEmbedder)
-	
+
 	// Check which provider is configured
 	if cfg.Providers.ProviderConfigs.LMStudio != nil {
 		fmt.Printf("   - LMStudio URL: %s\n", cfg.Providers.ProviderConfigs.LMStudio.BaseURL)
@@ -42,7 +41,7 @@ func main() {
 	if cfg.Providers.ProviderConfigs.OpenAI != nil {
 		fmt.Printf("   - OpenAI Model: %s\n", cfg.Providers.ProviderConfigs.OpenAI.LLMModel)
 	}
-	
+
 	fmt.Println()
 
 	// Initialize providers using the config (works with ANY configured provider)
@@ -121,7 +120,7 @@ func main() {
 	fmt.Println("✅ Workflow completed successfully!")
 	fmt.Printf("⏱️  Execution time: %v\n", result.Duration)
 	fmt.Println()
-	
+
 	fmt.Println("📊 Results:")
 	if timeAnalysis, ok := result.Outputs["time_analysis"]; ok {
 		fmt.Printf("   🕐 Time: %v\n", result.Outputs["current_time"])
@@ -134,63 +133,4 @@ func main() {
 	fmt.Println()
 	fmt.Println("🎉 Demo complete! This workflow used the provider configured in rago.toml")
 	fmt.Printf("   You can switch between Ollama, LMStudio, or OpenAI by updating the config.\n")
-}
-
-// Helper function to simulate natural language workflow generation
-func generateWorkflowFromNL(request string) *types.WorkflowSpec {
-	// In a real scenario, this would call the LLM to generate the workflow
-	// For demo purposes, we return a predefined workflow
-	
-	lowerRequest := strings.ToLower(request)
-	
-	if strings.Contains(lowerRequest, "github") {
-		return &types.WorkflowSpec{
-			Steps: []types.WorkflowStep{
-				{
-					ID:   "fetch",
-					Name: "Fetch GitHub Data",
-					Type: types.StepType("tool"),
-					Tool: "fetch",
-					Inputs: map[string]interface{}{
-						"url": "https://api.github.com/repos/liliang-cn/rago",
-					},
-					Outputs: map[string]string{
-						"data": "github_data",
-					},
-				},
-				{
-					ID:   "analyze",
-					Name: "Analyze Data",
-					Type: types.StepType("tool"),
-					Tool: "sequential-thinking",
-					Inputs: map[string]interface{}{
-						"prompt": "Analyze this GitHub repository data: {{github_data}}",
-					},
-					Outputs: map[string]string{
-						"analysis": "result",
-					},
-				},
-			},
-			Variables: make(map[string]interface{}),
-		}
-	}
-	
-	// Default workflow
-	return &types.WorkflowSpec{
-		Steps: []types.WorkflowStep{
-			{
-				ID:   "process",
-				Name: "Process Request",
-				Type: types.StepType("tool"),
-				Tool: "sequential-thinking",
-				Inputs: map[string]interface{}{
-					"prompt": request,
-				},
-				Outputs: map[string]string{
-					"result": "output",
-				},
-			},
-		},
-		Variables: make(map[string]interface{}),
-	}
 }

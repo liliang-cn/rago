@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/agents/types"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/spf13/cobra"
 )
 
@@ -25,13 +25,13 @@ Examples:
   rago agent generate "Read all Python files and generate documentation"
   rago agent generate "Fetch news from RSS feed and create a daily summary"`,
 	Aliases: []string{"gen", "create-from"},
-	Args: cobra.MinimumNArgs(1),
-	RunE: generateWorkflow,
+	Args:    cobra.MinimumNArgs(1),
+	RunE:    generateWorkflow,
 }
 
 func init() {
 	agentCmd.AddCommand(workflowGenerateCmd)
-	
+
 	workflowGenerateCmd.Flags().StringP("output", "o", "", "Output file path (default: workflow.json)")
 	workflowGenerateCmd.Flags().BoolP("execute", "e", false, "Execute the workflow immediately after generation")
 	workflowGenerateCmd.Flags().BoolP("interactive", "i", false, "Interactive mode with refinement")
@@ -42,7 +42,7 @@ func generateWorkflow(cmd *cobra.Command, args []string) error {
 	outputPath, _ := cmd.Flags().GetString("output")
 	execute, _ := cmd.Flags().GetBool("execute")
 	interactive, _ := cmd.Flags().GetBool("interactive")
-	
+
 	if outputPath == "" {
 		// Generate a filename based on description
 		safeName := strings.ReplaceAll(strings.ToLower(description), " ", "_")
@@ -60,7 +60,7 @@ func generateWorkflow(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("🤖 Generating workflow for: %s\n", description)
-	
+
 	// Generate the workflow
 	workflow, err := generateWorkflowFromDescription(ctx, llmService, description)
 	if err != nil {
@@ -86,7 +86,7 @@ func generateWorkflow(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("✅ Workflow generated and saved to: %s\n", outputPath)
-	
+
 	// Display the workflow
 	if verbose {
 		fmt.Println("\n📋 Generated Workflow:")
@@ -163,12 +163,12 @@ Return ONLY the JSON workflow specification.`, description)
 
 	// Combine system and user prompts for the simple Generate interface
 	fullPrompt := fmt.Sprintf("System: %s\n\nUser: %s", systemPrompt, userPrompt)
-	
+
 	opts := &domain.GenerationOptions{
 		Temperature: 0.7,
 		MaxTokens:   2000,
 	}
-	
+
 	response, err := llmService.Generate(ctx, fullPrompt, opts)
 	if err != nil {
 		return nil, err
@@ -176,7 +176,7 @@ Return ONLY the JSON workflow specification.`, description)
 
 	// Extract JSON from response
 	jsonStr := extractJSON(response)
-	
+
 	// Parse the workflow
 	var workflow types.WorkflowSpec
 	if err := json.Unmarshal([]byte(jsonStr), &workflow); err != nil {
@@ -198,44 +198,44 @@ Return ONLY the JSON workflow specification.`, description)
 func refineWorkflowInteractively(ctx context.Context, llmService domain.Generator, workflow *types.WorkflowSpec, originalDesc string) (*types.WorkflowSpec, error) {
 	fmt.Println("\n🔄 Interactive Refinement Mode")
 	fmt.Println("Type 'done' to finish, 'show' to display current workflow, or describe changes needed:")
-	
+
 	scanner := bufio.NewScanner(os.Stdin)
-	
+
 	for {
 		fmt.Print("\n> ")
 		if !scanner.Scan() {
 			break
 		}
-		
+
 		input := strings.TrimSpace(scanner.Text())
-		
+
 		if input == "done" {
 			break
 		}
-		
+
 		if input == "show" {
 			workflowJSON, _ := json.MarshalIndent(workflow, "", "  ")
 			fmt.Println(string(workflowJSON))
 			continue
 		}
-		
+
 		// Refine the workflow based on feedback
 		refinedWorkflow, err := refineWorkflow(ctx, llmService, workflow, originalDesc, input)
 		if err != nil {
 			fmt.Printf("❌ Refinement failed: %v\n", err)
 			continue
 		}
-		
+
 		workflow = refinedWorkflow
 		fmt.Println("✅ Workflow refined successfully")
 	}
-	
+
 	return workflow, nil
 }
 
 func refineWorkflow(ctx context.Context, llmService domain.Generator, current *types.WorkflowSpec, originalDesc, feedback string) (*types.WorkflowSpec, error) {
 	currentJSON, _ := json.MarshalIndent(current, "", "  ")
-	
+
 	prompt := fmt.Sprintf(`Original requirement: %s
 
 Current workflow:
@@ -250,14 +250,14 @@ Return ONLY the complete JSON workflow specification.`, originalDesc, string(cur
 		Temperature: 0.7,
 		MaxTokens:   2000,
 	}
-	
+
 	response, err := llmService.Generate(ctx, prompt, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	jsonStr := extractJSON(response)
-	
+
 	var workflow types.WorkflowSpec
 	if err := json.Unmarshal([]byte(jsonStr), &workflow); err != nil {
 		return nil, fmt.Errorf("failed to parse refined workflow: %w", err)
@@ -275,14 +275,14 @@ func extractJSON(content string) string {
 			return strings.TrimSpace(content[start : start+end])
 		}
 	}
-	
+
 	// Try to find JSON object directly
 	start := strings.Index(content, "{")
 	end := strings.LastIndex(content, "}")
 	if start >= 0 && end > start {
 		return content[start : end+1]
 	}
-	
+
 	return content
 }
 
@@ -290,13 +290,13 @@ func fixCommonJSONErrors(jsonStr string) string {
 	// Fix trailing commas
 	jsonStr = strings.ReplaceAll(jsonStr, ",]", "]")
 	jsonStr = strings.ReplaceAll(jsonStr, ",}", "}")
-	
+
 	// Fix single quotes
 	jsonStr = strings.ReplaceAll(jsonStr, "'", "\"")
-	
+
 	// Fix missing quotes on keys (basic fix)
 	// This is a simplified approach and may not catch all cases
-	
+
 	return jsonStr
 }
 
@@ -304,7 +304,7 @@ func validateGeneratedWorkflow(workflow *types.WorkflowSpec) error {
 	if len(workflow.Steps) == 0 {
 		return fmt.Errorf("workflow must have at least one step")
 	}
-	
+
 	// Check for unique IDs
 	ids := make(map[string]bool)
 	for _, step := range workflow.Steps {
@@ -315,26 +315,26 @@ func validateGeneratedWorkflow(workflow *types.WorkflowSpec) error {
 			return fmt.Errorf("duplicate step ID: %s", step.ID)
 		}
 		ids[step.ID] = true
-		
+
 		if step.Name == "" {
 			return fmt.Errorf("step %s missing name", step.ID)
 		}
-		
+
 		if step.Type == "" {
 			return fmt.Errorf("step %s missing type", step.ID)
 		}
 	}
-	
+
 	return nil
 }
 
 func executeGeneratedWorkflow(workflowPath string) error {
 	// Create a temporary agent and execute it
 	agentName := fmt.Sprintf("generated_%d", time.Now().Unix())
-	
+
 	// This would actually create and execute the agent
 	// For now, we'll just show the command
 	fmt.Printf("\nTo execute: rago agent create --name \"%s\" --workflow-file %s\n", agentName, workflowPath)
-	
+
 	return nil
 }

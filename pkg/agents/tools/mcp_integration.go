@@ -55,29 +55,29 @@ func NewMCPToolExecutor(mcpClient MCPClientInterface) *MCPToolExecutor {
 // ExecuteTool executes an MCP tool with the given inputs
 func (m *MCPToolExecutor) ExecuteTool(ctx context.Context, toolName string, inputs map[string]interface{}) (*MCPExecutionResult, error) {
 	startTime := time.Now()
-	
+
 	result := &MCPExecutionResult{
 		Tool:     toolName,
 		Success:  false,
 		Metadata: make(map[string]interface{}),
 	}
-	
+
 	// Execute the MCP tool
 	toolResult, err := m.mcpClient.CallTool(ctx, toolName, inputs)
 	result.Duration = time.Since(startTime)
-	
+
 	if err != nil {
 		result.Error = err.Error()
 		return result, err
 	}
-	
+
 	result.Success = true
 	result.Result = toolResult
-	
+
 	// Add execution metadata
 	result.Metadata["execution_time"] = result.Duration.String()
 	result.Metadata["inputs"] = inputs
-	
+
 	return result, nil
 }
 
@@ -92,7 +92,7 @@ func (m *MCPToolExecutor) ValidateToolInputs(ctx context.Context, toolName strin
 	if err != nil {
 		return fmt.Errorf("failed to list tools: %w", err)
 	}
-	
+
 	// Find the tool
 	var tool *MCPTool
 	for _, t := range tools {
@@ -101,11 +101,11 @@ func (m *MCPToolExecutor) ValidateToolInputs(ctx context.Context, toolName strin
 			break
 		}
 	}
-	
+
 	if tool == nil {
 		return fmt.Errorf("tool %s not found", toolName)
 	}
-	
+
 	// Basic validation - in a real implementation, you'd validate against the JSON schema
 	if tool.InputSchema != nil {
 		// Simplified validation - check required fields exist
@@ -121,13 +121,13 @@ func (m *MCPToolExecutor) ValidateToolInputs(ctx context.Context, toolName strin
 			}
 		}
 	}
-	
+
 	return nil
 }
 
 // MCPWorkflowStepExecutor executes workflow steps that use MCP tools
 type MCPWorkflowStepExecutor struct {
-	toolExecutor *MCPToolExecutor
+	toolExecutor   *MCPToolExecutor
 	templateEngine types.TemplateEngine
 }
 
@@ -149,7 +149,7 @@ func (m *MCPWorkflowStepExecutor) ExecuteStep(ctx context.Context, step types.Wo
 		Inputs:    make(map[string]interface{}),
 		Outputs:   make(map[string]interface{}),
 	}
-	
+
 	// Render inputs using template engine
 	renderedInputs := make(map[string]interface{})
 	for key, value := range step.Inputs {
@@ -164,34 +164,34 @@ func (m *MCPWorkflowStepExecutor) ExecuteStep(ctx context.Context, step types.Wo
 		}
 	}
 	stepResult.Inputs = renderedInputs
-	
+
 	// Validate inputs
 	if err := m.toolExecutor.ValidateToolInputs(ctx, step.Tool, renderedInputs); err != nil {
 		return m.failStep(stepResult, fmt.Sprintf("input validation failed: %v", err))
 	}
-	
+
 	// Execute MCP tool
 	mcpResult, err := m.toolExecutor.ExecuteTool(ctx, step.Tool, renderedInputs)
 	if err != nil {
 		return m.failStep(stepResult, fmt.Sprintf("MCP tool execution failed: %v", err))
 	}
-	
+
 	// Process results
 	if !mcpResult.Success {
 		return m.failStep(stepResult, fmt.Sprintf("MCP tool failed: %s", mcpResult.Error))
 	}
-	
+
 	// Map outputs based on step configuration
 	if mcpResult.Result != nil {
 		m.mapStepOutputs(step, mcpResult.Result, stepResult)
 	}
-	
+
 	// Mark step as completed
 	stepResult.Status = types.ExecutionStatusCompleted
 	endTime := time.Now()
 	stepResult.EndTime = &endTime
 	stepResult.Duration = endTime.Sub(stepResult.StartTime)
-	
+
 	return stepResult, nil
 }
 
@@ -222,7 +222,7 @@ func (m *MCPWorkflowStepExecutor) failStep(stepResult *types.StepResult, errorMe
 	endTime := time.Now()
 	stepResult.EndTime = &endTime
 	stepResult.Duration = endTime.Sub(stepResult.StartTime)
-	return stepResult, fmt.Errorf(errorMessage)
+	return stepResult, fmt.Errorf("%s", errorMessage)
 }
 
 // MockMCPClient provides a mock implementation for testing
@@ -313,21 +313,21 @@ func (m *MockMCPClient) CallTool(ctx context.Context, name string, arguments map
 		}, nil
 	case "file_read":
 		return map[string]interface{}{
-			"content": "Mock file content",
-			"size":    17,
+			"content":  "Mock file content",
+			"size":     17,
 			"encoding": "utf-8",
 		}, nil
 	case "web_search":
 		return map[string]interface{}{
 			"results": []map[string]interface{}{
 				{
-					"title": "Example Search Result 1",
-					"url":   "https://example.com/1",
+					"title":   "Example Search Result 1",
+					"url":     "https://example.com/1",
 					"snippet": "This is a mock search result",
 				},
 				{
-					"title": "Example Search Result 2",
-					"url":   "https://example.com/2",
+					"title":   "Example Search Result 2",
+					"url":     "https://example.com/2",
 					"snippet": "Another mock search result",
 				},
 			},
@@ -335,7 +335,7 @@ func (m *MockMCPClient) CallTool(ctx context.Context, name string, arguments map
 		}, nil
 	default:
 		return map[string]interface{}{
-			"message": fmt.Sprintf("Mock execution of %s", name),
+			"message":   fmt.Sprintf("Mock execution of %s", name),
 			"arguments": arguments,
 		}, nil
 	}
@@ -366,15 +366,15 @@ func ConvertToMCPResult(result *types.ExecutionResult) map[string]interface{} {
 		"results":      result.Results,
 		"outputs":      result.Outputs,
 	}
-	
+
 	if result.EndTime != nil {
 		mcpResult["end_time"] = *result.EndTime
 	}
-	
+
 	if result.ErrorMessage != "" {
 		mcpResult["error"] = result.ErrorMessage
 	}
-	
+
 	// Add step results
 	stepResults := make([]map[string]interface{}, len(result.StepResults))
 	for i, step := range result.StepResults {
@@ -386,12 +386,12 @@ func ConvertToMCPResult(result *types.ExecutionResult) map[string]interface{} {
 			"inputs":   step.Inputs,
 			"outputs":  step.Outputs,
 		}
-		
+
 		if step.ErrorMessage != "" {
 			stepResults[i]["error"] = step.ErrorMessage
 		}
 	}
 	mcpResult["step_results"] = stepResults
-	
+
 	return mcpResult
 }

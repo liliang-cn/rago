@@ -190,7 +190,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config) (*gin.Engine,
 				Servers:  cfg.MCP.Servers,
 				LogLevel: cfg.MCP.LogLevel,
 			}
-			
+
 			// Initialize MCP handler
 			mcpHandler, err := handlers.NewMCPHandler(mcpConfig)
 			if err != nil {
@@ -204,17 +204,17 @@ func setupRouter(processor *processor.Service, cfg *config.Config) (*gin.Engine,
 					mcpGroup.GET("/tools/:name", mcpHandler.GetTool)
 					mcpGroup.POST("/tools/call", mcpHandler.CallTool)
 					mcpGroup.POST("/tools/batch", mcpHandler.BatchCallTools)
-					
+
 					// Server operations
 					mcpGroup.GET("/servers", mcpHandler.GetServerStatus)
 					mcpGroup.GET("/servers/:server/tools", mcpHandler.GetToolsByServer)
 					mcpGroup.POST("/servers/start", mcpHandler.StartServer)
 					mcpGroup.POST("/servers/stop", mcpHandler.StopServer)
-					
+
 					// LLM integration
 					mcpGroup.GET("/llm/tools", mcpHandler.GetToolsForLLM)
 				}
-				
+
 				// Register cleanup on server shutdown
 				router.Use(func(c *gin.Context) {
 					c.Next()

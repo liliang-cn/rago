@@ -10,13 +10,17 @@ import (
 
 func main() {
 	fmt.Println("🚀 RAGO Document Ingestion Example")
-	
+
 	// Create client
 	c, err := client.New("")
 	if err != nil {
 		log.Fatal("Failed to create RAGO client:", err)
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			log.Printf("Failed to close client: %v", err)
+		}
+	}()
 
 	fmt.Println("✅ Client created successfully!")
 
@@ -38,7 +42,7 @@ Go is widely used for:
 - Command-line tools
 - System programming
 `
-	
+
 	err = c.IngestText(textContent, "go_programming_intro")
 	if err != nil {
 		log.Printf("Failed to ingest text: %v", err)
@@ -49,7 +53,7 @@ Go is widely used for:
 	// Example 2: Ingest from file (if exists)
 	fmt.Println("\n📁 Checking for sample files to ingest...")
 	sampleFiles := []string{"README.md", "rago.example.toml"}
-	
+
 	for _, filename := range sampleFiles {
 		if _, err := os.Stat(filename); err == nil {
 			fmt.Printf("📄 Ingesting file: %s\n", filename)

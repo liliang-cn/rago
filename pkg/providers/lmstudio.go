@@ -50,7 +50,7 @@ func NewLMStudioLLMProvider(config *domain.LMStudioProviderConfig) (*LMStudioLLM
 // Generate implements the Generator interface for single-turn generation
 func (p *LMStudioLLMProvider) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
 	if opts == nil {
-				_ = &domain.GenerationOptions{
+		_ = &domain.GenerationOptions{
 			Temperature: 0.7,
 			MaxTokens:   4000,
 		}
@@ -362,8 +362,8 @@ func (p *LMStudioLLMProvider) GenerateStructured(ctx context.Context, prompt str
 
 	return &domain.StructuredResult{
 		Data:  structuredResp.Parsed, // Use the parsed structured data
-		Raw:   "", // LMStudio doesn't provide raw JSON in this format
-		Valid: true, // CompleteWithSchema ensures validity
+		Raw:   "",                    // LMStudio doesn't provide raw JSON in this format
+		Valid: true,                  // CompleteWithSchema ensures validity
 	}, nil
 }
 
@@ -374,19 +374,19 @@ func (p *LMStudioLLMProvider) Health(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("LLM model health check failed: %w", err)
 	}
-	
+
 	// Check if we got exactly the expected response
 	if response == "" {
 		return fmt.Errorf("LLM model health check failed: empty response from model %s", p.llmModel)
 	}
-	
+
 	// Trim whitespace and check for exact match
 	trimmedResponse := strings.TrimSpace(response)
 	expectedResponse := "This is a test"
 	if trimmedResponse != expectedResponse {
 		return fmt.Errorf("LLM model health check failed: model %s did not respond correctly. Expected: %q, Got: %q", p.llmModel, expectedResponse, trimmedResponse)
 	}
-	
+
 	return nil
 }
 

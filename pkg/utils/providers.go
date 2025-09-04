@@ -22,13 +22,13 @@ func InitializeProviders(ctx context.Context, cfg *config.Config) (domain.Embedd
 		return nil, nil, nil, fmt.Errorf("failed to create embedder: %w", err)
 	}
 
-	// Initialize LLM service using providers  
+	// Initialize LLM service using providers
 	llmService, err := InitializeLLM(ctx, cfg, factory)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create LLM service: %w", err)
 	}
 
-	// Create processor service 
+	// Create processor service
 	// For the metadata extractor, we need to use the LLM service if it implements the interface
 	var metadataExtractor domain.MetadataExtractor
 	if extractor, ok := llmService.(domain.MetadataExtractor); ok {
@@ -109,12 +109,12 @@ func ComposePrompt(chunks []domain.Chunk, query string) string {
 	if len(chunks) == 0 {
 		return fmt.Sprintf("Please answer the following question:\n\n%s", query)
 	}
-	
+
 	var contextParts []string
 	for i, chunk := range chunks {
 		contextParts = append(contextParts, fmt.Sprintf("[Document Fragment %d]\n%s", i+1, chunk.Content))
 	}
-	
+
 	context := strings.Join(contextParts, "\n\n")
 	prompt := fmt.Sprintf(`Based on the following document content, please answer the user's question. If the documents do not contain relevant information, please indicate that you cannot find an answer from the provided documents.
 
@@ -124,6 +124,6 @@ Document Content:
 User Question: %s
 
 Please provide a detailed and accurate answer based on the document content:`, context, query)
-	
+
 	return prompt
 }

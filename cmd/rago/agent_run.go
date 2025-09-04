@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -34,7 +34,7 @@ Examples:
 
 func init() {
 	agentCmd.AddCommand(agentRunCmd)
-	
+
 	agentRunCmd.Flags().BoolP("save", "s", false, "Save the generated workflow to file")
 	agentRunCmd.Flags().StringP("output", "o", "", "Output file for workflow (implies --save)")
 	agentRunCmd.Flags().BoolP("dry-run", "d", false, "Generate workflow but don't execute")
@@ -47,14 +47,14 @@ func runNaturalLanguageAgent(cmd *cobra.Command, args []string) error {
 	outputPath, _ := cmd.Flags().GetString("output")
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 	interactive, _ := cmd.Flags().GetBool("interactive")
-	
+
 	if outputPath != "" {
 		save = true
 	}
-	
+
 	fmt.Printf("🤖 Natural Language Request: %s\n", request)
 	fmt.Println("=" + strings.Repeat("=", 50))
-	
+
 	// Load config if not already loaded
 	if cfg == nil {
 		var err error
@@ -63,41 +63,44 @@ func runNaturalLanguageAgent(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 	}
-	
+
 	// Initialize providers
 	ctx := context.Background()
 	_, llmService, _, err := initializeProviders(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to initialize LLM service: %w", err)
 	}
-	
+
 	// Step 1: Generate workflow from natural language
 	fmt.Println("\n📝 Step 1: Generating workflow from your request...")
 	fmt.Println("   🧠 Calling LLM to understand and create workflow...")
-	
+
 	workflow, err := generateSmartWorkflow(ctx, llmService, request)
 	if err != nil {
 		return fmt.Errorf("failed to generate workflow: %w", err)
 	}
-	
+
 	fmt.Printf("   ✅ Generated workflow with %d steps\n", len(workflow.Steps))
-	
+
 	// Display workflow summary
 	fmt.Println("\n📋 Generated Workflow:")
 	for i, step := range workflow.Steps {
 		emoji := "🔧"
-		if step.Tool == "fetch" {
+		switch step.Tool {
+		case "fetch":
 			emoji = "🌐"
-		} else if step.Tool == "sequential-thinking" {
+		case "sequential-thinking":
 			emoji = "🧠"
-		} else if step.Tool == "filesystem" {
+		case "filesystem":
 			emoji = "📁"
-		} else if step.Tool == "memory" {
+		case "memory":
 			emoji = "💾"
+		case "time":
+			emoji = "⏰"
 		}
 		fmt.Printf("   %d. %s %s (%s)\n", i+1, emoji, step.Name, step.Tool)
 	}
-	
+
 	// Save workflow if requested
 	if save || outputPath != "" {
 		if outputPath == "" {
@@ -107,55 +110,55 @@ func runNaturalLanguageAgent(cmd *cobra.Command, args []string) error {
 			}
 			outputPath = fmt.Sprintf("%s_workflow_%d.json", safeName, time.Now().Unix())
 		}
-		
+
 		workflowJSON, _ := json.MarshalIndent(workflow, "", "  ")
-		if err := ioutil.WriteFile(outputPath, workflowJSON, 0644); err != nil {
+		if err := os.WriteFile(outputPath, workflowJSON, 0644); err != nil {
 			fmt.Printf("⚠️  Failed to save workflow: %v\n", err)
 		} else {
 			fmt.Printf("\n💾 Workflow saved to: %s\n", outputPath)
 		}
 	}
-	
+
 	// Interactive review
 	if interactive && !dryRun {
 		fmt.Print("\n❓ Execute this workflow? (y/n): ")
 		var response string
-		fmt.Scanln(&response)
+		_, _ = fmt.Scanln(&response)
 		if strings.ToLower(response) != "y" {
 			fmt.Println("❌ Execution cancelled")
 			return nil
 		}
 	}
-	
+
 	if dryRun {
 		fmt.Println("\n🔍 Dry run mode - workflow generated but not executed")
 		return nil
 	}
-	
+
 	// Step 2: Execute the workflow
 	fmt.Println("\n⚡ Step 2: Executing the generated workflow...")
 	fmt.Printf("   Workflow has %d steps\n", len(workflow.Steps))
-	
+
 	// Create workflow executor with LLM
 	executor := execution.NewWorkflowExecutor(cfg, llmService)
 	executor.SetVerbose(verbose)
-	
+
 	// Add input variables from the request
 	workflow.Variables = extractWorkflowInputs(request)
-	
+
 	// Execute the workflow
 	startTime := time.Now()
 	result, err := executor.Execute(ctx, workflow)
 	if err != nil {
 		return fmt.Errorf("workflow execution failed: %w", err)
 	}
-	
+
 	duration := time.Since(startTime)
-	
+
 	// Step 3: Display results
 	fmt.Println("\n✅ Workflow completed successfully!")
 	fmt.Printf("⏱️  Execution time: %v\n", duration)
-	
+
 	// Display key outputs
 	fmt.Println("\n📊 Results:")
 	if len(result.Outputs) == 0 {
@@ -181,7 +184,7 @@ func runNaturalLanguageAgent(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
-	
+
 	// Check for saved files
 	if savedFiles := findSavedFiles(result); len(savedFiles) > 0 {
 		fmt.Println("\n📁 Files created:")
@@ -189,9 +192,9 @@ func runNaturalLanguageAgent(cmd *cobra.Command, args []string) error {
 			fmt.Printf("   - %s\n", file)
 		}
 	}
-	
+
 	fmt.Println("\n🎉 Task completed! Your request has been processed.")
-	
+
 	return nil
 }
 
@@ -238,15 +241,15 @@ Generate a complete workflow that accomplishes this request.
 Return a valid JSON workflow structure.`, request)
 
 	fullPrompt := fmt.Sprintf("System: %s\n\nUser: %s", systemPrompt, userPrompt)
-	
+
 	opts := &domain.GenerationOptions{
 		Temperature: 0.7,
 		MaxTokens:   3000,
 	}
-	
+
 	// Define the expected schema
 	var workflowSchema types.WorkflowSpec
-	
+
 	// Use GenerateStructured for type-safe JSON generation
 	result, err := llm.GenerateStructured(ctx, fullPrompt, &workflowSchema, opts)
 	if err != nil {
@@ -256,13 +259,13 @@ Return a valid JSON workflow structure.`, request)
 		}
 		return generateWorkflowFallback(ctx, llm, request, opts)
 	}
-	
+
 	// Debug output
 	if verbose {
 		fmt.Printf("\n🔍 Structured Response Valid: %v\n", result.Valid)
 		fmt.Printf("📄 Generated Workflow JSON:\n%s\n", result.Raw)
 	}
-	
+
 	// Extract the workflow from the result
 	workflow, ok := result.Data.(*types.WorkflowSpec)
 	if !ok {
@@ -273,17 +276,17 @@ Return a valid JSON workflow structure.`, request)
 		}
 		workflow = &fallbackWorkflow
 	}
-	
+
 	// Add default variables if needed
 	if workflow.Variables == nil {
 		workflow.Variables = make(map[string]interface{})
 	}
-	
+
 	// Ensure workflow is valid
 	if len(workflow.Steps) == 0 {
 		return nil, fmt.Errorf("generated workflow has no steps")
 	}
-	
+
 	return workflow, nil
 }
 
@@ -313,15 +316,15 @@ Return ONLY this JSON structure.`
 Generate a complete workflow. Return ONLY the JSON workflow.`, request)
 
 	fullPrompt := fmt.Sprintf("System: %s\n\nUser: %s", systemPrompt, userPrompt)
-	
+
 	response, err := llm.Generate(ctx, fullPrompt, opts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Extract and parse JSON
 	jsonStr := extractJSON(response)
-	
+
 	var workflow types.WorkflowSpec
 	if err := json.Unmarshal([]byte(jsonStr), &workflow); err != nil {
 		// Try wrapped format
@@ -337,24 +340,24 @@ Generate a complete workflow. Return ONLY the JSON workflow.`, request)
 			workflow = wrapped.Workflow
 		}
 	}
-	
+
 	if workflow.Variables == nil {
 		workflow.Variables = make(map[string]interface{})
 	}
-	
+
 	if len(workflow.Steps) == 0 {
 		return nil, fmt.Errorf("generated workflow has no steps")
 	}
-	
+
 	return &workflow, nil
 }
 
 func extractWorkflowInputs(request string) map[string]interface{} {
 	inputs := make(map[string]interface{})
-	
+
 	// Extract common parameters from the request
 	requestLower := strings.ToLower(request)
-	
+
 	// Extract location
 	cities := []string{"san francisco", "new york", "beijing", "shanghai", "tokyo"}
 	for _, city := range cities {
@@ -363,7 +366,7 @@ func extractWorkflowInputs(request string) map[string]interface{} {
 			break
 		}
 	}
-	
+
 	// Extract product names
 	products := []string{"iphone", "macbook", "airpods", "ipad", "pixel", "galaxy"}
 	for _, product := range products {
@@ -372,7 +375,7 @@ func extractWorkflowInputs(request string) map[string]interface{} {
 			break
 		}
 	}
-	
+
 	// Extract URLs if present
 	words := strings.Fields(request)
 	for _, word := range words {
@@ -381,13 +384,13 @@ func extractWorkflowInputs(request string) map[string]interface{} {
 			break
 		}
 	}
-	
+
 	return inputs
 }
 
 func findSavedFiles(result *types.ExecutionResult) []string {
 	var files []string
-	
+
 	// Look for file paths in outputs
 	for _, value := range result.Outputs {
 		if str, ok := value.(string); ok {
@@ -398,7 +401,7 @@ func findSavedFiles(result *types.ExecutionResult) []string {
 			}
 		}
 	}
-	
+
 	// Check step results for filesystem operations
 	for _, stepResult := range result.StepResults {
 		if stepResult.Status == "completed" {
@@ -407,6 +410,6 @@ func findSavedFiles(result *types.ExecutionResult) []string {
 			}
 		}
 	}
-	
+
 	return files
 }

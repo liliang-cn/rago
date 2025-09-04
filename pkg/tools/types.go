@@ -99,20 +99,20 @@ type CustomToolConfig struct {
 
 // SQLToolConfig represents configuration for SQL query tool
 type SQLToolConfig struct {
-	Enabled           bool           `toml:"enabled" mapstructure:"enabled"`
-	MaxRows           int            `toml:"max_rows" mapstructure:"max_rows"`
-	QueryTimeout      string         `toml:"query_timeout" mapstructure:"query_timeout"`
-	AllowedDatabases  []DatabaseConfig `toml:"allowed_databases" mapstructure:"allowed_databases"`
+	Enabled          bool             `toml:"enabled" mapstructure:"enabled"`
+	MaxRows          int              `toml:"max_rows" mapstructure:"max_rows"`
+	QueryTimeout     string           `toml:"query_timeout" mapstructure:"query_timeout"`
+	AllowedDatabases []DatabaseConfig `toml:"allowed_databases" mapstructure:"allowed_databases"`
 }
 
 // DatabaseConfig represents a single database configuration
 type DatabaseConfig struct {
-	Type string `toml:"type" mapstructure:"type"` // sqlite, mysql, postgres, etc
-	Name string `toml:"name" mapstructure:"name"`
-	Path string `toml:"path" mapstructure:"path"` // for sqlite
-	Host string `toml:"host,omitempty" mapstructure:"host"`
-	Port int    `toml:"port,omitempty" mapstructure:"port"`
-	User string `toml:"user,omitempty" mapstructure:"user"`
+	Type     string `toml:"type" mapstructure:"type"` // sqlite, mysql, postgres, etc
+	Name     string `toml:"name" mapstructure:"name"`
+	Path     string `toml:"path" mapstructure:"path"` // for sqlite
+	Host     string `toml:"host,omitempty" mapstructure:"host"`
+	Port     int    `toml:"port,omitempty" mapstructure:"port"`
+	User     string `toml:"user,omitempty" mapstructure:"user"`
 	Password string `toml:"password,omitempty" mapstructure:"password"`
 	Database string `toml:"database,omitempty" mapstructure:"database"`
 }

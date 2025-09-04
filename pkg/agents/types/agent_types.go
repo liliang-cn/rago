@@ -6,23 +6,23 @@ import (
 
 // Agent represents the core agent structure
 type Agent struct {
-	ID          string            `json:"id" yaml:"id"`
-	Name        string            `json:"name" yaml:"name"`
-	Description string            `json:"description" yaml:"description"`
-	Type        AgentType         `json:"type" yaml:"type"`
-	Config      AgentConfig       `json:"config" yaml:"config"`
-	Workflow    WorkflowSpec      `json:"workflow" yaml:"workflow"`
-	Status      AgentStatus       `json:"status" yaml:"status"`
-	CreatedAt   time.Time         `json:"created_at" yaml:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at" yaml:"updated_at"`
+	ID          string       `json:"id" yaml:"id"`
+	Name        string       `json:"name" yaml:"name"`
+	Description string       `json:"description" yaml:"description"`
+	Type        AgentType    `json:"type" yaml:"type"`
+	Config      AgentConfig  `json:"config" yaml:"config"`
+	Workflow    WorkflowSpec `json:"workflow" yaml:"workflow"`
+	Status      AgentStatus  `json:"status" yaml:"status"`
+	CreatedAt   time.Time    `json:"created_at" yaml:"created_at"`
+	UpdatedAt   time.Time    `json:"updated_at" yaml:"updated_at"`
 }
 
 // AgentType defines the category of agent
 type AgentType string
 
 const (
-	AgentTypeResearch  AgentType = "research"
-	AgentTypeWorkflow  AgentType = "workflow"
+	AgentTypeResearch   AgentType = "research"
+	AgentTypeWorkflow   AgentType = "workflow"
 	AgentTypeMonitoring AgentType = "monitoring"
 )
 
@@ -40,18 +40,18 @@ type AgentConfig struct {
 	MaxConcurrentExecutions int           `json:"max_concurrent_executions" yaml:"max_concurrent_executions"`
 	DefaultTimeout          time.Duration `json:"default_timeout" yaml:"default_timeout"`
 	EnableMetrics           bool          `json:"enable_metrics" yaml:"enable_metrics"`
-	AutonomyLevel          AutonomyLevel  `json:"autonomy_level" yaml:"autonomy_level"`
+	AutonomyLevel           AutonomyLevel `json:"autonomy_level" yaml:"autonomy_level"`
 }
 
 // AutonomyLevel defines how autonomous an agent can be
 type AutonomyLevel int
 
 const (
-	AutonomyManual     AutonomyLevel = iota // User-triggered only
-	AutonomyScheduled                       // Time-based execution
-	AutonomyReactive                        // Event-driven execution
-	AutonomyProactive                       // Goal-seeking behavior
-	AutonomyAdaptive                        // Learning and optimization
+	AutonomyManual    AutonomyLevel = iota // User-triggered only
+	AutonomyScheduled                      // Time-based execution
+	AutonomyReactive                       // Event-driven execution
+	AutonomyProactive                      // Goal-seeking behavior
+	AutonomyAdaptive                       // Learning and optimization
 )
 
 // String returns the string representation of AutonomyLevel
@@ -85,12 +85,12 @@ type AgentInterface interface {
 
 // ExecutionContext provides runtime context for agent execution
 type ExecutionContext struct {
-	RequestID   string                 `json:"request_id"`
-	UserID      string                 `json:"user_id,omitempty"`
-	Variables   map[string]interface{} `json:"variables"`
-	StartTime   time.Time              `json:"start_time"`
-	Timeout     time.Duration          `json:"timeout"`
-	MCPClient   interface{}            `json:"-"` // MCP service interface
+	RequestID string                 `json:"request_id"`
+	UserID    string                 `json:"user_id,omitempty"`
+	Variables map[string]interface{} `json:"variables"`
+	StartTime time.Time              `json:"start_time"`
+	Timeout   time.Duration          `json:"timeout"`
+	MCPClient interface{}            `json:"-"` // MCP service interface
 }
 
 // ExecutionResult holds the results of agent execution

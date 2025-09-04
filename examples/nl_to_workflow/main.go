@@ -77,7 +77,7 @@ func main() {
 	// Display results
 	fmt.Println("\n✅ Execution completed!")
 	fmt.Printf("   Duration: %v\n", result.Duration)
-	
+
 	// Show key outputs
 	fmt.Println("\n📊 Results:")
 	for key, value := range result.Outputs {
@@ -127,31 +127,31 @@ Return ONLY valid JSON in this format:
 Generate a workflow to accomplish this request. Return ONLY the JSON workflow.`, request)
 
 	fullPrompt := fmt.Sprintf("System: %s\n\nUser: %s", systemPrompt, userPrompt)
-	
+
 	opts := &domain.GenerationOptions{
 		Temperature: 0.7,
 		MaxTokens:   2000,
 	}
-	
+
 	response, err := llm.Generate(ctx, fullPrompt, opts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Extract JSON from response
 	jsonStr := extractJSON(response)
-	
+
 	// Parse workflow
 	var workflow types.WorkflowSpec
 	if err := json.Unmarshal([]byte(jsonStr), &workflow); err != nil {
 		return nil, fmt.Errorf("failed to parse workflow: %w", err)
 	}
-	
+
 	// Initialize variables if needed
 	if workflow.Variables == nil {
 		workflow.Variables = make(map[string]interface{})
 	}
-	
+
 	return &workflow, nil
 }
 
@@ -166,7 +166,7 @@ func extractJSON(text string) string {
 			return strings.TrimSpace(text[start : start+end])
 		}
 	}
-	
+
 	// Try to find JSON between ``` and ``` markers
 	start = strings.Index(text, "```")
 	if start != -1 {
@@ -176,7 +176,7 @@ func extractJSON(text string) string {
 			return strings.TrimSpace(text[start : start+end])
 		}
 	}
-	
+
 	// Try to find JSON starting with { and ending with }
 	start = strings.Index(text, "{")
 	if start != -1 {
@@ -185,7 +185,7 @@ func extractJSON(text string) string {
 			return strings.TrimSpace(text[start : end+1])
 		}
 	}
-	
+
 	// Return the whole text as last resort
 	return strings.TrimSpace(text)
 }
