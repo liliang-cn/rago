@@ -133,7 +133,7 @@ rago agent generate-template "monitor https://example.com/pricing for changes ev
 # - Create alerts for significant changes
 
 # Create and schedule the agent
-rago agent create --name "Pricing Monitor" --workflow-file website_monitor_workflow.json
+rago agent create --name "Pricing Monitor" --workflow-file testdata/website_monitor_workflow.json
 rago agent schedule agent_monitor123 --cron "0 * * * *"  # Every hour
 ```
 
