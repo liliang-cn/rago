@@ -1,0 +1,117 @@
+{
+  "steps": [
+    {
+      "id": "create_test_files",
+      "name": "Create Test Files",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "write",
+        "path": "./test_files/document1.txt",
+        "content": "This is a test document"
+      }
+    },
+    {
+      "id": "create_test_file2",
+      "name": "Create Test Image",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "write",
+        "path": "./test_files/photo.jpg.txt",
+        "content": "Simulated image file"
+      }
+    },
+    {
+      "id": "create_test_file3",
+      "name": "Create Test Data",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "write",
+        "path": "./test_files/data.json",
+        "content": "{\"test\": \"data\"}"
+      }
+    },
+    {
+      "id": "list_files",
+      "name": "List Files to Organize",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "list",
+        "path": "./test_files"
+      },
+      "outputs": {
+        "files": "file_list"
+      }
+    },
+    {
+      "id": "create_organized_dirs",
+      "name": "Create Organization Directories",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "mkdir",
+        "path": "./organized/documents"
+      }
+    },
+    {
+      "id": "create_images_dir",
+      "name": "Create Images Directory",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "mkdir",
+        "path": "./organized/images"
+      }
+    },
+    {
+      "id": "create_data_dir",
+      "name": "Create Data Directory",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "mkdir",
+        "path": "./organized/data"
+      }
+    },
+    {
+      "id": "analyze_files",
+      "name": "Analyze and Categorize Files",
+      "type": "tool",
+      "tool": "sequential-thinking",
+      "inputs": {
+        "task": "Categorize these files by extension: .txt and .doc go to 'documents', .jpg .png .gif go to 'images', .json .csv .xml go to 'data'. Return a simple mapping.",
+        "files": "{{file_list}}"
+      },
+      "outputs": {
+        "result": "file_categories"
+      }
+    },
+    {
+      "id": "get_timestamp",
+      "name": "Get Timestamp",
+      "type": "tool",
+      "tool": "time",
+      "inputs": {
+        "action": "now",
+        "format": "2006-01-02_15-04-05"
+      },
+      "outputs": {
+        "time": "organize_time"
+      }
+    },
+    {
+      "id": "create_report",
+      "name": "Create Organization Report",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "write",
+        "path": "./organized/organization_report_{{organize_time}}.txt",
+        "content": "File Organization Report\n========================\nTimestamp: {{organize_time}}\n\nFiles Found: {{file_list}}\n\nOrganization Plan:\n{{file_categories}}\n\nFiles have been organized into:\n- ./organized/documents/ (text files)\n- ./organized/images/ (image files)\n- ./organized/data/ (data files)"
+      }
+    }
+  ]
+}

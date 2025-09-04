@@ -1,0 +1,121 @@
+{
+  "steps": [
+    {
+      "id": "fetch_product_page",
+      "name": "Fetch Product Page",
+      "type": "tool",
+      "tool": "fetch",
+      "inputs": {
+        "url": "{{input.product_url}}"
+      },
+      "outputs": {
+        "content": "page_content",
+        "status": "http_status"
+      }
+    },
+    {
+      "id": "extract_price",
+      "name": "Extract Current Price",
+      "type": "tool",
+      "tool": "sequential-thinking",
+      "inputs": {
+        "task": "Extract the product price from this HTML. Look for price patterns like $XXX.XX or XXX.XX. Return ONLY the numeric price value without currency symbols.",
+        "content": "{{page_content}}"
+      },
+      "outputs": {
+        "result": "current_price"
+      }
+    },
+    {
+      "id": "get_previous_price",
+      "name": "Get Previous Price",
+      "type": "tool",
+      "tool": "memory",
+      "inputs": {
+        "action": "retrieve",
+        "key": "price_{{input.product_url}}"
+      },
+      "outputs": {
+        "value": "previous_price"
+      }
+    },
+    {
+      "id": "compare_prices",
+      "name": "Compare Prices",
+      "type": "tool",
+      "tool": "sequential-thinking",
+      "inputs": {
+        "task": "Compare these two prices. If current price is lower than previous price, return 'PRICE_DROP' and calculate the savings. If higher, return 'PRICE_INCREASE'. If same or no previous price exists, return 'NO_CHANGE'. Format: STATUS|AMOUNT|PERCENTAGE",
+        "current": "{{current_price}}",
+        "previous": "{{previous_price}}"
+      },
+      "outputs": {
+        "result": "price_comparison"
+      }
+    },
+    {
+      "id": "store_current_price",
+      "name": "Store Current Price",
+      "type": "tool",
+      "tool": "memory",
+      "inputs": {
+        "action": "store",
+        "key": "price_{{input.product_url}}",
+        "value": "{{current_price}}"
+      }
+    },
+    {
+      "id": "get_timestamp",
+      "name": "Get Current Time",
+      "type": "tool",
+      "tool": "time",
+      "inputs": {
+        "action": "now",
+        "format": "2006-01-02 15:04:05"
+      },
+      "outputs": {
+        "time": "check_time"
+      }
+    },
+    {
+      "id": "log_price_check",
+      "name": "Log Price Check",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "append",
+        "path": "./price_monitor.log",
+        "content": "[{{check_time}}] {{input.product_name}}: ${{current_price}} - {{price_comparison}}\n"
+      }
+    },
+    {
+      "id": "alert_on_drop",
+      "name": "Alert on Price Drop",
+      "type": "condition",
+      "conditions": [
+        {
+          "field": "price_comparison",
+          "operator": "contains",
+          "value": "PRICE_DROP"
+        }
+      ],
+      "steps": [
+        {
+          "id": "create_alert",
+          "name": "Create Alert File",
+          "type": "tool",
+          "tool": "filesystem",
+          "inputs": {
+            "action": "write",
+            "path": "./PRICE_ALERT_{{check_time}}.txt",
+            "content": "🎉 PRICE DROP ALERT!\n\nProduct: {{input.product_name}}\nURL: {{input.product_url}}\nPrevious Price: ${{previous_price}}\nCurrent Price: ${{current_price}}\nComparison: {{price_comparison}}\nChecked at: {{check_time}}\n\nGo grab this deal!"
+          }
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "product_url": "https://example-shop.com/product/laptop",
+    "product_name": "Gaming Laptop"
+  }
+}

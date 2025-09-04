@@ -1,4 +1,4 @@
-package rago
+package main
 
 import (
 	"bufio"
