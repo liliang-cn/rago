@@ -44,7 +44,7 @@ func CheckMCPEnvironment() *MCPEnvironmentStatus {
 	// Check Python environment
 	checkPythonEnvironment(status)
 
-	// Check Node.js environment  
+	// Check Node.js environment
 	checkNodeEnvironment(status)
 
 	// Define default servers and their requirements
@@ -194,7 +194,7 @@ func PrintMCPEnvironmentStatus(status *MCPEnvironmentStatus) {
 	} else {
 		fmt.Println("   ❌ Python: Not found")
 	}
-	
+
 	printToolStatus("   ", "uv", status.Python.UV, "Fast Python package manager")
 	printToolStatus("   ", "uvx", status.Python.UVX, "Run Python tools without installation")
 	printToolStatus("   ", "pipx", status.Python.PipX, "Install Python applications")
@@ -206,17 +206,17 @@ func PrintMCPEnvironmentStatus(status *MCPEnvironmentStatus) {
 	} else {
 		fmt.Println("   ❌ Node.js: Not found")
 	}
-	
+
 	printToolStatus("   ", "npm", status.NodeJS.NPM, "Node package manager")
 	printToolStatus("   ", "npx", status.NodeJS.NPX, "Run Node packages without installation")
 	printToolStatus("   ", "yarn", status.NodeJS.Yarn, "Alternative package manager")
 
 	// Server availability
 	fmt.Println("\n🚀 MCP Server Availability:")
-	
+
 	pythonCount := 0
 	nodeCount := 0
-	
+
 	for _, server := range status.Servers {
 		if server.Runtime == "python" && server.Available {
 			pythonCount++
@@ -225,13 +225,13 @@ func PrintMCPEnvironmentStatus(status *MCPEnvironmentStatus) {
 			nodeCount++
 		}
 	}
-	
+
 	fmt.Printf("   Python servers: %d available\n", pythonCount)
 	fmt.Printf("   Node.js servers: %d available\n", nodeCount)
 
 	// Recommendations
 	fmt.Println("\n💡 Recommendations:")
-	
+
 	if !status.Python.UVX && !status.NodeJS.NPX {
 		fmt.Println("   ⚠️  No zero-install tools available!")
 		fmt.Println("   Install either:")

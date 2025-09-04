@@ -26,7 +26,7 @@ type Manager struct {
 
 // Config holds configuration for the agents module
 type Config struct {
-	StorageBackend          string        `yaml:"storage_backend" json:"storage_backend"`                     // memory, sqlite, postgres
+	StorageBackend          string        `yaml:"storage_backend" json:"storage_backend"` // memory, sqlite, postgres
 	MaxConcurrentExecutions int           `yaml:"max_concurrent_executions" json:"max_concurrent_executions"`
 	DefaultTimeout          time.Duration `yaml:"default_timeout" json:"default_timeout"`
 	EnableMetrics           bool          `yaml:"enable_metrics" json:"enable_metrics"`
@@ -131,7 +131,7 @@ func (m *Manager) ExecuteWorkflow(ctx context.Context, agent types.AgentInterfac
 // HTTPHandler returns an HTTP handler for the agents API
 func (m *Manager) HTTPHandler() http.Handler {
 	router := mux.NewRouter()
-	
+
 	// Create a subrouter for agents API
 	agentsRouter := router.PathPrefix("/api/agents").Subrouter()
 	m.handler.RegisterRoutes(agentsRouter)
@@ -171,12 +171,12 @@ func (m *Manager) GetExecutionHistory(agentID string) ([]*types.ExecutionResult,
 func (m *Manager) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		
+
 		// Log request
 		log.Printf("[AGENTS] %s %s", r.Method, r.URL.Path)
-		
+
 		next.ServeHTTP(w, r)
-		
+
 		// Log response time
 		duration := time.Since(start)
 		log.Printf("[AGENTS] %s %s completed in %v", r.Method, r.URL.Path, duration)
@@ -188,12 +188,12 @@ func (m *Manager) corsMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -211,7 +211,7 @@ func (m *Manager) CreateResearchAgent(name, description string) (types.AgentInte
 			MaxConcurrentExecutions: 5,
 			DefaultTimeout:          10 * time.Minute,
 			EnableMetrics:           true,
-			AutonomyLevel:          types.AutonomyManual,
+			AutonomyLevel:           types.AutonomyManual,
 		},
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -221,7 +221,7 @@ func (m *Manager) CreateResearchAgent(name, description string) (types.AgentInte
 					Type: types.StepTypeTool,
 					Tool: "document_analyzer",
 					Inputs: map[string]interface{}{
-						"document": "{{input.document}}",
+						"document":      "{{input.document}}",
 						"analysis_type": "comprehensive",
 					},
 					Outputs: map[string]string{
@@ -252,7 +252,7 @@ func (m *Manager) CreateWorkflowAgent(name, description string, steps []types.Wo
 			MaxConcurrentExecutions: 3,
 			DefaultTimeout:          20 * time.Minute,
 			EnableMetrics:           true,
-			AutonomyLevel:          types.AutonomyScheduled,
+			AutonomyLevel:           types.AutonomyScheduled,
 		},
 		Workflow: types.WorkflowSpec{
 			Steps:     steps,
@@ -275,7 +275,7 @@ func (m *Manager) CreateMonitoringAgent(name, description string) (types.AgentIn
 			MaxConcurrentExecutions: 1,
 			DefaultTimeout:          5 * time.Minute,
 			EnableMetrics:           true,
-			AutonomyLevel:          types.AutonomyReactive,
+			AutonomyLevel:           types.AutonomyReactive,
 		},
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -295,7 +295,7 @@ func (m *Manager) CreateMonitoringAgent(name, description string) (types.AgentIn
 				},
 			},
 			Variables: map[string]interface{}{
-				"alert_threshold": 0.8,
+				"alert_threshold":      0.8,
 				"notification_enabled": true,
 			},
 		},

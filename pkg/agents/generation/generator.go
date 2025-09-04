@@ -32,15 +32,15 @@ func (g *AgentGenerator) SetVerbose(verbose bool) {
 // GenerateWorkflow generates a workflow from a natural language request
 func (g *AgentGenerator) GenerateWorkflow(ctx context.Context, request string) (*types.WorkflowSpec, error) {
 	prompt := g.buildWorkflowPrompt(request)
-	
+
 	opts := &domain.GenerationOptions{
 		Temperature: 0.7,
 		MaxTokens:   3000,
 	}
-	
+
 	// Define the expected schema
 	var workflowSchema types.WorkflowSpec
-	
+
 	// Use GenerateStructured for type-safe JSON generation
 	result, err := g.llm.GenerateStructured(ctx, prompt, &workflowSchema, opts)
 	if err != nil {
@@ -50,11 +50,11 @@ func (g *AgentGenerator) GenerateWorkflow(ctx context.Context, request string) (
 		// Fallback to unstructured generation
 		return g.generateWorkflowUnstructured(ctx, request, opts)
 	}
-	
+
 	if g.verbose {
 		fmt.Printf("✅ Structured generation successful (valid: %v)\n", result.Valid)
 	}
-	
+
 	// Extract the workflow
 	workflow, ok := result.Data.(*types.WorkflowSpec)
 	if !ok {
@@ -65,42 +65,42 @@ func (g *AgentGenerator) GenerateWorkflow(ctx context.Context, request string) (
 		}
 		workflow = &parsedWorkflow
 	}
-	
+
 	// Validate and enhance workflow
 	if err := g.validateWorkflow(workflow); err != nil {
 		return nil, err
 	}
-	
+
 	return workflow, nil
 }
 
 // GenerateAgent generates a complete agent definition from a description
 func (g *AgentGenerator) GenerateAgent(ctx context.Context, description string, agentType types.AgentType) (*types.Agent, error) {
 	prompt := g.buildAgentPrompt(description, agentType)
-	
+
 	opts := &domain.GenerationOptions{
 		Temperature: 0.7,
 		MaxTokens:   2000,
 	}
-	
+
 	// Define schema for agent generation
 	type AgentSchema struct {
-		Name                    string                 `json:"name"`
-		Description             string                 `json:"description"`
-		MaxConcurrentExecutions int                    `json:"max_concurrent_executions"`
-		DefaultTimeoutMinutes   int                    `json:"default_timeout_minutes"`
-		EnableMetrics           bool                   `json:"enable_metrics"`
-		AutonomyLevel           string                 `json:"autonomy_level"`
-		Workflow                types.WorkflowSpec     `json:"workflow"`
+		Name                    string             `json:"name"`
+		Description             string             `json:"description"`
+		MaxConcurrentExecutions int                `json:"max_concurrent_executions"`
+		DefaultTimeoutMinutes   int                `json:"default_timeout_minutes"`
+		EnableMetrics           bool               `json:"enable_metrics"`
+		AutonomyLevel           string             `json:"autonomy_level"`
+		Workflow                types.WorkflowSpec `json:"workflow"`
 	}
-	
+
 	var schema AgentSchema
-	
+
 	result, err := g.llm.GenerateStructured(ctx, prompt, &schema, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate agent: %w", err)
 	}
-	
+
 	// Extract generated agent data
 	agentData, ok := result.Data.(*AgentSchema)
 	if !ok {
@@ -110,7 +110,7 @@ func (g *AgentGenerator) GenerateAgent(ctx context.Context, description string, 
 		}
 		agentData = &parsed
 	}
-	
+
 	// Map autonomy level string to enum
 	autonomyLevel := types.AutonomyManual
 	switch strings.ToLower(agentData.AutonomyLevel) {
@@ -123,7 +123,7 @@ func (g *AgentGenerator) GenerateAgent(ctx context.Context, description string, 
 	case "adaptive":
 		autonomyLevel = types.AutonomyAdaptive
 	}
-	
+
 	// Create agent from generated data
 	agent := &types.Agent{
 		Name:        agentData.Name,
@@ -133,14 +133,14 @@ func (g *AgentGenerator) GenerateAgent(ctx context.Context, description string, 
 			MaxConcurrentExecutions: agentData.MaxConcurrentExecutions,
 			DefaultTimeout:          time.Duration(agentData.DefaultTimeoutMinutes) * time.Minute,
 			EnableMetrics:           agentData.EnableMetrics,
-			AutonomyLevel:          autonomyLevel,
+			AutonomyLevel:           autonomyLevel,
 		},
 		Workflow:  agentData.Workflow,
 		Status:    types.AgentStatusActive,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	
+
 	return agent, nil
 }
 
@@ -150,31 +150,31 @@ func (g *AgentGenerator) GenerateToolCall(ctx context.Context, tool string, cont
 %s
 
 Return only the JSON parameters object that matches the tool's expected schema.`, tool, context)
-	
+
 	opts := &domain.GenerationOptions{
 		Temperature: 0.5, // Lower temperature for more consistent parameter generation
 		MaxTokens:   1000,
 	}
-	
+
 	// Generic map for tool parameters
 	var params map[string]interface{}
-	
+
 	result, err := g.llm.GenerateStructured(ctx, prompt, &params, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tool parameters: %w", err)
 	}
-	
+
 	// Extract parameters
 	if paramsData, ok := result.Data.(*map[string]interface{}); ok {
 		return *paramsData, nil
 	}
-	
+
 	// Fallback to parsing raw JSON
 	var parsed map[string]interface{}
 	if err := json.Unmarshal([]byte(result.Raw), &parsed); err != nil {
 		return nil, fmt.Errorf("failed to parse tool parameters: %w", err)
 	}
-	
+
 	return parsed, nil
 }
 
@@ -212,7 +212,7 @@ func (g *AgentGenerator) buildAgentPrompt(description string, agentType types.Ag
 	default:
 		typeDescription = "General purpose agents perform various tasks."
 	}
-	
+
 	return fmt.Sprintf(`Create a %s agent based on this description:
 %s
 
@@ -237,16 +237,16 @@ func (g *AgentGenerator) validateWorkflow(workflow *types.WorkflowSpec) error {
 	if workflow == nil {
 		return fmt.Errorf("workflow is nil")
 	}
-	
+
 	if len(workflow.Steps) == 0 {
 		return fmt.Errorf("workflow has no steps")
 	}
-	
+
 	// Initialize variables if needed
 	if workflow.Variables == nil {
 		workflow.Variables = make(map[string]interface{})
 	}
-	
+
 	// Validate each step
 	for i, step := range workflow.Steps {
 		if step.ID == "" {
@@ -259,7 +259,7 @@ func (g *AgentGenerator) validateWorkflow(workflow *types.WorkflowSpec) error {
 			step.Type = "tool"
 		}
 	}
-	
+
 	return nil
 }
 
@@ -268,24 +268,24 @@ func (g *AgentGenerator) generateWorkflowUnstructured(ctx context.Context, reque
 	prompt := fmt.Sprintf(`Generate ONLY a valid JSON workflow for this request: %s
 
 Return ONLY the JSON structure with steps array, no explanation.`, request)
-	
+
 	response, err := g.llm.Generate(ctx, prompt, opts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Extract JSON from response
 	jsonStr := extractJSON(response)
-	
+
 	var workflow types.WorkflowSpec
 	if err := json.Unmarshal([]byte(jsonStr), &workflow); err != nil {
 		return nil, fmt.Errorf("failed to parse workflow JSON: %w", err)
 	}
-	
+
 	if err := g.validateWorkflow(&workflow); err != nil {
 		return nil, err
 	}
-	
+
 	return &workflow, nil
 }
 
@@ -298,7 +298,7 @@ func extractJSON(text string) string {
 			return strings.TrimSpace(text[start : start+end])
 		}
 	}
-	
+
 	// Try to find JSON starting with { or [
 	text = strings.TrimSpace(text)
 	if strings.HasPrefix(text, "{") || strings.HasPrefix(text, "[") {
@@ -306,23 +306,23 @@ func extractJSON(text string) string {
 		depth := 0
 		inString := false
 		escape := false
-		
+
 		for i, ch := range text {
 			if escape {
 				escape = false
 				continue
 			}
-			
+
 			if ch == '\\' {
 				escape = true
 				continue
 			}
-			
+
 			if ch == '"' && !escape {
 				inString = !inString
 				continue
 			}
-			
+
 			if !inString {
 				switch ch {
 				case '{', '[':
@@ -336,6 +336,6 @@ func extractJSON(text string) string {
 			}
 		}
 	}
-	
+
 	return text
 }

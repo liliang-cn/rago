@@ -37,7 +37,7 @@ func main() {
 	defer server.Close()
 
 	baseURL := server.URL + "/api/agents"
-	
+
 	// Test 1: Create agent via API
 	fmt.Println("\n📝 Test 1: Create Agent via API")
 	createReq := api.CreateAgentRequest{
@@ -48,7 +48,7 @@ func main() {
 			MaxConcurrentExecutions: 1,
 			DefaultTimeout:          60,
 			EnableMetrics:           true,
-			AutonomyLevel:          types.AutonomyManual,
+			AutonomyLevel:           types.AutonomyManual,
 		},
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -72,11 +72,13 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create agent: %v", err))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(resp.Body)
 	var createResp api.CreateAgentResponse
-	json.Unmarshal(respBody, &createResp)
+	if err := json.Unmarshal(respBody, &createResp); err != nil {
+		panic(fmt.Sprintf("Failed to unmarshal create response: %v", err))
+	}
 
 	fmt.Printf("✅ Agent created: %s (ID: %s)\n", createResp.Agent.Name, createResp.Agent.ID)
 	agentID := createResp.Agent.ID
@@ -87,11 +89,13 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to list agents: %v", err))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ = io.ReadAll(resp.Body)
 	var listResp api.ListAgentsResponse
-	json.Unmarshal(respBody, &listResp)
+	if err := json.Unmarshal(respBody, &listResp); err != nil {
+		panic(fmt.Sprintf("Failed to unmarshal list response: %v", err))
+	}
 
 	fmt.Printf("✅ Found %d agents\n", listResp.Count)
 	for _, agent := range listResp.Agents {
@@ -104,11 +108,13 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to get agent: %v", err))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ = io.ReadAll(resp.Body)
 	var agent types.Agent
-	json.Unmarshal(respBody, &agent)
+	if err := json.Unmarshal(respBody, &agent); err != nil {
+		panic(fmt.Sprintf("Failed to unmarshal agent response: %v", err))
+	}
 
 	fmt.Printf("✅ Retrieved agent: %s\n", agent.Name)
 	fmt.Printf("   Status: %s\n", agent.Status)
@@ -131,11 +137,13 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to execute agent: %v", err))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ = io.ReadAll(resp.Body)
 	var execResult types.ExecutionResult
-	json.Unmarshal(respBody, &execResult)
+	if err := json.Unmarshal(respBody, &execResult); err != nil {
+		panic(fmt.Sprintf("Failed to unmarshal execution result: %v", err))
+	}
 
 	fmt.Printf("✅ Execution completed: %s\n", execResult.Status)
 	fmt.Printf("   Duration: %v\n", execResult.Duration)
@@ -147,11 +155,13 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to get executions: %v", err))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ = io.ReadAll(resp.Body)
 	var execsResp api.ListExecutionsResponse
-	json.Unmarshal(respBody, &execsResp)
+	if err := json.Unmarshal(respBody, &execsResp); err != nil {
+		panic(fmt.Sprintf("Failed to unmarshal executions response: %v", err))
+	}
 
 	fmt.Printf("✅ Found %d executions\n", execsResp.Count)
 	for _, exec := range execsResp.Executions {
@@ -164,11 +174,13 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to get templates: %v", err))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ = io.ReadAll(resp.Body)
 	var templatesResp api.WorkflowTemplatesResponse
-	json.Unmarshal(respBody, &templatesResp)
+	if err := json.Unmarshal(respBody, &templatesResp); err != nil {
+		panic(fmt.Sprintf("Failed to unmarshal templates response: %v", err))
+	}
 
 	fmt.Printf("✅ Found %d templates\n", templatesResp.Count)
 	for _, template := range templatesResp.Templates {
@@ -182,7 +194,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to delete agent: %v", err))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusOK {
 		fmt.Printf("✅ Agent %s deleted successfully\n", agentID)

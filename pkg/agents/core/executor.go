@@ -16,11 +16,11 @@ type AgentExecutor struct {
 	storage        AgentStorage
 	templateEngine types.TemplateEngine
 	validator      types.WorkflowValidator
-	
+
 	// Execution tracking
 	executions     map[string]*ExecutionInstance
 	executionMutex sync.RWMutex
-	
+
 	// Configuration
 	maxConcurrentExecutions int
 	defaultTimeout          time.Duration
@@ -61,7 +61,7 @@ func NewAgentExecutor(mcpClient interface{}, storage AgentStorage) *AgentExecuto
 	return &AgentExecutor{
 		mcpClient:               mcpClient,
 		storage:                 storage,
-		executions:             make(map[string]*ExecutionInstance),
+		executions:              make(map[string]*ExecutionInstance),
 		maxConcurrentExecutions: 10,
 		defaultTimeout:          30 * time.Minute,
 	}
@@ -80,7 +80,7 @@ func (e *AgentExecutor) SetValidator(validator types.WorkflowValidator) {
 // Execute executes an agent workflow
 func (e *AgentExecutor) Execute(ctx context.Context, agent types.AgentInterface) (*types.ExecutionResult, error) {
 	executionID := uuid.New().String()
-	
+
 	// Check concurrent execution limit
 	if e.getCurrentExecutionCount() >= e.maxConcurrentExecutions {
 		return nil, fmt.Errorf("maximum concurrent executions reached (%d)", e.maxConcurrentExecutions)
@@ -296,7 +296,7 @@ func (e *AgentExecutor) executeStep(ctx context.Context, step types.WorkflowStep
 	}
 
 	stepResult.Status = types.ExecutionStatusCompleted
-	
+
 	// Map outputs
 	if result != nil {
 		for outputKey, variableName := range step.Outputs {
@@ -325,20 +325,20 @@ func (e *AgentExecutor) executeMCPTool(ctx context.Context, toolName string, inp
 // executeVariableAssignment handles variable assignment steps
 func (e *AgentExecutor) executeVariableAssignment(step types.WorkflowStep, inputs map[string]interface{}, execCtx types.ExecutionContext) (interface{}, error) {
 	results := make(map[string]interface{})
-	
+
 	// Assign variables from inputs
 	for key, value := range inputs {
 		execCtx.Variables[key] = value
 		results[key] = value
 	}
-	
+
 	return results, nil
 }
 
 // executeDelay handles delay steps
 func (e *AgentExecutor) executeDelay(ctx context.Context, step types.WorkflowStep, inputs map[string]interface{}) (interface{}, error) {
 	duration := 1 * time.Second // default
-	
+
 	if delayValue, exists := inputs["duration"]; exists {
 		if delayStr, ok := delayValue.(string); ok {
 			if parsedDuration, err := time.ParseDuration(delayStr); err == nil {
@@ -346,7 +346,7 @@ func (e *AgentExecutor) executeDelay(ctx context.Context, step types.WorkflowSte
 			}
 		}
 	}
-	
+
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -388,7 +388,7 @@ func (e *AgentExecutor) addLog(result *types.ExecutionResult, level types.LogLev
 func (e *AgentExecutor) GetActiveExecutions() map[string]*ExecutionInstance {
 	e.executionMutex.RLock()
 	defer e.executionMutex.RUnlock()
-	
+
 	result := make(map[string]*ExecutionInstance)
 	for k, v := range e.executions {
 		result[k] = v
@@ -401,11 +401,11 @@ func (e *AgentExecutor) CancelExecution(executionID string) error {
 	e.executionMutex.RLock()
 	instance, exists := e.executions[executionID]
 	e.executionMutex.RUnlock()
-	
+
 	if !exists {
 		return fmt.Errorf("execution %s not found", executionID)
 	}
-	
+
 	instance.CancelFunc()
 	instance.Status = types.ExecutionStatusCancelled
 	return nil

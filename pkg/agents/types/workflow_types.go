@@ -6,12 +6,12 @@ import (
 
 // WorkflowSpec defines the structure of a workflow
 type WorkflowSpec struct {
-	Steps       []WorkflowStep        `json:"steps" yaml:"steps"`
-	Triggers    []Trigger             `json:"triggers" yaml:"triggers"`
+	Steps       []WorkflowStep         `json:"steps" yaml:"steps"`
+	Triggers    []Trigger              `json:"triggers" yaml:"triggers"`
 	Variables   map[string]interface{} `json:"variables" yaml:"variables"`
-	ErrorPolicy ErrorPolicy           `json:"error_policy" yaml:"error_policy"`
-	Timeout     time.Duration         `json:"timeout" yaml:"timeout"`
-	Metadata    WorkflowMetadata      `json:"metadata" yaml:"metadata"`
+	ErrorPolicy ErrorPolicy            `json:"error_policy" yaml:"error_policy"`
+	Timeout     time.Duration          `json:"timeout" yaml:"timeout"`
+	Metadata    WorkflowMetadata       `json:"metadata" yaml:"metadata"`
 }
 
 // WorkflowStep represents a single step in a workflow
@@ -33,12 +33,12 @@ type WorkflowStep struct {
 type StepType string
 
 const (
-	StepTypeTool       StepType = "tool"       // Execute an MCP tool
-	StepTypeCondition  StepType = "condition"  // Conditional branching
-	StepTypeLoop       StepType = "loop"       // Loop execution
-	StepTypeParallel   StepType = "parallel"   // Parallel execution
-	StepTypeDelay      StepType = "delay"      // Time delay
-	StepTypeVariable   StepType = "variable"   // Variable assignment
+	StepTypeTool      StepType = "tool"      // Execute an MCP tool
+	StepTypeCondition StepType = "condition" // Conditional branching
+	StepTypeLoop      StepType = "loop"      // Loop execution
+	StepTypeParallel  StepType = "parallel"  // Parallel execution
+	StepTypeDelay     StepType = "delay"     // Time delay
+	StepTypeVariable  StepType = "variable"  // Variable assignment
 )
 
 // Trigger defines when a workflow should be executed
@@ -73,11 +73,11 @@ type Condition struct {
 
 // ErrorPolicy defines how errors should be handled
 type ErrorPolicy struct {
-	Strategy    ErrorStrategy `json:"strategy" yaml:"strategy"`
-	MaxRetries  int           `json:"max_retries" yaml:"max_retries"`
-	RetryDelay  time.Duration `json:"retry_delay" yaml:"retry_delay"`
-	ContinueOn  []string      `json:"continue_on,omitempty" yaml:"continue_on,omitempty"` // Error types to continue on
-	NotifyOn    []string      `json:"notify_on,omitempty" yaml:"notify_on,omitempty"`     // Error types to notify on
+	Strategy   ErrorStrategy `json:"strategy" yaml:"strategy"`
+	MaxRetries int           `json:"max_retries" yaml:"max_retries"`
+	RetryDelay time.Duration `json:"retry_delay" yaml:"retry_delay"`
+	ContinueOn []string      `json:"continue_on,omitempty" yaml:"continue_on,omitempty"` // Error types to continue on
+	NotifyOn   []string      `json:"notify_on,omitempty" yaml:"notify_on,omitempty"`     // Error types to notify on
 }
 
 // ErrorStrategy defines error handling strategies
@@ -120,11 +120,11 @@ type WorkflowMetadata struct {
 
 // ToolChain represents a sequence of tool executions
 type ToolChain struct {
-	ID        string            `json:"id" yaml:"id"`
-	Name      string            `json:"name" yaml:"name"`
-	Steps     []ChainStep       `json:"steps" yaml:"steps"`
+	ID        string                 `json:"id" yaml:"id"`
+	Name      string                 `json:"name" yaml:"name"`
+	Steps     []ChainStep            `json:"steps" yaml:"steps"`
 	Variables map[string]interface{} `json:"variables" yaml:"variables"`
-	Parallel  bool              `json:"parallel" yaml:"parallel"`
+	Parallel  bool                   `json:"parallel" yaml:"parallel"`
 }
 
 // ChainStep represents a step in a tool chain
@@ -132,8 +132,8 @@ type ChainStep struct {
 	ID         string                 `json:"id" yaml:"id"`
 	Name       string                 `json:"name" yaml:"name"`
 	ToolName   string                 `json:"tool_name" yaml:"tool_name"`
-	Inputs     map[string]interface{} `json:"inputs" yaml:"inputs"`     // Template expressions
-	Outputs    map[string]string      `json:"outputs" yaml:"outputs"`   // Variable mappings
+	Inputs     map[string]interface{} `json:"inputs" yaml:"inputs"`   // Template expressions
+	Outputs    map[string]string      `json:"outputs" yaml:"outputs"` // Variable mappings
 	Conditions []Condition            `json:"conditions,omitempty" yaml:"conditions,omitempty"`
 	Retry      RetryPolicy            `json:"retry" yaml:"retry"`
 	Timeout    time.Duration          `json:"timeout" yaml:"timeout"`
@@ -141,28 +141,28 @@ type ChainStep struct {
 
 // LoopDefinition defines loop behavior
 type LoopDefinition struct {
-	ID          string      `json:"id" yaml:"id"`
-	Type        LoopType    `json:"type" yaml:"type"`
-	Condition   Condition   `json:"condition,omitempty" yaml:"condition,omitempty"`
-	Iterator    string      `json:"iterator,omitempty" yaml:"iterator,omitempty"`
+	ID            string    `json:"id" yaml:"id"`
+	Type          LoopType  `json:"type" yaml:"type"`
+	Condition     Condition `json:"condition,omitempty" yaml:"condition,omitempty"`
+	Iterator      string    `json:"iterator,omitempty" yaml:"iterator,omitempty"`
 	MaxIterations int       `json:"max_iterations" yaml:"max_iterations"`
-	Steps       []string    `json:"steps" yaml:"steps"` // Step IDs to loop over
+	Steps         []string  `json:"steps" yaml:"steps"` // Step IDs to loop over
 }
 
 // LoopType defines different loop types
 type LoopType string
 
 const (
-	LoopTypeWhile   LoopType = "while"   // While condition is true
-	LoopTypeFor     LoopType = "for"     // For each item in iterator
-	LoopTypeCount   LoopType = "count"   // Fixed number of iterations
+	LoopTypeWhile LoopType = "while" // While condition is true
+	LoopTypeFor   LoopType = "for"   // For each item in iterator
+	LoopTypeCount LoopType = "count" // Fixed number of iterations
 )
 
 // ParallelGroup defines parallel execution
 type ParallelGroup struct {
 	ID      string   `json:"id" yaml:"id"`
 	Name    string   `json:"name" yaml:"name"`
-	Steps   []string `json:"steps" yaml:"steps"` // Step IDs to execute in parallel
+	Steps   []string `json:"steps" yaml:"steps"`       // Step IDs to execute in parallel
 	WaitAll bool     `json:"wait_all" yaml:"wait_all"` // Wait for all or first completion
 }
 

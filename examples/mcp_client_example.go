@@ -11,14 +11,18 @@ import (
 
 func main() {
 	fmt.Println("🚀 RAGO Simple MCP Client Example")
-	fmt.Println("=================================\n")
+	fmt.Println("=================================")
 
 	// Create a simple client with MCP enabled by default
 	client, err := rago.NewSimpleClient()
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			log.Printf("Failed to close client: %v", err)
+		}
+	}()
 
 	// Wait for servers to start
 	fmt.Println("⏳ Starting MCP servers...")
@@ -38,7 +42,7 @@ func main() {
 	// List available tools
 	fmt.Println("\n🔧 Available MCP Tools:")
 	tools := client.ListTools()
-	
+
 	if len(tools) == 0 {
 		fmt.Println("  No tools available (servers may still be starting)")
 	} else {
@@ -49,7 +53,7 @@ func main() {
 
 	// Example tool calls
 	ctx := context.Background()
-	
+
 	fmt.Println("\n📝 Example Tool Calls:")
 	fmt.Println("---------------------")
 
@@ -66,7 +70,7 @@ func main() {
 
 	// Example 2: Store and retrieve from memory
 	fmt.Println("\n2. Using memory storage...")
-	
+
 	// Store a value
 	_, err = client.CallTool(ctx, "memory_store", map[string]interface{}{
 		"key":   "example_key",
@@ -77,7 +81,7 @@ func main() {
 	} else {
 		fmt.Println("   ✅ Value stored successfully")
 	}
-	
+
 	// Retrieve the value
 	result, err = client.CallTool(ctx, "memory_retrieve", map[string]interface{}{
 		"key": "example_key",
