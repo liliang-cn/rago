@@ -1,0 +1,99 @@
+{
+  "steps": [
+    {
+      "id": "get_timestamp",
+      "name": "Get Current Time",
+      "type": "tool",
+      "tool": "time",
+      "inputs": {
+        "action": "now",
+        "format": "ISO8601"
+      },
+      "outputs": {
+        "time": "check_time"
+      }
+    },
+    {
+      "id": "fetch_page",
+      "name": "Fetch Website",
+      "type": "tool",
+      "tool": "fetch",
+      "inputs": {
+        "url": "{{input.website_url}}"
+      },
+      "outputs": {
+        "content": "current_content",
+        "status": "http_status"
+      }
+    },
+    {
+      "id": "retrieve_previous",
+      "name": "Get Previous Version",
+      "type": "tool",
+      "tool": "memory",
+      "inputs": {
+        "action": "retrieve",
+        "key": "website_{{input.website_url}}"
+      },
+      "outputs": {
+        "value": "previous_content"
+      }
+    },
+    {
+      "id": "compare_content",
+      "name": "Check for Changes",
+      "type": "tool",
+      "tool": "sequential-thinking",
+      "inputs": {
+        "task": "Compare these two website contents and identify significant changes. Return 'changed' or 'unchanged' and list the changes",
+        "previous": "{{previous_content}}",
+        "current": "{{current_content}}"
+      },
+      "outputs": {
+        "status": "change_status",
+        "changes": "change_list"
+      }
+    },
+    {
+      "id": "store_current",
+      "name": "Store Current Version",
+      "type": "tool",
+      "tool": "memory",
+      "inputs": {
+        "action": "store",
+        "key": "website_{{input.website_url}}",
+        "value": "{{current_content}}"
+      }
+    },
+    {
+      "id": "notify_changes",
+      "name": "Log Changes",
+      "type": "condition",
+      "conditions": [
+        {
+          "field": "change_status",
+          "operator": "eq",
+          "value": "changed"
+        }
+      ],
+      "steps": [
+        {
+          "type": "tool",
+          "tool": "filesystem",
+          "inputs": {
+            "action": "append",
+            "path": "./website_changes.log",
+            "content": "[{{check_time}}] Changes detected on {{input.website_url}}:\n{{change_list}}\n\n"
+          }
+        }
+      ]
+    }
+  ],
+  "triggers": [
+    {
+      "type": "schedule",
+      "schedule": "*/30 * * * *",
+      "name": "Every 30 minutes"
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "steps": [
+    {
+      "id": "fetch_page",
+      "name": "Fetch Website",
+      "type": "tool",
+      "tool": "fetch",
+      "inputs": {
+        "url": "https://example-shop.com/product/laptop"
+      },
+      "outputs": {
+        "content": "current_content"
+      },
+      "retry": {
+        "enabled": false,
+        "max_retries": 0,
+        "delay": 0,
+        "backoff_type": "",
+        "max_delay": 0
+      },
+      "timeout": 0
+    },
+    {
+      "id": "get_previous",
+      "name": "Get Previous Version",
+      "type": "tool",
+      "tool": "memory",
+      "inputs": {
+        "action": "retrieve",
+        "key": "website_https:__example-shop.com_product_laptop"
+      },
+      "outputs": {
+        "value": "previous_content"
+      },
+      "retry": {
+        "enabled": false,
+        "max_retries": 0,
+        "delay": 0,
+        "backoff_type": "",
+        "max_delay": 0
+      },
+      "timeout": 0
+    },
+    {
+      "id": "compare",
+      "name": "Compare Versions",
+      "type": "tool",
+      "tool": "sequential-thinking",
+      "inputs": {
+        "current": "{{current_content}}",
+        "previous": "{{previous_content}}",
+        "task": "Compare these two versions and identify changes"
+      },
+      "outputs": {
+        "changes": "detected_changes"
+      },
+      "retry": {
+        "enabled": false,
+        "max_retries": 0,
+        "delay": 0,
+        "backoff_type": "",
+        "max_delay": 0
+      },
+      "timeout": 0
+    },
+    {
+      "id": "store_current",
+      "name": "Store Current Version",
+      "type": "tool",
+      "tool": "memory",
+      "inputs": {
+        "action": "store",
+        "key": "website_https:__example-shop.com_product_laptop",
+        "value": "{{current_content}}"
+      },
+      "outputs": null,
+      "retry": {
+        "enabled": false,
+        "max_retries": 0,
+        "delay": 0,
+        "backoff_type": "",
+        "max_delay": 0
+      },
+      "timeout": 0
+    },
+    {
+      "id": "save_changes",
+      "name": "Save Changes Log",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "action": "append",
+        "content": "Changes detected:\n{{detected_changes}}\n---\n",
+        "path": "./website_changes.log"
+      },
+      "outputs": null,
+      "retry": {
+        "enabled": false,
+        "max_retries": 0,
+        "delay": 0,
+        "backoff_type": "",
+        "max_delay": 0
+      },
+      "timeout": 0
+    }
+  ],
+  "triggers": null,
+  "variables": {
+    "url": "https://example-shop.com/product/laptop"
+  },
+  "error_policy": {
+    "strategy": "",
+    "max_retries": 0,
+    "retry_delay": 0
+  },
+  "timeout": 0,
+  "metadata": {}
+}

@@ -44,6 +44,11 @@
       "env": {
         "TZ": "UTC"
       }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "description": "Browser automation and web scraping with Playwright"
     }
   },
   "serverDefaults": {
@@ -55,6 +60,7 @@
     "core": ["filesystem", "fetch", "memory"],
     "reasoning": ["sequential-thinking"],
     "utilities": ["time", "sqlite"],
-    "all": ["filesystem", "fetch", "memory", "sequential-thinking", "time", "sqlite"]
+    "browser": ["playwright"],
+    "all": ["filesystem", "fetch", "memory", "sequential-thinking", "time", "sqlite", "playwright"]
   }
 }
