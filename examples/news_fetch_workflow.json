@@ -1,0 +1,69 @@
+{
+  "name": "Fetch and Summarize News",
+  "description": "Fetch latest news from free sources and create a summary",
+  "steps": [
+    {
+      "id": "fetch_hackernews",
+      "name": "Fetch Hacker News Top Stories",
+      "type": "tool",
+      "tool": "fetch",
+      "inputs": {
+        "url": "https://hacker-news.firebaseio.com/v0/topstories.json"
+      },
+      "outputs": {
+        "data": "hn_story_ids"
+      }
+    },
+    {
+      "id": "fetch_first_story",
+      "name": "Get First Story Details",
+      "type": "tool", 
+      "tool": "fetch",
+      "inputs": {
+        "url": "https://hacker-news.firebaseio.com/v0/item/{{hn_story_ids[0]}}.json"
+      },
+      "outputs": {
+        "data": "story_details"
+      }
+    },
+    {
+      "id": "fetch_rss",
+      "name": "Fetch BBC RSS Feed",
+      "type": "tool",
+      "tool": "fetch",
+      "inputs": {
+        "url": "https://feeds.bbci.co.uk/news/technology/rss.xml"
+      },
+      "outputs": {
+        "data": "bbc_rss"
+      }
+    },
+    {
+      "id": "summarize",
+      "name": "Summarize All News",
+      "type": "tool",
+      "tool": "sequential-thinking",
+      "inputs": {
+        "prompt": "Create a concise summary of the latest tech news from these sources. Extract key headlines and trends.",
+        "data": "Hacker News: {{story_details}}\n\nBBC Tech RSS: {{bbc_rss}}"
+      },
+      "outputs": {
+        "result": "news_summary"
+      }
+    },
+    {
+      "id": "save_summary",
+      "name": "Save Summary to File",
+      "type": "tool",
+      "tool": "filesystem",
+      "inputs": {
+        "operation": "write",
+        "path": "./news_summary.md",
+        "content": "# Tech News Summary\n\nGenerated: {{time_now}}\n\n{{news_summary}}"
+      },
+      "outputs": {
+        "path": "saved_file"
+      }
+    }
+  ]
+}

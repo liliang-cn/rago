@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,8 +13,10 @@ import (
 )
 
 var (
-	forceInit  bool
-	outputPath string
+	forceInit   bool
+	outputPath  string
+	enableMCP   bool
+	skipDatabase bool
 )
 
 var initCmd = &cobra.Command{
@@ -22,34 +25,39 @@ var initCmd = &cobra.Command{
 	Long: `Initialize creates a new RAGO configuration file with default settings.
 
 Supported providers:
-  ollama    - Use local Ollama server (default)
-  openai    - Use OpenAI API
-  lmstudio  - Use LM Studio server
+  ollama    - Use local Ollama server (default, privacy-first)
+  openai    - Use OpenAI API (cloud-based)
+  lmstudio  - Use LM Studio server (local, GUI-based)
+  custom    - Configure custom OpenAI-compatible API
 
 Examples:
-  rago init            # Interactive mode
-  rago init ollama     # Initialize with Ollama
-  rago init openai     # Initialize with OpenAI
-  rago init lmstudio   # Initialize with LM Studio
+  rago init                   # Interactive mode
+  rago init ollama           # Initialize with Ollama
+  rago init openai           # Initialize with OpenAI
+  rago init lmstudio         # Initialize with LM Studio
+  rago init custom           # Configure custom provider
+  rago init --enable-mcp     # Initialize with MCP servers enabled
 
-The configuration will use ~/.rago/ directory for data storage by default.
-After initialization, you can customize the configuration as needed.`,
+Config file location priority:
+  1. ./rago.toml (current directory)
+  2. ./.rago/rago.toml (local .rago folder)
+  3. ~/.rago/rago.toml (user home)
+
+Data storage uses ~/.rago/ directory by default.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Determine config path
 		configPath := outputPath
 		if configPath == "" {
-			// Use ~/.rago/rago.toml as default
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				return fmt.Errorf("failed to get user home directory: %w", err)
-			}
-			configPath = filepath.Join(homeDir, ".rago", "rago.toml")
+			// Default to ./rago.toml in current directory
+			configPath = "rago.toml"
 		}
 
 		// Check if file already exists
 		if !forceInit {
 			if _, err := os.Stat(configPath); err == nil {
-				return fmt.Errorf("configuration file already exists at %s (use --force to overwrite)", configPath)
+				fmt.Printf("⚠️  Configuration file already exists at %s\n", configPath)
+				fmt.Println("   Use --force to overwrite or choose a different location with --output")
+				return fmt.Errorf("configuration file already exists")
 			}
 		}
 
@@ -58,7 +66,7 @@ After initialization, you can customize the configuration as needed.`,
 		if len(args) > 0 {
 			providerType = strings.ToLower(args[0])
 			if !isValidProvider(providerType) {
-				return fmt.Errorf("invalid provider: %s. Supported providers: ollama, openai, lmstudio", args[0])
+				return fmt.Errorf("invalid provider: %s. Supported providers: ollama, openai, lmstudio, custom", args[0])
 			}
 		} else {
 			// Interactive mode
@@ -72,6 +80,9 @@ After initialization, you can customize the configuration as needed.`,
 		// Create directory if it doesn't exist
 		dir := filepath.Dir(configPath)
 		if err := os.MkdirAll(dir, 0755); err != nil {
+			if os.IsPermission(err) {
+				return fmt.Errorf("permission denied: cannot create directory %s. Try running with sudo or choose a different location", dir)
+			}
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 
@@ -81,11 +92,13 @@ After initialization, you can customize the configuration as needed.`,
 		
 		switch providerType {
 		case "ollama":
-			configContent, err = generateOllamaConfig()
+			configContent, err = generateOllamaConfig(enableMCP)
 		case "openai":
-			configContent, err = generateOpenAIConfig()
+			configContent, err = generateOpenAIConfig(enableMCP)
 		case "lmstudio":
-			configContent, err = generateLMStudioConfig()
+			configContent, err = generateLMStudioConfig(enableMCP)
+		case "custom":
+			configContent, err = generateCustomConfig(enableMCP)
 		default:
 			return fmt.Errorf("unsupported provider type: %s", providerType)
 		}
@@ -100,12 +113,24 @@ After initialization, you can customize the configuration as needed.`,
 		}
 
 		// Initialize the database and create directory structure
-		if err := initializeDatabase(configPath); err != nil {
-			fmt.Printf("⚠️  Configuration file created but initialization failed: %v\n", err)
-			fmt.Println("   You can try initializing later by running:")
-			fmt.Printf("   rago --config %s serve\n", configPath)
-		} else {
-			fmt.Println("✅ Database and directory structure initialized successfully")
+		if !skipDatabase {
+			if err := initializeDatabase(configPath); err != nil {
+				fmt.Printf("⚠️  Configuration file created but database initialization failed: %v\n", err)
+				fmt.Println("   The database will be created automatically when you first run RAGO")
+			} else {
+				fmt.Println("✅ Database and directory structure initialized successfully")
+			}
+		}
+
+		// Initialize MCP servers if requested
+		if enableMCP {
+			if err := initializeMCPServers(filepath.Dir(configPath)); err != nil {
+				fmt.Printf("⚠️  MCP server configuration failed: %v\n", err)
+				fmt.Println("   You can configure MCP servers later using:")
+				fmt.Println("   rago mcp install")
+			} else {
+				fmt.Println("✅ MCP servers configured successfully")
+			}
 		}
 
 		fmt.Printf("✅ Configuration file created successfully at: %s\n", configPath)
@@ -121,6 +146,7 @@ func isValidProvider(provider string) bool {
 		"ollama":   true,
 		"openai":   true,
 		"lmstudio": true,
+		"custom":   true,
 	}
 	return validProviders[provider]
 }
@@ -128,127 +154,73 @@ func isValidProvider(provider string) bool {
 // promptForProvider prompts user to select a provider interactively
 func promptForProvider() (string, error) {
 	fmt.Println("\n🤖 Choose your AI provider:")
-	fmt.Println("  1) Ollama (Local, recommended for privacy)")
-	fmt.Println("  2) OpenAI (Cloud, best performance)")
+	fmt.Println("  1) Ollama (Local, privacy-first, recommended)")
+	fmt.Println("  2) OpenAI (Cloud-based, best performance)")
 	fmt.Println("  3) LM Studio (Local, GUI-based)")
-	fmt.Print("\nEnter your choice (1-3) [default: 1]: ")
+	fmt.Println("  4) Custom (OpenAI-compatible API)")
+	fmt.Print("\nEnter your choice (1-4) [default: 1]: ")
 	
-	var input string
-	_, _ = fmt.Scanln(&input)
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
 	
-	switch strings.TrimSpace(input) {
+	switch input {
 	case "", "1":
 		return "ollama", nil
 	case "2":
 		return "openai", nil
 	case "3":
 		return "lmstudio", nil
+	case "4":
+		return "custom", nil
 	default:
-		return "", fmt.Errorf("invalid choice: %s", input)
+		return "", fmt.Errorf("invalid choice: %s. Please enter 1-4", input)
 	}
 }
 
 // generateOllamaConfig generates configuration for Ollama provider
-func generateOllamaConfig() (string, error) {
-	return `# RAGO Configuration File - Ollama
-# This file configures RAGO to use local Ollama server
+func generateOllamaConfig(enableMCP bool) (string, error) {
+	config := `# RAGO Configuration - Ollama (Local, Privacy-First)
+# Only essential settings are included. All others use sensible defaults.
 
-[server]
-port = 7127
-host = "0.0.0.0"
-enable_ui = true
-cors_origins = ["*"]
-
+# Provider configuration
 [providers]
 default_llm = "ollama"
 default_embedder = "ollama"
 
 [providers.ollama]
 type = "ollama"
-base_url = "http://localhost:11434"
-llm_model = "qwen3"
-embedding_model = "nomic-embed-text"
-timeout = "120s"
+base_url = "http://localhost:11434"  # Default Ollama server
+llm_model = "qwen3"                   # Change to your preferred model
+embedding_model = "nomic-embed-text"  # Change to your preferred embedder
+`
 
-[sqvect]
-db_path = "~/.rago/rag.db"
-max_conns = 10
-batch_size = 100
-top_k = 5
-threshold = 0.0
-
-[keyword]
-index_path = "~/.rago/keyword.bleve"
-
-[chunker]
-chunk_size = 500
-overlap = 50
-method = "sentence"
-
-[rrf]
-k = 10
-relevance_threshold = 0.05
-
-[ingest]
-[ingest.metadata_extraction]
-enable = false
-
-[tools]
-enabled = true
-max_concurrent_calls = 5
-call_timeout = "30s"
-security_level = "normal"
-log_level = "info"
-enabled_tools = []
-
-[tools.rate_limit]
-calls_per_minute = 100
-calls_per_hour = 1000
-burst_size = 10
-
-[tools.builtin]
-[tools.builtin.file_operations]
-enabled = true
-
-[tools.builtin.http_client]
-enabled = true
-
-[tools.builtin.web_search]
-enabled = false
-
-[tools.plugins]
-enabled = false
-plugin_paths = ["./plugins"]
-auto_load = false
-
+	if enableMCP {
+		config += `
+# MCP (Model Context Protocol) for advanced tool capabilities
 [mcp]
-enabled = false
-log_level = "info"
-default_timeout = "30s"
-max_concurrent_requests = 10
-health_check_interval = "60s"
-`, nil
+enabled = true
+`
+	}
+
+	return config, nil
 }
 
 // generateOpenAIConfig generates configuration for OpenAI provider
-func generateOpenAIConfig() (string, error) {
+func generateOpenAIConfig(enableMCP bool) (string, error) {
+	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("\n🔑 Enter your OpenAI API key: ")
-	var apiKey string
-	_, _ = fmt.Scanln(&apiKey)
+	apiKey, _ := reader.ReadString('\n')
+	apiKey = strings.TrimSpace(apiKey)
 	
-	if strings.TrimSpace(apiKey) == "" {
+	if apiKey == "" {
 		return "", fmt.Errorf("OpenAI API key is required")
 	}
 
-	return fmt.Sprintf(`# RAGO Configuration File - OpenAI
-# This file configures RAGO to use OpenAI API
+	config := fmt.Sprintf(`# RAGO Configuration - OpenAI (Cloud-Based)
+# Only essential settings are included. All others use sensible defaults.
 
-[server]
-port = 7127
-host = "0.0.0.0"
-enable_ui = true
-cors_origins = ["*"]
-
+# Provider configuration
 [providers]
 default_llm = "openai"
 default_embedder = "openai"
@@ -256,106 +228,53 @@ default_embedder = "openai"
 [providers.openai]
 type = "openai"
 api_key = "%s"
-base_url = "https://api.openai.com/v1"
-llm_model = "gpt-4o-mini"
-embedding_model = "text-embedding-3-small"
-timeout = "60s"
+llm_model = "gpt-4o-mini"               # Cost-effective model
+embedding_model = "text-embedding-3-small"  # Cost-effective embedder
+`, apiKey)
 
-[sqvect]
-db_path = "~/.rago/rag.db"
-max_conns = 10
-batch_size = 100
-top_k = 5
-threshold = 0.0
-
-[keyword]
-index_path = "~/.rago/keyword.bleve"
-
-[chunker]
-chunk_size = 500
-overlap = 50
-method = "sentence"
-
-[rrf]
-k = 10
-relevance_threshold = 0.05
-
-[ingest]
-[ingest.metadata_extraction]
-enable = false
-
-[tools]
-enabled = true
-max_concurrent_calls = 5
-call_timeout = "30s"
-security_level = "normal"
-log_level = "info"
-enabled_tools = []
-
-[tools.rate_limit]
-calls_per_minute = 100
-calls_per_hour = 1000
-burst_size = 10
-
-[tools.builtin]
-[tools.builtin.file_operations]
-enabled = true
-
-[tools.builtin.http_client]
-enabled = true
-
-[tools.builtin.web_search]
-enabled = false
-
-[tools.plugins]
-enabled = false
-plugin_paths = ["./plugins"]
-auto_load = false
-
+	if enableMCP {
+		config += `
+# MCP (Model Context Protocol) for advanced tool capabilities
 [mcp]
-enabled = false
-log_level = "info"
-default_timeout = "30s"
-max_concurrent_requests = 10
-health_check_interval = "60s"
-`, apiKey), nil
+enabled = true
+`
+	}
+
+	return config, nil
 }
 
 // generateLMStudioConfig generates configuration for LM Studio provider
-func generateLMStudioConfig() (string, error) {
-	fmt.Print("\n🖥️  Enter LM Studio server URL [http://localhost:1234]: ")
-	var baseURL string
-	_, _ = fmt.Scanln(&baseURL)
+func generateLMStudioConfig(enableMCP bool) (string, error) {
+	reader := bufio.NewReader(os.Stdin)
 	
-	if strings.TrimSpace(baseURL) == "" {
+	fmt.Print("\n🖥️  Enter LM Studio server URL [http://localhost:1234]: ")
+	baseURL, _ := reader.ReadString('\n')
+	baseURL = strings.TrimSpace(baseURL)
+	
+	if baseURL == "" {
 		baseURL = "http://localhost:1234"
 	}
 
-	fmt.Print("Enter LLM model name: ")
-	var llmModel string
-	_, _ = fmt.Scanln(&llmModel)
+	fmt.Print("Enter LLM model name (as shown in LM Studio): ")
+	llmModel, _ := reader.ReadString('\n')
+	llmModel = strings.TrimSpace(llmModel)
 	
-	if strings.TrimSpace(llmModel) == "" {
+	if llmModel == "" {
 		return "", fmt.Errorf("LLM model name is required")
 	}
 
-	fmt.Print("Enter embedding model name: ")
-	var embeddingModel string
-	_, _ = fmt.Scanln(&embeddingModel)
+	fmt.Print("Enter embedding model name (as shown in LM Studio): ")
+	embeddingModel, _ := reader.ReadString('\n')
+	embeddingModel = strings.TrimSpace(embeddingModel)
 	
-	if strings.TrimSpace(embeddingModel) == "" {
+	if embeddingModel == "" {
 		return "", fmt.Errorf("embedding model name is required")
 	}
 
-	return fmt.Sprintf(`# RAGO Configuration File - LM Studio
-# This file configures RAGO to use LM Studio server
+	config := fmt.Sprintf(`# RAGO Configuration - LM Studio (Local, GUI-Based)
+# Only essential settings are included. All others use sensible defaults.
 
-[server]
-port = 7127
-host = "0.0.0.0"
-enable_ui = true
-cors_origins = ["*"]
-
+# Provider configuration
 [providers]
 default_llm = "lmstudio"
 default_embedder = "lmstudio"
@@ -365,66 +284,17 @@ type = "lmstudio"
 base_url = "%s"
 llm_model = "%s"
 embedding_model = "%s"
-timeout = "120s"
+`, baseURL, llmModel, embeddingModel)
 
-[sqvect]
-db_path = "~/.rago/rag.db"
-max_conns = 10
-batch_size = 100
-top_k = 5
-threshold = 0.0
-
-[keyword]
-index_path = "~/.rago/keyword.bleve"
-
-[chunker]
-chunk_size = 500
-overlap = 50
-method = "sentence"
-
-[rrf]
-k = 10
-relevance_threshold = 0.05
-
-[ingest]
-[ingest.metadata_extraction]
-enable = false
-
-[tools]
-enabled = true
-max_concurrent_calls = 5
-call_timeout = "30s"
-security_level = "normal"
-log_level = "info"
-enabled_tools = []
-
-[tools.rate_limit]
-calls_per_minute = 100
-calls_per_hour = 1000
-burst_size = 10
-
-[tools.builtin]
-[tools.builtin.file_operations]
-enabled = true
-
-[tools.builtin.http_client]
-enabled = true
-
-[tools.builtin.web_search]
-enabled = false
-
-[tools.plugins]
-enabled = false
-plugin_paths = ["./plugins"]
-auto_load = false
-
+	if enableMCP {
+		config += `
+# MCP (Model Context Protocol) for advanced tool capabilities
 [mcp]
-enabled = false
-log_level = "info"
-default_timeout = "30s"
-max_concurrent_requests = 10
-health_check_interval = "60s"
-`, baseURL, llmModel, embeddingModel), nil
+enabled = true
+`
+	}
+
+	return config, nil
 }
 
 // printProviderSpecificInstructions prints provider-specific setup instructions
@@ -433,12 +303,18 @@ func printProviderSpecificInstructions(providerType, configPath string) {
 	fmt.Println("   • ~/.rago/ - Main data directory")
 	fmt.Println("   • ~/.rago/rag.db - Vector database")
 	fmt.Println("   • ~/.rago/keyword.bleve/ - Keyword search index")
+	if enableMCP {
+		fmt.Println("   • ~/.rago/mcpServers.json - MCP server configuration")
+	}
 	
 	fmt.Printf("\n📝 Configuration Summary:\n")
 	fmt.Printf("   • Provider: %s\n", strings.ToUpper(string(providerType[0]))+providerType[1:])
 	fmt.Printf("   • Config file: %s\n", configPath)
-	fmt.Println("   • Tools: Enabled")
-	fmt.Println("   • Web UI: Enabled")
+	fmt.Println("   • RAG: Enabled (dual storage: vector + keyword)")
+	fmt.Println("   • Web UI: Enabled on port 7127")
+	if enableMCP {
+		fmt.Println("   • MCP Tools: Enabled")
+	}
 
 	fmt.Println("\n🚀 Next Steps:")
 	
@@ -446,20 +322,48 @@ func printProviderSpecificInstructions(providerType, configPath string) {
 	case "ollama":
 		fmt.Println("   1. Make sure Ollama is running:")
 		fmt.Println("      ollama serve")
-		fmt.Println("   2. Pull required models:")
-		fmt.Println("      ollama pull qwen3")
-		fmt.Println("      ollama pull nomic-embed-text")
-		fmt.Printf("   3. Start RAGO:\n      rago --config %s serve\n", configPath)
-		fmt.Println("   4. Open http://localhost:7127 in your browser")
+		fmt.Println("   2. Pull required models (or choose your own):")
+		fmt.Println("      ollama pull qwen3           # LLM model")
+		fmt.Println("      ollama pull nomic-embed-text # Embedding model")
+		fmt.Println("   3. Test your configuration:")
+		fmt.Printf("      rago --config %s status\n", configPath)
+		fmt.Println("   4. Start RAGO server:")
+		fmt.Printf("      rago --config %s serve\n", configPath)
+		fmt.Println("   5. Open http://localhost:7127 in your browser")
+		fmt.Println("\n   💡 Tip: Use 'ollama list' to see available models")
 	case "openai":
-		fmt.Println("   1. Ensure your OpenAI API key has sufficient credits")
-		fmt.Printf("   2. Start RAGO:\n      rago --config %s serve\n", configPath)
-		fmt.Println("   3. Open http://localhost:7127 in your browser")
-	case "lmstudio":
-		fmt.Println("   1. Make sure LM Studio server is running")
-		fmt.Println("   2. Load your models in LM Studio")
-		fmt.Printf("   3. Start RAGO:\n      rago --config %s serve\n", configPath)
+		fmt.Println("   1. Verify your OpenAI API key has sufficient credits")
+		fmt.Println("   2. Test your configuration:")
+		fmt.Printf("      rago --config %s status\n", configPath)
+		fmt.Println("   3. Start RAGO server:")
+		fmt.Printf("      rago --config %s serve\n", configPath)
 		fmt.Println("   4. Open http://localhost:7127 in your browser")
+		fmt.Println("\n   💡 Tip: Monitor usage at https://platform.openai.com/usage")
+	case "lmstudio":
+		fmt.Println("   1. Start LM Studio and load your models")
+		fmt.Println("   2. Start the LM Studio server (usually on port 1234)")
+		fmt.Println("   3. Test your configuration:")
+		fmt.Printf("      rago --config %s status\n", configPath)
+		fmt.Println("   4. Start RAGO server:")
+		fmt.Printf("      rago --config %s serve\n", configPath)
+		fmt.Println("   5. Open http://localhost:7127 in your browser")
+		fmt.Println("\n   💡 Tip: Check LM Studio's server logs for connection issues")
+	case "custom":
+		fmt.Println("   1. Ensure your custom API server is running")
+		fmt.Println("   2. Test your configuration:")
+		fmt.Printf("      rago --config %s status\n", configPath)
+		fmt.Println("   3. Start RAGO server:")
+		fmt.Printf("      rago --config %s serve\n", configPath)
+		fmt.Println("   4. Open http://localhost:7127 in your browser")
+		fmt.Println("\n   💡 Tip: Use 'rago status --verbose' for detailed connectivity info")
+	}
+	
+	fmt.Println("\n📚 Quick Start Commands:")
+	fmt.Println("   • Ingest documents:  rago ingest document.pdf")
+	fmt.Println("   • Query knowledge:   rago query \"What is this about?\"")
+	fmt.Println("   • Check status:      rago status")
+	if enableMCP {
+		fmt.Println("   • MCP status:        rago mcp status")
 	}
 }
 
@@ -528,7 +432,111 @@ Thumbs.db
 	return nil
 }
 
+// generateCustomConfig generates configuration for a custom OpenAI-compatible provider
+func generateCustomConfig(enableMCP bool) (string, error) {
+	reader := bufio.NewReader(os.Stdin)
+	
+	fmt.Println("\n🔧 Configure custom OpenAI-compatible provider")
+	
+	fmt.Print("Provider name (e.g., 'localai', 'groq'): ")
+	providerName, _ := reader.ReadString('\n')
+	providerName = strings.TrimSpace(providerName)
+	if providerName == "" {
+		providerName = "custom"
+	}
+	
+	fmt.Print("API Base URL (e.g., http://localhost:8080/v1): ")
+	baseURL, _ := reader.ReadString('\n')
+	baseURL = strings.TrimSpace(baseURL)
+	if baseURL == "" {
+		return "", fmt.Errorf("API base URL is required")
+	}
+	
+	fmt.Print("API Key (press Enter if not required): ")
+	apiKey, _ := reader.ReadString('\n')
+	apiKey = strings.TrimSpace(apiKey)
+	
+	fmt.Print("LLM model name: ")
+	llmModel, _ := reader.ReadString('\n')
+	llmModel = strings.TrimSpace(llmModel)
+	if llmModel == "" {
+		return "", fmt.Errorf("LLM model name is required")
+	}
+	
+	fmt.Print("Embedding model name: ")
+	embeddingModel, _ := reader.ReadString('\n')
+	embeddingModel = strings.TrimSpace(embeddingModel)
+	if embeddingModel == "" {
+		return "", fmt.Errorf("embedding model name is required")
+	}
+	
+	apiKeyLine := ""
+	if apiKey != "" {
+		apiKeyLine = fmt.Sprintf("api_key = \"%s\"\n", apiKey)
+	}
+	
+	config := fmt.Sprintf(`# RAGO Configuration - %s (Custom OpenAI-Compatible)
+# Only essential settings are included. All others use sensible defaults.
+
+# Provider configuration
+[providers]
+default_llm = "%s"
+default_embedder = "%s"
+
+[providers.%s]
+type = "openai"  # OpenAI-compatible interface
+%sbase_url = "%s"
+llm_model = "%s"
+embedding_model = "%s"
+`, strings.Title(providerName), providerName, providerName, providerName, apiKeyLine, baseURL, llmModel, embeddingModel)
+
+	if enableMCP {
+		config += `
+# MCP (Model Context Protocol) for advanced tool capabilities
+[mcp]
+enabled = true
+`
+	}
+
+	return config, nil
+}
+
+// initializeMCPServers creates the MCP servers configuration
+func initializeMCPServers(configDir string) error {
+	mcpConfigPath := filepath.Join(configDir, "mcpServers.json")
+	
+	// Check if MCP config already exists
+	if _, err := os.Stat(mcpConfigPath); err == nil {
+		return nil // Already exists, skip
+	}
+	
+	// Create a basic MCP servers configuration
+	mcpConfig := `{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home", "/tmp"],
+      "enabled": true
+    },
+    "git": {
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "."],
+      "enabled": true
+    }
+  }
+}
+`
+	
+	if err := os.WriteFile(mcpConfigPath, []byte(mcpConfig), 0644); err != nil {
+		return fmt.Errorf("failed to create MCP servers configuration: %w", err)
+	}
+	
+	return nil
+}
+
 func init() {
 	initCmd.Flags().BoolVarP(&forceInit, "force", "f", false, "overwrite existing configuration file")
-	initCmd.Flags().StringVarP(&outputPath, "output", "o", "", "output path for configuration file (default: ~/.rago/rago.toml)")
+	initCmd.Flags().StringVarP(&outputPath, "output", "o", "", "output path for configuration file (default: ./rago.toml)")
+	initCmd.Flags().BoolVar(&enableMCP, "enable-mcp", false, "enable MCP servers configuration")
+	initCmd.Flags().BoolVar(&skipDatabase, "skip-db", false, "skip database initialization")
 }
