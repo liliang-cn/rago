@@ -4,29 +4,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAGO v2 - Local RAG System with Agent Automation</title>
+    <title>RAGO - Privacy-First Local RAG System</title>
     <meta name="description"
-        content="RAGO v2 - Fully local RAG system with document ingestion, semantic search, Q&A generation, and optional agent automation capabilities">
+        content="RAGO - Lightweight, privacy-first RAG system. 100% local document processing, semantic search, and Q&A generation with complete data control">
 
     <!-- SEO Meta Tags -->
     <meta name="keywords"
-        content="RAGO v2,RAG system,agent automation,workflow automation,natural language,MCP tools,Model Context Protocol,local RAG,multi-provider,OpenAI,Ollama,LM Studio,Golang,vector database,semantic search,AI agents,workflow generation">
+        content="RAGO,RAG system,local-first,privacy,lightweight,document ingestion,vector database,semantic search,SQLite,Ollama,OpenAI,LM Studio,Golang">
     <meta name="author" content="RAGO Team">
     <meta name="robots" content="index, follow">
     <meta name="language" content="en">
-    <meta name="revisit-after" content="7 days">
     <meta name="theme-color" content="#059669">
 
     <!-- Open Graph Meta Tags -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="RAGO v2 - Local RAG System with Agent Automation">
+    <meta property="og:title" content="RAGO - Privacy-First Local RAG System">
     <meta property="og:description"
-        content="Fully local RAG system for document ingestion, semantic search, and context-enhanced Q&A with optional agent automation and MCP tools integration">
+        content="Lightweight, privacy-first RAG system with 100% local operation, complete data control, and multi-provider support">
     <meta property="og:url" content="https://github.com/liliang-cn/rago">
-    <meta property="og:site_name" content="RAGO v2">
+    <meta property="og:site_name" content="RAGO">
 
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
@@ -42,25 +43,60 @@
             box-sizing: border-box;
         }
 
+        /* Light Theme (Default) */
         :root {
             --primary: #059669;
             --primary-dark: #047857;
             --primary-light: #10b981;
             --secondary: #3b82f6;
             --accent: #8b5cf6;
+            --warning: #f59e0b;
             --dark: #1f2937;
             --gray: #6b7280;
             --light-gray: #f3f4f6;
             --white: #ffffff;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f9fafb;
+            --bg-tertiary: #f3f4f6;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --border: rgba(0, 0, 0, 0.1);
             --shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
             --radius: 1rem;
+            --code-bg: #1e293b;
+            --code-text: #e2e8f0;
+        }
+
+        /* Dark Theme */
+        [data-theme="dark"] {
+            --primary: #10b981;
+            --primary-dark: #059669;
+            --primary-light: #34d399;
+            --secondary: #60a5fa;
+            --accent: #a78bfa;
+            --warning: #fbbf24;
+            --dark: #f9fafb;
+            --gray: #9ca3af;
+            --light-gray: #374151;
+            --white: #1f2937;
+            --bg-primary: #111827;
+            --bg-secondary: #1f2937;
+            --bg-tertiary: #374151;
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
+            --border: rgba(255, 255, 255, 0.1);
+            --shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            --code-bg: #0f172a;
+            --code-text: #e2e8f0;
         }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
             line-height: 1.6;
-            color: var(--dark);
+            color: var(--text-primary);
+            background: var(--bg-primary);
             overflow-x: hidden;
+            transition: background 0.3s, color 0.3s;
         }
 
         .container {
@@ -74,10 +110,11 @@
             position: sticky;
             top: 0;
             z-index: 1000;
-            background: rgba(255, 255, 255, 0.95);
+            background: var(--bg-primary);
             backdrop-filter: blur(12px);
-            border-bottom: 1px solid rgba(5, 150, 105, 0.1);
+            border-bottom: 1px solid var(--border);
             padding: 1rem 0;
+            transition: all 0.3s;
         }
 
         .header-content {
@@ -108,17 +145,66 @@
         .logo-text {
             font-size: 1.5rem;
             font-weight: 800;
-            color: var(--dark);
+            color: var(--text-primary);
         }
 
-        .version-badge {
-            background: linear-gradient(135deg, var(--secondary), var(--accent));
-            color: white;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
+        /* Header Controls - Ultra Minimal Design */
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .minimal-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding-left: 0.5rem;
+            border-left: 1px solid var(--border);
             margin-left: 0.5rem;
+        }
+
+        .control-btn {
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.6;
+        }
+
+        .control-btn:hover {
+            opacity: 1;
+            color: var(--primary);
+        }
+
+        .control-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .lang-switch {
+            font-size: 0.65rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 2px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            opacity: 0.6;
+        }
+
+        .lang-switch:hover {
+            opacity: 1;
+            color: var(--primary);
         }
 
         .nav {
@@ -134,14 +220,22 @@
         }
 
         .nav-link {
-            color: var(--gray);
+            color: var(--text-secondary);
             text-decoration: none;
             font-weight: 500;
             transition: color 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
         }
 
         .nav-link:hover {
             color: var(--primary);
+        }
+
+        .nav-link svg {
+            width: 16px;
+            height: 16px;
         }
 
         .btn {
@@ -149,13 +243,12 @@
             align-items: center;
             gap: 0.5rem;
             padding: 0.75rem 1.5rem;
-            border-radius: 0.75rem;
+            border-radius: 0.5rem;
             text-decoration: none;
             font-weight: 600;
             transition: all 0.3s;
-            cursor: pointer;
             border: none;
-            font-family: inherit;
+            cursor: pointer;
         }
 
         .btn-primary {
@@ -171,19 +264,19 @@
 
         .btn-outline {
             background: transparent;
-            color: var(--primary);
-            border: 2px solid var(--primary);
+            color: var(--text-primary);
+            border: 2px solid var(--border);
         }
 
         .btn-outline:hover {
-            background: var(--primary);
-            color: white;
+            background: var(--bg-secondary);
+            transform: translateY(-2px);
         }
 
         /* Hero Section */
         .hero {
-            background: linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 50%, #ffffff 100%);
-            padding: 7rem 1rem 5rem;
+            padding: 6rem 0;
+            background: var(--bg-primary);
             position: relative;
             overflow: hidden;
         }
@@ -195,111 +288,162 @@
             right: -20%;
             width: 60%;
             height: 200%;
-            background: radial-gradient(circle, rgba(5, 150, 105, 0.05) 0%, transparent 70%);
+            background: radial-gradient(circle, var(--primary-light) 0%, transparent 70%);
+            opacity: 0.05;
             animation: float 20s ease-in-out infinite;
         }
 
         @keyframes float {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(10deg); }
+            0%, 100% { transform: translateY(0) rotateZ(-0.5deg); }
+            50% { transform: translateY(-5px) rotateZ(0.5deg); }
         }
 
         .hero-content {
-            max-width: 900px;
-            margin: 0 auto;
             text-align: center;
             position: relative;
             z-index: 1;
+        }
+
+        .hero-badges {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
         }
 
         .hero-badge {
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
-            background: linear-gradient(135deg, var(--secondary), var(--accent));
-            color: white;
-            padding: 0.5rem 1.25rem;
+            padding: 0.4rem 0.8rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
             border-radius: 9999px;
-            font-size: 0.875rem;
+            font-size: 0.8rem;
             font-weight: 600;
-            margin-bottom: 2rem;
-            animation: pulse 2s ease-in-out infinite;
+            color: var(--text-secondary);
         }
 
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+        .hero-badge.primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white;
+            border: none;
+        }
+        
+        .hero-animated-badges {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+        
+        .hero-badge.animated-badge {
+            color: white;
+            border: none;
+            font-size: 0.9rem;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-badge.animated-badge::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            transform: translateX(-100%);
+            animation: shine 3s ease-in-out infinite;
+        }
+        
+        @keyframes shine {
+            0%, 100% { transform: translateX(-100%); }
+            50% { transform: translateX(100%); }
+        }
+        
+        .hero-badge.privacy-badge {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            animation: pulse-green 2s ease-in-out infinite, float 4s ease-in-out infinite;
+        }
+        
+        .hero-badge.workflow-badge {
+            background: linear-gradient(135deg, var(--accent), var(--secondary));
+            animation: pulse-purple 2s ease-in-out infinite, float 4s ease-in-out 0.5s infinite;
+        }
+        
+        @keyframes pulse-green {
+            0%, 100% { 
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+                transform: scale(1);
+            }
+            50% { 
+                box-shadow: 0 0 25px 8px rgba(16, 185, 129, 0.3);
+                transform: scale(1.02);
+            }
+        }
+        
+        @keyframes pulse-purple {
+            0%, 100% { 
+                box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
+                transform: scale(1);
+            }
+            50% { 
+                box-shadow: 0 0 25px 8px rgba(139, 92, 246, 0.3);
+                transform: scale(1.02);
+            }
         }
 
         .hero-title {
-            font-size: 3.5rem;
+            font-size: 3rem;
             font-weight: 800;
-            line-height: 1.1;
             margin-bottom: 1.5rem;
-            background: linear-gradient(135deg, var(--dark) 0%, var(--primary) 100%);
+            background: linear-gradient(135deg, var(--primary), var(--accent));
             -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
             background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.2;
         }
 
         @media (min-width: 768px) {
             .hero-title {
-                font-size: 4.5rem;
+                font-size: 4rem;
             }
         }
 
         .hero-subtitle {
             font-size: 1.25rem;
-            color: var(--gray);
-            margin-bottom: 3rem;
+            color: var(--text-secondary);
+            max-width: 800px;
+            margin: 0 auto 1rem;
+            line-height: 1.6;
+        }
+        
+        .hero-description {
+            font-size: 1rem;
+            color: var(--text-secondary);
             max-width: 700px;
-            margin-left: auto;
-            margin-right: auto;
+            margin: 0 auto 2.5rem;
+            opacity: 0.85;
+            font-weight: 500;
         }
 
         .hero-buttons {
             display: flex;
-            flex-direction: column;
             gap: 1rem;
-            align-items: center;
-            margin-bottom: 3rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
         }
 
-        @media (min-width: 640px) {
-            .hero-buttons {
-                flex-direction: row;
-                justify-content: center;
-            }
-        }
-
-        .hero-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 2rem;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .stat-item {
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 2rem;
-            font-weight: 800;
-            color: var(--primary);
-            margin-bottom: 0.25rem;
-        }
-
-        .stat-label {
-            color: var(--gray);
-            font-size: 0.875rem;
-        }
-
-        /* Features Grid */
+        /* Features Section */
         .features {
-            padding: 5rem 1rem;
-            background: white;
+            padding: 6rem 0;
+            background: var(--bg-secondary);
         }
 
         .section-header {
@@ -309,9 +453,9 @@
 
         .section-badge {
             display: inline-block;
-            background: rgba(5, 150, 105, 0.1);
-            color: var(--primary);
             padding: 0.5rem 1rem;
+            background: var(--primary);
+            color: white;
             border-radius: 9999px;
             font-size: 0.875rem;
             font-weight: 600;
@@ -322,51 +466,33 @@
             font-size: 2.5rem;
             font-weight: 800;
             margin-bottom: 1rem;
-            color: var(--dark);
+            color: var(--text-primary);
         }
 
         .section-subtitle {
             font-size: 1.125rem;
-            color: var(--gray);
-            max-width: 700px;
+            color: var(--text-secondary);
+            max-width: 600px;
             margin: 0 auto;
         }
 
         .features-grid {
             display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: 2rem;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
         }
 
         .feature-card {
-            background: white;
-            border: 1px solid rgba(5, 150, 105, 0.1);
-            border-radius: var(--radius);
+            background: var(--bg-primary);
             padding: 2rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border);
             transition: all 0.3s;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .feature-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, var(--primary), var(--primary-light), var(--secondary));
-            transform: scaleX(0);
-            transition: transform 0.3s;
         }
 
         .feature-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-4px);
             box-shadow: var(--shadow);
-        }
-
-        .feature-card:hover::before {
-            transform: scaleX(1);
         }
 
         .feature-icon {
@@ -385,12 +511,13 @@
             font-size: 1.25rem;
             font-weight: 700;
             margin-bottom: 0.5rem;
-            color: var(--dark);
+            color: var(--text-primary);
         }
 
         .feature-description {
-            color: var(--gray);
+            color: var(--text-secondary);
             margin-bottom: 1rem;
+            font-size: 0.95rem;
         }
 
         .feature-list {
@@ -399,282 +526,441 @@
 
         .feature-list li {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 0.5rem;
-            color: var(--gray);
-            font-size: 0.875rem;
+            color: var(--text-secondary);
             margin-bottom: 0.5rem;
+            font-size: 0.9rem;
         }
 
         .feature-list i {
             color: var(--primary);
+            width: 16px;
+            height: 16px;
+            margin-top: 2px;
+            flex-shrink: 0;
         }
 
-        /* MCP Section */
-        .mcp-section {
-            padding: 5rem 1rem;
-            background: linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 100%);
+        /* Local LLM Section */
+        .local-llm-section {
+            padding: 2rem 0 3rem 0;
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+            border-bottom: 1px solid var(--border);
         }
-
-        .mcp-grid {
-            display: grid;
-            gap: 3rem;
-            align-items: center;
-            grid-template-columns: 1fr;
+        
+        .local-llm-content {
+            text-align: center;
         }
-
-        @media (min-width: 1024px) {
-            .mcp-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        .mcp-content h2 {
-            font-size: 2.5rem;
-            font-weight: 800;
-            margin-bottom: 1.5rem;
-            color: var(--dark);
-        }
-
-        .mcp-content p {
-            font-size: 1.125rem;
-            color: var(--gray);
+        
+        .local-llm-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
             margin-bottom: 2rem;
         }
-
-        .mcp-features {
-            display: grid;
-            gap: 1rem;
-        }
-
-        .mcp-feature {
+        
+        .llm-providers {
             display: flex;
-            align-items: flex-start;
-            gap: 1rem;
+            justify-content: center;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .llm-provider {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
             padding: 1rem;
-            background: white;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
             border-radius: 0.75rem;
-            border: 1px solid rgba(5, 150, 105, 0.1);
+            min-width: 120px;
+            transition: all 0.3s;
+        }
+        
+        .llm-provider:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: var(--primary);
+        }
+        
+        .llm-icon {
+            font-size: 2rem;
+            line-height: 1;
+        }
+        
+        .llm-provider span {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
         }
 
-        .mcp-feature-icon {
-            width: 2.5rem;
-            height: 2.5rem;
-            background: linear-gradient(135deg, var(--secondary), var(--accent));
-            border-radius: 0.5rem;
+        /* Architecture Section */
+        .architecture {
+            padding: 6rem 0;
+            background: var(--bg-primary);
+        }
+
+        .architecture-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .arch-card {
+            text-align: center;
+            padding: 2rem 1rem;
+        }
+
+        .arch-icon {
+            width: 4rem;
+            height: 4rem;
+            margin: 0 auto 1rem;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            flex-shrink: 0;
         }
 
-        .mcp-demo {
-            background: var(--dark);
-            border-radius: var(--radius);
-            padding: 2rem;
-            color: white;
-            font-family: 'Courier New', monospace;
-            box-shadow: var(--shadow);
-        }
-
-        .mcp-demo-header {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .demo-dot {
-            width: 0.75rem;
-            height: 0.75rem;
-            border-radius: 50%;
-        }
-
-        .demo-dot.red { background: #ef4444; }
-        .demo-dot.yellow { background: #eab308; }
-        .demo-dot.green { background: #22c55e; }
-
-        .mcp-demo-content {
-            font-size: 0.875rem;
-            line-height: 1.6;
-        }
-
-        .demo-comment {
-            color: #10b981;
-        }
-
-        .demo-command {
-            color: #3b82f6;
-        }
-
-        .demo-output {
-            color: #a78bfa;
-        }
-
-        /* API Section */
-        .api-section {
-            padding: 5rem 1rem;
-            background: white;
-        }
-
-        .api-grid {
-            display: grid;
-            gap: 2rem;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        }
-
-        .api-card {
-            background: var(--light-gray);
-            border-radius: var(--radius);
-            padding: 1.5rem;
-            transition: all 0.3s;
-        }
-
-        .api-card:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--shadow);
-        }
-
-        .api-method {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 0.375rem;
-            font-size: 0.75rem;
+        .arch-title {
+            font-size: 1.125rem;
             font-weight: 700;
             margin-bottom: 0.5rem;
+            color: var(--text-primary);
         }
 
-        .method-get { background: #3b82f6; color: white; }
-        .method-post { background: #10b981; color: white; }
-        .method-put { background: #f59e0b; color: white; }
-        .method-delete { background: #ef4444; color: white; }
-
-        .api-endpoint {
-            font-family: 'Courier New', monospace;
-            font-size: 0.875rem;
-            color: var(--dark);
-            margin-bottom: 0.5rem;
+        .arch-description {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
         }
 
-        .api-description {
-            color: var(--gray);
-            font-size: 0.875rem;
+        /* Examples Section */
+        .examples {
+            padding: 6rem 0;
+            background: var(--bg-secondary);
         }
 
-        /* Installation */
-        .installation {
-            padding: 5rem 1rem;
-            background: var(--light-gray);
-        }
-
-        .install-tabs {
+        .examples-tabs {
             display: flex;
             gap: 1rem;
-            margin-bottom: 2rem;
+            justify-content: center;
+            margin-bottom: 3rem;
             flex-wrap: wrap;
         }
 
-        .install-tab {
+        .tab-button {
             padding: 0.75rem 1.5rem;
-            background: white;
-            border: 2px solid transparent;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
             border-radius: 0.5rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
+            color: var(--text-primary);
         }
 
-        .install-tab.active {
+        .tab-button.active {
+            background: var(--primary);
+            color: white;
             border-color: var(--primary);
-            color: var(--primary);
         }
 
-        .install-content {
-            background: white;
-            border-radius: var(--radius);
-            padding: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        .tab-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .examples-content {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .example-panel {
+            display: none;
+        }
+
+        .example-panel.active {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .example-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .example-header {
+            padding: 1rem 1.5rem;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .example-description {
+            padding: 1rem 1.5rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
         }
 
         .code-block {
-            background: var(--dark);
-            color: white;
+            background: var(--code-bg);
+            color: var(--code-text);
             padding: 1.5rem;
-            border-radius: 0.75rem;
-            font-family: 'Courier New', monospace;
+            font-family: 'JetBrains Mono', monospace;
             font-size: 0.875rem;
+            line-height: 1.6;
             overflow-x: auto;
-            margin-top: 1rem;
+            position: relative;
         }
 
-        .code-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-            color: var(--gray);
-            font-size: 0.75rem;
+        .code-block pre {
+            margin: 0;
         }
 
-        .copy-btn {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 0.375rem 0.75rem;
-            border-radius: 0.375rem;
+        .copy-button {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0.25rem;
+            color: var(--code-text);
             font-size: 0.75rem;
             cursor: pointer;
             transition: all 0.3s;
         }
 
-        .copy-btn:hover {
-            background: var(--primary-dark);
+        .copy-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .terminal-output {
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            border-radius: 0 0 1rem 1rem;
+            white-space: pre-wrap;
+        }
+
+        .terminal-output .prompt {
+            color: #00aaff;
+        }
+
+        .terminal-output .success {
+            color: #00ff00;
+        }
+
+        .terminal-output .info {
+            color: #ffaa00;
+        }
+
+        /* Installation Section */
+        .installation {
+            padding: 6rem 0;
+            background: var(--bg-primary);
+        }
+
+        .installation-methods {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .method-card {
+            background: var(--bg-secondary);
+            padding: 2rem;
+            border-radius: 1rem;
+            border: 1px solid var(--border);
+        }
+
+        .method-card.recommended {
+            border: 2px solid var(--primary);
+            position: relative;
+        }
+
+        .recommended-badge {
+            position: absolute;
+            top: -0.75rem;
+            right: 1.5rem;
+            background: var(--primary);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .method-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        /* Tools Grid */
+        .tools-section {
+            padding: 6rem 0;
+            background: var(--bg-secondary);
+        }
+
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .tool-item {
+            background: var(--bg-primary);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.3s;
+        }
+
+        .tool-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .tool-icon {
+            width: 2rem;
+            height: 2rem;
+            background: var(--bg-tertiary);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+        }
+
+        .tool-info {
+            flex: 1;
+        }
+
+        .tool-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+        }
+
+        .tool-desc {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
         }
 
         /* Footer */
         .footer {
-            padding: 3rem 1rem;
-            background: var(--dark);
-            color: white;
+            padding: 3rem 0;
+            background: var(--bg-tertiary);
+            text-align: center;
+            border-top: 1px solid var(--border);
         }
 
-        .footer-grid {
-            display: grid;
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
             gap: 2rem;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            margin-bottom: 2rem;
-        }
-
-        .footer-section h3 {
-            font-weight: 700;
-            margin-bottom: 1rem;
         }
 
         .footer-links {
-            list-style: none;
             display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
+            gap: 2rem;
         }
 
-        .footer-links a {
-            color: #9ca3af;
+        .footer-link {
+            color: var(--text-secondary);
             text-decoration: none;
             transition: color 0.3s;
         }
 
-        .footer-links a:hover {
-            color: var(--primary-light);
+        .footer-link:hover {
+            color: var(--primary);
         }
 
-        .footer-bottom {
-            border-top: 1px solid #374151;
-            padding-top: 2rem;
-            text-align: center;
-            color: #9ca3af;
+        .footer-text {
+            color: var(--text-secondary);
+        }
+
+        /* Mobile Menu */
+        .mobile-menu-toggle {
+            display: block;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+
+        @media (min-width: 768px) {
+            .mobile-menu-toggle {
+                display: none;
+            }
+        }
+
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-primary);
+            z-index: 999;
+            padding: 2rem;
+        }
+
+        .mobile-menu.active {
+            display: block;
+        }
+
+        .mobile-menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .mobile-menu-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .mobile-menu-nav a {
+            color: var(--text-primary);
+            text-decoration: none;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 0.5rem;
+            transition: all 0.3s;
+        }
+
+        .mobile-menu-nav a:hover {
+            background: var(--bg-tertiary);
         }
     </style>
 </head>
@@ -684,70 +970,183 @@
     <header class="header">
         <div class="container">
             <div class="header-content">
-                <a href="#" class="logo">
+                <a href="/" class="logo">
                     <div class="logo-icon">
-                        <i data-lucide="layers"></i>
+                        <i data-lucide="database"></i>
                     </div>
                     <span class="logo-text">RAGO</span>
-                    <span class="version-badge">v2.0</span>
                 </a>
-                <nav class="nav">
-                    <a href="#features" class="nav-link">Features</a>
-                    <a href="#mcp" class="nav-link">MCP</a>
-                    <a href="#api" class="nav-link">API</a>
-                    <a href="#installation" class="nav-link">Installation</a>
-                    <a href="https://github.com/liliang-cn/rago" target="_blank" class="btn btn-outline">
-                        <i data-lucide="github"></i>
-                        GitHub
-                    </a>
-                </nav>
+                
+                <div class="header-controls">
+                    <nav class="nav">
+                        <a href="#features" class="nav-link" data-en="Features" data-cn="功能">Features</a>
+                        <a href="#examples" class="nav-link" data-en="Examples" data-cn="示例">Examples</a>
+                        <a href="#installation" class="nav-link" data-en="Install" data-cn="安装">Install</a>
+                        <a href="https://github.com/liliang-cn/rago" class="nav-link">
+                            <i data-lucide="github"></i>
+                            GitHub
+                        </a>
+                    </nav>
+                    <div class="minimal-controls">
+                        <span class="lang-switch" onclick="toggleLanguage()" title="Switch Language">中文</span>
+                        <button class="control-btn" onclick="toggleTheme()" title="Toggle theme">
+                            <i data-lucide="sun" id="theme-icon"></i>
+                        </button>
+                    </div>
+                    <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                        <i data-lucide="menu"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </header>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobileMenu">
+        <div class="mobile-menu-header">
+            <span class="logo-text">RAGO</span>
+            <button onclick="toggleMobileMenu()">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <nav class="mobile-menu-nav">
+            <a href="#features" onclick="toggleMobileMenu()" data-en="Features" data-cn="功能">Features</a>
+            <a href="#examples" onclick="toggleMobileMenu()" data-en="Examples" data-cn="示例">Examples</a>
+            <a href="#installation" onclick="toggleMobileMenu()" data-en="Install" data-cn="安装">Install</a>
+            <a href="https://github.com/liliang-cn/rago">GitHub</a>
+        </nav>
+    </div>
 
     <!-- Hero Section -->
     <section class="hero">
         <div class="container">
             <div class="hero-content">
-                <div class="hero-badge">
-                    <i data-lucide="sparkles"></i>
-                    Document → Vector → Search → Answer
+                <div class="hero-animated-badges">
+                    <div class="hero-badge animated-badge workflow-badge">
+                        <i data-lucide="sparkles"></i>
+                        <span data-en="Natural Language → Workflow → Execution" data-cn="自然语言 → 工作流 → 执行">Natural Language → Workflow → Execution</span>
+                    </div>
+                </div>
+                <div class="hero-badges">
+                    <div class="hero-badge primary">
+                        <i data-lucide="shield"></i>
+                        <span data-en="Privacy First" data-cn="隐私优先">Privacy First</span>
+                    </div>
+                    <div class="hero-badge">
+                        <i data-lucide="home"></i>
+                        <span data-en="100% Local" data-cn="100% 本地">100% Local</span>
+                    </div>
+                    <div class="hero-badge">
+                        <i data-lucide="feather"></i>
+                        <span data-en="Lightweight" data-cn="轻量级">Lightweight</span>
+                    </div>
                 </div>
                 <h1 class="hero-title">
-                    Local RAG System<br>
-                    Powered by RAGO v2
+                    <span data-en="Local RAG System" data-cn="本地 RAG 系统">Local RAG System</span>
                 </h1>
-                <p class="hero-subtitle">
-                    Ingest documents, perform semantic search, and generate context-enhanced answers
-                    with SQLite vector storage and multi-provider LLM support
+                <p class="hero-subtitle" 
+                   data-en="Privacy-first document processing with complete data control. Lightweight, fast, and 100% offline capable. Your data never leaves your machine."
+                   data-cn="隐私优先的文档处理，完全掌控您的数据。轻量、快速、100% 离线运行。您的数据永不离开本机。">
+                    Privacy-first document processing with complete data control. Lightweight, fast, and 100% offline capable. Your data never leaves your machine.
+                </p>
+                <p class="hero-description"
+                   data-en="Advanced RAG capabilities with MCP tools integration and multi-provider LLM support."
+                   data-cn="具备 MCP 工具集成和多提供商 LLM 支持的高级 RAG 功能。">
+                    Advanced RAG capabilities with MCP tools integration and multi-provider LLM support.
                 </p>
                 <div class="hero-buttons">
                     <a href="#installation" class="btn btn-primary">
                         <i data-lucide="download"></i>
-                        Get Started
+                        <span data-en="Get Started" data-cn="开始使用">Get Started</span>
                     </a>
-                    <a href="/api/health" class="btn btn-outline">
+                    <a href="#examples" class="btn btn-outline">
                         <i data-lucide="play"></i>
-                        Try Live Demo
+                        <span data-en="View Examples" data-cn="查看示例">View Examples</span>
                     </a>
                 </div>
-                <div class="hero-stats">
-                    <div class="stat-item">
-                        <div class="stat-number">RAG</div>
-                        <div class="stat-label">Core System</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Local LLM Support Section -->
+    <section class="local-llm-section">
+        <div class="container">
+            <div class="local-llm-content">
+                <h3 class="local-llm-title" data-en="Works with Your Favorite Local LLMs" data-cn="兼容您喜爱的本地 LLM">
+                    Works with Your Favorite Local LLMs
+                </h3>
+                <div class="llm-providers">
+                    <div class="llm-provider">
+                        <div class="llm-icon">🦙</div>
+                        <span>Ollama</span>
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-number">SQLite</div>
-                        <div class="stat-label">Vector DB</div>
+                    <div class="llm-provider">
+                        <div class="llm-icon">🎨</div>
+                        <span>LM Studio</span>
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-number">3</div>
-                        <div class="stat-label">LLM Providers</div>
+                    <div class="llm-provider">
+                        <div class="llm-icon">🤖</div>
+                        <span>LocalAI</span>
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-number">100%</div>
-                        <div class="stat-label">Local Option</div>
+                    <div class="llm-provider">
+                        <div class="llm-icon">🔌</div>
+                        <span data-en="OpenAI Compatible" data-cn="OpenAI 兼容">OpenAI Compatible</span>
                     </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="architecture">
+        <div class="container">
+            <div class="section-header">
+                <div class="section-badge" data-en="Architecture" data-cn="架构">Architecture</div>
+                <h2 class="section-title" data-en="Simple Yet Powerful" data-cn="简单而强大">
+                    Simple Yet Powerful
+                </h2>
+                <p class="section-subtitle" 
+                   data-en="Complete RAG pipeline with minimal resource requirements"
+                   data-cn="完整的 RAG 管道，资源需求极低">
+                    Complete RAG pipeline with minimal resource requirements
+                </p>
+            </div>
+            <div class="architecture-grid">
+                <div class="arch-card">
+                    <div class="arch-icon">
+                        <i data-lucide="file-text"></i>
+                    </div>
+                    <h3 class="arch-title" data-en="Document Ingestion" data-cn="文档摄取">Document Ingestion</h3>
+                    <p class="arch-description" data-en="PDF, Text, Markdown, JSON, HTML" data-cn="PDF、文本、Markdown、JSON、HTML">
+                        PDF, Text, Markdown, JSON, HTML
+                    </p>
+                </div>
+                <div class="arch-card">
+                    <div class="arch-icon">
+                        <i data-lucide="scissors"></i>
+                    </div>
+                    <h3 class="arch-title" data-en="Smart Chunking" data-cn="智能分块">Smart Chunking</h3>
+                    <p class="arch-description" data-en="Sentence, Paragraph, Token-based" data-cn="句子、段落、词元分割">
+                        Sentence, Paragraph, Token-based
+                    </p>
+                </div>
+                <div class="arch-card">
+                    <div class="arch-icon">
+                        <i data-lucide="database"></i>
+                    </div>
+                    <h3 class="arch-title" data-en="Vector Storage" data-cn="向量存储">Vector Storage</h3>
+                    <p class="arch-description" data-en="SQLite with sqvect extension" data-cn="SQLite + sqvect 扩展">
+                        SQLite with sqvect extension
+                    </p>
+                </div>
+                <div class="arch-card">
+                    <div class="arch-icon">
+                        <i data-lucide="search"></i>
+                    </div>
+                    <h3 class="arch-title" data-en="Hybrid Search" data-cn="混合搜索">Hybrid Search</h3>
+                    <p class="arch-description" data-en="Vector + Keyword with RRF" data-cn="向量 + 关键词 RRF 融合">
+                        Vector + Keyword with RRF
+                    </p>
                 </div>
             </div>
         </div>
@@ -757,234 +1156,630 @@
     <section id="features" class="features">
         <div class="container">
             <div class="section-header">
-                <div class="section-badge">Core Capabilities</div>
-                <h2 class="section-title">Core Capabilities</h2>
-                <p class="section-subtitle">
-                    Document ingestion, semantic search, Q&A generation, and optional agent automation
+                <div class="section-badge" data-en="Complete Feature Set" data-cn="完整功能集">Complete Feature Set</div>
+                <h2 class="section-title" data-en="Everything You Need" data-cn="您所需的一切">
+                    Everything You Need
+                </h2>
+                <p class="section-subtitle" 
+                   data-en="Comprehensive RAG capabilities with enterprise features"
+                   data-cn="具有企业级功能的全面 RAG 能力">
+                    Comprehensive RAG capabilities with enterprise features
                 </p>
             </div>
             <div class="features-grid">
+                <!-- Core RAG -->
                 <div class="feature-card">
                     <div class="feature-icon">
                         <i data-lucide="database"></i>
                     </div>
-                    <h3 class="feature-title">RAG System</h3>
-                    <p class="feature-description">
-                        Document ingestion, vector storage, and semantic search for Q&A
+                    <h3 class="feature-title" data-en="RAG Pipeline" data-cn="RAG 管道">RAG Pipeline</h3>
+                    <p class="feature-description" 
+                       data-en="Complete document processing and Q&A system"
+                       data-cn="完整的文档处理和问答系统">
+                        Complete document processing and Q&A system
                     </p>
                     <ul class="feature-list">
-                        <li><i data-lucide="check"></i> Text, PDF, Markdown support</li>
-                        <li><i data-lucide="check"></i> SQLite vector database</li>
-                        <li><i data-lucide="check"></i> Smart chunking strategies</li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Multi-format document support" data-cn="多格式文档支持">
+                                Multi-format document support
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Configurable chunking strategies" data-cn="可配置的分块策略">
+                                Configurable chunking strategies
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Context-aware Q&A generation" data-cn="上下文感知问答生成">
+                                Context-aware Q&A generation
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Source attribution for answers" data-cn="答案来源归属">
+                                Source attribution for answers
+                            </span>
+                        </li>
                     </ul>
                 </div>
 
+                <!-- Vector Database -->
                 <div class="feature-card">
                     <div class="feature-icon">
-                        <i data-lucide="layers"></i>
+                        <i data-lucide="hard-drive"></i>
                     </div>
-                    <h3 class="feature-title">MCP Tools Integration</h3>
-                    <p class="feature-description">
-                        Built-in tools for filesystem, web, memory, time, and LLM reasoning
+                    <h3 class="feature-title" data-en="Vector Database" data-cn="向量数据库">Vector Database</h3>
+                    <p class="feature-description" 
+                       data-en="High-performance SQLite-based vector storage"
+                       data-cn="高性能基于 SQLite 的向量存储">
+                        High-performance SQLite-based vector storage
                     </p>
                     <ul class="feature-list">
-                        <li><i data-lucide="check"></i> Filesystem operations</li>
-                        <li><i data-lucide="check"></i> HTTP/HTTPS requests</li>
-                        <li><i data-lucide="check"></i> Sequential thinking</li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="SQLite with sqvect extension" data-cn="SQLite + sqvect 扩展">
+                                SQLite with sqvect extension
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Bleve full-text search" data-cn="Bleve 全文搜索">
+                                Bleve full-text search
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="RRF fusion algorithm" data-cn="RRF 融合算法">
+                                RRF fusion algorithm
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Metadata filtering" data-cn="元数据过滤">
+                                Metadata filtering
+                            </span>
+                        </li>
                     </ul>
                 </div>
 
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i data-lucide="workflow"></i>
-                    </div>
-                    <h3 class="feature-title">Workflow Automation</h3>
-                    <p class="feature-description">
-                        Define complex workflows with JSON spec and variable passing
-                    </p>
-                    <ul class="feature-list">
-                        <li><i data-lucide="check"></i> JSON workflow spec</li>
-                        <li><i data-lucide="check"></i> Variable passing {{var}}</li>
-                        <li><i data-lucide="check"></i> Parallel execution</li>
-                    </ul>
-                </div>
-
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i data-lucide="database"></i>
-                    </div>
-                    <h3 class="feature-title">Advanced RAG System</h3>
-                    <p class="feature-description">
-                        High-performance semantic search with SQLite vector database
-                    </p>
-                    <ul class="feature-list">
-                        <li><i data-lucide="check"></i> Vector search</li>
-                        <li><i data-lucide="check"></i> Smart chunking</li>
-                        <li><i data-lucide="check"></i> Multi-format support</li>
-                    </ul>
-                </div>
-
+                <!-- Multi-Provider -->
                 <div class="feature-card">
                     <div class="feature-icon">
                         <i data-lucide="cpu"></i>
                     </div>
-                    <h3 class="feature-title">Multi-Provider Support</h3>
-                    <p class="feature-description">
-                        Seamlessly switch between Ollama, OpenAI, and LM Studio
+                    <h3 class="feature-title" data-en="Multi-Provider LLM" data-cn="多提供商 LLM">Multi-Provider LLM</h3>
+                    <p class="feature-description" 
+                       data-en="Flexible provider switching via configuration"
+                       data-cn="通过配置灵活切换提供商">
+                        Flexible provider switching via configuration
                     </p>
                     <ul class="feature-list">
-                        <li><i data-lucide="check"></i> Ollama (local)</li>
-                        <li><i data-lucide="check"></i> LM Studio (local)</li>
-                        <li><i data-lucide="check"></i> OpenAI (cloud)</li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Ollama for local models" data-cn="Ollama 本地模型">
+                                Ollama for local models
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="LM Studio GUI support" data-cn="LM Studio GUI 支持">
+                                LM Studio GUI support
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="OpenAI API compatible" data-cn="OpenAI API 兼容">
+                                OpenAI API compatible
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Custom provider support" data-cn="自定义提供商支持">
+                                Custom provider support
+                            </span>
+                        </li>
                     </ul>
                 </div>
 
+                <!-- Configuration -->
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i data-lucide="settings"></i>
+                    </div>
+                    <h3 class="feature-title" data-en="Configuration System" data-cn="配置系统">Configuration System</h3>
+                    <p class="feature-description" 
+                       data-en="Comprehensive TOML-based configuration"
+                       data-cn="全面的基于 TOML 的配置">
+                        Comprehensive TOML-based configuration
+                    </p>
+                    <ul class="feature-list">
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Provider configuration" data-cn="提供商配置">
+                                Provider configuration
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Chunking parameters" data-cn="分块参数">
+                                Chunking parameters
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Search settings" data-cn="搜索设置">
+                                Search settings
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Environment variables" data-cn="环境变量">
+                                Environment variables
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- MCP Tools -->
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i data-lucide="layers"></i>
+                    </div>
+                    <h3 class="feature-title" data-en="MCP Tools" data-cn="MCP 工具">MCP Tools</h3>
+                    <p class="feature-description" 
+                       data-en="Model Context Protocol for tool integration"
+                       data-cn="模型上下文协议工具集成">
+                        Model Context Protocol for tool integration
+                    </p>
+                    <ul class="feature-list">
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Filesystem operations" data-cn="文件系统操作">
+                                Filesystem operations
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="HTTP/HTTPS requests" data-cn="HTTP/HTTPS 请求">
+                                HTTP/HTTPS requests
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="SQLite database tools" data-cn="SQLite 数据库工具">
+                                SQLite database tools
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Memory & time utilities" data-cn="内存和时间工具">
+                                Memory & time utilities
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Agent System -->
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i data-lucide="workflow"></i>
+                    </div>
+                    <h3 class="feature-title" data-en="Agent Automation" data-cn="代理自动化">Agent Automation</h3>
+                    <p class="feature-description" 
+                       data-en="Natural language workflow generation"
+                       data-cn="自然语言工作流生成">
+                        Natural language workflow generation
+                    </p>
+                    <ul class="feature-list">
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="NL to workflow conversion" data-cn="自然语言转工作流">
+                                NL to workflow conversion
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="JSON workflow specs" data-cn="JSON 工作流规范">
+                                JSON workflow specs
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Async parallel execution" data-cn="异步并行执行">
+                                Async parallel execution
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Variable interpolation" data-cn="变量插值">
+                                Variable interpolation
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- HTTP API -->
                 <div class="feature-card">
                     <div class="feature-icon">
                         <i data-lucide="globe"></i>
                     </div>
-                    <h3 class="feature-title">Enterprise Ready</h3>
-                    <p class="feature-description">
-                        Production-ready with HTTP APIs and 100% local option
+                    <h3 class="feature-title" data-en="HTTP API" data-cn="HTTP API">HTTP API</h3>
+                    <p class="feature-description" 
+                       data-en="Complete RESTful API for all operations"
+                       data-cn="所有操作的完整 RESTful API">
+                        Complete RESTful API for all operations
                     </p>
                     <ul class="feature-list">
-                        <li><i data-lucide="check"></i> Complete REST API</li>
-                        <li><i data-lucide="check"></i> Full privacy option</li>
-                        <li><i data-lucide="check"></i> High performance Go</li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Document ingestion endpoints" data-cn="文档摄取端点">
+                                Document ingestion endpoints
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Query & search APIs" data-cn="查询和搜索 API">
+                                Query & search APIs
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="MCP tool execution" data-cn="MCP 工具执行">
+                                MCP tool execution
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Agent workflow APIs" data-cn="代理工作流 API">
+                                Agent workflow APIs
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Go Library -->
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i data-lucide="package"></i>
+                    </div>
+                    <h3 class="feature-title" data-en="Go Library" data-cn="Go 库">Go Library</h3>
+                    <p class="feature-description" 
+                       data-en="Use RAGO as a library in your Go applications"
+                       data-cn="在您的 Go 应用中使用 RAGO 库">
+                        Use RAGO as a library in your Go applications
+                    </p>
+                    <ul class="feature-list">
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Simple client interface" data-cn="简单的客户端接口">
+                                Simple client interface
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Provider abstraction" data-cn="提供商抽象">
+                                Provider abstraction
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Pipeline components" data-cn="管道组件">
+                                Pipeline components
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Error handling" data-cn="错误处理">
+                                Error handling
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- CLI Tools -->
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i data-lucide="terminal"></i>
+                    </div>
+                    <h3 class="feature-title" data-en="CLI Commands" data-cn="CLI 命令">CLI Commands</h3>
+                    <p class="feature-description" 
+                       data-en="Comprehensive command-line interface"
+                       data-cn="全面的命令行接口">
+                        Comprehensive command-line interface
+                    </p>
+                    <ul class="feature-list">
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Document management" data-cn="文档管理">
+                                Document management
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Interactive querying" data-cn="交互式查询">
+                                Interactive querying
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Provider status checks" data-cn="提供商状态检查">
+                                Provider status checks
+                            </span>
+                        </li>
+                        <li>
+                            <i data-lucide="check"></i>
+                            <span data-en="Database management" data-cn="数据库管理">
+                                Database management
+                            </span>
+                        </li>
                     </ul>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- MCP Section -->
-    <section id="mcp" class="mcp-section">
+    <!-- Tools Section -->
+    <section class="tools-section">
         <div class="container">
-            <div class="mcp-grid">
-                <div class="mcp-content">
-                    <div class="section-badge">MCP Integration</div>
-                    <h2>Model Context Protocol Support</h2>
-                    <p>
-                        RAGO v2 features full MCP integration, enabling powerful tool usage through a standardized protocol.
-                        Connect to any MCP server and leverage its tools directly through our HTTP API.
-                    </p>
-                    <div class="mcp-features">
-                        <div class="mcp-feature">
-                            <div class="mcp-feature-icon">
-                                <i data-lucide="plug"></i>
-                            </div>
-                            <div>
-                                <strong>19+ SQLite Tools</strong>
-                                <p>Full database operations via mcp-sqlite-server</p>
-                            </div>
-                        </div>
-                        <div class="mcp-feature">
-                            <div class="mcp-feature-icon">
-                                <i data-lucide="terminal"></i>
-                            </div>
-                            <div>
-                                <strong>HTTP API Access</strong>
-                                <p>Execute MCP tools through RESTful endpoints</p>
-                            </div>
-                        </div>
-                        <div class="mcp-feature">
-                            <div class="mcp-feature-icon">
-                                <i data-lucide="layers"></i>
-                            </div>
-                            <div>
-                                <strong>Multi-Server Support</strong>
-                                <p>Connect to multiple MCP servers simultaneously</p>
-                            </div>
-                        </div>
-                        <div class="mcp-feature">
-                            <div class="mcp-feature-icon">
-                                <i data-lucide="code"></i>
-                            </div>
-                            <div>
-                                <strong>LLM Integration Ready</strong>
-                                <p>Tools formatted for OpenAI function calling</p>
-                            </div>
-                        </div>
+            <div class="section-header">
+                <div class="section-badge" data-en="MCP Tools Available" data-cn="可用 MCP 工具">MCP Tools Available</div>
+                <h2 class="section-title" data-en="Rich Tool Ecosystem" data-cn="丰富的工具生态">
+                    Rich Tool Ecosystem
+                </h2>
+            </div>
+            <div class="tools-grid">
+                <div class="tool-item">
+                    <div class="tool-icon"><i data-lucide="file"></i></div>
+                    <div class="tool-info">
+                        <div class="tool-name">filesystem</div>
+                        <div class="tool-desc" data-en="File operations" data-cn="文件操作">File operations</div>
                     </div>
                 </div>
-                <div class="mcp-demo">
-                    <div class="mcp-demo-header">
-                        <div class="demo-dot red"></div>
-                        <div class="demo-dot yellow"></div>
-                        <div class="demo-dot green"></div>
-                        <span style="margin-left: auto; font-size: 0.75rem; color: #6b7280;">MCP Tool Execution</span>
+                <div class="tool-item">
+                    <div class="tool-icon"><i data-lucide="globe"></i></div>
+                    <div class="tool-info">
+                        <div class="tool-name">fetch</div>
+                        <div class="tool-desc" data-en="HTTP requests" data-cn="HTTP 请求">HTTP requests</div>
                     </div>
-                    <div class="mcp-demo-content">
-                        <div><span class="demo-comment"># List available MCP tools</span></div>
-                        <div><span class="demo-command">curl http://localhost:7127/api/mcp/tools</span></div>
-                        <div><span class="demo-output">{"tools": 19, "servers": {"sqlite": true}}</span></div>
-                        <div style="margin-top: 1rem;"></div>
-                        <div><span class="demo-comment"># Execute MCP tool</span></div>
-                        <div><span class="demo-command">curl -X POST /api/mcp/tools/call \</span></div>
-                        <div><span class="demo-command">  -d '{"tool_name": "mcp_sqlite_query",</span></div>
-                        <div><span class="demo-command">       "args": {"query": "SELECT * FROM docs"}}'</span></div>
-                        <div><span class="demo-output">{"success": true, "data": [...]}</span></div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-icon"><i data-lucide="database"></i></div>
+                    <div class="tool-info">
+                        <div class="tool-name">sqlite</div>
+                        <div class="tool-desc" data-en="Database ops" data-cn="数据库操作">Database ops</div>
+                    </div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-icon"><i data-lucide="brain"></i></div>
+                    <div class="tool-info">
+                        <div class="tool-name">memory</div>
+                        <div class="tool-desc" data-en="Key-value store" data-cn="键值存储">Key-value store</div>
+                    </div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-icon"><i data-lucide="clock"></i></div>
+                    <div class="tool-info">
+                        <div class="tool-name">time</div>
+                        <div class="tool-desc" data-en="Date/time utils" data-cn="日期时间工具">Date/time utils</div>
+                    </div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-icon"><i data-lucide="zap"></i></div>
+                    <div class="tool-info">
+                        <div class="tool-name">sequential-thinking</div>
+                        <div class="tool-desc" data-en="LLM reasoning" data-cn="LLM 推理">LLM reasoning</div>
+                    </div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-icon"><i data-lucide="chrome"></i></div>
+                    <div class="tool-info">
+                        <div class="tool-name">playwright</div>
+                        <div class="tool-desc" data-en="Browser control" data-cn="浏览器控制">Browser control</div>
+                    </div>
+                </div>
+                <div class="tool-item">
+                    <div class="tool-icon"><i data-lucide="git-branch"></i></div>
+                    <div class="tool-info">
+                        <div class="tool-name">git</div>
+                        <div class="tool-desc" data-en="Version control" data-cn="版本控制">Version control</div>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- API Section -->
-    <section id="api" class="api-section">
+    <!-- Examples Section -->
+    <section id="examples" class="examples">
         <div class="container">
             <div class="section-header">
-                <div class="section-badge">HTTP API</div>
-                <h2 class="section-title">Comprehensive REST APIs</h2>
-                <p class="section-subtitle">
-                    Full-featured HTTP endpoints for all RAG operations, MCP tools, and system management
-                </p>
+                <div class="section-badge" data-en="Live Examples" data-cn="实时示例">Live Examples</div>
+                <h2 class="section-title" data-en="See RAGO in Action" data-cn="查看 RAGO 实际应用">
+                    See RAGO in Action
+                </h2>
             </div>
-            <div class="api-grid">
-                <div class="api-card">
-                    <span class="api-method method-post">POST</span>
-                    <div class="api-endpoint">/api/ingest</div>
-                    <div class="api-description">Ingest documents into the RAG system</div>
+            
+            <div class="examples-tabs">
+                <button class="tab-button active" onclick="showExample('rag')" data-en="RAG Query" data-cn="RAG 查询">
+                    RAG Query
+                </button>
+                <button class="tab-button" onclick="showExample('agent')" data-en="Agent Workflow" data-cn="代理工作流">
+                    Agent Workflow
+                </button>
+                <button class="tab-button" onclick="showExample('api')" data-en="API Usage" data-cn="API 使用">
+                    API Usage
+                </button>
+                <button class="tab-button" onclick="showExample('library')" data-en="Go Library" data-cn="Go 库">
+                    Go Library
+                </button>
+            </div>
+            
+            <div class="examples-content">
+                <!-- RAG Example -->
+                <div id="rag-example" class="example-panel active">
+                    <div class="example-card">
+                        <div class="example-header" data-en="Document Ingestion & Query" data-cn="文档摄取和查询">
+                            Document Ingestion & Query
+                        </div>
+                        <div class="example-description" data-en="Ingest documents and query with semantic search"
+                             data-cn="摄取文档并使用语义搜索查询">
+                            Ingest documents and query with semantic search
+                        </div>
+                        <div class="code-block">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code># Ingest documents recursively
+$ rago ingest ./docs --recursive
+
+# Query with source attribution
+$ rago query "What is the main concept?" --show-sources
+
+# Interactive query mode
+$ rago query -i
+
+# Query with metadata filters
+$ rago query "deployment options" --filter type=documentation</code></pre>
+                        </div>
+                        <div class="terminal-output"><span class="prompt">$</span> rago query "What is the main concept?" --show-sources
+
+<span class="success">✓ Searching documents...</span>
+<span class="success">✓ Found 5 relevant chunks</span>
+<span class="success">✓ Generating answer...</span>
+
+<span class="info">Answer:</span>
+The main concept is implementing a privacy-first RAG system that operates 
+entirely locally. Key aspects include:
+
+1. Complete data control - all processing happens on your machine
+2. SQLite-based vector storage for efficient semantic search
+3. Hybrid search combining vector and keyword approaches
+4. Multi-provider support while maintaining local-first philosophy
+
+<span class="info">Sources:</span>
+- docs/architecture.md (chunk 3, score: 0.92)
+- docs/privacy.md (chunk 1, score: 0.89)
+- README.md (chunk 7, score: 0.87)</div>
+                    </div>
                 </div>
-                <div class="api-card">
-                    <span class="api-method method-post">POST</span>
-                    <div class="api-endpoint">/api/query</div>
-                    <div class="api-description">Query documents with semantic search</div>
+
+                <!-- Agent Example -->
+                <div id="agent-example" class="example-panel">
+                    <div class="example-card">
+                        <div class="example-header" data-en="Natural Language Workflow" data-cn="自然语言工作流">
+                            Natural Language Workflow
+                        </div>
+                        <div class="code-block">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code># Generate and execute workflow from natural language
+$ rago agent run "analyze project structure and create documentation"
+
+# Save workflow for reuse
+$ rago agent run "monitor system resources every hour" --save monitoring
+
+# List and manage agents
+$ rago agent list
+$ rago agent execute monitoring_agent</code></pre>
+                        </div>
+                        <div class="terminal-output"><span class="prompt">$</span> rago agent run "analyze project structure and create documentation"
+
+<span class="success">✓ Generating workflow from natural language...</span>
+<span class="success">✓ Created 5-step workflow</span>
+
+<span class="info">Step 1/5: scan_directory</span>
+Scanning project structure...
+<span class="success">✓ Found 127 files in 23 directories</span>
+
+<span class="info">Step 2/5: analyze_code</span>
+Analyzing Go modules and dependencies...
+<span class="success">✓ Identified 15 packages, 8 external dependencies</span>
+
+<span class="info">Step 3/5: extract_patterns</span>
+Extracting architectural patterns...
+<span class="success">✓ Found factory pattern, pipeline architecture</span>
+
+<span class="info">Step 4/5: generate_docs</span>
+Creating documentation...
+<span class="success">✓ Generated README sections</span>
+
+<span class="info">Step 5/5: save_results</span>
+<span class="success">✓ Documentation saved to PROJECT_DOCS.md</span></div>
+                    </div>
                 </div>
-                <div class="api-card">
-                    <span class="api-method method-post">POST</span>
-                    <div class="api-endpoint">/api/query-stream</div>
-                    <div class="api-description">Stream query responses in real-time</div>
+
+                <!-- API Example -->
+                <div id="api-example" class="example-panel">
+                    <div class="example-card">
+                        <div class="example-header" data-en="HTTP API Usage" data-cn="HTTP API 使用">
+                            HTTP API Usage
+                        </div>
+                        <div class="code-block">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code># Start API server
+$ rago serve --port 7127
+
+# Ingest via API
+$ curl -X POST http://localhost:7127/api/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"file_path": "document.pdf"}'
+
+# Query via API
+$ curl -X POST http://localhost:7127/api/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "summarize the document",
+    "top_k": 5,
+    "temperature": 0.7,
+    "show_sources": true
+  }'</code></pre>
+                        </div>
+                    </div>
                 </div>
-                <div class="api-card">
-                    <span class="api-method method-get">GET</span>
-                    <div class="api-endpoint">/api/mcp/tools</div>
-                    <div class="api-description">List all available MCP tools</div>
-                </div>
-                <div class="api-card">
-                    <span class="api-method method-post">POST</span>
-                    <div class="api-endpoint">/api/mcp/tools/call</div>
-                    <div class="api-description">Execute an MCP tool</div>
-                </div>
-                <div class="api-card">
-                    <span class="api-method method-post">POST</span>
-                    <div class="api-endpoint">/api/mcp/tools/batch</div>
-                    <div class="api-description">Execute multiple tools in parallel</div>
-                </div>
-                <div class="api-card">
-                    <span class="api-method method-get">GET</span>
-                    <div class="api-endpoint">/api/mcp/servers</div>
-                    <div class="api-description">Get MCP server status</div>
-                </div>
-                <div class="api-card">
-                    <span class="api-method method-get">GET</span>
-                    <div class="api-endpoint">/api/documents</div>
-                    <div class="api-description">List ingested documents</div>
-                </div>
-                <div class="api-card">
-                    <span class="api-method method-delete">DELETE</span>
-                    <div class="api-endpoint">/api/documents/:id</div>
-                    <div class="api-description">Delete a specific document</div>
+
+                <!-- Library Example -->
+                <div id="library-example" class="example-panel">
+                    <div class="example-card">
+                        <div class="example-header" data-en="Go Library Usage" data-cn="Go 库使用">
+                            Go Library Usage
+                        </div>
+                        <div class="code-block">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code>package main
+
+import (
+    "context"
+    "fmt"
+    "github.com/liliang-cn/rago/pkg/config"
+    "github.com/liliang-cn/rago/pkg/processor"
+    "github.com/liliang-cn/rago/pkg/domain"
+)
+
+func main() {
+    // Load configuration
+    cfg, _ := config.Load("rago.toml")
+    
+    // Initialize processor
+    proc := processor.New(cfg)
+    
+    // Ingest document
+    doc := domain.Document{
+        Path:    "research.pdf",
+        Content: documentContent,
+    }
+    proc.IngestDocument(context.Background(), doc)
+    
+    // Query
+    req := domain.QueryRequest{
+        Query:       "What are the key findings?",
+        TopK:        5,
+        Temperature: 0.7,
+    }
+    
+    resp, _ := proc.Query(context.Background(), req)
+    fmt.Println(resp.Answer)
+}</code></pre>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -994,89 +1789,74 @@
     <section id="installation" class="installation">
         <div class="container">
             <div class="section-header">
-                <div class="section-badge">Getting Started</div>
-                <h2 class="section-title">Quick Installation</h2>
-                <p class="section-subtitle">
-                    Get RAGO v2 up and running in minutes with multiple installation options
+                <div class="section-badge" data-en="Quick Start" data-cn="快速开始">Quick Start</div>
+                <h2 class="section-title" data-en="Install in Seconds" data-cn="秒速安装">
+                    Install in Seconds
+                </h2>
+                <p class="section-subtitle" 
+                   data-en="Multiple installation methods to suit your needs"
+                   data-cn="多种安装方式满足您的需求">
+                    Multiple installation methods to suit your needs
                 </p>
             </div>
-            <div class="install-tabs">
-                <button class="install-tab active" onclick="showInstall('binary')">Binary Release</button>
-                <button class="install-tab" onclick="showInstall('source')">From Source</button>
-                <button class="install-tab" onclick="showInstall('docker')">Docker</button>
-                <button class="install-tab" onclick="showInstall('config')">Configuration</button>
-            </div>
-            <div class="install-content">
-                <div id="install-binary" class="install-panel">
-                    <h3>Download Pre-built Binary</h3>
-                    <p>Download the latest release for your platform:</p>
+            <div class="installation-methods">
+                <div class="method-card recommended">
+                    <span class="recommended-badge" data-en="Recommended" data-cn="推荐">Recommended</span>
+                    <h3 class="method-title">
+                        <i data-lucide="package"></i>
+                        <span data-en="Go Install" data-cn="Go 安装">Go Install</span>
+                    </h3>
                     <div class="code-block">
-                        <div class="code-header">
-                            <span>Terminal</span>
-                            <button class="copy-btn" onclick="copyCode('binary-code')">Copy</button>
-                        </div>
-                        <code id="binary-code"># Linux/Mac
-wget https://github.com/liliang-cn/rago/releases/latest/download/rago-linux-amd64
-chmod +x rago-linux-amd64
-./rago-linux-amd64 serve
+                        <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                        <pre><code># Install with go install (Go 1.21+)
+go install github.com/liliang-cn/rago/cmd/rago@latest
 
-# Windows
-# Download from: https://github.com/liliang-cn/rago/releases</code>
+# Initialize configuration
+rago init
+
+# Start using
+rago ingest documents/
+rago query "your question?"</code></pre>
                     </div>
                 </div>
-                <div id="install-source" class="install-panel" style="display:none;">
-                    <h3>Build from Source</h3>
-                    <p>Clone the repository and build using Make:</p>
+
+                <div class="method-card">
+                    <h3 class="method-title">
+                        <i data-lucide="git-branch"></i>
+                        <span data-en="Build from Source" data-cn="从源码构建">Build from Source</span>
+                    </h3>
                     <div class="code-block">
-                        <div class="code-header">
-                            <span>Terminal</span>
-                            <button class="copy-btn" onclick="copyCode('source-code')">Copy</button>
-                        </div>
-                        <code id="source-code">git clone https://github.com/liliang-cn/rago.git
+                        <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                        <pre><code># Clone repository
+git clone https://github.com/liliang-cn/rago
 cd rago
-make build
-./build/rago serve</code>
-                    </div>
-                </div>
-                <div id="install-docker" class="install-panel" style="display:none;">
-                    <h3>Run with Docker</h3>
-                    <p>Use Docker for containerized deployment:</p>
-                    <div class="code-block">
-                        <div class="code-header">
-                            <span>Terminal</span>
-                            <button class="copy-btn" onclick="copyCode('docker-code')">Copy</button>
-                        </div>
-                        <code id="docker-code">docker run -d \
-  -p 7127:7127 \
-  -v ~/.rago:/root/.rago \
-  liliang/rago:latest serve</code>
-                    </div>
-                </div>
-                <div id="install-config" class="install-panel" style="display:none;">
-                    <h3>Configuration</h3>
-                    <p>Create a rago.toml file with your settings:</p>
-                    <div class="code-block">
-                        <div class="code-header">
-                            <span>rago.toml</span>
-                            <button class="copy-btn" onclick="copyCode('config-code')">Copy</button>
-                        </div>
-                        <code id="config-code">[server]
-port = 7127
-host = "0.0.0.0"
 
+# Build with make
+make build
+
+# Or build directly
+go build -o rago ./cmd/rago</code></pre>
+                    </div>
+                </div>
+
+                <div class="method-card">
+                    <h3 class="method-title">
+                        <i data-lucide="download"></i>
+                        <span data-en="Provider Setup" data-cn="提供商设置">Provider Setup</span>
+                    </h3>
+                    <div class="code-block">
+                        <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                        <pre><code># Option 1: Ollama (recommended for local)
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull qwen3
+
+# Option 2: LM Studio
+# Download from https://lmstudio.ai
+
+# Configure provider in rago.toml
 [providers]
 default_llm = "ollama"
-default_embedder = "ollama"
-
-[providers.ollama]
-type = "ollama"
-base_url = "http://localhost:11434"
-llm_model = "llama3"
-embedding_model = "nomic-embed-text"
-
-[mcp]
-enabled = true
-servers_config_path = "mcpServers.json"</code>
+default_embedder = "ollama"</code></pre>
                     </div>
                 </div>
             </div>
@@ -1086,43 +1866,16 @@ servers_config_path = "mcpServers.json"</code>
     <!-- Footer -->
     <footer class="footer">
         <div class="container">
-            <div class="footer-grid">
-                <div>
-                    <h3>RAGO v2</h3>
-                    <p style="color: #9ca3af; margin-top: 0.5rem;">
-                        Next-generation RAG system with MCP integration
-                    </p>
+            <div class="footer-content">
+                <div class="footer-text">
+                    © 2024 RAGO Project. <span data-en="Privacy First. Always." data-cn="隐私优先，始终如一。">Privacy First. Always.</span>
                 </div>
-                <div>
-                    <h3>Documentation</h3>
-                    <ul class="footer-links">
-                        <li><a href="/docs/api">API Reference</a></li>
-                        <li><a href="/docs/mcp_http_api.md">MCP HTTP API</a></li>
-                        <li><a href="https://github.com/liliang-cn/rago/wiki">Wiki</a></li>
-                        <li><a href="https://github.com/liliang-cn/rago/tree/main/examples">Examples</a></li>
-                    </ul>
+                <div class="footer-links">
+                    <a href="https://github.com/liliang-cn/rago" class="footer-link">GitHub</a>
+                    <a href="https://github.com/liliang-cn/rago/blob/main/README.md" class="footer-link" data-en="Docs" data-cn="文档">Docs</a>
+                    <a href="https://github.com/liliang-cn/rago/issues" class="footer-link" data-en="Issues" data-cn="问题">Issues</a>
+                    <a href="https://github.com/liliang-cn/rago/blob/main/LICENSE" class="footer-link" data-en="License" data-cn="许可证">License</a>
                 </div>
-                <div>
-                    <h3>Community</h3>
-                    <ul class="footer-links">
-                        <li><a href="https://github.com/liliang-cn/rago">GitHub</a></li>
-                        <li><a href="https://github.com/liliang-cn/rago/issues">Issues</a></li>
-                        <li><a href="https://github.com/liliang-cn/rago/discussions">Discussions</a></li>
-                        <li><a href="https://github.com/liliang-cn/rago/releases">Releases</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h3>Resources</h3>
-                    <ul class="footer-links">
-                        <li><a href="https://modelcontextprotocol.io">MCP Protocol</a></li>
-                        <li><a href="https://ollama.ai">Ollama</a></li>
-                        <li><a href="https://openai.com">OpenAI</a></li>
-                        <li><a href="https://lmstudio.ai">LM Studio</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; 2025 RAGO. Released under the MIT License.</p>
             </div>
         </div>
     </footer>
@@ -1131,38 +1884,134 @@ servers_config_path = "mcpServers.json"</code>
         // Initialize Lucide icons
         lucide.createIcons();
 
+        // Theme Management
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateThemeIcon(currentTheme);
+
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = document.getElementById('theme-icon');
+            if (icon) {
+                icon.setAttribute('data-lucide', theme === 'light' ? 'sun' : 'moon');
+                lucide.createIcons();
+            }
+        }
+
+        // Language Management
+        let currentLang = localStorage.getItem('language') || 'en';
+        if (currentLang !== 'en') {
+            switchLanguage(currentLang);
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'cn' : 'en';
+            localStorage.setItem('language', currentLang);
+            switchLanguage(currentLang);
+        }
+
+        function switchLanguage(lang) {
+            const elements = document.querySelectorAll('[data-en][data-cn]');
+            elements.forEach(el => {
+                const text = el.getAttribute(`data-${lang}`);
+                if (text) {
+                    el.textContent = text;
+                }
+            });
+            
+            // Update language switcher text
+            const langSwitch = document.querySelector('.lang-switch');
+            if (langSwitch) {
+                langSwitch.textContent = lang === 'en' ? '中文' : 'en';
+            }
+            
+            // Update HTML lang attribute
+            document.documentElement.setAttribute('lang', lang === 'cn' ? 'zh-CN' : 'en');
+        }
+
+        // Mobile Menu
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobileMenu');
+            menu.classList.toggle('active');
+        }
+
+        // Example Tabs
+        function showExample(type) {
+            // Update tabs
+            const tabs = document.querySelectorAll('.tab-button');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update panels
+            const panels = document.querySelectorAll('.example-panel');
+            panels.forEach(panel => panel.classList.remove('active'));
+            document.getElementById(`${type}-example`).classList.add('active');
+        }
+
+        // Copy Code Function
+        function copyCode(button) {
+            const codeBlock = button.parentElement.querySelector('code');
+            const text = codeBlock.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            });
+        }
+
         // GSAP Animations
         gsap.registerPlugin(ScrollTrigger);
 
-        // Hero animations
-        gsap.fromTo(".hero-badge", 
-            { opacity: 0, y: 20 },
-            { opacity: 1, y: 0, duration: 0.6, delay: 0.2 }
+        // Hero animation for animated badge
+        gsap.fromTo(".workflow-badge",
+            { opacity: 0, y: -30, scale: 0.8, rotate: -5 },
+            { opacity: 1, y: 0, scale: 1, rotate: 0, duration: 1, delay: 0.2, ease: "elastic.out(1, 0.8)" }
+        );
+        
+        // Regular badges animation
+        gsap.fromTo(".hero-badges > .hero-badge", 
+            { opacity: 0, y: -20 },
+            { opacity: 1, y: 0, duration: 0.6, delay: 0.5, stagger: 0.1 }
         );
 
         gsap.fromTo(".hero-title",
-            { opacity: 0, y: 30 },
-            { opacity: 1, y: 0, duration: 0.8, delay: 0.4 }
+            { opacity: 0, y: 20 },
+            { opacity: 1, y: 0, duration: 0.8, delay: 0.3 }
         );
 
         gsap.fromTo(".hero-subtitle",
             { opacity: 0, y: 20 },
-            { opacity: 1, y: 0, duration: 0.8, delay: 0.6 }
+            { opacity: 1, y: 0, duration: 0.8, delay: 0.4 }
+        );
+        
+        gsap.fromTo(".hero-description",
+            { opacity: 0, y: 20 },
+            { opacity: 1, y: 0, duration: 0.8, delay: 0.45 }
         );
 
         gsap.fromTo(".hero-buttons",
             { opacity: 0, y: 20 },
-            { opacity: 1, y: 0, duration: 0.8, delay: 0.8 }
+            { opacity: 1, y: 0, duration: 0.8, delay: 0.5 }
         );
 
         gsap.fromTo(".stat-item",
-            { opacity: 0, scale: 0.8 },
+            { opacity: 0, y: 20 },
             { 
                 opacity: 1, 
-                scale: 1, 
+                y: 0, 
                 duration: 0.6, 
                 stagger: 0.1,
-                delay: 1
+                delay: 0.6
             }
         );
 
@@ -1175,77 +2024,58 @@ servers_config_path = "mcpServers.json"</code>
                 duration: 0.6,
                 stagger: 0.1,
                 scrollTrigger: {
-                    trigger: ".features",
+                    trigger: ".features-grid",
                     start: "top 80%"
                 }
             }
         );
 
-        // MCP section animation
-        gsap.fromTo(".mcp-feature",
-            { opacity: 0, x: -30 },
+        // LLM providers animation
+        gsap.fromTo(".llm-provider",
+            { opacity: 0, scale: 0.8 },
             {
                 opacity: 1,
-                x: 0,
-                duration: 0.6,
+                scale: 1,
+                duration: 0.5,
                 stagger: 0.1,
                 scrollTrigger: {
-                    trigger: ".mcp-section",
-                    start: "top 80%"
+                    trigger: ".llm-providers",
+                    start: "top 85%"
                 }
             }
         );
 
-        // API cards animation
-        gsap.fromTo(".api-card",
+        // Architecture cards animation
+        gsap.fromTo(".arch-card",
             { opacity: 0, scale: 0.9 },
             {
                 opacity: 1,
                 scale: 1,
                 duration: 0.5,
-                stagger: 0.05,
+                stagger: 0.1,
                 scrollTrigger: {
-                    trigger: ".api-section",
+                    trigger: ".architecture-grid",
                     start: "top 80%"
                 }
             }
         );
 
-        // Installation tabs
-        function showInstall(tab) {
-            // Hide all panels
-            document.querySelectorAll('.install-panel').forEach(panel => {
-                panel.style.display = 'none';
-            });
-            
-            // Remove active class from all tabs
-            document.querySelectorAll('.install-tab').forEach(tabBtn => {
-                tabBtn.classList.remove('active');
-            });
-            
-            // Show selected panel
-            document.getElementById('install-' + tab).style.display = 'block';
-            
-            // Add active class to clicked tab
-            event.target.classList.add('active');
-        }
+        // Tools animation
+        gsap.fromTo(".tool-item",
+            { opacity: 0, x: -20 },
+            {
+                opacity: 1,
+                x: 0,
+                duration: 0.4,
+                stagger: 0.05,
+                scrollTrigger: {
+                    trigger: ".tools-grid",
+                    start: "top 80%"
+                }
+            }
+        );
 
-        // Copy code function
-        function copyCode(elementId) {
-            const codeElement = document.getElementById(elementId);
-            const text = codeElement.textContent;
-            
-            navigator.clipboard.writeText(text).then(() => {
-                const btn = event.target;
-                const originalText = btn.textContent;
-                btn.textContent = 'Copied!';
-                setTimeout(() => {
-                    btn.textContent = originalText;
-                }, 2000);
-            });
-        }
-
-        // Smooth scrolling for anchor links
+        // Smooth scrolling for navigation links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
                 e.preventDefault();
@@ -1258,36 +2088,6 @@ servers_config_path = "mcpServers.json"</code>
                 }
             });
         });
-
-        // Number counter animation for stats
-        const animateValue = (element, start, end, duration) => {
-            let startTimestamp = null;
-            const step = (timestamp) => {
-                if (!startTimestamp) startTimestamp = timestamp;
-                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                const value = Math.floor(progress * (end - start) + start);
-                element.textContent = value + (element.textContent.includes('+') ? '+' : '');
-                if (progress < 1) {
-                    window.requestAnimationFrame(step);
-                }
-            };
-            window.requestAnimationFrame(step);
-        };
-
-        // Trigger number animation when stats section is visible
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const statNumbers = document.querySelectorAll('.stat-number');
-                    statNumbers[0].textContent = '19+';
-                    statNumbers[1].textContent = '3';
-                    animateValue(statNumbers[2], 0, 100, 1500);
-                    observer.disconnect();
-                }
-            });
-        });
-
-        observer.observe(document.querySelector('.hero-stats'));
     </script>
 </body>
 
