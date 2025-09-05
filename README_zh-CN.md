@@ -36,17 +36,26 @@ RAGO (Retrieval-Augmented Generation Offline) 是一个完全本地的 RAG 系�
 - **高性能** - 优化的 Go 实现
 - **可配置** - 通过 TOML 进行广泛配置
 
-## 🚀 快速开始
+## 🚀 快速开始（零配置！）
 
-### 先决条件
+**✨ 新功能：RAGO 无需任何配置即可运行！**
 
-1. **安装 Go** (≥ 1.21)
-2. **选择你的 LLM 提供商**：
-   - **Ollama** (本地): `curl -fsSL https://ollama.com/install.sh | sh`
-   - **LM Studio** (本地): 从 [lmstudio.ai](https://lmstudio.ai) 下载
-   - **OpenAI** (云端): 从 [platform.openai.com](https://platform.openai.com) 获取 API 密钥
+### 30秒快速设置
 
-### 安装
+```bash
+# 1. 安装 RAGO
+go install github.com/liliang-cn/rago/v2@latest
+
+# 2. 安装 Ollama（如果尚未安装）
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 3. 立即开始使用 RAGO！
+rago status  # 无需配置文件即可工作！
+```
+
+就是这样！无需配置。RAGO 使用智能默认设置。
+
+### 安装选项
 
 ```bash
 # 克隆并构建
@@ -54,16 +63,28 @@ git clone https://github.com/liliang-cn/rago.git
 cd rago
 go build -o rago ./cmd/rago
 
-# 初始化配置
-./rago init
+# 可选：创建配置（仅在需要自定义设置时）
+./rago init  # 交互式 - 选择"跳过"以零配置
+```
+
+### 🎯 零配置使用
+
+```bash
+# 拉取默认模型
+ollama pull qwen3              # 默认 LLM
+ollama pull nomic-embed-text   # 默认嵌入器
+
+# 无需配置即可工作！
+./rago status                  # 检查提供商状态
+./rago ingest document.pdf     # 导入文档
+./rago query "这是关于什么的？"  # 查询知识库
 ```
 
 ### 🎯 RAG 示例
 
 ```bash
-# 导入文档
+# 导入更多文档
 ./rago ingest ./docs --recursive
-./rago ingest document.pdf
 
 # 查询您的文档
 ./rago query "主要概念是什么？"

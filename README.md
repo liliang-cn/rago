@@ -36,17 +36,26 @@ RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system writte
 - **High Performance** - Optimized Go implementation
 - **Configurable** - Extensive configuration options via TOML
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Zero Config!)
 
-### Prerequisites
+**✨ NEW: RAGO works without ANY configuration!**
 
-1. **Install Go** (≥ 1.21)
-2. **Choose Your LLM Provider**:
-   - **Ollama** (Local): `curl -fsSL https://ollama.com/install.sh | sh`
-   - **LM Studio** (Local): Download from [lmstudio.ai](https://lmstudio.ai)
-   - **OpenAI** (Cloud): Get API key from [platform.openai.com](https://platform.openai.com)
+### 30-Second Setup
 
-### Installation
+```bash
+# 1. Install RAGO
+go install github.com/liliang-cn/rago/v2@latest
+
+# 2. Install Ollama (if not already installed)
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 3. Start using RAGO immediately!
+rago status  # Works without any config file!
+```
+
+That's it! No configuration needed. RAGO uses smart defaults.
+
+### Installation Options
 
 ```bash
 # Clone and build
@@ -54,20 +63,21 @@ git clone https://github.com/liliang-cn/rago.git
 cd rago
 go build -o rago ./cmd/rago
 
-# Initialize configuration
-./rago init
+# Optional: Create config (only if you need custom settings)
+./rago init  # Interactive - choose "Skip" for zero-config
 ```
 
-### 🎯 RAG Examples
+### 🎯 Zero-Config Usage
 
 ```bash
-# Import documents
-./rago ingest ./docs --recursive
-./rago ingest document.pdf
+# Pull default models
+ollama pull qwen3              # Default LLM
+ollama pull nomic-embed-text   # Default embedder
 
-# Query your documents
-./rago query "What is the main concept explained?"
-./rago query "How to configure the system?" --show-sources
+# Everything works without config!
+./rago status                  # Check provider status
+./rago ingest document.pdf     # Import documents
+./rago query "What is this about?"  # Query knowledge base
 
 # Interactive mode
 ./rago query -i

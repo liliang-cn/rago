@@ -24,29 +24,28 @@ var (
 
 var initCmd = &cobra.Command{
 	Use:   "init [provider]",
-	Short: "Initialize a new RAGO configuration file",
-	Long: `Initialize creates a new RAGO configuration file with default settings.
+	Short: "Initialize RAGO (optional - RAGO works without config!)",
+	Long: `Initialize creates an optional configuration file.
 
-Supported providers:
-  ollama    - Use local Ollama server (default, privacy-first)
-  openai    - Use OpenAI API (cloud-based)
-  lmstudio  - Use LM Studio server (local, GUI-based)
-  custom    - Configure custom OpenAI-compatible API
+🚀 QUICK START: RAGO works WITHOUT any configuration!
+   Just run: rago status
+
+When to use init:
+  - To use a different LLM provider (OpenAI, LM Studio)
+  - To change default models
+  - To enable advanced features (MCP)
+
+Providers:
+  ollama    - Local Ollama (default, no config needed!)
+  openai    - OpenAI API (requires API key)
+  lmstudio  - LM Studio (local GUI)
+  custom    - Custom OpenAI-compatible API
 
 Examples:
-  rago init                   # Interactive mode
-  rago init ollama           # Initialize with Ollama
-  rago init openai           # Initialize with OpenAI
-  rago init lmstudio         # Initialize with LM Studio
-  rago init custom           # Configure custom provider
-  rago init --enable-mcp     # Initialize with MCP servers enabled
-
-Config file location priority:
-  1. ./rago.toml (current directory)
-  2. ./.rago/rago.toml (local .rago folder)
-  3. ~/.rago/rago.toml (user home)
-
-Data storage uses ~/.rago/ directory by default.`,
+  rago status                # Works immediately, no config needed!
+  rago init                  # Optional: create config file
+  rago init openai          # Use OpenAI instead of Ollama
+  rago init --enable-mcp    # Enable advanced tool capabilities`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Determine config path
 		configPath := outputPath
@@ -94,6 +93,16 @@ Data storage uses ~/.rago/ directory by default.`,
 		var err error
 
 		switch providerType {
+		case "skip":
+			// User chose to skip config creation
+			fmt.Println("\n✅ No configuration needed!")
+			fmt.Println("\n🚀 Get started:")
+			fmt.Println("   1. Make sure Ollama is running: ollama serve")
+			fmt.Println("   2. Pull models: ollama pull qwen3 && ollama pull nomic-embed-text")
+			fmt.Println("   3. Test: rago status")
+			fmt.Println("   4. Use: rago query \"your question\"")
+			fmt.Println("\n💡 Run 'rago init' later if you need custom settings")
+			return nil
 		case "ollama":
 			configContent, err = generateOllamaConfig(enableMCP)
 		case "openai":
@@ -146,6 +155,7 @@ Data storage uses ~/.rago/ directory by default.`,
 // isValidProvider checks if the provider type is supported
 func isValidProvider(provider string) bool {
 	validProviders := map[string]bool{
+		"skip":     true,
 		"ollama":   true,
 		"openai":   true,
 		"lmstudio": true,
@@ -156,12 +166,17 @@ func isValidProvider(provider string) bool {
 
 // promptForProvider prompts user to select a provider interactively
 func promptForProvider() (string, error) {
-	fmt.Println("\n🤖 Choose your AI provider:")
-	fmt.Println("  1) Ollama (Local, privacy-first, recommended)")
-	fmt.Println("  2) OpenAI (Cloud-based, best performance)")
-	fmt.Println("  3) LM Studio (Local, GUI-based)")
-	fmt.Println("  4) Custom (OpenAI-compatible API)")
-	fmt.Print("\nEnter your choice (1-4) [default: 1]: ")
+	fmt.Println("\n✨ RAGO works without any configuration!")
+	fmt.Println("   Config files are only needed for:")
+	fmt.Println("   • Using providers other than Ollama")
+	fmt.Println("   • Changing default models")
+	fmt.Println("   • Enabling advanced features\n")
+	fmt.Println("📝 Create config for provider (optional):")
+	fmt.Println("  1) Skip - Use defaults (recommended)")
+	fmt.Println("  2) OpenAI - Cloud API")
+	fmt.Println("  3) LM Studio - Local GUI")
+	fmt.Println("  4) Custom - Other API")
+	fmt.Print("\nChoice [1]: ")
 
 	reader := bufio.NewReader(os.Stdin)
 	input, _ := reader.ReadString('\n')
@@ -169,7 +184,7 @@ func promptForProvider() (string, error) {
 
 	switch input {
 	case "", "1":
-		return "ollama", nil
+		return "skip", nil
 	case "2":
 		return "openai", nil
 	case "3":
@@ -177,25 +192,20 @@ func promptForProvider() (string, error) {
 	case "4":
 		return "custom", nil
 	default:
-		return "", fmt.Errorf("invalid choice: %s. Please enter 1-4", input)
+		return "", fmt.Errorf("invalid choice: %s", input)
 	}
 }
 
 // generateOllamaConfig generates configuration for Ollama provider
 func generateOllamaConfig(enableMCP bool) (string, error) {
-	config := `# RAGO Configuration - Ollama (Local, Privacy-First)
-# Only essential settings are included. All others use sensible defaults.
+	config := `# RAGO Configuration (Optional!)
+# 🚀 Quick Start: RAGO works without ANY configuration!
+# Just run: rago status
 
-# Provider configuration
-[providers]
-default_llm = "ollama"
-default_embedder = "ollama"
-
-[providers.ollama]
-type = "ollama"
-base_url = "http://localhost:11434"  # Default Ollama server
-llm_model = "qwen3"                   # Change to your preferred model
-embedding_model = "nomic-embed-text"  # Change to your preferred embedder
+# Uncomment only if you need different models:
+# [providers.ollama]
+# llm_model = "qwen3"              # or llama3, mistral, etc.
+# embedding_model = "nomic-embed-text"  # or mxbai-embed-large
 `
 
 	if enableMCP {
@@ -220,19 +230,13 @@ func generateOpenAIConfig(enableMCP bool) (string, error) {
 		return "", fmt.Errorf("OpenAI API key is required")
 	}
 
-	config := fmt.Sprintf(`# RAGO Configuration - OpenAI (Cloud-Based)
-# Only essential settings are included. All others use sensible defaults.
-
-# Provider configuration
-[providers]
-default_llm = "openai"
-default_embedder = "openai"
+	config := fmt.Sprintf(`# RAGO - Minimal Configuration (OpenAI)
+# Get started with just 3 lines!
 
 [providers.openai]
-type = "openai"
 api_key = "%s"
-llm_model = "gpt-4o-mini"               # Cost-effective model
-embedding_model = "text-embedding-3-small"  # Cost-effective embedder
+llm_model = "gpt-4o-mini"
+embedding_model = "text-embedding-3-small"
 `, apiKey)
 
 	if enableMCP {
@@ -274,16 +278,10 @@ func generateLMStudioConfig(enableMCP bool) (string, error) {
 		return "", fmt.Errorf("embedding model name is required")
 	}
 
-	config := fmt.Sprintf(`# RAGO Configuration - LM Studio (Local, GUI-Based)
-# Only essential settings are included. All others use sensible defaults.
-
-# Provider configuration
-[providers]
-default_llm = "lmstudio"
-default_embedder = "lmstudio"
+	config := fmt.Sprintf(`# RAGO - Minimal Configuration (LM Studio)
+# Get started with just 3 lines!
 
 [providers.lmstudio]
-type = "lmstudio"
 base_url = "%s"
 llm_model = "%s"
 embedding_model = "%s"
@@ -478,20 +476,14 @@ func generateCustomConfig(enableMCP bool) (string, error) {
 		apiKeyLine = fmt.Sprintf("api_key = \"%s\"\n", apiKey)
 	}
 
-	config := fmt.Sprintf(`# RAGO Configuration - %s (Custom OpenAI-Compatible)
-# Only essential settings are included. All others use sensible defaults.
-
-# Provider configuration
-[providers]
-default_llm = "%s"
-default_embedder = "%s"
+	config := fmt.Sprintf(`# RAGO - Minimal Configuration (%s)
+# Get started with just a few lines!
 
 [providers.%s]
-type = "openai"  # OpenAI-compatible interface
 %sbase_url = "%s"
 llm_model = "%s"
 embedding_model = "%s"
-`, cases.Title(language.English).String(providerName), providerName, providerName, providerName, apiKeyLine, baseURL, llmModel, embeddingModel)
+`, cases.Title(language.English).String(providerName), providerName, apiKeyLine, baseURL, llmModel, embeddingModel)
 
 	if enableMCP {
 		config += `
