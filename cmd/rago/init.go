@@ -7,9 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
-
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/store"
 	"github.com/spf13/cobra"
@@ -120,18 +117,25 @@ Examples:
 		}
 
 		// Write config file
+		fmt.Println("\n📝 Writing configuration file...")
 		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 			return fmt.Errorf("failed to write configuration file: %w", err)
 		}
 
 		// Initialize the database and create directory structure
-		if !skipDatabase {
+		// For custom providers, skip DB init by default to avoid connection hangs
+		shouldInitDB := !skipDatabase && providerType != "custom"
+		if shouldInitDB {
+			fmt.Println("🗄️  Initializing database (this may take a moment)...")
 			if err := initializeDatabase(configPath); err != nil {
 				fmt.Printf("⚠️  Configuration file created but database initialization failed: %v\n", err)
 				fmt.Println("   The database will be created automatically when you first run RAGO")
 			} else {
 				fmt.Println("✅ Database and directory structure initialized successfully")
 			}
+		} else if providerType == "custom" && !skipDatabase {
+			fmt.Println("ℹ️  Skipping database initialization for custom provider")
+			fmt.Println("   The database will be created when you first use RAGO")
 		}
 
 		// Initialize MCP servers if requested
@@ -456,6 +460,11 @@ func generateCustomConfig(enableMCP bool) (string, error) {
 	fmt.Print("API Key (press Enter if not required): ")
 	apiKey, _ := reader.ReadString('\n')
 	apiKey = strings.TrimSpace(apiKey)
+	
+	// Show note about API key requirement
+	if apiKey == "" {
+		fmt.Println("   ℹ️  Note: Using placeholder API key for compatibility")
+	}
 
 	fmt.Print("LLM model name: ")
 	llmModel, _ := reader.ReadString('\n')
@@ -471,19 +480,28 @@ func generateCustomConfig(enableMCP bool) (string, error) {
 		return "", fmt.Errorf("embedding model name is required")
 	}
 
-	apiKeyLine := ""
-	if apiKey != "" {
-		apiKeyLine = fmt.Sprintf("api_key = \"%s\"\n", apiKey)
+	// For custom providers, we always need an API key (even if placeholder)
+	if apiKey == "" {
+		apiKey = "not-needed"  // Placeholder for servers that don't require auth
 	}
 
-	config := fmt.Sprintf(`# RAGO - Minimal Configuration (%s)
-# Get started with just a few lines!
+	config := fmt.Sprintf(`# RAGO - Minimal Configuration
+# Custom OpenAI-compatible provider (%s)
 
-[providers.%s]
-%sbase_url = "%s"
+# Specify which provider to use by default
+[providers]
+default_llm = "openai"
+default_embedder = "openai"
+
+# Configure OpenAI provider to use your custom server
+[providers.openai]
+type = "openai"
+api_key = "%s"
+base_url = "%s"
 llm_model = "%s"
 embedding_model = "%s"
-`, cases.Title(language.English).String(providerName), providerName, apiKeyLine, baseURL, llmModel, embeddingModel)
+timeout = "30s"
+`, providerName, apiKey, baseURL, llmModel, embeddingModel)
 
 	if enableMCP {
 		config += `
