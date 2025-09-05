@@ -132,10 +132,20 @@ func Load(configPath string) (*Config, error) {
 	setDefaults()
 	bindEnvVars()
 
+	// Try to read config file, but don't fail if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
+		// Config file not found is OK - we'll use defaults
+		// Only return error for actual read/parse errors
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("failed to read config file: %w", err)
+			// Check if it's any kind of "file not found" error
+			errStr := err.Error()
+			if !strings.Contains(errStr, "no such file") && 
+			   !strings.Contains(errStr, "cannot find the file") &&
+			   !strings.Contains(errStr, "not found") {
+				return nil, fmt.Errorf("failed to read config file: %w", err)
+			}
 		}
+		// Config file not found - that's OK, we'll use defaults
 	}
 
 	if err := viper.Unmarshal(config); err != nil {
