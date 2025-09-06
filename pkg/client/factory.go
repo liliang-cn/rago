@@ -1,6 +1,8 @@
 package client
 
 import (
+	"time"
+	
 	"github.com/liliang-cn/rago/v2/pkg/core"
 	"github.com/liliang-cn/rago/v2/pkg/llm"
 	"github.com/liliang-cn/rago/v2/pkg/rag"
@@ -134,4 +136,243 @@ func NewMinimalClient(config core.Config) (core.Client, error) {
 	config.Mode.DisableAgent = true
 	
 	return New(config)
+}
+
+// NewFullClient creates a client with all four pillars enabled.
+func NewFullClient(config core.Config) (core.Client, error) {
+	// Ensure all pillars are enabled
+	config.Mode.LLMOnly = false
+	config.Mode.RAGOnly = false
+	config.Mode.DisableMCP = false
+	config.Mode.DisableAgent = false
+	
+	return New(config)
+}
+
+// NewChatClient creates a client optimized for chat operations (LLM + RAG).
+func NewChatClient(config core.Config) (core.Client, error) {
+	// Enable essential pillars for chat
+	config.Mode.LLMOnly = false
+	config.Mode.RAGOnly = false
+	config.Mode.DisableMCP = true  // MCP optional for chat
+	config.Mode.DisableAgent = true // Agents optional for chat
+	
+	return New(config)
+}
+
+// NewAutomationClient creates a client optimized for automation (Agents + MCP + LLM).
+func NewAutomationClient(config core.Config) (core.Client, error) {
+	// Enable pillars needed for automation
+	config.Mode.LLMOnly = false
+	config.Mode.DisableAgent = false
+	config.Mode.DisableMCP = false
+	config.Mode.RAGOnly = false  // RAG can be disabled for pure automation
+	
+	return New(config)
+}
+
+// NewKnowledgeClient creates a client optimized for knowledge management (RAG + LLM).
+func NewKnowledgeClient(config core.Config) (core.Client, error) {
+	// Enable pillars needed for knowledge management
+	config.Mode.RAGOnly = false
+	config.Mode.LLMOnly = false
+	config.Mode.DisableMCP = true
+	config.Mode.DisableAgent = true
+	
+	return New(config)
+}
+
+// ===== BUILDER PATTERN =====
+
+// ClientBuilder provides a fluent interface for building clients.
+type ClientBuilder struct {
+	config core.Config
+	err    error
+}
+
+// NewBuilder creates a new client builder with default configuration.
+func NewBuilder() *ClientBuilder {
+	return &ClientBuilder{
+		config: core.Config{
+			DataDir:  "~/.rago",
+			LogLevel: "info",
+			Mode:     core.ModeConfig{},
+		},
+	}
+}
+
+// WithConfig sets the base configuration.
+func (b *ClientBuilder) WithConfig(config core.Config) *ClientBuilder {
+	b.config = config
+	return b
+}
+
+// WithConfigPath loads configuration from a file.
+func (b *ClientBuilder) WithConfigPath(path string) *ClientBuilder {
+	config, err := LoadCoreConfigFromPath(path)
+	if err != nil {
+		b.err = err
+		return b
+	}
+	b.config = *config
+	return b
+}
+
+// WithLLM enables and configures the LLM pillar.
+func (b *ClientBuilder) WithLLM(config core.LLMConfig) *ClientBuilder {
+	b.config.LLM = config
+	b.config.Mode.LLMOnly = false
+	return b
+}
+
+// WithRAG enables and configures the RAG pillar.
+func (b *ClientBuilder) WithRAG(config core.RAGConfig) *ClientBuilder {
+	b.config.RAG = config
+	b.config.Mode.RAGOnly = false
+	return b
+}
+
+// WithMCP enables and configures the MCP pillar.
+func (b *ClientBuilder) WithMCP(config core.MCPConfig) *ClientBuilder {
+	b.config.MCP = config
+	b.config.Mode.DisableMCP = false
+	return b
+}
+
+// WithAgents enables and configures the Agent pillar.
+func (b *ClientBuilder) WithAgents(config core.AgentsConfig) *ClientBuilder {
+	b.config.Agents = config
+	b.config.Mode.DisableAgent = false
+	return b
+}
+
+// WithoutMCP disables the MCP pillar.
+func (b *ClientBuilder) WithoutMCP() *ClientBuilder {
+	b.config.Mode.DisableMCP = true
+	return b
+}
+
+// WithoutAgents disables the Agent pillar.
+func (b *ClientBuilder) WithoutAgents() *ClientBuilder {
+	b.config.Mode.DisableAgent = true
+	return b
+}
+
+// WithDataDir sets the data directory.
+func (b *ClientBuilder) WithDataDir(dir string) *ClientBuilder {
+	b.config.DataDir = dir
+	return b
+}
+
+// WithLogLevel sets the log level.
+func (b *ClientBuilder) WithLogLevel(level string) *ClientBuilder {
+	b.config.LogLevel = level
+	return b
+}
+
+// Build creates the client with the configured settings.
+func (b *ClientBuilder) Build() (core.Client, error) {
+	if b.err != nil {
+		return nil, b.err
+	}
+	return New(b.config)
+}
+
+// ===== CONVENIENCE CONSTRUCTORS FOR COMMON PATTERNS =====
+
+// NewWithDefaults creates a client with sensible defaults for all pillars.
+func NewWithDefaults() (core.Client, error) {
+	config, err := LoadDefaultCoreConfig()
+	if err != nil {
+		// Create minimal default configuration
+		config = &core.Config{
+			DataDir:  "~/.rago",
+			LogLevel: "info",
+			LLM: core.LLMConfig{
+				DefaultProvider: "ollama",
+				Providers: map[string]core.ProviderConfig{
+					"ollama": {
+						Type:    "ollama",
+						BaseURL: "http://localhost:11434",
+						Model:   "llama3.2",
+						Weight:  1,
+						Timeout: 30 * time.Second,
+					},
+				},
+				LoadBalancing: core.LoadBalancingConfig{
+					Strategy:      "round_robin",
+					HealthCheck:   true,
+					CheckInterval: 30 * time.Second,
+				},
+				HealthCheck: core.HealthCheckConfig{
+					Enabled:  true,
+					Interval: 30 * time.Second,
+					Timeout:  10 * time.Second,
+					Retries:  3,
+				},
+			},
+			RAG: core.RAGConfig{
+				StorageBackend: "dual",
+				ChunkingStrategy: core.ChunkingConfig{
+					Strategy:     "recursive",
+					ChunkSize:    500,
+					ChunkOverlap: 50,
+				},
+			},
+			MCP: core.MCPConfig{
+				ServersPath: "~/.rago/mcpServers.json",
+			},
+			Agents: core.AgentsConfig{
+				WorkflowEngine: core.WorkflowEngineConfig{
+					MaxSteps:    100,
+					StateBackend: "memory",
+				},
+			},
+		}
+	}
+	
+	return NewFullClient(*config)
+}
+
+// NewForTesting creates a client suitable for testing with in-memory backends.
+func NewForTesting() (core.Client, error) {
+	config := core.Config{
+		DataDir:  "/tmp/rago-test",
+		LogLevel: "debug",
+		LLM: core.LLMConfig{
+			DefaultProvider: "mock",
+			Providers: map[string]core.ProviderConfig{
+				"mock": {
+					Type: "mock",
+					Parameters: map[string]interface{}{
+						"test_mode": true,
+					},
+				},
+			},
+		},
+		RAG: core.RAGConfig{
+			StorageBackend: "memory",
+			ChunkingStrategy: core.ChunkingConfig{
+				Strategy:  "fixed",
+				ChunkSize: 100,
+			},
+		},
+		MCP: core.MCPConfig{
+			ToolExecution: core.ToolExecutionConfig{
+				MaxConcurrent: 1,
+				EnableCache:   false,
+			},
+		},
+		Agents: core.AgentsConfig{
+			WorkflowEngine: core.WorkflowEngineConfig{
+				StateBackend: "memory",
+			},
+			StateStorage: core.StateStorageConfig{
+				Backend:    "memory",
+				Persistent: false,
+			},
+		},
+	}
+	
+	return NewFullClient(config)
 }

@@ -222,7 +222,7 @@ func (adapter *ConfigAdapter) convertRAGConfig(existing *existingConfig.Config) 
 func (adapter *ConfigAdapter) convertMCPConfig(existing *existingConfig.Config) (core.MCPConfig, error) {
 	config := core.MCPConfig{
 		ServersPath: existing.MCP.ServersConfigPath,
-		Servers:     make(map[string]core.ServerConfig),
+		Servers:     make([]core.ServerConfig, 0),
 		HealthCheck: core.HealthCheckConfig{
 			Enabled:  existing.MCP.Enabled,
 			Interval: existing.MCP.HealthCheckInterval,
@@ -239,15 +239,15 @@ func (adapter *ConfigAdapter) convertMCPConfig(existing *existingConfig.Config) 
 
 	// Convert server configurations
 	for _, server := range existing.MCP.Servers {
-		config.Servers[server.Name] = core.ServerConfig{
+		config.Servers = append(config.Servers, core.ServerConfig{
 			Name:       server.Name,
 			Command:    server.Command,
 			Args:       server.Args,
-			Environment: server.Env,
+			Env:        server.Env,
 			WorkingDir: server.WorkingDir,
 			Timeout:    existing.MCP.DefaultTimeout,
 			Retries:    server.MaxRestarts,
-		}
+		})
 	}
 
 	return config, nil
