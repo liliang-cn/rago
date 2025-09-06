@@ -309,7 +309,7 @@ func (s *Storage) UpdateTask(task *Task) error {
 
 	sql := `
 	UPDATE tasks SET 
-		type = ?, schedule = ?, parameters = ?, description = ?, enabled = ?, 
+		type = ?, schedule = ?, parameters = ?, description = ?, priority = ?, enabled = ?, 
 		updated_at = ?, next_run = ?, last_run = ?
 	WHERE id = ?`
 
@@ -318,6 +318,7 @@ func (s *Storage) UpdateTask(task *Task) error {
 		task.Schedule,
 		string(parametersJSON),
 		task.Description,
+		task.Priority,
 		task.Enabled,
 		task.UpdatedAt,
 		task.NextRun,
@@ -616,12 +617,14 @@ func (s *Storage) GetTasksDueForExecution() ([]*Task, error) {
 
 // CleanupOldExecutions removes old execution records
 func (s *Storage) CleanupOldExecutions(maxAge time.Duration, maxPerTask int) error {
-	// Delete old executions beyond maxAge
-	cutoffTime := time.Now().Add(-maxAge)
+	// Delete old executions beyond maxAge (only if maxAge > 0)
+	if maxAge > 0 {
+		cutoffTime := time.Now().Add(-maxAge)
 
-	_, err := s.db.Exec("DELETE FROM task_executions WHERE start_time < ?", cutoffTime)
-	if err != nil {
-		return fmt.Errorf("failed to delete old executions: %w", err)
+		_, err := s.db.Exec("DELETE FROM task_executions WHERE start_time < ?", cutoffTime)
+		if err != nil {
+			return fmt.Errorf("failed to delete old executions: %w", err)
+		}
 	}
 
 	// Keep only the latest maxPerTask executions per task

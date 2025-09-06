@@ -174,7 +174,7 @@ func promptForProvider() (string, error) {
 	fmt.Println("   Config files are only needed for:")
 	fmt.Println("   • Using providers other than Ollama")
 	fmt.Println("   • Changing default models")
-	fmt.Println("   • Enabling advanced features\n")
+	fmt.Println("   • Enabling advanced features")
 	fmt.Println("📝 Create config for provider (optional):")
 	fmt.Println("  1) Skip - Use defaults (recommended)")
 	fmt.Println("  2) OpenAI - Cloud API")
@@ -460,7 +460,7 @@ func generateCustomConfig(enableMCP bool) (string, error) {
 	fmt.Print("API Key (press Enter if not required): ")
 	apiKey, _ := reader.ReadString('\n')
 	apiKey = strings.TrimSpace(apiKey)
-	
+
 	// Show note about API key requirement
 	if apiKey == "" {
 		fmt.Println("   ℹ️  Note: Using placeholder API key for compatibility")
@@ -482,7 +482,7 @@ func generateCustomConfig(enableMCP bool) (string, error) {
 
 	// For custom providers, we always need an API key (even if placeholder)
 	if apiKey == "" {
-		apiKey = "not-needed"  // Placeholder for servers that don't require auth
+		apiKey = "not-needed" // Placeholder for servers that don't require auth
 	}
 
 	config := fmt.Sprintf(`# RAGO - Minimal Configuration

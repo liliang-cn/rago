@@ -146,9 +146,21 @@ func setupRouter(processor *processor.Service, cfg *config.Config) (*gin.Engine,
 		c.Next()
 	})
 
+	// Initialize MCP service if enabled (optional)
+	var mcpService *mcp.MCPService
+	if cfg.MCP.Enabled && !cfg.Mode.RAGOnly && !cfg.Mode.DisableMCP {
+		mcpService = mcp.NewMCPService(&cfg.MCP)
+		// Initialize MCP but don't fail if it doesn't work
+		ctx := context.Background()
+		if err := mcpService.Initialize(ctx); err != nil {
+			log.Printf("Warning: MCP initialization failed, running without MCP: %v", err)
+			mcpService = nil
+		}
+	}
+
 	api := router.Group("/api")
 	{
-		api.GET("/health", handlers.NewHealthHandler().Handle)
+		api.GET("/health", handlers.NewHealthHandler(cfg, processor, mcpService).Handle)
 
 		ingestHandler := handlers.NewIngestHandler(processor)
 		api.POST("/ingest", ingestHandler.Handle)

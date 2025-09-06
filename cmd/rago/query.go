@@ -29,15 +29,18 @@ var (
 	allowedTools []string
 	maxToolCalls int
 	useMCP       bool
+	noMCP        bool // Flag to disable MCP even if enabled in config
 )
 
 var queryCmd = &cobra.Command{
 	Use:   "query [question]",
-	Short: "Query knowledge base with MCP tool integration",
-	Long: `Perform semantic search and Q&A based on imported documents with MCP tool integration.
-You can provide a question as an argument or use interactive mode.
+	Short: "Query knowledge base with optional MCP tool integration",
+	Long: `Perform semantic search and Q&A based on imported documents.
 
-Use --mcp to enable MCP tool integration for the query.
+By default, MCP tools are enabled based on your configuration.
+Use --no-mcp to disable MCP and run in pure RAG mode.
+Use --mcp to explicitly enable MCP tool integration.
+
 MCP tools provide enhanced functionality for file operations, database queries, and more.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Handle MCP mode
@@ -90,10 +93,17 @@ MCP tools provide enhanced functionality for file operations, database queries, 
 			metadataExtractor,
 		)
 
-		// Determine if tools should be enabled based on config or flag
+		// Determine if tools should be enabled based on config and flags
 		toolsEnabled := enableTools
 		if !cmd.Flags().Changed("tools") {
 			toolsEnabled = cfg.Tools.Enabled
+		}
+		// Override with --no-mcp flag or config RAGOnly mode
+		if noMCP || cfg.Mode.RAGOnly || cfg.Mode.DisableMCP {
+			toolsEnabled = false
+			if noMCP || cfg.Mode.RAGOnly {
+				fmt.Println("Running in RAG-only mode (MCP disabled)")
+			}
 		}
 
 		if interactive || len(args) == 0 {
@@ -725,4 +735,5 @@ func init() {
 	queryCmd.Flags().StringSliceVar(&allowedTools, "allowed-tools", []string{}, "comma-separated list of allowed tools (empty means all enabled tools)")
 	queryCmd.Flags().IntVar(&maxToolCalls, "max-tool-calls", 5, "maximum number of tool calls per query")
 	queryCmd.Flags().BoolVar(&useMCP, "mcp", false, "use MCP tools for query processing")
+	queryCmd.Flags().BoolVar(&noMCP, "no-mcp", false, "disable MCP tools and run in pure RAG mode")
 }

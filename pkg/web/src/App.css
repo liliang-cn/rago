@@ -1,0 +1,12 @@
+#root {
+  max-width: 100vw;
+  margin: 0 auto;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.App {
+  width: 100vw;
+  min-height: 100vh;
+}

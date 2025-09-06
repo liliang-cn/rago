@@ -25,6 +25,8 @@ type Config struct {
 	Tools     tools.ToolConfig `mapstructure:"tools"`
 	MCP       mcp.Config       `mapstructure:"mcp"`
 	RRF       RRFConfig        `mapstructure:"rrf"`
+	Agents    AgentsConfig     `mapstructure:"agents"`
+	Mode      ModeConfig       `mapstructure:"mode"`
 
 	// Deprecated: Use Providers instead
 	Ollama OllamaConfig `mapstructure:"ollama"`
@@ -85,6 +87,19 @@ type RRFConfig struct {
 	RelevanceThreshold float64 `mapstructure:"relevance_threshold"` // Threshold for considering context relevant (default: 0.05)
 }
 
+// AgentsConfig holds agent system configuration
+type AgentsConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+}
+
+// ModeConfig defines operational modes for RAGO
+type ModeConfig struct {
+	// RAGOnly disables MCP and agent features, running pure RAG mode
+	RAGOnly bool `mapstructure:"rag_only"`
+	// DisableMCP specifically disables MCP even if tools are configured
+	DisableMCP bool `mapstructure:"disable_mcp"`
+}
+
 func Load(configPath string) (*Config, error) {
 	config := &Config{}
 
@@ -139,9 +154,9 @@ func Load(configPath string) (*Config, error) {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			// Check if it's any kind of "file not found" error
 			errStr := err.Error()
-			if !strings.Contains(errStr, "no such file") && 
-			   !strings.Contains(errStr, "cannot find the file") &&
-			   !strings.Contains(errStr, "not found") {
+			if !strings.Contains(errStr, "no such file") &&
+				!strings.Contains(errStr, "cannot find the file") &&
+				!strings.Contains(errStr, "not found") {
 				return nil, fmt.Errorf("failed to read config file: %w", err)
 			}
 		}

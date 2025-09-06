@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -57,8 +58,15 @@ func New(
 		toolsEnabled:  config.Tools.Enabled,
 	}
 
-	// Initialize tools if enabled
+	// Initialize tools if enabled (MCP is optional)
 	if config.Tools.Enabled {
+		// Safely attempt to initialize tools
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[WARN] Failed to initialize tools (MCP may be unavailable): %v", r)
+				s.toolsEnabled = false
+			}
+		}()
 		s.initializeTools()
 	}
 
@@ -225,6 +233,13 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 
 	if req.Query == "" {
 		return domain.QueryResponse{}, fmt.Errorf("%w: empty query", domain.ErrInvalidInput)
+	}
+
+	// Check if MCP is requested but not available
+	if req.ToolsEnabled && !s.toolsEnabled {
+		// Log warning but continue without tools
+		log.Println("[WARN] Tools requested but not available, falling back to pure RAG")
+		req.ToolsEnabled = false
 	}
 
 	chunks, err := s.hybridSearch(ctx, req)
@@ -786,35 +801,24 @@ func (s *Service) deduplicateChunks(chunks []domain.Chunk) []domain.Chunk {
 
 // cleanThinkingTags removes internal thinking tags from LLM responses
 func (s *Service) cleanThinkingTags(answer string) string {
-	// Remove <think>...</think> blocks and their contents
-	re := strings.NewReplacer("<think>", "", "</think>", "")
-	cleaned := re.Replace(answer)
-
-	// Also handle the case where thinking tags might span multiple lines
-	if strings.Contains(cleaned, "<think") || strings.Contains(cleaned, "</think") {
-		// Use regex for more complex cases
-		lines := strings.Split(cleaned, "\n")
-		var filtered []string
-		inThinking := false
-
-		for _, line := range lines {
-			if strings.Contains(line, "<think") {
-				inThinking = true
-				continue
-			}
-			if strings.Contains(line, "</think") {
-				inThinking = false
-				continue
-			}
-			if !inThinking {
-				filtered = append(filtered, line)
-			}
-		}
-		cleaned = strings.Join(filtered, "\n")
-	}
-
-	// Trim any extra whitespace
-	return strings.TrimSpace(cleaned)
+	// Use regex to remove <think>...</think> blocks and their contents
+	// This handles both single-line and multi-line thinking blocks
+	re := regexp.MustCompile(`<think>.*?</think>`)
+	cleaned := re.ReplaceAllString(answer, "")
+	
+	// Handle multiline thinking blocks that the simple regex might miss
+	// Use a more comprehensive regex with DOTALL flag
+	reMultiline := regexp.MustCompile(`(?s)<think>.*?</think>`)
+	cleaned = reMultiline.ReplaceAllString(cleaned, "")
+	
+	// Clean up any leftover whitespace
+	cleaned = strings.TrimSpace(cleaned)
+	
+	// Replace multiple spaces with single space
+	spaceRe := regexp.MustCompile(`\s+`)
+	cleaned = spaceRe.ReplaceAllString(cleaned, " ")
+	
+	return cleaned
 }
 
 // wrapCallbackForThinking wraps the callback to filter thinking tags in streaming mode
@@ -883,6 +887,11 @@ func (s *Service) GetToolExecutor() *tools.Executor {
 
 // RegisterMCPTools registers MCP tools with the processor
 func (s *Service) RegisterMCPTools(mcpService *mcp.MCPService) error {
+	if mcpService == nil {
+		log.Println("[INFO] MCP service is nil, skipping tool registration")
+		return nil
+	}
+
 	if !s.toolsEnabled {
 		return fmt.Errorf("tools are not enabled in this processor")
 	}
