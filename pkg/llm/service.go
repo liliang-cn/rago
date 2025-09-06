@@ -1,59 +1,96 @@
+// Package llm implements the LLM (Large Language Model) pillar.
+// This pillar focuses on provider management, load balancing, and generation operations.
 package llm
 
 import (
 	"context"
-
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	
+	"github.com/liliang-cn/rago/v2/pkg/core"
 )
 
-// Service wraps a provider-based LLM
+// Service implements the LLM pillar service interface.
+// This is the main entry point for all LLM operations including provider
+// management and text generation.
 type Service struct {
-	provider domain.LLMProvider
+	config core.LLMConfig
+	// TODO: Add fields for provider pool, load balancer, health checker, etc.
 }
 
-// NewService creates a new LLM service with a provider
-func NewService(provider domain.LLMProvider) *Service {
-	return &Service{
-		provider: provider,
+// NewService creates a new LLM service instance.
+func NewService(config core.LLMConfig) (*Service, error) {
+	service := &Service{
+		config: config,
 	}
+	
+	// TODO: Initialize provider pool, load balancer, health checker, etc.
+	
+	return service, nil
 }
 
-// Generate generates text using the configured provider
-func (s *Service) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
-	return s.provider.Generate(ctx, prompt, opts)
+// ===== PROVIDER MANAGEMENT =====
+
+// AddProvider adds a new provider to the service.
+func (s *Service) AddProvider(name string, config core.ProviderConfig) error {
+	// TODO: Implement provider addition
+	return core.ErrProviderNotFound
 }
 
-// Stream generates text with streaming using the configured provider
-func (s *Service) Stream(ctx context.Context, prompt string, opts *domain.GenerationOptions, callback func(string)) error {
-	return s.provider.Stream(ctx, prompt, opts, callback)
+// RemoveProvider removes a provider from the service.
+func (s *Service) RemoveProvider(name string) error {
+	// TODO: Implement provider removal
+	return core.ErrProviderNotFound
 }
 
-// GenerateWithTools generates text with tool calling support
-func (s *Service) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
-	return s.provider.GenerateWithTools(ctx, messages, tools, opts)
+// ListProviders lists all registered providers.
+func (s *Service) ListProviders() []core.ProviderInfo {
+	// TODO: Implement provider listing
+	return nil
 }
 
-// StreamWithTools generates text with tool calling support in streaming mode
-func (s *Service) StreamWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
-	return s.provider.StreamWithTools(ctx, messages, tools, opts, callback)
+// GetProviderHealth gets the health status of all providers.
+func (s *Service) GetProviderHealth() map[string]core.HealthStatus {
+	// TODO: Implement provider health checking
+	return nil
 }
 
-// GenerateStructured generates structured JSON output using the configured provider
-func (s *Service) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
-	return s.provider.GenerateStructured(ctx, prompt, schema, opts)
+// ===== GENERATION OPERATIONS =====
+
+// Generate generates text using the configured providers.
+func (s *Service) Generate(ctx context.Context, req core.GenerationRequest) (*core.GenerationResponse, error) {
+	// TODO: Implement text generation with load balancing
+	return nil, core.ErrGenerationFailed
 }
 
-// ExtractMetadata extracts metadata from content
-func (s *Service) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
-	return s.provider.ExtractMetadata(ctx, content, model)
+// Stream generates text with streaming using the configured providers.
+func (s *Service) Stream(ctx context.Context, req core.GenerationRequest, callback core.StreamCallback) error {
+	// TODO: Implement streaming text generation
+	return core.ErrStreamingNotSupported
 }
 
-// Health checks the health of the underlying provider
-func (s *Service) Health(ctx context.Context) error {
-	return s.provider.Health(ctx)
+// ===== TOOL OPERATIONS =====
+
+// GenerateWithTools generates text with tool calling capability.
+func (s *Service) GenerateWithTools(ctx context.Context, req core.ToolGenerationRequest) (*core.ToolGenerationResponse, error) {
+	// TODO: Implement tool-enhanced generation
+	return nil, core.ErrToolCallFailed
 }
 
-// ProviderType returns the provider type being used
-func (s *Service) ProviderType() domain.ProviderType {
-	return s.provider.ProviderType()
+// StreamWithTools generates text with tool calling in streaming mode.
+func (s *Service) StreamWithTools(ctx context.Context, req core.ToolGenerationRequest, callback core.ToolStreamCallback) error {
+	// TODO: Implement streaming tool-enhanced generation
+	return core.ErrToolCallFailed
+}
+
+// ===== BATCH OPERATIONS =====
+
+// GenerateBatch generates text for multiple requests in batch.
+func (s *Service) GenerateBatch(ctx context.Context, requests []core.GenerationRequest) ([]core.GenerationResponse, error) {
+	// TODO: Implement batch generation
+	return nil, core.ErrGenerationFailed
+}
+
+// Close closes the LLM service and cleans up resources.
+func (s *Service) Close() error {
+	// TODO: Implement cleanup
+	return nil
 }
