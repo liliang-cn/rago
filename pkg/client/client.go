@@ -43,7 +43,9 @@ func New(config core.Config) (*Client, error) {
 	
 	// Initialize RAG pillar if not disabled
 	if !config.Mode.RAGOnly || !config.Mode.DisableAgent {
-		client.ragService, err = rag.NewService(config.RAG)
+		// Use backward compatibility adapter with default embedder
+		embedder := &rag.DefaultEmbedder{}
+		client.ragService, err = rag.NewServiceFromCoreConfig(config.RAG, embedder)
 		if err != nil {
 			return nil, core.WrapErrorWithContext(err, "client", "New", "failed to initialize RAG service")
 		}

@@ -107,12 +107,12 @@ func TestRAGConfig() RAGConfig {
 func TestMCPConfig() MCPConfig {
 	return MCPConfig{
 		ServersPath: "/tmp/rago-test/mcp",
-		Servers: map[string]ServerConfig{
-			"test-server": {
+		Servers: []ServerConfig{
+			{
 				Name:    "test-server",
 				Command: []string{"echo", "test"},
 				Args:    []string{},
-				Environment: map[string]string{
+				Env: map[string]string{
 					"TEST_ENV": "test_value",
 				},
 				WorkingDir: "/tmp",

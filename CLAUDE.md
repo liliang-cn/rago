@@ -2,181 +2,328 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Architecture Priority (Important!)
+## RAGO Vision: Local-First AI Foundation
 
-**RAGO's True Nature**: Primarily a **local RAG system** with **optional agent automation**. Core: document ingestion → chunking → vector storage → semantic search → Q&A. Agents are a secondary feature leveraging MCP tools.
+**RAGO's True Nature**: A **local-first, privacy-first Go AI foundation** that other applications can use as their AI infrastructure. Built as a library-first architecture with four equal core components that can work independently or together.
 
-**Feature Priority**: RAG System → Multi-Provider LLM → MCP Tools → Agent Automation → HTTP API → Local-First
+**Mission**: Provide a comprehensive AI foundation that prioritizes privacy, local execution, and developer freedom. Other applications should be able to integrate RAGO as their AI backbone without compromising user data or requiring cloud dependencies.
 
-**Evidence**: Core packages (`pkg/store/`, `pkg/chunker/`, `pkg/processor/`) vs optional agents (`pkg/agents/`). Most commands are RAG-focused (`ingest`, `query`) vs agent additions (`agent run`).
+## Four-Pillar Architecture
+
+### 1. **LLM (Language Model Layer)** 🧠
+**Purpose**: Unified interface for multiple LLM providers with intelligent pooling, scheduling, and capability management.
+
+**Features**:
+- **Provider Pool**: Support for Ollama, LM Studio, OpenAI-compatible providers
+- **Capability Detection**: Automatic discovery of model capabilities (chat, generation, embedding, streaming)
+- **Priority Scheduling**: Smart routing based on model performance, availability, and cost
+- **Load Balancing**: Distribute requests across multiple providers
+- **Streaming Support**: Real-time response streaming for all providers
+- **Embedding Pipeline**: Unified embedding generation across providers
+
+**Key Packages**: `pkg/providers/`, `pkg/llm/`, `pkg/embedder/`
+
+### 2. **RAG (Retrieval-Augmented Generation)** 📚
+**Purpose**: Complete local document storage, chunking, vectorization, and semantic retrieval system.
+
+**Features**:
+- **Local Storage**: SQLite-based vector storage (sqvect) with privacy guarantee  
+- **Hybrid Search**: Vector similarity + keyword search with RRF (Reciprocal Rank Fusion)
+- **Smart Chunking**: Configurable document chunking strategies
+- **Document Processing**: Support for PDF, text, markdown, and other formats
+- **Metadata Preservation**: Rich metadata storage and filtering capabilities
+- **Semantic Search**: Advanced vector similarity with configurable thresholds
+
+**Key Packages**: `pkg/store/`, `pkg/chunker/`, `pkg/processor/`
+
+### 3. **MCP (Model Context Protocol)** 🔧
+**Purpose**: Standardized tool integration layer that can operate independently or enhance RAG/Agent capabilities.
+
+**Features**:
+- **Tool Ecosystem**: Integration with MCP-compliant tools (filesystem, web, databases)
+- **Standalone Operation**: MCP tools can be used without RAG or Agents
+- **Health Monitoring**: Automatic tool health checking and failover
+- **External Integration**: Connect to any MCP-compatible service
+- **Protocol Compliance**: Full MCP specification support
+
+**Key Packages**: `pkg/mcp/`, `pkg/tools/`
+
+### 4. **AGENT (Autonomous Workflows)** 🤖
+**Purpose**: Intelligent automation layer that combines LLM reasoning with RAG knowledge and MCP tools.
+
+**Features**:
+- **Workflow Automation**: Natural language to structured workflow execution
+- **RAG Integration**: Agents can query and reason over local knowledge bases
+- **MCP Tool Usage**: Intelligent tool selection and execution
+- **Multi-step Reasoning**: Complex task decomposition and execution
+- **Scheduling**: Time-based and event-driven agent execution
+
+**Key Packages**: `pkg/agents/`, `pkg/workflow/`, `pkg/scheduler/`
+
+## Layered Architecture Design
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    APPLICATION LAYER                     │
+│              (Your App Using RAGO as Lib)               │
+├─────────────────────────────────────────────────────────┤
+│                      AGENT LAYER                        │
+│         Workflow • Automation • Multi-step Logic       │
+├─────────────────────────────────────────────────────────┤
+│          MCP LAYER          │         RAG LAYER         │
+│    Tools • Integrations     │   Knowledge • Retrieval   │
+├─────────────────────────────┼─────────────────────────────┤
+│                      LLM LAYER                          │
+│           Provider Pool • Scheduling • Routing         │
+├─────────────────────────────────────────────────────────┤
+│                    FOUNDATION LAYER                     │
+│         Config • Storage • Interfaces • Utils          │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Layer Independence**:
+- **LLM**: Can be used standalone for chat, generation, embeddings
+- **RAG**: Can operate without agents, just for knowledge retrieval
+- **MCP**: Can work independently for tool integration
+- **AGENT**: Leverages all lower layers but optional for simpler use cases
+
+## Library-First Usage
+
+### Primary Interface: `client/client.go`
+```go
+import "github.com/liliang-cn/rago/v2/client"
+
+// Create RAGO client - handles all four pillars
+client, err := client.New(&client.Config{
+    ConfigPath: "~/.rago/rago.toml",
+})
+
+// Use individual components
+llmResponse := client.LLM().Chat(ctx, "Hello world")
+ragResults := client.RAG().Query(ctx, "search query") 
+mcpResult := client.MCP().CallTool(ctx, "filesystem", "read_file", params)
+agentResult := client.Agent().Execute(ctx, "complex workflow task")
+```
+
+### Component-Specific Packages
+Applications can also use individual components directly:
+
+```go
+// Just LLM functionality
+import "github.com/liliang-cn/rago/v2/pkg/providers"
+provider := providers.NewOllama(config)
+
+// Just RAG functionality  
+import "github.com/liliang-cn/rago/v2/pkg/processor"
+processor := processor.NewService(config)
+
+// Just MCP functionality
+import "github.com/liliang-cn/rago/v2/pkg/mcp"
+mcpClient := mcp.NewClient(config)
+
+// Just Agent functionality
+import "github.com/liliang-cn/rago/v2/pkg/agents"
+agent := agents.NewService(config)
+```
 
 ## Development Commands
 
 ### Build and Test
 ```bash
-# Build main binary
+# Build main binary and library
 make build
 
-# Run all tests
+# Run all tests across all four pillars
 make test
 
 # Run linting and race condition tests  
 make check
 
-# Build from cmd directory
+# Build library-focused binary
 go build -o rago ./cmd/rago
 
-# Run specific package tests
-go test ./pkg/providers -v
-go test ./pkg/mcp -race
+# Test individual pillars
+go test ./pkg/providers -v  # LLM
+go test ./pkg/store -v      # RAG  
+go test ./pkg/mcp -v        # MCP
+go test ./pkg/agents -v     # AGENT
 ```
 
-### Running RAGO
+### Running RAGO (CLI/Server Mode)
 ```bash
-# Initialize configuration
+# Initialize configuration for all pillars
 ./rago init
 
-# Test provider connectivity
+# Test LLM provider connectivity  
 ./rago status
-
-# Check MCP server status
-./rago mcp status
-
-# Start HTTP server
-./rago serve --port 7127
 
 # RAG operations
 ./rago ingest document.pdf
 ./rago query "What is this about?" --show-sources
+
+# MCP server management
+./rago mcp status
+./rago mcp tools list
+
+# Agent workflow execution
+./rago agent run "analyze documents and create summary"
+
+# Start HTTP API server (for web applications)
+./rago serve --port 7127
 ```
 
-### MCP Server Setup
-```bash
-# Install default MCP servers
-./scripts/install-mcp-servers.sh
+## Key Architecture Principles
 
-# Check server status
-./rago mcp status --verbose
+### 1. **Local-First Privacy**
+- All data processing happens locally by default
+- No cloud dependencies required for core functionality  
+- User data never leaves the local environment unless explicitly configured
+- Full control over model selection and data flow
+
+### 2. **Provider Flexibility**
+- Support multiple LLM providers simultaneously
+- Automatic fallback and load balancing
+- Easy provider switching without code changes
+- Support for local (Ollama) and cloud (OpenAI) providers
+
+### 3. **Modular Design**
+- Each pillar can be used independently
+- Clear interfaces between components
+- Minimal dependencies between layers
+- Easy to integrate partial functionality
+
+### 4. **Library-Optimized**
+- Clean, simple Go interfaces
+- Extensive examples and documentation
+- Minimal configuration required for basic usage
+- Production-ready error handling and logging
+
+## Configuration Architecture
+
+**Config Loading Hierarchy**: `~/.rago/rago.toml` → `./rago.toml` → `RAGO_*` env vars → defaults
+
+**Core Configuration Sections**:
+```toml
+# LLM Provider Configuration
+[providers]
+default_llm = "ollama"
+default_embedder = "ollama"
+
+[[providers.ollama]]
+name = "local-llama"
+base_url = "http://localhost:11434"
+models = ["llama3.2", "qwen2.5:7b"]
+priority = 1
+
+[[providers.openai]]  
+name = "openai-backup"
+api_key = "sk-..."
+models = ["gpt-4o-mini"]
+priority = 2
+
+# RAG Configuration
+[sqvect]
+db_path = "~/.rago/vectors.db"
+auto_dimension = true
+
+[keyword]
+index_path = "~/.rago/keyword_index"
+
+# MCP Configuration  
+[mcp]
+servers_config = "mcpServers.json"
+auto_start = true
+
+# Agent Configuration
+[agents]
+max_concurrent = 3
+timeout = "10m"
 ```
 
-## Key Architecture Patterns
+## Key Files and Interfaces
 
-**RAG Pipeline**: `pkg/processor/` → `pkg/chunker/` → `pkg/embedder/` → `pkg/store/`  
-Dual storage: SQLite vectors (sqvect) + keyword search (Bleve) with RRF fusion
+### Library Interface
+- `client/client.go` - Main library interface for external applications
+- `pkg/interfaces/interfaces.go` - Core interfaces and contracts
 
-**Provider Factory**: `pkg/providers/factory.go` - Creates LLM/embedder providers from config  
-Supports Ollama, OpenAI, LM Studio with unified interfaces
+### LLM Pillar
+- `pkg/providers/factory.go` - Provider creation and management
+- `pkg/providers/ollama/` - Ollama provider implementation
+- `pkg/providers/openai/` - OpenAI-compatible provider
+- `pkg/llm/` - LLM abstraction layer
+- `pkg/embedder/` - Embedding generation
 
-**MCP-First Tools**: `pkg/mcp/` replaces built-in tools with standardized MCP servers  
-Configuration via `mcpServers.json`, health checking, external tool integration
-
-**Optional Agents**: `pkg/agents/` - Workflow automation layer on top of RAG  
-Natural language → JSON workflow → MCP tool execution
-
-## Configuration
-
-**Config Loading**: `~/.rago/rago.toml` → `./rago.toml` → `RAGO_*` env vars → defaults  
-**MCP Servers**: `mcpServers.json` (external tool definitions)  
-**Provider Setup**: Must configure at least one LLM/embedder in `[providers]` section
-
-
-
-## Key Files
-
-- `pkg/config/config.go` - Configuration loading
-- `pkg/providers/factory.go` - Provider creation  
+### RAG Pillar  
 - `pkg/processor/service.go` - RAG pipeline coordination
+- `pkg/store/sqvect.go` - Vector storage implementation
+- `pkg/store/keyword.go` - Keyword search implementation
+- `pkg/chunker/` - Document chunking strategies
+
+### MCP Pillar
 - `pkg/mcp/client.go` - MCP protocol client
-- `client/client.go` - Simplified library interface
+- `pkg/mcp/server.go` - MCP server management
+- `pkg/tools/` - Tool integration layer
 
+### Agent Pillar
+- `pkg/agents/service.go` - Agent orchestration
+- `pkg/workflow/` - Workflow execution engine
+- `pkg/scheduler/` - Task scheduling system
 
-## Common Development Tasks
+## Library Integration Examples
 
-### Examples Generation
-Use the `/examples` command to create runnable examples:
-```bash
-# This will:
-# 1. Analyze the requested feature/task
-# 2. Create appropriate folder structure in /examples/
-# 3. Generate complete, runnable Go file with imports and error handling
-# 4. Run the example with: go run examples/$feature/$filename.go
-```
-
-**Example Structure**:
+### Example Structure for Documentation
 ```
 examples/
-├── basic_rag_usage/main.go          # Simple RAG operations
-├── provider_switching/main.go       # Multi-provider examples  
-├── mcp_integration/main.go          # MCP tool usage
-├── agent_workflows/main.go          # Agent automation
-├── custom_chunking/main.go          # Chunking strategies
-└── http_api_client/main.go          # API usage examples
+├── library_usage/
+│   ├── basic_llm/main.go           # LLM-only usage
+│   ├── basic_rag/main.go           # RAG-only usage  
+│   ├── basic_mcp/main.go           # MCP-only usage
+│   ├── basic_agent/main.go         # Agent-only usage
+│   └── full_integration/main.go    # All four pillars
+├── use_cases/
+│   ├── chatbot_app/main.go         # Building a chatbot
+│   ├── document_qa/main.go         # Document Q&A system
+│   ├── automation_tool/main.go     # Task automation
+│   └── knowledge_base/main.go      # Knowledge management
+└── advanced/
+    ├── custom_provider/main.go     # Adding custom LLM provider
+    ├── custom_chunking/main.go     # Custom RAG chunking
+    ├── custom_mcp_tool/main.go     # Custom MCP tool
+    └── multi_agent/main.go         # Multi-agent workflows
 ```
 
-**Best Practices for Examples**:
-- Each example in its own folder with `main.go`
-- Include proper imports, error handling, and cleanup
-- Add comments explaining key concepts
-- Use realistic data and scenarios
-- Follow Go best practices and project patterns
+## Production Deployment Patterns
 
-### Release Workflow
-Use the `/release` command for automated releases:
-```bash
-# Custom slash command available: /release [optional commit message]
-# This will:
-# 1. Check git status and recent tags  
-# 2. Add non-binary files to git
-# 3. Analyze commit content to determine semantic version bump
-# 4. Create commit without co-author
-# 5. Create and push tag (auto-determined from changes)
-# 6. Push changes to remote
-```
+### 1. **Embedded Library Mode** (Recommended)
+Application includes RAGO as a Go module dependency and uses it internally.
 
-**Custom Command**: The `/release` slash command is implemented in `.claude/commands/release.md`
+### 2. **Sidecar Service Mode**  
+RAGO runs as a separate service with HTTP API, application communicates via REST.
 
-**Tag Version Determination**:
-- **MAJOR** (x.0.0): Breaking changes, API changes, architecture changes
-- **MINOR** (x.y.0): New features, new commands, significant enhancements
-- **PATCH** (x.y.z): Bug fixes, documentation updates, small improvements
+### 3. **CLI Integration Mode**
+Application shells out to RAGO CLI commands for specific operations.
 
-**Manual Release Steps** (if needed):
-```bash
-# Check current status and analyze changes
-git status
-git tag --sort=-version:refname | head -5
-git diff HEAD~1..HEAD --stat  # Review changes for version determination
+## Development Guidelines
 
-# Add files (excluding binaries)
-git add README.md README_zh-CN.md docs/index.html
-git add examples/ pkg/ cmd/
-git add *.json *.md mcpServers.json
+### Adding New LLM Providers
+1. Implement `pkg/interfaces/LLMProvider` interface
+2. Add provider to `pkg/providers/factory.go`  
+3. Update configuration schema
+4. Add comprehensive tests and examples
 
-# Create commit (message affects version determination)
-git commit -m "feat: your commit message here"
+### Extending RAG Capabilities
+1. Follow `pkg/processor/` patterns for pipeline stages
+2. Implement `pkg/interfaces/VectorStore` for new storage backends
+3. Add chunking strategies to `pkg/chunker/`
 
-# Create and push tag (version determined by content analysis)
-# PATCH: "fix:", "docs:", "style:", "refactor:", "test:", "chore:"
-# MINOR: "feat:", new functionality, new commands
-# MAJOR: "BREAKING CHANGE:", API changes, architectural changes
-git tag -a v2.x.x -m "Release v2.x.x: description"
-git push origin main --tags
-```
+### Creating MCP Tools
+1. Follow MCP specification for tool definitions
+2. Add tool configurations to `mcpServers.json`
+3. Test with `./rago mcp tools test <tool-name>`
 
-### Debugging Provider Issues
-1. Check provider connectivity: `./rago status --verbose`
-2. Test with minimal query: `./rago query "test" --verbose`
-3. Verify model availability on provider (Ollama: `ollama list`)
+### Building Agent Workflows  
+1. Use `pkg/workflow/` workflow definition format
+2. Implement workflow executors in `pkg/agents/`
+3. Add scheduling configurations for automated execution
 
-### Debugging MCP Issues  
-1. Check server status: `./rago mcp status`
-2. Test tool directly: `./rago mcp tools call filesystem read_file '{"path": "test.txt"}'`
-3. Review server logs in `~/.rago/logs/`
-
-### Adding New Commands
-1. Create command file in `cmd/rago/`
-2. Add to root command in `cmd/rago/root.go`
-3. Follow existing patterns for config loading and error handling
-4. Add corresponding API endpoint in `api/handlers/` if needed
-
-The codebase follows Go best practices with clear separation of concerns, comprehensive error handling, and extensive configuration options for different deployment scenarios.
+The codebase prioritizes library usability, clear separation of concerns, comprehensive error handling, and extensive configuration options for different integration patterns. Each pillar can be used independently or as part of the complete AI foundation.

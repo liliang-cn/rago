@@ -37,7 +37,9 @@ type RAGClient struct {
 
 // NewRAGClient creates a new standalone RAG client.
 func NewRAGClient(config core.RAGConfig) (core.RAGClient, error) {
-	service, err := rag.NewService(config)
+	// Use backward compatibility adapter with default embedder
+	embedder := &rag.DefaultEmbedder{}
+	service, err := rag.NewServiceFromCoreConfig(config, embedder)
 	if err != nil {
 		return nil, core.WrapErrorWithContext(err, "factory", "NewRAGClient", "failed to create RAG service")
 	}

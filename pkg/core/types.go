@@ -50,10 +50,13 @@ type RAGConfig struct {
 
 // MCPConfig contains configuration for the MCP pillar
 type MCPConfig struct {
-	ServersPath     string                   `toml:"servers_path"`
-	Servers         map[string]ServerConfig  `toml:"servers"`
-	HealthCheck     HealthCheckConfig        `toml:"health_check"`
-	ToolExecution   ToolExecutionConfig      `toml:"tool_execution"`
+	ServersPath          string                   `toml:"servers_path"`
+	Servers              []ServerConfig           `toml:"servers"`
+	HealthCheck          HealthCheckConfig        `toml:"health_check"`
+	ToolExecution        ToolExecutionConfig      `toml:"tool_execution"`
+	HealthCheckInterval  time.Duration            `toml:"health_check_interval"`
+	CacheSize            int                      `toml:"cache_size"`
+	CacheTTL             time.Duration            `toml:"cache_ttl"`
 }
 
 // AgentsConfig contains configuration for the Agent pillar
@@ -283,46 +286,59 @@ type RAGStats struct {
 
 // ServerConfig defines configuration for MCP servers
 type ServerConfig struct {
-	Name        string            `toml:"name"`
-	Command     []string          `toml:"command"`
-	Args        []string          `toml:"args,omitempty"`
-	Environment map[string]string `toml:"environment,omitempty"`
-	WorkingDir  string            `toml:"working_dir,omitempty"`
-	Timeout     time.Duration     `toml:"timeout"`
-	Retries     int               `toml:"retries"`
+	Name             string            `toml:"name"`
+	Description      string            `toml:"description"`
+	Command          []string          `toml:"command"`
+	Args             []string          `toml:"args,omitempty"`
+	Env              map[string]string `toml:"env,omitempty"`
+	WorkingDir       string            `toml:"working_dir,omitempty"`
+	Timeout          time.Duration     `toml:"timeout"`
+	Retries          int               `toml:"retries"`
+	AutoStart        bool              `toml:"auto_start"`
+	RestartOnFailure bool              `toml:"restart_on_failure"`
+	MaxRestarts      int               `toml:"max_restarts"`
+	RestartDelay     time.Duration     `toml:"restart_delay"`
+	Capabilities     []string          `toml:"capabilities"`
 }
 
 // ServerInfo provides information about a registered MCP server
 type ServerInfo struct {
-	Name        string        `json:"name"`
-	Status      HealthStatus  `json:"status"`
-	Version     string        `json:"version"`
-	Capabilities []string     `json:"capabilities"`
-	Tools       []string      `json:"tools"`
-	LastSeen    time.Time     `json:"last_seen"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description"`
+	Status       string                 `json:"status"`
+	Version      string                 `json:"version"`
+	Capabilities []string               `json:"capabilities"`
+	ToolCount    int                    `json:"tool_count"`
+	Tools        []string               `json:"tools"`
+	LastSeen     time.Time              `json:"last_seen"`
+	Metadata     map[string]interface{} `json:"metadata"`
 }
 
 // ToolInfo describes an available tool
 type ToolInfo struct {
+	ID          string                 `json:"id"`
 	Name        string                 `json:"name"`
+	ServerName  string                 `json:"server_name"`
 	Description string                 `json:"description"`
-	Parameters  map[string]interface{} `json:"parameters"`
-	Server      string                 `json:"server"`
+	Category    string                 `json:"category"`
+	InputSchema map[string]interface{} `json:"input_schema"`
+	Metadata    map[string]interface{} `json:"metadata"`
 }
 
 // ToolCallRequest represents a request to call a tool
 type ToolCallRequest struct {
-	Name       string                 `json:"name"`
-	Parameters map[string]interface{} `json:"parameters"`
+	ToolName   string                 `json:"tool_name"`
+	Arguments  map[string]interface{} `json:"arguments"`
 	Timeout    time.Duration          `json:"timeout,omitempty"`
 	Async      bool                   `json:"async,omitempty"`
 }
 
 // ToolCallResponse represents the response from a tool call
 type ToolCallResponse struct {
+	ToolName  string                 `json:"tool_name"`
 	Success   bool                   `json:"success"`
 	Result    interface{}            `json:"result,omitempty"`
-	Error     string                 `json:"error,omitempty"`
+	Error     error                  `json:"error,omitempty"`
 	Duration  time.Duration          `json:"duration"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
