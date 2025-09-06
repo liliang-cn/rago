@@ -36,16 +36,16 @@ func New(config core.Config) (*Client, error) {
 	
 	var err error
 	
-	// Initialize LLM pillar if not disabled
-	if !config.Mode.LLMOnly || !config.Mode.DisableAgent {
+	// Initialize LLM pillar if not in RAG-only mode
+	if !config.Mode.RAGOnly {
 		client.llmService, err = llm.NewService(config.LLM)
 		if err != nil {
 			return nil, core.WrapErrorWithContext(err, "client", "New", "failed to initialize LLM service")
 		}
 	}
 	
-	// Initialize RAG pillar if not disabled
-	if !config.Mode.RAGOnly || !config.Mode.DisableAgent {
+	// Initialize RAG pillar if not in LLM-only mode
+	if !config.Mode.LLMOnly {
 		// Use backward compatibility adapter with default embedder
 		embedder := &rag.DefaultEmbedder{}
 		client.ragService, err = rag.NewServiceFromCoreConfig(config.RAG, embedder)

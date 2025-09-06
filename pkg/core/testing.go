@@ -23,9 +23,9 @@ func TestConfig() Config {
 		
 		Mode: ModeConfig{
 			RAGOnly:      false,
-			LLMOnly:      false,
-			DisableMCP:   false,
-			DisableAgent: false,
+			LLMOnly:      true, // Disable other pillars for simpler tests
+			DisableMCP:   true,
+			DisableAgent: true,
 		},
 	}
 }
@@ -33,21 +33,21 @@ func TestConfig() Config {
 // TestLLMConfig provides a default LLM configuration for testing
 func TestLLMConfig() LLMConfig {
 	return LLMConfig{
-		DefaultProvider: "test",
+		DefaultProvider: "ollama",
 		LoadBalancing: LoadBalancingConfig{
 			Strategy:      "round_robin",
-			HealthCheck:   true,
+			HealthCheck:   false, // Disable health check for tests
 			CheckInterval: 10 * time.Second,
 		},
 		Providers: map[string]ProviderConfig{
-			"test": {
-				Type:    "test",
-				BaseURL: "http://localhost:8080",
-				Model:   "test-model",
+			"ollama": {
+				Type:    "ollama",
+				BaseURL: "http://localhost:11434",
+				Model:   "llama3.2",
 				Weight:  1,
 				Timeout: 30 * time.Second,
 				Parameters: map[string]interface{}{
-					"test_param": "test_value",
+					"test_mode": true,
 				},
 			},
 		},
@@ -63,7 +63,7 @@ func TestLLMConfig() LLMConfig {
 // TestRAGConfig provides a default RAG configuration for testing
 func TestRAGConfig() RAGConfig {
 	return RAGConfig{
-		StorageBackend: "memory",
+		StorageBackend: "sqlite",
 		ChunkingStrategy: ChunkingConfig{
 			Strategy:     "sentence",
 			ChunkSize:    500,
@@ -71,13 +71,13 @@ func TestRAGConfig() RAGConfig {
 			MinChunkSize: 100,
 		},
 		VectorStore: VectorStoreConfig{
-			Backend:    "memory",
+			Backend:    "sqlite",
 			Dimensions: 384,
 			Metric:     "cosine",
 			IndexType:  "flat",
 		},
 		KeywordStore: KeywordStoreConfig{
-			Backend:   "memory",
+			Backend:   "bleve",
 			Analyzer:  "standard",
 			Languages: []string{"en"},
 			Stemming:  true,
@@ -95,8 +95,8 @@ func TestRAGConfig() RAGConfig {
 			},
 		},
 		Embedding: EmbeddingConfig{
-			Provider:   "test",
-			Model:      "test-embedding",
+			Provider:   "ollama",
+			Model:      "nomic-embed-text",
 			Dimensions: 384,
 			BatchSize:  10,
 		},
