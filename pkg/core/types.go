@@ -617,17 +617,31 @@ type ToolExecutionConfig struct {
 
 // WorkflowEngineConfig defines workflow engine settings
 type WorkflowEngineConfig struct {
-	MaxSteps         int           `toml:"max_steps"`
-	StepTimeout      time.Duration `toml:"step_timeout"`
-	StateBackend     string        `toml:"state_backend"`
-	EnableRecovery   bool          `toml:"enable_recovery"`
+	MaxSteps               int           `toml:"max_steps"`
+	StepTimeout            time.Duration `toml:"step_timeout"`
+	StateBackend           string        `toml:"state_backend"`
+	EnableRecovery         bool          `toml:"enable_recovery"`
+	MaxConcurrentWorkflows int           `toml:"max_concurrent_workflows"`
+	MaxConcurrentSteps     int           `toml:"max_concurrent_steps"`
+	DefaultTimeout         time.Duration `toml:"default_timeout"`
+	EnableParallelism      bool          `toml:"enable_parallelism"`
 }
 
 // SchedulingConfig defines scheduling settings
 type SchedulingConfig struct {
-	Backend       string `toml:"backend"` // "memory", "redis", "database"
-	MaxConcurrent int    `toml:"max_concurrent"`
-	QueueSize     int    `toml:"queue_size"`
+	Backend           string       `toml:"backend"` // "memory", "redis", "database"
+	MaxConcurrent     int          `toml:"max_concurrent"`
+	QueueSize         int          `toml:"queue_size"`
+	MaxConcurrentJobs int          `toml:"max_concurrent_jobs"`
+	RetryPolicy       RetryPolicy  `toml:"retry_policy"`
+	PersistencePath   string       `toml:"persistence_path"`
+}
+
+// RetryPolicy defines retry behavior
+type RetryPolicy struct {
+	MaxRetries    int           `toml:"max_retries"`
+	RetryDelay    time.Duration `toml:"retry_delay"`
+	BackoffFactor float64       `toml:"backoff_factor"`
 }
 
 // StateStorageConfig defines state storage settings
@@ -635,13 +649,18 @@ type StateStorageConfig struct {
 	Backend    string        `toml:"backend"` // "memory", "file", "database"
 	Persistent bool          `toml:"persistent"`
 	TTL        time.Duration `toml:"ttl"`
+	Path       string        `toml:"path"`
 }
 
 // ReasoningChainsConfig defines reasoning chain settings
 type ReasoningChainsConfig struct {
-	MaxSteps      int           `toml:"max_steps"`
-	MaxMemorySize int           `toml:"max_memory_size"`
-	StepTimeout   time.Duration `toml:"step_timeout"`
+	MaxSteps        int           `toml:"max_steps"`
+	MaxMemorySize   int           `toml:"max_memory_size"`
+	StepTimeout     time.Duration `toml:"step_timeout"`
+	MaxDepth        int           `toml:"max_depth"`
+	MemoryCapacity  int           `toml:"memory_capacity"`
+	EnableLearning  bool          `toml:"enable_learning"`
+	PersistencePath string        `toml:"persistence_path"`
 }
 
 // RRFParams defines Reciprocal Rank Fusion parameters
