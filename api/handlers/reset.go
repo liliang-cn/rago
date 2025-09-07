@@ -4,15 +4,15 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/liliang-cn/rago/v2/pkg/processor"
+	"github.com/liliang-cn/rago/v2/pkg/client"
 )
 
 type ResetHandler struct {
-	processor *processor.Service
+	client *client.Client
 }
 
-func NewResetHandler(p *processor.Service) *ResetHandler {
-	return &ResetHandler{processor: p}
+func NewResetHandler(c *client.Client) *ResetHandler {
+	return &ResetHandler{client: c}
 }
 
 func (h *ResetHandler) Handle(c *gin.Context) {
@@ -27,7 +27,14 @@ func (h *ResetHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	err := h.processor.Reset(c.Request.Context())
+	if h.client.RAG() == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "RAG service not available",
+		})
+		return
+	}
+
+	err := h.client.RAG().Reset(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to reset database: " + err.Error(),

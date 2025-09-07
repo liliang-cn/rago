@@ -11,14 +11,13 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/agents/types"
-	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/core"
 )
 
 // WorkflowExecutor handles the execution of workflow steps
 type WorkflowExecutor struct {
-	config      *config.Config
-	llmProvider domain.Generator
+	config      *core.Config
+	llmProvider core.Generator
 	mcpClients  map[string]*MCPClient
 	memory      map[string]interface{}
 	verbose     bool
@@ -30,7 +29,7 @@ type MCPClient struct {
 }
 
 // NewWorkflowExecutor creates a new workflow executor
-func NewWorkflowExecutor(cfg *config.Config, llm domain.Generator) *WorkflowExecutor {
+func NewWorkflowExecutor(cfg *core.Config, llm core.Generator) *WorkflowExecutor {
 	return &WorkflowExecutor{
 		config:      cfg,
 		llmProvider: llm,
@@ -380,7 +379,7 @@ func (e *WorkflowExecutor) executeSequentialThinking(ctx context.Context, inputs
 	}
 
 	// Call the LLM
-	opts := &domain.GenerationOptions{
+	opts := &core.GenerationOptions{
 		Temperature: 0.7,
 		MaxTokens:   1000,
 	}

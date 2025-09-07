@@ -12,21 +12,20 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/agents/types"
-	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/core"
 )
 
 // WorkflowExecutorV2 handles workflow execution with async and parallel support
 type WorkflowExecutorV2 struct {
-	config      *config.Config
-	llmProvider domain.Generator
+	config      *core.Config
+	llmProvider core.Generator
 	memory      map[string]interface{}
 	verbose     bool
 	mu          sync.RWMutex
 }
 
 // NewWorkflowExecutorV2 creates a new workflow executor with async support
-func NewWorkflowExecutorV2(cfg *config.Config, llm domain.Generator) *WorkflowExecutorV2 {
+func NewWorkflowExecutorV2(cfg *core.Config, llm core.Generator) *WorkflowExecutorV2 {
 	return &WorkflowExecutorV2{
 		config:      cfg,
 		llmProvider: llm,
@@ -470,7 +469,7 @@ func (e *WorkflowExecutorV2) executeSequentialThinking(ctx context.Context, inpu
 	}
 
 	// Call LLM
-	opts := &domain.GenerationOptions{
+	opts := &core.GenerationOptions{
 		Temperature: 0.7,
 		MaxTokens:   1000,
 	}

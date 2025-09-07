@@ -54,9 +54,15 @@ func (h *HealthChecker) Start() error {
 	h.ticker = time.NewTicker(h.config.Interval)
 	h.running = true
 	
+	// Start health check loop
 	go h.healthCheckLoop()
 	
 	return nil
+}
+
+// CheckNow performs an immediate health check on all providers
+func (h *HealthChecker) CheckNow(ctx context.Context) {
+	h.CheckAllProviders(ctx)
 }
 
 // Stop stops health checking

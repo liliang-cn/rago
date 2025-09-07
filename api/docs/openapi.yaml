@@ -1,0 +1,767 @@
+openapi: 3.0.3
+info:
+  title: RAGO API
+  description: |
+    RAGO is a local-first, privacy-first Go AI foundation with four core pillars:
+    - **LLM**: Language model management and generation
+    - **RAG**: Retrieval-augmented generation
+    - **MCP**: Model Context Protocol for tool integration
+    - **Agents**: Autonomous workflow orchestration
+  version: 3.0.0
+  contact:
+    name: RAGO Support
+    url: https://github.com/liliang-cn/rago
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:7127/api/v1
+    description: Local development server
+  - url: https://api.rago.ai/v1
+    description: Production server
+
+tags:
+  - name: LLM
+    description: Language model operations
+  - name: RAG
+    description: Retrieval-augmented generation operations
+  - name: MCP
+    description: Model Context Protocol tool operations
+  - name: Agents
+    description: Agent and workflow operations
+  - name: Unified
+    description: Multi-pillar unified operations
+  - name: Health
+    description: Health and monitoring endpoints
+
+paths:
+  # Health endpoints
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Get health status of all RAGO components
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: System is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness check
+      description: Check if the system is ready to accept requests
+      responses:
+        '200':
+          description: System is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                  message:
+                    type: string
+        '503':
+          description: System is not ready
+
+  # LLM endpoints
+  /llm/generate:
+    post:
+      tags: [LLM]
+      summary: Generate text
+      description: Generate text using the configured LLM provider
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerationRequest'
+      responses:
+        '200':
+          description: Text generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /llm/stream:
+    post:
+      tags: [LLM]
+      summary: Stream text generation
+      description: Stream text generation responses using Server-Sent Events
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerationRequest'
+      responses:
+        '200':
+          description: Stream started successfully
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                format: event-stream
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /llm/providers:
+    get:
+      tags: [LLM]
+      summary: List LLM providers
+      description: Get a list of all configured LLM providers
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      responses:
+        '200':
+          description: Providers listed successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProviderInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [LLM]
+      summary: Add LLM provider
+      description: Add a new LLM provider configuration
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddProviderRequest'
+      responses:
+        '200':
+          description: Provider added successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # RAG endpoints
+  /rag/ingest:
+    post:
+      tags: [RAG]
+      summary: Ingest document
+      description: Ingest a document into the RAG system
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestRequest'
+      responses:
+        '200':
+          description: Document ingested successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rag/search:
+    post:
+      tags: [RAG]
+      summary: Search documents
+      description: Search for relevant documents using vector similarity
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /rag/documents:
+    get:
+      tags: [RAG]
+      summary: List documents
+      description: Get a list of all documents in the RAG system
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      parameters:
+        - name: source
+          in: query
+          schema:
+            type: string
+          description: Filter by source
+        - name: type
+          in: query
+          schema:
+            type: string
+          description: Filter by document type
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+          description: Limit number of results
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Offset for pagination
+      responses:
+        '200':
+          description: Documents listed successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Document'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # MCP endpoints
+  /mcp/tools:
+    get:
+      tags: [MCP]
+      summary: List tools
+      description: Get a list of all available MCP tools
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      responses:
+        '200':
+          description: Tools listed successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ToolInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/tools/{name}/call:
+    post:
+      tags: [MCP]
+      summary: Call a tool
+      description: Execute an MCP tool with the provided parameters
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Tool name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToolCallRequest'
+      responses:
+        '200':
+          description: Tool executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolCallResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Agent endpoints
+  /agents/workflows:
+    get:
+      tags: [Agents]
+      summary: List workflows
+      description: Get a list of all defined workflows
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      responses:
+        '200':
+          description: Workflows listed successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkflowInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [Agents]
+      summary: Create workflow
+      description: Create a new workflow definition
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowDefinition'
+      responses:
+        '201':
+          description: Workflow created successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /agents/workflows/{name}/execute:
+    post:
+      tags: [Agents]
+      summary: Execute workflow
+      description: Execute a workflow with the provided parameters
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Workflow name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowRequest'
+      responses:
+        '200':
+          description: Workflow executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Unified endpoints
+  /chat:
+    post:
+      tags: [Unified]
+      summary: Chat with RAG and tools
+      description: Process chat messages with optional RAG context and tool usage
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Chat response generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /task:
+    post:
+      tags: [Unified]
+      summary: Execute task
+      description: Execute a complex task using agents, tools, and RAG
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskRequest'
+      responses:
+        '200':
+          description: Task executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        components:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+              message:
+                type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    GenerationRequest:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+        max_tokens:
+          type: integer
+          default: 1000
+        temperature:
+          type: number
+          default: 0.7
+        model:
+          type: string
+
+    GenerationResponse:
+      type: object
+      properties:
+        text:
+          type: string
+        model:
+          type: string
+        usage:
+          type: object
+          properties:
+            prompt_tokens:
+              type: integer
+            completion_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+
+    ProviderInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+        models:
+          type: array
+          items:
+            type: string
+
+    AddProviderRequest:
+      type: object
+      required: [name, config]
+      properties:
+        name:
+          type: string
+        config:
+          type: object
+
+    IngestRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+        source:
+          type: string
+        metadata:
+          type: object
+
+    IngestResponse:
+      type: object
+      properties:
+        document_id:
+          type: string
+        chunks_created:
+          type: integer
+        status:
+          type: string
+
+    SearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+        limit:
+          type: integer
+          default: 10
+        threshold:
+          type: number
+          default: 0.7
+
+    SearchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              content:
+                type: string
+              score:
+                type: number
+              metadata:
+                type: object
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        content:
+          type: string
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+
+    ToolInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        parameters:
+          type: object
+
+    ToolCallRequest:
+      type: object
+      required: [parameters]
+      properties:
+        parameters:
+          type: object
+
+    ToolCallResponse:
+      type: object
+      properties:
+        result:
+          type: object
+        error:
+          type: string
+
+    WorkflowInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        steps:
+          type: integer
+
+    WorkflowDefinition:
+      type: object
+      required: [name, steps]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        steps:
+          type: array
+          items:
+            type: object
+
+    WorkflowRequest:
+      type: object
+      properties:
+        parameters:
+          type: object
+
+    WorkflowResponse:
+      type: object
+      properties:
+        result:
+          type: object
+        status:
+          type: string
+
+    ChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        use_rag:
+          type: boolean
+          default: true
+        use_tools:
+          type: boolean
+          default: true
+
+    ChatResponse:
+      type: object
+      properties:
+        response:
+          type: string
+        sources:
+          type: array
+          items:
+            type: string
+        tools_used:
+          type: array
+          items:
+            type: string
+
+    TaskRequest:
+      type: object
+      required: [task]
+      properties:
+        task:
+          type: string
+        context:
+          type: object
+
+    TaskResponse:
+      type: object
+      properties:
+        result:
+          type: object
+        steps:
+          type: array
+          items:
+            type: object
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string

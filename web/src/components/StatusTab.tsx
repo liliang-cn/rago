@@ -1,368 +1,311 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { apiClient } from '@/lib/api'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { 
   Activity, 
-  Server, 
-  Database, 
-  Cpu, 
-  RefreshCw,
-  CheckCircle2,
+  RefreshCw, 
+  CheckCircle, 
+  XCircle, 
   AlertCircle,
-  Clock,
-  TrendingUp,
-  Zap,
-  HardDrive,
-  Globe,
-  Settings
+  Brain,
+  Database,
+  Wrench,
+  Bot,
+  Layers
 } from 'lucide-react'
-
-interface SystemHealth {
-  service: string
-  status: string
-  version: string
-  timestamp?: string
-}
-
-interface APIEndpoint {
-  path: string
-  method: string
-  description: string
-  category: string
-}
+import { api, HealthStatus, useAsyncOperation } from '@/lib/api'
 
 export function StatusTab() {
-  const [health, setHealth] = useState<SystemHealth | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
-  const [error, setError] = useState<string>('')
-
-  const apiEndpoints: APIEndpoint[] = [
-    // RAG endpoints
-    { path: '/api/ingest', method: 'POST', description: 'Ingest documents', category: 'RAG' },
-    { path: '/api/query', method: 'POST', description: 'Query documents', category: 'RAG' },
-    { path: '/api/query-stream', method: 'POST', description: 'Stream query responses', category: 'RAG' },
-    { path: '/api/search', method: 'POST', description: 'Search documents only', category: 'RAG' },
-    { path: '/api/documents', method: 'GET', description: 'List documents', category: 'RAG' },
-    { path: '/api/documents/:id', method: 'DELETE', description: 'Delete document', category: 'RAG' },
-    { path: '/api/reset', method: 'POST', description: 'Reset system', category: 'RAG' },
-    
-    // MCP endpoints
-    { path: '/api/mcp/tools', method: 'GET', description: 'List MCP tools', category: 'MCP' },
-    { path: '/api/mcp/tools/:name', method: 'GET', description: 'Get tool details', category: 'MCP' },
-    { path: '/api/mcp/tools/call', method: 'POST', description: 'Execute MCP tool', category: 'MCP' },
-    { path: '/api/mcp/tools/batch', method: 'POST', description: 'Batch execute tools', category: 'MCP' },
-    { path: '/api/mcp/servers', method: 'GET', description: 'Get server status', category: 'MCP' },
-    { path: '/api/mcp/servers/start', method: 'POST', description: 'Start MCP server', category: 'MCP' },
-    { path: '/api/mcp/servers/stop', method: 'POST', description: 'Stop MCP server', category: 'MCP' },
-    { path: '/api/mcp/llm/tools', method: 'GET', description: 'Get LLM-formatted tools', category: 'MCP' },
-    
-    // System endpoints
-    { path: '/api/health', method: 'GET', description: 'System health check', category: 'System' }
-  ]
+  const [health, setHealth] = useState<HealthStatus | null>(null)
+  const [config, setConfig] = useState<any>(null)
+  const [lastCheck, setLastCheck] = useState<Date | null>(null)
+  
+  const healthOp = useAsyncOperation<HealthStatus>()
+  const configOp = useAsyncOperation<any>()
 
   useEffect(() => {
     checkHealth()
-    const interval = setInterval(checkHealth, 30000) // Refresh every 30 seconds
-    return () => clearInterval(interval)
+    loadConfig()
   }, [])
 
   const checkHealth = async () => {
-    setIsLoading(true)
-    setError('')
-
-    try {
-      const response = await apiClient.health()
-      if (response.data) {
-        const healthData = response.data as any
-        setHealth({
-          service: healthData.service || 'RAGO',
-          status: healthData.status || 'unknown',
-          version: healthData.version || '1.0.0',
-          timestamp: new Date().toISOString()
-        })
-      } else {
-        setError(response.error || 'Health check failed')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setIsLoading(false)
-      setLastRefresh(new Date())
+    const result = await healthOp.execute(() => api.getHealth())
+    if (result.data) {
+      setHealth(result.data)
+      setLastCheck(new Date())
     }
   }
 
-  const getMethodColor = (method: string) => {
-    switch (method.toUpperCase()) {
-      case 'GET':
-        return 'bg-blue-100 text-blue-800'
-      case 'POST':
-        return 'bg-green-100 text-green-800'
-      case 'PUT':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'DELETE':
-        return 'bg-red-100 text-red-800'
+  const loadConfig = async () => {
+    const result = await configOp.execute(() => api.getConfig())
+    if (result.data) {
+      setConfig(result.data)
+    }
+  }
+
+  const getHealthIcon = (status: string) => {
+    switch (status) {
+      case 'healthy':
+        return <CheckCircle className="h-5 w-5 text-green-500" />
+      case 'degraded':
+        return <AlertCircle className="h-5 w-5 text-yellow-500" />
+      case 'unhealthy':
+        return <XCircle className="h-5 w-5 text-red-500" />
       default:
-        return 'bg-gray-100 text-gray-800'
+        return <AlertCircle className="h-5 w-5 text-gray-500" />
     }
   }
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'RAG':
-        return <Database className="h-4 w-4" />
-      case 'MCP':
-        return <Zap className="h-4 w-4" />
-      case 'System':
-        return <Settings className="h-4 w-4" />
+  const getHealthBadgeColor = (status: string) => {
+    switch (status) {
+      case 'healthy':
+        return 'bg-green-500'
+      case 'degraded':
+        return 'bg-yellow-500'
+      case 'unhealthy':
+        return 'bg-red-500'
       default:
-        return <Globe className="h-4 w-4" />
+        return 'bg-gray-500'
     }
   }
 
-  const groupedEndpoints = apiEndpoints.reduce((acc, endpoint) => {
-    if (!acc[endpoint.category]) {
-      acc[endpoint.category] = []
-    }
-    acc[endpoint.category].push(endpoint)
-    return acc
-  }, {} as Record<string, APIEndpoint[]>)
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">System Status</h2>
-          <p className="text-gray-600">Monitor API health and available endpoints</p>
-        </div>
-        <Button onClick={checkHealth} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
-
-      {error && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 text-red-800">
-              <AlertCircle className="h-4 w-4" />
-              <span>{error}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">
-            <Activity className="h-4 w-4 mr-2" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="endpoints">
-            <Globe className="h-4 w-4 mr-2" />
-            API Endpoints
-          </TabsTrigger>
-          <TabsTrigger value="monitoring">
-            <TrendingUp className="h-4 w-4 mr-2" />
-            Monitoring
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
-          {/* System Health */}
-          <Card>
-            <CardHeader>
+      {/* Overall Status */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
               <CardTitle className="flex items-center gap-2">
-                <Server className="h-5 w-5" />
-                System Health
+                <Activity className="h-5 w-5" />
+                System Status
               </CardTitle>
               <CardDescription>
-                Current system status and basic information
+                RAGO V3 Four-Pillar Architecture Health
               </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {health ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-100 rounded">
-                      <CheckCircle2 className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium">Status</div>
-                      <div className="text-sm text-green-600 capitalize">{health.status}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded">
-                      <Activity className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium">Service</div>
-                      <div className="text-sm text-gray-600">{health.service}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-100 rounded">
-                      <Cpu className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium">Version</div>
-                      <div className="text-sm text-gray-600">{health.version}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-100 rounded">
-                      <Clock className="h-5 w-5 text-gray-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium">Last Check</div>
-                      <div className="text-sm text-gray-600">
-                        {lastRefresh.toLocaleTimeString()}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <AlertCircle className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                  <p className="text-gray-500">Unable to fetch system health</p>
-                </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {lastCheck && (
+                <span className="text-xs text-gray-500">
+                  Last check: {lastCheck.toLocaleTimeString()}
+                </span>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Quick Stats */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Database className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <div className="text-2xl font-bold">{groupedEndpoints['RAG']?.length || 0}</div>
-                    <div className="text-sm text-gray-600">RAG Endpoints</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-green-600" />
-                  <div>
-                    <div className="text-2xl font-bold">{groupedEndpoints['MCP']?.length || 0}</div>
-                    <div className="text-sm text-gray-600">MCP Endpoints</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Globe className="h-5 w-5 text-purple-600" />
-                  <div>
-                    <div className="text-2xl font-bold">{apiEndpoints.length}</div>
-                    <div className="text-sm text-gray-600">Total Endpoints</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              <Button
+                onClick={checkHealth}
+                variant="outline"
+                size="sm"
+                disabled={healthOp.loading}
+              >
+                <RefreshCw className={`h-4 w-4 ${healthOp.loading ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </div>
-        </TabsContent>
+        </CardHeader>
+        <CardContent>
+          {healthOp.error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>Failed to fetch health status: {healthOp.error}</AlertDescription>
+            </Alert>
+          )}
 
-        <TabsContent value="endpoints" className="space-y-4">
-          {Object.entries(groupedEndpoints).map(([category, endpoints]) => (
-            <Card key={category}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  {getCategoryIcon(category)}
-                  {category} API
-                </CardTitle>
-                <CardDescription>
-                  Available {category.toLowerCase()} endpoints and operations
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {endpoints.map((endpoint, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded border">
-                      <div className="flex items-center gap-3">
-                        <span className={`px-2 py-1 rounded text-xs font-mono font-medium ${getMethodColor(endpoint.method)}`}>
-                          {endpoint.method}
-                        </span>
-                        <code className="text-sm font-mono">{endpoint.path}</code>
+          {health && (
+            <div className="space-y-6">
+              {/* Overall Health */}
+              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                {getHealthIcon(health.overall)}
+                <div className="flex-1">
+                  <p className="font-medium">Overall System Health</p>
+                  <p className="text-sm text-gray-600">
+                    {health.overall === 'healthy' 
+                      ? 'All systems operational'
+                      : health.overall === 'degraded'
+                      ? 'Some services are experiencing issues'
+                      : 'System is experiencing problems'}
+                  </p>
+                </div>
+                <Badge className={`${getHealthBadgeColor(health.overall)} text-white`}>
+                  {health.overall.toUpperCase()}
+                </Badge>
+              </div>
+
+              {/* Four Pillars Status */}
+              <div>
+                <h3 className="text-sm font-medium mb-3">Four Pillars</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* LLM Pillar */}
+                  <Card className="bg-gray-50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Brain className="h-4 w-4 text-blue-500" />
+                          <span className="font-medium">LLM</span>
+                        </div>
+                        {health.providers && Object.keys(health.providers).length > 0 ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        )}
                       </div>
-                      <span className="text-sm text-gray-600">{endpoint.description}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
+                      <div className="space-y-1">
+                        {health.providers && Object.entries(health.providers).map(([name, status]) => (
+                          <div key={name} className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600">{name}</span>
+                            <Badge 
+                              variant={status === 'healthy' ? 'default' : 'destructive'}
+                              className="h-4 text-xs px-1"
+                            >
+                              {status}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
 
-        <TabsContent value="monitoring" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Real-time Monitoring</CardTitle>
-              <CardDescription>
-                System metrics and performance indicators
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-4">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <Activity className="h-4 w-4" />
-                    API Response Times
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Health Check</span>
-                      <span className="text-green-600">~50ms</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Document Query</span>
-                      <span className="text-blue-600">~200ms</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>MCP Tool Call</span>
-                      <span className="text-purple-600">~150ms</span>
-                    </div>
-                  </div>
-                </div>
+                  {/* RAG Pillar */}
+                  <Card className="bg-gray-50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Database className="h-4 w-4 text-green-500" />
+                          <span className="font-medium">RAG</span>
+                        </div>
+                        {health.rag === 'healthy' ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        <p>Vector Store: SQLite</p>
+                        <p>Keyword Store: Bleve</p>
+                        <p>Status: {health.rag}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-                <div className="space-y-4">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <HardDrive className="h-4 w-4" />
-                    System Resources
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Memory Usage</span>
-                      <span className="text-gray-600">~45MB</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Active Connections</span>
-                      <span className="text-gray-600">1</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Uptime</span>
-                      <span className="text-gray-600">{Math.floor(Date.now() / 1000 / 60)}min</span>
-                    </div>
-                  </div>
+                  {/* MCP Pillar */}
+                  <Card className="bg-gray-50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Wrench className="h-4 w-4 text-purple-500" />
+                          <span className="font-medium">MCP</span>
+                        </div>
+                        {health.mcp?.status === 'healthy' ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        {health.mcp?.servers && Object.entries(health.mcp.servers).map(([name, status]) => (
+                          <div key={name} className="flex items-center justify-between text-xs">
+                            <span className="text-gray-600">{name}</span>
+                            <Badge 
+                              variant={status === 'running' ? 'default' : 'secondary'}
+                              className="h-4 text-xs px-1"
+                            >
+                              {status}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Agents Pillar */}
+                  <Card className="bg-gray-50">
+                    <CardContent className="pt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Bot className="h-4 w-4 text-orange-500" />
+                          <span className="font-medium">Agents</span>
+                        </div>
+                        {health.agents === 'healthy' ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        <p>Workflow Engine: Active</p>
+                        <p>Scheduler: Memory Backend</p>
+                        <p>Status: {health.agents}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Layers className="h-5 w-5" />
+            Configuration
+          </CardTitle>
+          <CardDescription>
+            Current system configuration
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {configOp.loading ? (
+            <p className="text-center text-gray-500">Loading configuration...</p>
+          ) : config ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-sm font-medium mb-2">Data Directory</h3>
+                <p className="text-sm text-gray-600 font-mono">{config.data_dir || '/tmp/rago'}</p>
+              </div>
+              
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-sm font-medium mb-2">Active Features</h3>
+                <div className="flex gap-2 mt-2">
+                  {config.mode?.llm_only === false && (
+                    <>
+                      {config.mode?.rag_enabled && (
+                        <Badge variant="outline">RAG Enabled</Badge>
+                      )}
+                      {config.mode?.mcp_enabled && (
+                        <Badge variant="outline">MCP Enabled</Badge>
+                      )}
+                      {config.mode?.agents_enabled && (
+                        <Badge variant="outline">Agents Enabled</Badge>
+                      )}
+                    </>
+                  )}
+                  {config.mode?.llm_only && (
+                    <Badge variant="outline">LLM Only Mode</Badge>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-sm font-medium mb-2">Log Level</h3>
+                <Badge>{config.log_level || 'info'}</Badge>
+              </div>
+            </div>
+          ) : (
+            <Alert>
+              <AlertDescription>Unable to load configuration</AlertDescription>
+            </Alert>
+          )}
+
+          {configOp.error && (
+            <Alert variant="destructive">
+              <AlertDescription>Failed to load configuration: {configOp.error}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

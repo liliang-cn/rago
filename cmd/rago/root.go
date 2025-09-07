@@ -1,9 +1,12 @@
-package rago
+package main
 
 import (
 	"fmt"
+	"io"
+	"log"
+	"os"
 
-	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -12,30 +15,44 @@ var (
 	dbPath  string
 	verbose bool
 	quiet   bool
-	cfg     *config.Config
+	cfg     *client.Config
 	version string = "dev"
 )
 
 var RootCmd = &cobra.Command{
 	Use:   "rago",
-	Short: "RAGO - Local RAG System",
-	Long: `RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system written in Go,
-integrating SQLite vector database (sqvect) and local LLM client (ollama-go),
-supporting document ingestion, semantic search, and context-enhanced Q&A.`,
+	Short: "RAGO - Local-First AI Foundation",
+	Long: `RAGO is a comprehensive local-first, privacy-first AI foundation with four equal pillars:
+- LLM: Multi-provider language model management with load balancing
+- RAG: Document ingestion, vectorization, and semantic retrieval
+- MCP: Model Context Protocol for tool integration
+- Agents: Autonomous workflows combining all capabilities
+
+RAGO can be used as a library in your Go applications or as a standalone CLI/server.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Configure logging based on verbose flag
+		if verbose {
+			log.SetOutput(os.Stderr)
+		} else {
+			log.SetOutput(io.Discard)
+		}
+		
 		// Skip config loading for commands that don't need existing config
 		if cmd.Name() == "init" || cmd.Name() == "version" {
 			return nil
 		}
 
 		var err error
-		cfg, err = config.Load(cfgFile)
+		cfg, err = client.Load(cfgFile)
 		if err != nil {
 			return fmt.Errorf("failed to load configuration: %w", err)
 		}
 
 		if dbPath != "" {
-			cfg.Sqvect.DBPath = dbPath
+			// TODO: Map database path to new config structure
+			// Legacy cfg.Sqvect.DBPath is no longer available
+			// This may need to be handled through DataDir or similar
+			cfg.DataDir = dbPath
 		}
 
 		return nil
@@ -66,16 +83,22 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
-	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "configuration file path (default: ~/.rago/rago.toml or ./rago.toml)")
+	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "configuration file path (default search order: ./rago.toml → ./.rago/rago.toml → ~/.rago/rago.toml)")
 	RootCmd.PersistentFlags().StringVar(&dbPath, "db-path", "", "database path (default: ./data/rag.db)")
 	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose logging output")
 	RootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "quiet mode")
 
+	// Core commands
 	RootCmd.AddCommand(versionCmd)
-	RootCmd.AddCommand(initCmd)
-	RootCmd.AddCommand(ingestCmd)
-	RootCmd.AddCommand(queryCmd)
-	RootCmd.AddCommand(listCmd)
-	RootCmd.AddCommand(resetCmd)
-	RootCmd.AddCommand(serveCmd)
+	RootCmd.AddCommand(statusCmd)     // Status command
+	RootCmd.AddCommand(serveCmd)      // Serve command
+	
+	// Four-pillar commands
+	RootCmd.AddCommand(llmCmd)        // LLM pillar
+	RootCmd.AddCommand(ragCmd)        // RAG pillar  
+	RootCmd.AddCommand(mcpCmd)        // MCP pillar
+	RootCmd.AddCommand(agentCmd)      // Agent pillar
+	
+	// Multi-pillar commands
+	RootCmd.AddCommand(ingestCmd)     // RAG ingest command
 }

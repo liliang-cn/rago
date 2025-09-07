@@ -8,17 +8,17 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/agents/types"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/core"
 )
 
 // AgentGenerator generates agents and workflows using LLM with structured output
 type AgentGenerator struct {
-	llm     domain.Generator
+	llm     core.Generator
 	verbose bool
 }
 
 // NewAgentGenerator creates a new agent generator
-func NewAgentGenerator(llm domain.Generator) *AgentGenerator {
+func NewAgentGenerator(llm core.Generator) *AgentGenerator {
 	return &AgentGenerator{
 		llm: llm,
 	}
@@ -33,7 +33,7 @@ func (g *AgentGenerator) SetVerbose(verbose bool) {
 func (g *AgentGenerator) GenerateWorkflow(ctx context.Context, request string) (*types.WorkflowSpec, error) {
 	prompt := g.buildWorkflowPrompt(request)
 
-	opts := &domain.GenerationOptions{
+	opts := &core.GenerationOptions{
 		Temperature: 0.7,
 		MaxTokens:   3000,
 	}
@@ -78,7 +78,7 @@ func (g *AgentGenerator) GenerateWorkflow(ctx context.Context, request string) (
 func (g *AgentGenerator) GenerateAgent(ctx context.Context, description string, agentType types.AgentType) (*types.Agent, error) {
 	prompt := g.buildAgentPrompt(description, agentType)
 
-	opts := &domain.GenerationOptions{
+	opts := &core.GenerationOptions{
 		Temperature: 0.7,
 		MaxTokens:   2000,
 	}
@@ -151,7 +151,7 @@ func (g *AgentGenerator) GenerateToolCall(ctx context.Context, tool string, cont
 
 Return only the JSON parameters object that matches the tool's expected schema.`, tool, context)
 
-	opts := &domain.GenerationOptions{
+	opts := &core.GenerationOptions{
 		Temperature: 0.5, // Lower temperature for more consistent parameter generation
 		MaxTokens:   1000,
 	}
@@ -264,7 +264,7 @@ func (g *AgentGenerator) validateWorkflow(workflow *types.WorkflowSpec) error {
 }
 
 // generateWorkflowUnstructured fallback for when structured generation fails
-func (g *AgentGenerator) generateWorkflowUnstructured(ctx context.Context, request string, opts *domain.GenerationOptions) (*types.WorkflowSpec, error) {
+func (g *AgentGenerator) generateWorkflowUnstructured(ctx context.Context, request string, opts *core.GenerationOptions) (*types.WorkflowSpec, error) {
 	prompt := fmt.Sprintf(`Generate ONLY a valid JSON workflow for this request: %s
 
 Return ONLY the JSON structure with steps array, no explanation.`, request)
@@ -275,7 +275,7 @@ Return ONLY the JSON structure with steps array, no explanation.`, request)
 	}
 
 	// Extract JSON from response
-	jsonStr := extractJSON(response)
+	jsonStr := extractJSON(response.Content)
 
 	var workflow types.WorkflowSpec
 	if err := json.Unmarshal([]byte(jsonStr), &workflow); err != nil {

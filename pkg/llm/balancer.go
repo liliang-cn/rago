@@ -41,11 +41,14 @@ type ProviderMetrics struct {
 type LoadBalancingStrategy string
 
 const (
-	StrategyRoundRobin      LoadBalancingStrategy = "round_robin"
-	StrategyWeighted        LoadBalancingStrategy = "weighted"
-	StrategyLeastConnections LoadBalancingStrategy = "least_connections"
-	StrategyResponseTime    LoadBalancingStrategy = "response_time"
-	StrategyAdaptive        LoadBalancingStrategy = "adaptive"
+	StrategyRoundRobin         LoadBalancingStrategy = "round_robin"
+	StrategyWeighted           LoadBalancingStrategy = "weighted"
+	StrategyWeightedRoundRobin LoadBalancingStrategy = "weighted_round_robin"
+	StrategyLeastConnections   LoadBalancingStrategy = "least_connections"
+	StrategyLeastLatency       LoadBalancingStrategy = "least_latency"
+	StrategyPriority           LoadBalancingStrategy = "priority"
+	StrategyResponseTime       LoadBalancingStrategy = "response_time"
+	StrategyAdaptive           LoadBalancingStrategy = "adaptive"
 )
 
 // NewLoadBalancer creates a new load balancer
@@ -71,8 +74,14 @@ func (lb *LoadBalancer) SelectProvider() (*ProviderEntry, error) {
 	switch LoadBalancingStrategy(lb.strategy) {
 	case StrategyWeighted:
 		selected = lb.selectWeightedProvider(healthyProviders)
+	case StrategyWeightedRoundRobin:
+		selected = lb.selectWeightedRoundRobinProvider(healthyProviders)
 	case StrategyLeastConnections:
 		selected = lb.selectLeastConnectionsProvider(healthyProviders)
+	case StrategyLeastLatency:
+		selected = lb.selectResponseTimeProvider(healthyProviders) // Same as response time
+	case StrategyPriority:
+		selected = lb.selectPriorityProvider(healthyProviders)
 	case StrategyResponseTime:
 		selected = lb.selectResponseTimeProvider(healthyProviders)
 	case StrategyAdaptive:
@@ -180,7 +189,7 @@ func (lb *LoadBalancer) GetAllProviderMetrics() map[string]*ProviderMetrics {
 
 // === PRIVATE METHODS ===
 
-// getHealthyProviders returns a list of healthy providers
+// getHealthyProviders returns a list of healthy providers for generation (excludes embedding models)
 func (lb *LoadBalancer) getHealthyProviders() []*ProviderEntry {
 	lb.pool.mu.RLock()
 	defer lb.pool.mu.RUnlock()
@@ -189,7 +198,10 @@ func (lb *LoadBalancer) getHealthyProviders() []*ProviderEntry {
 	for _, entry := range lb.pool.providers {
 		entry.mu.RLock()
 		if entry.Health == core.HealthStatusHealthy && entry.CircuitState == CircuitClosed {
-			healthy = append(healthy, entry)
+			// Exclude embedding models from generation tasks
+			if isEmbeddingModel, exists := entry.Config.Parameters["is_embedding_model"]; !exists || !isEmbeddingModel.(bool) {
+				healthy = append(healthy, entry)
+			}
 		}
 		entry.mu.RUnlock()
 	}
@@ -416,4 +428,71 @@ func (lb *LoadBalancer) FinishRequest(providerName string) {
 	if exists && metrics.ActiveRequests > 0 {
 		metrics.ActiveRequests--
 	}
+}
+
+// selectWeightedRoundRobinProvider implements weighted round-robin selection
+// This algorithm cycles through providers proportionally to their weights
+func (lb *LoadBalancer) selectWeightedRoundRobinProvider(providers []*ProviderEntry) *ProviderEntry {
+	if len(providers) == 0 {
+		return nil
+	}
+	
+	// If only one provider, return it
+	if len(providers) == 1 {
+		return providers[0]
+	}
+	
+	lb.mu.Lock()
+	defer lb.mu.Unlock()
+	
+	// Create weighted provider list for round-robin
+	// Each provider appears in the list proportional to its weight
+	weightedList := make([]*ProviderEntry, 0)
+	
+	for _, provider := range providers {
+		weight := provider.Weight
+		if weight <= 0 {
+			weight = 1 // Default weight
+		}
+		
+		// Add provider to the list 'weight' times
+		for i := 0; i < weight; i++ {
+			weightedList = append(weightedList, provider)
+		}
+	}
+	
+	if len(weightedList) == 0 {
+		return providers[0] // Fallback
+	}
+	
+	// Select using round-robin on the weighted list
+	selected := weightedList[lb.roundRobinIndex%len(weightedList)]
+	lb.roundRobinIndex++
+	
+	return selected
+}
+
+// selectPriorityProvider selects based on highest weight (priority)
+func (lb *LoadBalancer) selectPriorityProvider(providers []*ProviderEntry) *ProviderEntry {
+	if len(providers) == 0 {
+		return nil
+	}
+	
+	// Find the provider with the highest weight
+	var selected *ProviderEntry
+	maxWeight := -1
+	
+	for _, provider := range providers {
+		if provider.Weight > maxWeight {
+			maxWeight = provider.Weight
+			selected = provider
+		}
+	}
+	
+	// If no provider found (shouldn't happen), fallback to first
+	if selected == nil {
+		selected = providers[0]
+	}
+	
+	return selected
 }

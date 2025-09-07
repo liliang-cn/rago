@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { apiClient, MCPTool, MCPToolResult } from '@/lib/api'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { 
   Wrench, 
   Server, 
@@ -11,320 +14,368 @@ import {
   Square, 
   RefreshCw, 
   AlertCircle, 
-  CheckCircle2,
-  Clock,
-  Database,
-  Activity
+  CheckCircle,
+  Zap
 } from 'lucide-react'
-
-interface ServerStatus {
-  name: string
-  status: boolean
-}
+import { api, MCPTool, MCPServer, useAsyncOperation } from '@/lib/api'
 
 export function MCPTab() {
+  const [servers, setServers] = useState<MCPServer[]>([])
   const [tools, setTools] = useState<MCPTool[]>([])
-  const [servers, setServers] = useState<ServerStatus[]>([])
-  const [selectedTool, setSelectedTool] = useState<MCPTool | null>(null)
-  const [toolArgs, setToolArgs] = useState<string>('')
-  const [toolResult, setToolResult] = useState<MCPToolResult | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isLoadingTools, setIsLoadingTools] = useState(true)
-  const [error, setError] = useState<string>('')
+  const [selectedServer, setSelectedServer] = useState<string>('')
+  const [selectedTool, setSelectedTool] = useState<string>('')
+  const [toolParams, setToolParams] = useState<string>('{}')
+  const [toolResult, setToolResult] = useState<any>(null)
+
+  const serversOp = useAsyncOperation<MCPServer[]>()
+  const toolsOp = useAsyncOperation<MCPTool[]>()
+  const callToolOp = useAsyncOperation<any>()
+  const startServerOp = useAsyncOperation<any>()
+  const stopServerOp = useAsyncOperation<any>()
 
   useEffect(() => {
-    loadMCPData()
+    loadServers()
+    loadTools()
   }, [])
 
-  const loadMCPData = async () => {
-    setIsLoadingTools(true)
-    setError('')
-
-    try {
-      // Load tools and servers in parallel
-      const [toolsResponse, serversResponse] = await Promise.all([
-        apiClient.getMCPTools(),
-        apiClient.getMCPServers()
-      ])
-
-      if (toolsResponse.data) {
-        setTools(toolsResponse.data.tools)
+  const loadServers = async () => {
+    const result = await serversOp.execute(() => api.listMCPServers())
+    if (result.data) {
+      setServers(result.data)
+      if (result.data.length > 0 && !selectedServer) {
+        setSelectedServer(result.data[0].name)
       }
-
-      if (serversResponse.data) {
-        const serverList = Object.entries(serversResponse.data.servers).map(([name, status]) => ({
-          name,
-          status: Boolean(status)
-        }))
-        setServers(serverList)
-      }
-    } catch (err) {
-      setError('Failed to load MCP data')
-    } finally {
-      setIsLoadingTools(false)
     }
   }
 
-  const executeTool = async () => {
-    if (!selectedTool) return
+  const loadTools = async () => {
+    const result = await toolsOp.execute(() => api.listMCPTools())
+    if (result.data) {
+      setTools(result.data)
+    }
+  }
 
-    setIsLoading(true)
-    setError('')
-    setToolResult(null)
+  const handleCallTool = async () => {
+    if (!selectedServer || !selectedTool) return
 
     try {
-      let args = {}
-      if (toolArgs.trim()) {
-        args = JSON.parse(toolArgs)
-      }
-
-      const response = await apiClient.callMCPTool(selectedTool.name, args)
+      const params = JSON.parse(toolParams)
+      const result = await callToolOp.execute(() =>
+        api.callMCPTool(selectedServer, selectedTool, params)
+      )
       
-      if (response.data) {
-        setToolResult(response.data)
-      } else {
-        setError(response.error || 'Failed to execute tool')
+      if (result.data) {
+        setToolResult(result.data)
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid JSON arguments')
-    } finally {
-      setIsLoading(false)
+    } catch (error) {
+      alert('Invalid JSON parameters')
     }
   }
 
-  const startServer = async (serverName: string) => {
-    try {
-      await apiClient.startMCPServer(serverName)
-      await loadMCPData() // Refresh data
-    } catch (err) {
-      setError(`Failed to start server: ${serverName}`)
+  const handleStartServer = async (name: string) => {
+    const result = await startServerOp.execute(() => api.startMCPServer(name))
+    if (result.success) {
+      loadServers()
     }
   }
 
-  const stopServer = async (serverName: string) => {
-    try {
-      await apiClient.stopMCPServer(serverName)
-      await loadMCPData() // Refresh data
-    } catch (err) {
-      setError(`Failed to stop server: ${serverName}`)
+  const handleStopServer = async (name: string) => {
+    const result = await stopServerOp.execute(() => api.stopMCPServer(name))
+    if (result.success) {
+      loadServers()
     }
   }
+
+  const getServerStatusIcon = (status?: string) => {
+    switch (status) {
+      case 'running':
+        return <CheckCircle className="h-4 w-4 text-green-500" />
+      case 'stopped':
+        return <Square className="h-4 w-4 text-gray-500" />
+      case 'error':
+        return <AlertCircle className="h-4 w-4 text-red-500" />
+      default:
+        return <AlertCircle className="h-4 w-4 text-gray-500" />
+    }
+  }
+
+  const getServerStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'running':
+        return <Badge className="bg-green-500 text-white">Running</Badge>
+      case 'stopped':
+        return <Badge variant="secondary">Stopped</Badge>
+      case 'error':
+        return <Badge variant="destructive">Error</Badge>
+      default:
+        return <Badge variant="outline">Unknown</Badge>
+    }
+  }
+
+  const serverTools = selectedServer 
+    ? tools.filter(t => t.server === selectedServer)
+    : []
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">MCP Integration</h2>
-          <p className="text-gray-600">Manage Model Context Protocol servers and tools</p>
-        </div>
-        <Button onClick={loadMCPData} disabled={isLoadingTools}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingTools ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
-
-      {error && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 text-red-800">
-              <AlertCircle className="h-4 w-4" />
-              <span>{error}</span>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wrench className="h-5 w-5" />
+            MCP Pillar
+          </CardTitle>
+          <CardDescription>
+            Model Context Protocol - Tool integration and external services
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="flex items-center gap-2">
+              <Server className="h-4 w-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium">{servers.length}</p>
+                <p className="text-xs text-gray-500">MCP Servers</p>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <div className="flex items-center gap-2">
+              <Wrench className="h-4 w-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium">{tools.length}</p>
+                <p className="text-xs text-gray-500">Available Tools</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium">
+                  {servers.filter(s => s.status === 'running').length}
+                </p>
+                <p className="text-xs text-gray-500">Active Servers</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      <Tabs defaultValue="tools" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="tools">
-            <Wrench className="h-4 w-4 mr-2" />
-            Tools ({tools.length})
-          </TabsTrigger>
-          <TabsTrigger value="servers">
-            <Server className="h-4 w-4 mr-2" />
-            Servers ({servers.length})
-          </TabsTrigger>
-          <TabsTrigger value="execute">
-            <Play className="h-4 w-4 mr-2" />
-            Execute
-          </TabsTrigger>
+      <Tabs defaultValue="servers" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="servers">Servers</TabsTrigger>
+          <TabsTrigger value="tools">Tools</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="tools" className="space-y-4">
-          {isLoadingTools ? (
-            <div className="flex items-center justify-center h-32">
-              <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-              <span>Loading tools...</span>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {tools.map((tool) => (
-                <Card key={tool.name} className="cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => setSelectedTool(tool)}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-medium truncate">
-                        {tool.name.replace('mcp_', '').replace(/_/g, ' ')}
-                      </CardTitle>
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <Database className="h-3 w-3" />
-                        {tool.server_name}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <CardDescription className="text-xs line-clamp-2">
-                      {tool.description}
-                    </CardDescription>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
         <TabsContent value="servers" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            {servers.map((server) => (
-              <Card key={server.name}>
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
-                  <div className="flex items-center gap-2">
-                    <Server className="h-5 w-5" />
-                    <CardTitle className="text-lg">{server.name}</CardTitle>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {server.status ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <AlertCircle className="h-4 w-4 text-red-600" />
-                    )}
-                    <span className={`text-sm font-medium ${
-                      server.status ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {server.status ? 'Connected' : 'Disconnected'}
-                    </span>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant={server.status ? "secondary" : "default"}
-                      onClick={() => startServer(server.name)}
-                      disabled={server.status}
-                    >
-                      <Play className="h-3 w-3 mr-1" />
-                      Start
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={server.status ? "destructive" : "secondary"}
-                      onClick={() => stopServer(server.name)}
-                      disabled={!server.status}
-                    >
-                      <Square className="h-3 w-3 mr-1" />
-                      Stop
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">MCP Servers</CardTitle>
+                  <CardDescription>
+                    Manage MCP server connections
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={loadServers}
+                  variant="outline"
+                  size="sm"
+                  disabled={serversOp.loading}
+                >
+                  <RefreshCw className={`h-4 w-4 ${serversOp.loading ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {serversOp.loading ? (
+                <p className="text-center text-gray-500">Loading servers...</p>
+              ) : servers.length === 0 ? (
+                <p className="text-center text-gray-500">No MCP servers configured</p>
+              ) : (
+                <div className="space-y-3">
+                  {servers.map((server) => (
+                    <Card key={server.name} className="bg-gray-50">
+                      <CardContent className="pt-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              {getServerStatusIcon(server.status)}
+                              <span className="font-medium">{server.name}</span>
+                              {getServerStatusBadge(server.status)}
+                            </div>
+                            <p className="text-sm text-gray-600 mb-2">{server.description}</p>
+                            <div className="text-xs text-gray-500 font-mono">
+                              {server.command} {server.args?.join(' ')}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            {server.status === 'running' ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleStopServer(server.name)}
+                                disabled={stopServerOp.loading}
+                              >
+                                <Square className="h-3 w-3 mr-1" />
+                                Stop
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleStartServer(server.name)}
+                                disabled={startServerOp.loading}
+                              >
+                                <Play className="h-3 w-3 mr-1" />
+                                Start
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {serversOp.error && (
+                <Alert variant="destructive" className="mt-4">
+                  <AlertDescription>{serversOp.error}</AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        <TabsContent value="execute" className="space-y-4">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Execute Tool</CardTitle>
-                <CardDescription>
-                  Select a tool and provide arguments to execute
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Selected Tool:</label>
-                  <div className="mt-1 p-2 bg-gray-50 rounded border text-sm">
-                    {selectedTool ? selectedTool.name : 'No tool selected'}
-                  </div>
-                </div>
+        <TabsContent value="tools" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Tool Execution</CardTitle>
+              <CardDescription>
+                Execute MCP tools with custom parameters
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Server</Label>
+                <Select value={selectedServer} onValueChange={setSelectedServer}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Select server" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {servers
+                      .filter(s => s.status === 'running')
+                      .map((server) => (
+                        <SelectItem key={server.name} value={server.name}>
+                          {server.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
+              {selectedServer && (
                 <div>
-                  <label className="text-sm font-medium">Arguments (JSON):</label>
+                  <Label>Tool</Label>
+                  <Select value={selectedTool} onValueChange={setSelectedTool}>
+                    <SelectTrigger className="mt-2">
+                      <SelectValue placeholder="Select tool" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {serverTools.map((tool) => (
+                        <SelectItem key={tool.name} value={tool.name}>
+                          {tool.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedTool && (
+                    <p className="text-xs text-gray-600 mt-2">
+                      {serverTools.find(t => t.name === selectedTool)?.description}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {selectedTool && (
+                <div>
+                  <Label>Parameters (JSON)</Label>
                   <Textarea
-                    placeholder='{"query": "SELECT * FROM table", "limit": 10}'
-                    value={toolArgs}
-                    onChange={(e) => setToolArgs(e.target.value)}
-                    className="mt-1"
-                    rows={4}
+                    value={toolParams}
+                    onChange={(e) => setToolParams(e.target.value)}
+                    placeholder='{"param1": "value1"}'
+                    className="font-mono text-sm min-h-[100px] mt-2"
                   />
                 </div>
+              )}
 
-                <Button 
-                  onClick={executeTool} 
-                  disabled={!selectedTool || isLoading}
-                  className="w-full"
-                >
-                  {isLoading ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Executing...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-4 w-4 mr-2" />
-                      Execute Tool
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
+              <Button
+                onClick={handleCallTool}
+                disabled={callToolOp.loading || !selectedServer || !selectedTool}
+                className="w-full"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                {callToolOp.loading ? 'Executing...' : 'Execute Tool'}
+              </Button>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Result</CardTitle>
-                <CardDescription>
-                  Tool execution result will appear here
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {toolResult ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      {toolResult.success ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <AlertCircle className="h-4 w-4 text-red-600" />
-                      )}
-                      <span className={`text-sm font-medium ${
-                        toolResult.success ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {toolResult.success ? 'Success' : 'Failed'}
-                      </span>
-                      <div className="flex items-center gap-1 text-xs text-gray-500 ml-auto">
-                        <Clock className="h-3 w-3" />
-                        {toolResult.duration}ms
+              {callToolOp.error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{callToolOp.error}</AlertDescription>
+                </Alert>
+              )}
+
+              {toolResult && (
+                <Card className="bg-gray-50">
+                  <CardHeader>
+                    <CardTitle className="text-sm">Result</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <pre className="text-xs overflow-x-auto">
+                      {JSON.stringify(toolResult, null, 2)}
+                    </pre>
+                  </CardContent>
+                </Card>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Tool List */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Available Tools</CardTitle>
+              <CardDescription>
+                All tools across MCP servers
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {toolsOp.loading ? (
+                <p className="text-center text-gray-500">Loading tools...</p>
+              ) : tools.length === 0 ? (
+                <p className="text-center text-gray-500">No tools available</p>
+              ) : (
+                <div className="space-y-2">
+                  {tools.map((tool) => (
+                    <div key={`${tool.server}-${tool.name}`} className="border rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-sm">{tool.name}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {tool.server}
+                        </Badge>
                       </div>
+                      <p className="text-xs text-gray-600">{tool.description}</p>
+                      {tool.parameters && (
+                        <details className="mt-2">
+                          <summary className="text-xs text-gray-500 cursor-pointer">
+                            Parameters
+                          </summary>
+                          <pre className="text-xs mt-1 p-2 bg-gray-100 rounded overflow-x-auto">
+                            {JSON.stringify(tool.parameters, null, 2)}
+                          </pre>
+                        </details>
+                      )}
                     </div>
-                    
-                    <div className="bg-gray-50 p-3 rounded border">
-                      <pre className="text-xs overflow-auto whitespace-pre-wrap">
-                        {toolResult.success 
-                          ? JSON.stringify(toolResult.data, null, 2)
-                          : toolResult.error
-                        }
-                      </pre>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center text-gray-500 py-8">
-                    <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No execution result yet</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

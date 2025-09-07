@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ type Service struct {
 	ingestionEngine *ingest.Engine
 	searchEngine    *search.DefaultEngine
 	storageManager  *storage.Manager
+	llmService      core.LLMService // For question-answering functionality
 
 	// Storage backends
 	vectorBackend   storage.VectorBackend
@@ -77,12 +79,15 @@ type RAGStats struct {
 }
 
 // NewService creates a new RAG service instance with the provided configuration
-func NewService(config *Config, embedder storage.Embedder) (*Service, error) {
+func NewService(config *Config, embedder storage.Embedder, llmService core.LLMService) (*Service, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 	if embedder == nil {
 		return nil, fmt.Errorf("embedder cannot be nil")
+	}
+	if llmService == nil {
+		return nil, fmt.Errorf("llmService cannot be nil")
 	}
 
 	// Validate configuration
@@ -91,7 +96,8 @@ func NewService(config *Config, embedder storage.Embedder) (*Service, error) {
 	}
 
 	service := &Service{
-		config: config,
+		config:     config,
+		llmService: llmService,
 		stats: &RAGStats{
 			ByContentType: make(map[string]int),
 			Performance:   make(map[string]interface{}),
@@ -311,6 +317,246 @@ func (s *Service) HybridSearch(ctx context.Context, req core.HybridSearchRequest
 	s.updateSearchStats(req.SearchRequest, len(response.Results), time.Since(start))
 
 	return response, nil
+}
+
+// Answer performs RAG-based question answering by retrieving relevant context and generating an answer
+func (s *Service) Answer(ctx context.Context, req core.QARequest) (*core.QAResponse, error) {
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
+		return nil, fmt.Errorf("service is closed")
+	}
+	s.mu.RUnlock()
+
+	start := time.Now()
+
+	// Set defaults
+	maxSources := req.MaxSources
+	if maxSources <= 0 {
+		maxSources = 5
+	}
+	
+	minScore := req.MinScore
+	if minScore <= 0 {
+		minScore = 0.1 // Reasonable minimum relevance threshold
+	}
+
+	// Step 1: Retrieve relevant context using search
+	searchStart := time.Now()
+	searchReq := core.SearchRequest{
+		Query: req.Question,
+		Limit: maxSources,
+	}
+
+	searchResp, err := s.Search(ctx, searchReq)
+	if err != nil {
+		return nil, core.WrapErrorWithContext(err, "rag", "Answer", "context retrieval failed")
+	}
+	searchDuration := time.Since(searchStart)
+
+	// Filter sources by minimum score
+	var relevantSources []core.SearchResult
+	var totalScore float32
+	for _, result := range searchResp.Results {
+		if result.Score >= minScore {
+			relevantSources = append(relevantSources, result)
+			totalScore += result.Score
+		}
+	}
+
+	// Handle case where no relevant sources found
+	if len(relevantSources) == 0 {
+		return &core.QAResponse{
+			Question:    req.Question,
+			Answer:      "I don't have enough relevant information to answer this question.",
+			Sources:     []core.SearchResult{},
+			Confidence:  0.0,
+			Model:       req.Model,
+			Duration:    time.Since(start),
+			SearchStats: core.SearchStats{
+				SourcesFound:    len(searchResp.Results),
+				SourcesUsed:     0,
+				SearchDuration:  searchDuration,
+				HighestScore:    0.0,
+				AverageScore:    0.0,
+			},
+		}, nil
+	}
+
+	// Step 2: Compose prompt with retrieved context
+	prompt := s.composeRAGPrompt(req.Question, relevantSources)
+
+	// Step 3: Generate answer using LLM
+	genReq := core.GenerationRequest{
+		Prompt:      prompt,
+		Model:       req.Model,
+		Temperature: req.Temperature,
+		MaxTokens:   req.MaxTokens,
+	}
+
+	genResp, err := s.llmService.Generate(ctx, genReq)
+	if err != nil {
+		return nil, core.WrapErrorWithContext(err, "rag", "Answer", "answer generation failed")
+	}
+
+	// Calculate statistics
+	highestScore := relevantSources[0].Score
+	avgScore := totalScore / float32(len(relevantSources))
+	
+	// Estimate confidence based on source quality and count
+	confidence := s.calculateConfidence(relevantSources, avgScore)
+
+	response := &core.QAResponse{
+		Question:    req.Question,
+		Answer:      genResp.Content,
+		Sources:     relevantSources,
+		Confidence:  confidence,
+		Model:       genResp.Model,
+		TokensUsed:  genResp.Usage.TotalTokens,
+		Duration:    time.Since(start),
+		SearchStats: core.SearchStats{
+			SourcesFound:    len(searchResp.Results),
+			SourcesUsed:     len(relevantSources),
+			SearchDuration:  searchDuration,
+			HighestScore:    highestScore,
+			AverageScore:    avgScore,
+		},
+	}
+
+	log.Printf("[RAG] Generated answer for question in %v (used %d/%d sources)", 
+		response.Duration, len(relevantSources), len(searchResp.Results))
+
+	return response, nil
+}
+
+// composeRAGPrompt creates a prompt with context for RAG-based answering
+func (s *Service) composeRAGPrompt(question string, sources []core.SearchResult) string {
+	var contextBuilder strings.Builder
+	
+	contextBuilder.WriteString("You are a helpful AI assistant. Use the following context to answer the user's question directly and concisely. ")
+	contextBuilder.WriteString("Do not show your reasoning process or use thinking tags. Provide only the final answer. ")
+	contextBuilder.WriteString("If the context doesn't contain enough information to answer the question, say so clearly.\n\n")
+	
+	contextBuilder.WriteString("Context:\n")
+	for i, source := range sources {
+		contextBuilder.WriteString(fmt.Sprintf("Source %d: %s\n\n", i+1, source.Content))
+	}
+	
+	contextBuilder.WriteString(fmt.Sprintf("Question: %s\n\n", question))
+	contextBuilder.WriteString("Answer based on the provided context:")
+	
+	return contextBuilder.String()
+}
+
+// calculateConfidence estimates answer confidence based on source quality
+func (s *Service) calculateConfidence(sources []core.SearchResult, avgScore float32) float32 {
+	if len(sources) == 0 {
+		return 0.0
+	}
+	
+	// Base confidence on average score and number of sources
+	confidence := avgScore
+	
+	// Boost confidence for multiple high-quality sources
+	if len(sources) > 2 && avgScore > 0.5 {
+		confidence = min(confidence*1.2, 1.0)
+	}
+	
+	// Reduce confidence for low-quality sources
+	if avgScore < 0.3 {
+		confidence *= 0.7
+	}
+	
+	return confidence
+}
+
+// StreamAnswer performs RAG-based question answering with streaming response
+func (s *Service) StreamAnswer(ctx context.Context, req core.QARequest, callback core.StreamCallback) error {
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
+		return fmt.Errorf("service is closed")
+	}
+	s.mu.RUnlock()
+
+	start := time.Now()
+
+	// Set defaults
+	maxSources := req.MaxSources
+	if maxSources <= 0 {
+		maxSources = 5
+	}
+	
+	minScore := req.MinScore
+	if minScore <= 0 {
+		minScore = 0.1
+	}
+
+	// Step 1: Retrieve relevant context using search
+	searchReq := core.SearchRequest{
+		Query: req.Question,
+		Limit: maxSources,
+	}
+
+	searchResp, err := s.Search(ctx, searchReq)
+	if err != nil {
+		return core.WrapErrorWithContext(err, "rag", "StreamAnswer", "context retrieval failed")
+	}
+
+	// Filter sources by minimum score
+	var relevantSources []core.SearchResult
+	var totalScore float32
+	for _, result := range searchResp.Results {
+		if result.Score >= minScore {
+			relevantSources = append(relevantSources, result)
+			totalScore += result.Score
+		}
+	}
+
+	// Handle case where no relevant sources found
+	if len(relevantSources) == 0 {
+		// Send a single chunk with "no information" message
+		chunk := core.StreamChunk{
+			Content:  "I don't have enough relevant information to answer this question.",
+			Finished: true,
+		}
+		return callback(chunk)
+	}
+
+	// Step 2: Compose prompt with retrieved context
+	prompt := s.composeRAGPrompt(req.Question, relevantSources)
+
+	// Step 3: Stream answer using LLM
+	genReq := core.GenerationRequest{
+		Prompt:      prompt,
+		Model:       req.Model,
+		Temperature: req.Temperature,
+		MaxTokens:   req.MaxTokens,
+	}
+
+	// Stream the LLM response directly
+	err = s.llmService.Stream(ctx, genReq, callback)
+	if err != nil {
+		return core.WrapErrorWithContext(err, "rag", "StreamAnswer", "streaming generation failed")
+	}
+
+	// Send final chunk with timing information
+	statsChunk := core.StreamChunk{
+		Content:  "",
+		Finished: true,
+		Usage: core.TokenUsage{},
+		Duration: time.Since(start),
+	}
+	
+	err = callback(statsChunk)
+	if err != nil {
+		return core.WrapErrorWithContext(err, "rag", "StreamAnswer", "streaming generation failed")
+	}
+
+	log.Printf("[RAG] Streamed answer for question (used %d/%d sources)", 
+		len(relevantSources), len(searchResp.Results))
+
+	return nil
 }
 
 // ===== MANAGEMENT OPERATIONS =====

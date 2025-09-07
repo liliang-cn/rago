@@ -63,10 +63,11 @@ type TextChunk struct {
 
 // ChunkOptions defines options for text chunking.
 type ChunkOptions struct {
-	Strategy    string // "fixed", "sentence", "paragraph", "semantic"
-	ChunkSize   int
+	Strategy     string // "fixed", "sentence", "paragraph", "semantic"  
+	ChunkSize    int
 	ChunkOverlap int
 	MinChunkSize int
+	DocumentUUID string // UUID of the document for generating chunk IDs like uuid_0, uuid_1, etc.
 }
 
 // Config defines configuration for the ingestion engine.
@@ -127,6 +128,12 @@ func (e *Engine) registerDefaultProcessors() {
 func (e *Engine) IngestDocument(ctx context.Context, req core.IngestRequest) (*core.IngestResponse, error) {
 	start := time.Now()
 
+	// Generate UUID for document ID if not provided (following RAG v2.7.2 standards)
+	if req.DocumentID == "" {
+		req.DocumentID = uuid.New().String()
+		log.Printf("[INFO] Generated UUID for document: %s", req.DocumentID)
+	}
+
 	// Validate request
 	if err := e.validateIngestRequest(req); err != nil {
 		return nil, core.NewValidationError("ingest_request", req, err.Error())
@@ -156,6 +163,7 @@ func (e *Engine) IngestDocument(ctx context.Context, req core.IngestRequest) (*c
 		ChunkSize:    e.config.ChunkingStrategy.ChunkSize,
 		ChunkOverlap: e.config.ChunkingStrategy.ChunkOverlap,
 		MinChunkSize: e.config.ChunkingStrategy.MinChunkSize,
+		DocumentUUID: req.DocumentID, // Pass document UUID for chunk ID generation
 	}
 
 	chunks, err := e.chunker.Chunk(ctx, processed.Content, chunkOptions)
@@ -287,14 +295,9 @@ func (e *Engine) validateIngestRequest(req core.IngestRequest) error {
 		return fmt.Errorf("multiple content sources provided (only one of content, file_path, or url allowed)")
 	}
 
-	// Generate document ID if not provided
+	// Document ID should be provided by this point (generated in IngestDocument if needed)
 	if req.DocumentID == "" {
-		// This should be handled by caller, but we can provide a fallback
-		if hasFilePath {
-			req.DocumentID = filepath.Base(req.FilePath)
-		} else {
-			req.DocumentID = uuid.New().String()
-		}
+		return fmt.Errorf("document ID is required")
 	}
 
 	return nil

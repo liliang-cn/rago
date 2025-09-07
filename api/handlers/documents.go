@@ -4,20 +4,30 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/processor"
+	"github.com/liliang-cn/rago/v2/pkg/client"
+	"github.com/liliang-cn/rago/v2/pkg/core"
 )
 
 type DocumentsHandler struct {
-	processor *processor.Service
+	client *client.Client
 }
 
-func NewDocumentsHandler(p *processor.Service) *DocumentsHandler {
-	return &DocumentsHandler{processor: p}
+func NewDocumentsHandler(c *client.Client) *DocumentsHandler {
+	return &DocumentsHandler{client: c}
 }
 
 func (h *DocumentsHandler) List(c *gin.Context) {
-	documents, err := h.processor.ListDocuments(c.Request.Context())
+	if h.client.RAG() == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "RAG service not available",
+		})
+		return
+	}
+
+	documents, err := h.client.RAG().ListDocuments(c.Request.Context(), core.DocumentFilter{
+		Limit:  100, // Default limit
+		Offset: 0,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to list documents: " + err.Error(),
@@ -25,9 +35,9 @@ func (h *DocumentsHandler) List(c *gin.Context) {
 		return
 	}
 
-	// 确保总是返回数组，即使为空
+	// Ensure we always return an array, even if empty
 	if documents == nil {
-		documents = []domain.Document{}
+		documents = []core.Document{}
 	}
 
 	c.JSON(http.StatusOK, documents)
@@ -42,7 +52,14 @@ func (h *DocumentsHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	err := h.processor.DeleteDocument(c.Request.Context(), documentID)
+	if h.client.RAG() == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "RAG service not available",
+		})
+		return
+	}
+
+	err := h.client.RAG().DeleteDocument(c.Request.Context(), documentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to delete document: " + err.Error(),

@@ -1,476 +1,88 @@
-package rago
+package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/spf13/cobra"
+	"github.com/liliang-cn/rago/v2/pkg/client"
 )
 
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
-	Short: "MCP (Model Context Protocol) management and tool usage",
-	Long: `Manage MCP servers and use MCP tools.
-
-MCP enables rago to connect to external tools and services through the Model Context Protocol.
-Use these commands to start/stop MCP servers, list available tools, and call tools directly.`,
-}
-
-var mcpStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show status of MCP servers and tools",
-	RunE:  runMCPStatus,
-}
-
-var mcpStartCmd = &cobra.Command{
-	Use:   "start [server-name]",
-	Short: "Start MCP server(s)",
-	Long:  "Start one or all MCP servers. If no server name provided, starts all auto-start servers.",
-	Args:  cobra.MaximumNArgs(1),
-	RunE:  runMCPStart,
-}
-
-var mcpStopCmd = &cobra.Command{
-	Use:   "stop [server-name]",
-	Short: "Stop MCP server(s)",
-	Long:  "Stop one or all MCP servers. If no server name provided, stops all servers.",
-	Args:  cobra.MaximumNArgs(1),
-	RunE:  runMCPStop,
+	Short: "MCP pillar operations",
+	Long:  "Manage MCP tools and definitions",
 }
 
 var mcpListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List available MCP tools",
+	Short: "List all available MCP tools",
 	RunE:  runMCPList,
 }
 
-var mcpCallCmd = &cobra.Command{
-	Use:   "call <tool-name> [args...]",
-	Short: "Call an MCP tool",
-	Long: `Call an MCP tool with JSON arguments.
-
-Examples:
-  rago mcp call mcp_sqlite_query '{"query": "SELECT * FROM users LIMIT 5"}'
-  rago mcp call mcp_filesystem_read '{"path": "./README.md"}'
-  rago mcp call mcp_git_status '{}'`,
-	Args: cobra.MinimumNArgs(1),
-	RunE: runMCPCall,
+var mcpSearchCmd = &cobra.Command{
+	Use:   "search [query]",
+	Short: "Search for MCP tools",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runMCPSearch,
 }
 
-var mcpChatCmd = &cobra.Command{
-	Use:   "chat <message>",
-	Short: "Chat with MCP tools directly (no RAG)",
-	Long: `Direct chat with MCP tools bypassing RAG search.
-
-This command allows you to interact with MCP tools without any document search.
-The AI will only use MCP tools to answer your questions.
-
-Examples:
-  rago mcp chat "Create a table called users with id, name, email columns"
-  rago mcp chat "List all database files in the data directory"
-  rago mcp chat "Show me the current time"`,
-	Args: cobra.ExactArgs(1),
-	RunE: runMCPChat,
+var mcpInfoCmd = &cobra.Command{
+	Use:   "info [tool-name]",
+	Short: "Show detailed information about a specific tool",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runMCPInfo,
 }
 
 func init() {
-	RootCmd.AddCommand(mcpCmd)
-	mcpCmd.AddCommand(mcpStatusCmd)
-	mcpCmd.AddCommand(mcpStartCmd)
-	mcpCmd.AddCommand(mcpStopCmd)
 	mcpCmd.AddCommand(mcpListCmd)
-	mcpCmd.AddCommand(mcpCallCmd)
-	mcpCmd.AddCommand(mcpChatCmd)
-
+	mcpCmd.AddCommand(mcpSearchCmd)
+	mcpCmd.AddCommand(mcpInfoCmd)
+	
 	// Add flags
-	mcpListCmd.Flags().StringP("server", "s", "", "Filter tools by server name")
 	mcpListCmd.Flags().BoolP("json", "j", false, "Output in JSON format")
-
-	mcpCallCmd.Flags().StringP("timeout", "t", "30s", "Call timeout duration")
-	mcpCallCmd.Flags().BoolP("json", "j", false, "Output result in JSON format")
-
-	// Chat command flags
-	mcpChatCmd.Flags().Float64P("temperature", "T", 0.7, "Generation temperature")
-	mcpChatCmd.Flags().IntP("max-tokens", "m", 1000, "Maximum generation length")
-	mcpChatCmd.Flags().BoolP("show-thinking", "t", true, "Show AI thinking process")
-	mcpChatCmd.Flags().StringSliceP("allowed-tools", "a", []string{}, "Comma-separated list of allowed tools")
-}
-
-func runMCPChat(cmd *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("please provide a message")
-	}
-
-	message := strings.Join(args, " ")
-
-	// Get flags
-	temperature, _ := cmd.Flags().GetFloat64("temperature")
-	maxTokens, _ := cmd.Flags().GetInt("max-tokens")
-	showThinking, _ := cmd.Flags().GetBool("show-thinking")
-	allowedTools, _ := cmd.Flags().GetStringSlice("allowed-tools")
-
-	if cfg == nil {
-		var err error
-		cfg, err = config.Load(cfgFile)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-	}
-
-	ctx := context.Background()
-
-	// Initialize providers
-	_, llmService, _, err := initializeProviders(ctx, cfg)
-	if err != nil {
-		return fmt.Errorf("failed to initialize LLM service: %w", err)
-	}
-
-	// Create MCP tool manager
-	mcpManager := mcp.NewMCPToolManager(&cfg.MCP)
-
-	// Ensure MCP servers are started
-	err = mcpManager.Start(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to start MCP servers: %w", err)
-	}
-
-	// Wait a moment for servers to initialize
-	time.Sleep(time.Second)
-
-	// Get available tools
-	toolsMap := mcpManager.ListTools()
-
-	if len(toolsMap) == 0 {
-		return fmt.Errorf("no MCP tools available - please check MCP server status")
-	}
-
-	fmt.Printf("🔧 Found %d MCP tools available\n", len(toolsMap))
-
-	// Convert to slice for filtering
-	var tools []*mcp.MCPToolWrapper
-	for _, tool := range toolsMap {
-		tools = append(tools, tool)
-	}
-
-	// Filter tools if allowed-tools is specified
-	if len(allowedTools) > 0 {
-		allowedSet := make(map[string]bool)
-		for _, tool := range allowedTools {
-			allowedSet[tool] = true
-		}
-
-		var filteredTools []*mcp.MCPToolWrapper
-		for _, tool := range tools {
-			if allowedSet[tool.Name()] {
-				filteredTools = append(filteredTools, tool)
-			}
-		}
-		tools = filteredTools
-	}
-
-	// Build tool definitions for LLM
-	var toolDefinitions []domain.ToolDefinition
-	for _, tool := range tools {
-		definition := domain.ToolDefinition{
-			Type: "function",
-			Function: domain.ToolFunction{
-				Name:        tool.Name(),
-				Description: tool.Description(),
-				Parameters:  tool.Schema(),
-			},
-		}
-		toolDefinitions = append(toolDefinitions, definition)
-	}
-
-	// Prepare messages
-	messages := []domain.Message{
-		{
-			Role:    "user",
-			Content: message,
-		},
-	}
-
-	// Generation options
-	think := showThinking
-	opts := &domain.GenerationOptions{
-		Temperature: temperature,
-		MaxTokens:   int(maxTokens),
-		Think:       &think,
-	}
-
-	// Call LLM with tools
-	result, err := llmService.GenerateWithTools(ctx, messages, toolDefinitions, opts)
-	if err != nil {
-		return fmt.Errorf("failed to generate response: %w", err)
-	}
-
-	// Show thinking if enabled
-	if showThinking && result.Content != "" {
-		// The thinking content might be included in the content
-		fmt.Printf("🤔 **Thinking included in response**\n\n")
-	}
-
-	// Handle tool calls
-	if len(result.ToolCalls) > 0 {
-		fmt.Printf("🔧 **Tool Calls:**\n")
-
-		var toolResults []domain.Message
-		for _, toolCall := range result.ToolCalls {
-			fmt.Printf("- Calling `%s`\n", toolCall.Function.Name)
-
-			// Execute tool call via MCP
-			result, err := mcpManager.CallTool(ctx, toolCall.Function.Name, toolCall.Function.Arguments)
-			if err != nil {
-				fmt.Printf("  ❌ Error: %v\n", err)
-				continue
-			}
-
-			// Format result
-			var resultStr string
-			if result.Data != nil {
-				resultStr = fmt.Sprintf("%v", result.Data)
-			} else if result.Success {
-				resultStr = "Tool executed successfully"
-			} else {
-				resultStr = fmt.Sprintf("Tool execution failed: %s", result.Error)
-			}
-
-			fmt.Printf("  ✅ Result: %s\n", resultStr)
-
-			// Add tool result for potential follow-up
-			toolResults = append(toolResults, domain.Message{
-				Role:       "tool",
-				Content:    resultStr,
-				ToolCallID: toolCall.ID,
-			})
-		}
-
-		// If we have tool results, send follow-up request for final response
-		if len(toolResults) > 0 {
-			// Append assistant message with tool calls
-			messages = append(messages, domain.Message{
-				Role:      "assistant",
-				Content:   result.Content,
-				ToolCalls: result.ToolCalls,
-			})
-
-			// Append tool results
-			messages = append(messages, toolResults...)
-
-			followUpResult, err := llmService.GenerateWithTools(ctx, messages, toolDefinitions, opts)
-			if err == nil {
-				fmt.Printf("\n💬 **Final Response:**\n%s\n", followUpResult.Content)
-			}
-		}
-	} else {
-		// Direct response without tools
-		fmt.Printf("💬 **Response:**\n%s\n", result.Content)
-	}
-
-	return nil
-}
-
-func runMCPStatus(cmd *cobra.Command, args []string) error {
-	// Check runtime environments first
-	envStatus := CheckMCPEnvironment()
-	PrintMCPEnvironmentStatus(envStatus)
-
-	if cfg == nil {
-		var err error
-		cfg, err = config.Load(cfgFile)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-	}
-
-	if !cfg.MCP.Enabled {
-		fmt.Println("\n❌ MCP is disabled in configuration")
-		fmt.Println("   To enable: Set mcp.enabled = true in rago.toml")
-		return nil
-	}
-
-	fmt.Println("\n⚙️  MCP Configuration")
-	fmt.Println("=" + strings.Repeat("=", 50))
-	fmt.Printf("   Enabled: %v\n", cfg.MCP.Enabled)
-	fmt.Printf("   Log Level: %s\n", cfg.MCP.LogLevel)
-	fmt.Printf("   Default Timeout: %v\n", cfg.MCP.DefaultTimeout)
-	fmt.Printf("   Max Concurrent: %d\n", cfg.MCP.MaxConcurrentRequests)
-	fmt.Printf("   Health Check Interval: %v\n", cfg.MCP.HealthCheckInterval)
-
-	// Create tool manager
-	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
-	defer func() {
-		if err := toolManager.Close(); err != nil {
-			// Only print error if it's not a signal-related termination
-			if !strings.Contains(err.Error(), "signal: killed") {
-				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
-			}
-		}
-	}()
-
-	// Get server status
-	serverStatus := toolManager.GetServerStatus()
-	fmt.Printf("\n📊 Servers (%d configured):\n", len(cfg.MCP.Servers))
-
-	for _, serverConfig := range cfg.MCP.Servers {
-		status := "❌ Stopped"
-		if connected, exists := serverStatus[serverConfig.Name]; exists && connected {
-			status = "✅ Running"
-		}
-
-		fmt.Printf("   - %s: %s\n", serverConfig.Name, status)
-		fmt.Printf("     Description: %s\n", serverConfig.Description)
-		fmt.Printf("     Command: %v\n", serverConfig.Command)
-		fmt.Printf("     Auto-start: %v\n", serverConfig.AutoStart)
-
-		if connected, exists := serverStatus[serverConfig.Name]; exists && connected {
-			tools := toolManager.ListToolsByServer(serverConfig.Name)
-			fmt.Printf("     Tools: %d available\n", len(tools))
-		}
-		fmt.Println()
-	}
-
-	return nil
-}
-
-func runMCPStart(cmd *cobra.Command, args []string) error {
-	if cfg == nil {
-		var err error
-		cfg, err = config.Load(cfgFile)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-	}
-
-	if !cfg.MCP.Enabled {
-		return fmt.Errorf("MCP is disabled in configuration")
-	}
-
-	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
-	defer func() {
-		if err := toolManager.Close(); err != nil {
-			// Only print error if it's not a signal-related termination
-			if !strings.Contains(err.Error(), "signal: killed") {
-				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
-			}
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	if len(args) == 0 {
-		// Start all auto-start servers
-		fmt.Println("🚀 Starting MCP servers...")
-		if err := toolManager.Start(ctx); err != nil {
-			return fmt.Errorf("failed to start MCP servers: %w", err)
-		}
-		fmt.Println("✅ Auto-start MCP servers started successfully")
-	} else {
-		// Start specific server
-		serverName := args[0]
-		fmt.Printf("🚀 Starting MCP server: %s\n", serverName)
-		if err := toolManager.StartServer(ctx, serverName); err != nil {
-			return fmt.Errorf("failed to start server %s: %w", serverName, err)
-		}
-
-		// Show available tools
-		tools := toolManager.ListToolsByServer(serverName)
-		fmt.Printf("✅ Server %s started with %d tools\n", serverName, len(tools))
-	}
-
-	return nil
-}
-
-func runMCPStop(cmd *cobra.Command, args []string) error {
-	if cfg == nil {
-		var err error
-		cfg, err = config.Load(cfgFile)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-	}
-
-	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
-	defer func() {
-		if err := toolManager.Close(); err != nil {
-			// Only print error if it's not a signal-related termination
-			if !strings.Contains(err.Error(), "signal: killed") {
-				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
-			}
-		}
-	}()
-
-	if len(args) == 0 {
-		// Stop all servers
-		fmt.Println("🛑 Stopping all MCP servers...")
-		if err := toolManager.Close(); err != nil {
-			return fmt.Errorf("failed to stop MCP servers: %w", err)
-		}
-		fmt.Println("✅ All MCP servers stopped")
-	} else {
-		// Stop specific server
-		serverName := args[0]
-		fmt.Printf("🛑 Stopping MCP server: %s\n", serverName)
-		if err := toolManager.StopServer(serverName); err != nil {
-			return fmt.Errorf("failed to stop server %s: %w", serverName, err)
-		}
-		fmt.Printf("✅ Server %s stopped\n", serverName)
-	}
-
-	return nil
+	mcpListCmd.Flags().StringP("category", "c", "", "Filter by category")
+	mcpInfoCmd.Flags().BoolP("json", "j", false, "Output in JSON format")
 }
 
 func runMCPList(cmd *cobra.Command, args []string) error {
-	if cfg == nil {
-		var err error
-		cfg, err = config.Load(cfgFile)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-	}
-
-	if !cfg.MCP.Enabled {
-		return fmt.Errorf("MCP is disabled in configuration")
-	}
-
-	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
-	defer func() {
-		if err := toolManager.Close(); err != nil {
-			// Only print error if it's not a signal-related termination
-			if !strings.Contains(err.Error(), "signal: killed") {
-				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
-			}
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Start servers to get tools
-	if err := toolManager.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start MCP servers: %w", err)
-	}
-
-	serverFilter, _ := cmd.Flags().GetString("server")
+	// Check if JSON output is requested early
 	jsonOutput, _ := cmd.Flags().GetBool("json")
-
-	var tools map[string]*mcp.MCPToolWrapper
-	if serverFilter != "" {
-		tools = toolManager.ListToolsByServer(serverFilter)
-	} else {
-		tools = toolManager.ListTools()
+	
+	if !jsonOutput {
+		fmt.Println("🔧 RAGO MCP Tools")
+		fmt.Println("==================")
 	}
 
+	coreConfig, err := loadCoreConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	client, err := client.NewWithConfig(coreConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create client: %w", err)
+	}
+	defer client.Close()
+
+	// Get all tools
+	tools := client.MCP().GetTools()
+	
+	// Check for category filter
+	category, _ := cmd.Flags().GetString("category")
+	if category != "" {
+		tools = client.MCP().GetToolsByCategory(category)
+		if !jsonOutput {
+			fmt.Printf("\nFiltered by category: %s\n", category)
+		}
+	}
+	
+	if !jsonOutput {
+		fmt.Printf("\nFound %d tools:\n\n", len(tools))
+	}
 	if jsonOutput {
-		llmTools := toolManager.GetToolsForLLM()
-		output, err := json.MarshalIndent(llmTools, "", "  ")
+		output, err := json.MarshalIndent(tools, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal tools: %w", err)
 		}
@@ -478,138 +90,122 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Human-readable output
-	fmt.Printf("🔧 Available MCP Tools (%d total):\n\n", len(tools))
-
-	serverGroups := make(map[string][]*mcp.MCPToolWrapper)
+	// Group tools by server
+	toolsByServer := make(map[string][]string)
 	for _, tool := range tools {
-		serverName := tool.ServerName()
-		serverGroups[serverName] = append(serverGroups[serverName], tool)
+		serverName := tool.ServerName
+		if serverName == "" {
+			serverName = "default"
+		}
+		toolsByServer[serverName] = append(toolsByServer[serverName], tool.Name)
 	}
 
-	for serverName, serverTools := range serverGroups {
-		fmt.Printf("📦 Server: %s (%d tools)\n", serverName, len(serverTools))
-		for _, tool := range serverTools {
-			fmt.Printf("   - %s\n", tool.Name())
-			fmt.Printf("     %s\n", tool.Description())
-
-			// Show schema if available
-			schema := tool.Schema()
-			if props, ok := schema["properties"].(map[string]interface{}); ok && len(props) > 0 {
-				fmt.Printf("     Parameters: %s\n", formatSchemaParams(props))
+	// Display tools grouped by server
+	for server, serverTools := range toolsByServer {
+		fmt.Printf("📦 %s:\n", server)
+		for _, toolName := range serverTools {
+			// Find the tool to get its description
+			for _, tool := range tools {
+				if tool.Name == toolName {
+					fmt.Printf("  • %s - %s\n", tool.Name, tool.Description)
+					break
+				}
 			}
 		}
 		fmt.Println()
 	}
 
+	// Show summary
+	fmt.Printf("Total: %d tools from %d sources\n", len(tools), len(toolsByServer))
+	
 	return nil
 }
 
-func runMCPCall(cmd *cobra.Command, args []string) error {
-	if cfg == nil {
-		var err error
-		cfg, err = config.Load(cfgFile)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
+func runMCPSearch(cmd *cobra.Command, args []string) error {
+	query := args[0]
+	
+	fmt.Printf("🔍 Searching for MCP tools matching: %s\n", query)
+	fmt.Println(strings.Repeat("=", 50))
+
+	coreConfig, err := loadCoreConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	if !cfg.MCP.Enabled {
-		return fmt.Errorf("MCP is disabled in configuration")
+	client, err := client.NewWithConfig(coreConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create client: %w", err)
 	}
+	defer client.Close()
 
+	// Search for tools
+	tools := client.MCP().SearchTools(query)
+	
+	if len(tools) == 0 {
+		fmt.Printf("\nNo tools found matching '%s'\n", query)
+		return nil
+	}
+	
+	fmt.Printf("\nFound %d matching tools:\n\n", len(tools))
+	
+	for _, tool := range tools {
+		fmt.Printf("• %s (%s)\n", tool.Name, tool.ServerName)
+		fmt.Printf("  %s\n\n", tool.Description)
+	}
+	
+	return nil
+}
+
+func runMCPInfo(cmd *cobra.Command, args []string) error {
 	toolName := args[0]
-	timeoutStr, _ := cmd.Flags().GetString("timeout")
+	
+	fmt.Printf("🔧 Tool Information: %s\n", toolName)
+	fmt.Println(strings.Repeat("=", 50))
+
+	coreConfig, err := loadCoreConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	client, err := client.NewWithConfig(coreConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create client: %w", err)
+	}
+	defer client.Close()
+
+	// Find the tool
+	tool, found := client.MCP().FindTool(toolName)
+	if !found {
+		return fmt.Errorf("tool '%s' not found", toolName)
+	}
+	
+	// Check if JSON output is requested
 	jsonOutput, _ := cmd.Flags().GetBool("json")
-
-	timeout, err := time.ParseDuration(timeoutStr)
-	if err != nil {
-		return fmt.Errorf("invalid timeout: %w", err)
-	}
-
-	// Parse arguments
-	var toolArgs map[string]interface{}
-	if len(args) > 1 {
-		argsStr := strings.Join(args[1:], " ")
-		if err := json.Unmarshal([]byte(argsStr), &toolArgs); err != nil {
-			return fmt.Errorf("failed to parse arguments as JSON: %w", err)
-		}
-	} else {
-		toolArgs = make(map[string]interface{})
-	}
-
-	toolManager := mcp.NewMCPToolManager(&cfg.MCP)
-	defer func() {
-		if err := toolManager.Close(); err != nil {
-			// Only print error if it's not a signal-related termination
-			if !strings.Contains(err.Error(), "signal: killed") {
-				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
-			}
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout+10*time.Second)
-	defer cancel()
-
-	// Start servers
-	if err := toolManager.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start MCP servers: %w", err)
-	}
-
-	// Call the tool
-	fmt.Printf("🔍 Calling tool: %s\n", toolName)
-	if len(toolArgs) > 0 {
-		argsJSON, _ := json.MarshalIndent(toolArgs, "", "  ")
-		fmt.Printf("📝 Arguments:\n%s\n\n", string(argsJSON))
-	}
-
-	callCtx, callCancel := context.WithTimeout(ctx, timeout)
-	defer callCancel()
-
-	result, err := toolManager.CallTool(callCtx, toolName, toolArgs)
-	if err != nil {
-		return fmt.Errorf("failed to call tool: %w", err)
-	}
-
 	if jsonOutput {
-		output, err := json.MarshalIndent(result, "", "  ")
+		output, err := json.MarshalIndent(tool, "", "  ")
 		if err != nil {
-			return fmt.Errorf("failed to marshal result: %w", err)
+			return fmt.Errorf("failed to marshal tool: %w", err)
 		}
 		fmt.Println(string(output))
 		return nil
 	}
-
-	// Human-readable output
-	if result.Success {
-		fmt.Printf("✅ Tool call succeeded (took %v)\n", result.Duration)
-		fmt.Printf("📊 Result:\n")
-
-		if result.Data != nil {
-			if dataJSON, err := json.MarshalIndent(result.Data, "", "  "); err == nil {
-				fmt.Println(string(dataJSON))
-			} else {
-				fmt.Printf("%v\n", result.Data)
-			}
-		}
+	
+	// Display tool information
+	fmt.Printf("\nName:        %s\n", tool.Name)
+	fmt.Printf("Server:      %s\n", tool.ServerName)
+	fmt.Printf("Description: %s\n", tool.Description)
+	if tool.Category != "" {
+		fmt.Printf("Category:    %s\n", tool.Category)
+	}
+	
+	// Display input schema
+	fmt.Printf("\nInput Schema:\n")
+	schemaJSON, err := json.MarshalIndent(tool.InputSchema, "  ", "  ")
+	if err != nil {
+		fmt.Printf("  Error formatting schema: %v\n", err)
 	} else {
-		fmt.Printf("❌ Tool call failed (took %v)\n", result.Duration)
-		fmt.Printf("💥 Error: %s\n", result.Error)
+		fmt.Printf("  %s\n", string(schemaJSON))
 	}
-
+	
 	return nil
-}
-
-func formatSchemaParams(props map[string]interface{}) string {
-	var params []string
-	for name, prop := range props {
-		if propMap, ok := prop.(map[string]interface{}); ok {
-			paramType := "any"
-			if t, exists := propMap["type"]; exists {
-				paramType = fmt.Sprintf("%v", t)
-			}
-			params = append(params, fmt.Sprintf("%s:%s", name, paramType))
-		}
-	}
-	return strings.Join(params, ", ")
 }

@@ -90,19 +90,12 @@ func (p *ProviderPool) AddProvider(name string, config core.ProviderConfig) erro
 		Name:         name,
 		Provider:     provider,
 		Config:       config,
-		Health:       core.HealthStatusUnknown,
+		Health:       core.HealthStatusHealthy, // Start with healthy status
 		Weight:       config.Weight,
 		LastUsed:     time.Now(),
 		Failures:     0,
 		CircuitState: CircuitClosed,
 		LastCheck:    time.Time{},
-	}
-	
-	// Perform initial health check
-	if err := p.checkProviderHealth(entry); err != nil {
-		entry.Health = core.HealthStatusUnhealthy
-	} else {
-		entry.Health = core.HealthStatusHealthy
 	}
 	
 	p.providers[name] = entry
@@ -203,6 +196,35 @@ func (p *ProviderPool) GetProviderHealth() map[string]core.HealthStatus {
 	}
 	
 	return health
+}
+
+// GetActiveProviders returns a list of all active provider names
+func (p *ProviderPool) GetActiveProviders() []string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	
+	providers := make([]string, 0, len(p.providers))
+	for name, entry := range p.providers {
+		entry.mu.RLock()
+		if entry.Health == core.HealthStatusHealthy || entry.Health == core.HealthStatusUnknown {
+			providers = append(providers, name)
+		}
+		entry.mu.RUnlock()
+	}
+	
+	return providers
+}
+
+// GetProviderByName returns a specific provider by name
+func (p *ProviderPool) GetProviderByName(name string) providers.Provider {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	
+	if entry, exists := p.providers[name]; exists {
+		return entry.Provider
+	}
+	
+	return nil
 }
 
 // RecordFailure records a failure for a provider and updates circuit breaker state

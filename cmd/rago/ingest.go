@@ -1,4 +1,4 @@
-package rago
+package main
 
 import (
 	"context"
@@ -9,10 +9,8 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/liliang-cn/rago/v2/pkg/chunker"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/processor"
-	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/rago/v2/pkg/client"
+	"github.com/liliang-cn/rago/v2/pkg/core"
 	"github.com/spf13/cobra"
 )
 
@@ -43,59 +41,22 @@ You can also use --text flag to ingest text directly.`,
 		return cobra.ExactArgs(1)(cmd, args)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Override config if flag is set
-		if extractMetadata {
-			cfg.Ingest.MetadataExtraction.Enable = true
-		}
-
-		// Initialize stores
-		vectorStore, err := store.NewSQLiteStore(
-			cfg.Sqvect.DBPath,
-		)
+		// Create client
+		client, err := client.NewWithConfig(cfg)
 		if err != nil {
-			return fmt.Errorf("failed to create vector store: %w", err)
+			return fmt.Errorf("failed to create client: %w", err)
 		}
-		defer func() {
-			if err := vectorStore.Close(); err != nil {
-				log.Printf("failed to close vector store: %v", err)
-			}
-		}()
+		defer client.Close()
 
-		keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
-		if err != nil {
-			return fmt.Errorf("failed to create keyword store: %w", err)
+		if client.RAG() == nil {
+			return fmt.Errorf("RAG service not available")
 		}
-		defer func() {
-			if err := keywordStore.Close(); err != nil {
-				log.Printf("failed to close keyword store: %v", err)
-			}
-		}()
 
-		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
-
-		// Initialize services using shared provider system
 		ctx := context.Background()
-		embedService, _, metadataExtractor, err := initializeProviders(ctx, cfg)
-		if err != nil {
-			return fmt.Errorf("failed to initialize providers: %w", err)
-		}
-
-		chunkerService := chunker.New()
-
-		processor := processor.New(
-			embedService,
-			nil, // generator not needed for ingest
-			chunkerService,
-			vectorStore,
-			keywordStore,
-			docStore,
-			cfg,
-			metadataExtractor,
-		)
 
 		// Handle text input (not concurrent)
 		if textInput != "" {
-			return processText(ctx, processor, textInput)
+			return processText(ctx, client, textInput)
 		}
 
 		// Handle file path
@@ -117,7 +78,7 @@ You can also use --text flag to ingest text directly.`,
 					if !quiet {
 						fmt.Printf("Processing: %s\n", filePath)
 					}
-					err := processFile(ctx, processor, filePath)
+					err := processFile(ctx, client, filePath)
 					if err != nil {
 						if !quiet {
 							log.Printf("Warning: failed to process %s: %v", filePath, err)
@@ -190,51 +151,53 @@ func processDirectory(ctx context.Context, jobs chan<- string, dirPath string) e
 	})
 }
 
-func processFile(ctx context.Context, p *processor.Service, filePath string) error {
-	req := domain.IngestRequest{
-		FilePath:  filePath,
-		ChunkSize: chunkSize,
-		Overlap:   overlap,
+func processFile(ctx context.Context, c *client.Client, filePath string) error {
+	req := core.IngestRequest{
+		DocumentID: filePath, // Use file path as document ID
+		FilePath:   filePath,
 		Metadata: map[string]interface{}{
-			"file_path": filePath,
-			"file_ext":  filepath.Ext(filePath),
+			"file_path":    filePath,
+			"file_ext":     filepath.Ext(filePath),
+			"chunk_size":   chunkSize,
+			"chunk_overlap": overlap,
 		},
 	}
 
-	resp, err := p.Ingest(ctx, req)
+	resp, err := c.RAG().IngestDocument(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to ingest file %s: %w", filePath, err)
 	}
 
 	if verbose {
-		fmt.Printf("Ingested %s: %d chunks (ID: %s)\n", filePath, resp.ChunkCount, resp.DocumentID)
+		fmt.Printf("Ingested %s: %d chunks (ID: %s)\n", filePath, resp.ChunksCount, resp.DocumentID)
 	}
 
 	return nil
 }
 
-func processText(ctx context.Context, p *processor.Service, text string) error {
+func processText(ctx context.Context, c *client.Client, text string) error {
 	sourceValue := source
 	if sourceValue == "" {
 		sourceValue = "text-input"
 	}
 
-	req := domain.IngestRequest{
-		Content:   text,
-		ChunkSize: chunkSize,
-		Overlap:   overlap,
+	req := core.IngestRequest{
+		DocumentID:   sourceValue,
+		Content:      text,
 		Metadata: map[string]interface{}{
-			"source": sourceValue,
-			"type":   "text",
+			"source":       sourceValue,
+			"type":         "text",
+			"chunk_size":   chunkSize,
+			"chunk_overlap": overlap,
 		},
 	}
 
-	resp, err := p.Ingest(ctx, req)
+	resp, err := c.RAG().IngestDocument(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to ingest text: %w", err)
 	}
 
-	fmt.Printf("Successfully ingested text: %d chunks (ID: %s)\n", resp.ChunkCount, resp.DocumentID)
+	fmt.Printf("Successfully ingested text: %d chunks (ID: %s)\n", resp.ChunksCount, resp.DocumentID)
 	return nil
 }
 

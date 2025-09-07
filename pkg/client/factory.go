@@ -1,378 +1,465 @@
+// Package client - factory.go
+// This file provides factory functions for creating individual pillar clients,
+// enabling library users to use specific RAGO functionality without initializing unused pillars.
+
 package client
 
 import (
-	"time"
-	
+	"context"
+	"fmt"
+
+	"github.com/liliang-cn/rago/v2/pkg/agents"
 	"github.com/liliang-cn/rago/v2/pkg/core"
 	"github.com/liliang-cn/rago/v2/pkg/llm"
-	"github.com/liliang-cn/rago/v2/pkg/rag"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
-	"github.com/liliang-cn/rago/v2/pkg/agents"
 )
 
-// ===== INDIVIDUAL PILLAR CLIENTS =====
+// ===== INDIVIDUAL PILLAR CLIENT IMPLEMENTATIONS =====
 
-// LLMClient implements the individual LLM pillar client.
-type LLMClient struct {
-	*llm.Service
+// llmClient implements core.LLMClient for LLM-only usage
+type llmClient struct {
+	service core.LLMService
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
-// NewLLMClient creates a new standalone LLM client.
-func NewLLMClient(config core.LLMConfig) (core.LLMClient, error) {
-	service, err := llm.NewService(config)
-	if err != nil {
-		return nil, core.WrapErrorWithContext(err, "factory", "NewLLMClient", "failed to create LLM service")
+func (c *llmClient) AddProvider(name string, config core.ProviderConfig) error {
+	return c.service.AddProvider(name, config)
+}
+
+func (c *llmClient) RemoveProvider(name string) error {
+	return c.service.RemoveProvider(name)
+}
+
+func (c *llmClient) ListProviders() []core.ProviderInfo {
+	return c.service.ListProviders()
+}
+
+func (c *llmClient) GetProviderHealth() map[string]core.HealthStatus {
+	return c.service.GetProviderHealth()
+}
+
+func (c *llmClient) Generate(ctx context.Context, req core.GenerationRequest) (*core.GenerationResponse, error) {
+	return c.service.Generate(ctx, req)
+}
+
+func (c *llmClient) Stream(ctx context.Context, req core.GenerationRequest, callback core.StreamCallback) error {
+	return c.service.Stream(ctx, req, callback)
+}
+
+func (c *llmClient) GenerateWithTools(ctx context.Context, req core.ToolGenerationRequest) (*core.ToolGenerationResponse, error) {
+	return c.service.GenerateWithTools(ctx, req)
+}
+
+func (c *llmClient) StreamWithTools(ctx context.Context, req core.ToolGenerationRequest, callback core.ToolStreamCallback) error {
+	return c.service.StreamWithTools(ctx, req, callback)
+}
+
+func (c *llmClient) GenerateBatch(ctx context.Context, requests []core.GenerationRequest) ([]core.GenerationResponse, error) {
+	return c.service.GenerateBatch(ctx, requests)
+}
+
+func (c *llmClient) GenerateStructured(ctx context.Context, req core.StructuredGenerationRequest) (*core.StructuredResult, error) {
+	return c.service.GenerateStructured(ctx, req)
+}
+
+func (c *llmClient) ExtractMetadata(ctx context.Context, req core.MetadataExtractionRequest) (*core.ExtractedMetadata, error) {
+	return c.service.ExtractMetadata(ctx, req)
+}
+
+func (c *llmClient) Close() error {
+	c.cancel()
+	if closer, ok := c.service.(interface{ Close() error }); ok {
+		return closer.Close()
 	}
-	
-	return &LLMClient{Service: service}, nil
+	return nil
 }
 
-// Close closes the LLM client and cleans up resources.
-func (c *LLMClient) Close() error {
-	return c.Service.Close()
+// ragClient implements core.RAGClient for RAG-only usage
+type ragClient struct {
+	service core.RAGService
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
-// RAGClient implements the individual RAG pillar client.
-type RAGClient struct {
-	*rag.Service
+func (c *ragClient) IngestDocument(ctx context.Context, req core.IngestRequest) (*core.IngestResponse, error) {
+	return c.service.IngestDocument(ctx, req)
 }
 
-// NewRAGClient creates a new standalone RAG client.
-func NewRAGClient(config core.RAGConfig) (core.RAGClient, error) {
-	// Use backward compatibility adapter with default embedder
-	embedder := &rag.DefaultEmbedder{}
-	service, err := rag.NewServiceFromCoreConfig(config, embedder)
-	if err != nil {
-		return nil, core.WrapErrorWithContext(err, "factory", "NewRAGClient", "failed to create RAG service")
+func (c *ragClient) IngestBatch(ctx context.Context, requests []core.IngestRequest) (*core.BatchIngestResponse, error) {
+	return c.service.IngestBatch(ctx, requests)
+}
+
+func (c *ragClient) DeleteDocument(ctx context.Context, docID string) error {
+	return c.service.DeleteDocument(ctx, docID)
+}
+
+func (c *ragClient) ListDocuments(ctx context.Context, filter core.DocumentFilter) ([]core.Document, error) {
+	return c.service.ListDocuments(ctx, filter)
+}
+
+func (c *ragClient) Search(ctx context.Context, req core.SearchRequest) (*core.SearchResponse, error) {
+	return c.service.Search(ctx, req)
+}
+
+func (c *ragClient) HybridSearch(ctx context.Context, req core.HybridSearchRequest) (*core.HybridSearchResponse, error) {
+	return c.service.HybridSearch(ctx, req)
+}
+
+func (c *ragClient) GetStats(ctx context.Context) (*core.RAGStats, error) {
+	return c.service.GetStats(ctx)
+}
+
+func (c *ragClient) Optimize(ctx context.Context) error {
+	return c.service.Optimize(ctx)
+}
+
+func (c *ragClient) Reset(ctx context.Context) error {
+	return c.service.Reset(ctx)
+}
+
+func (c *ragClient) Close() error {
+	c.cancel()
+	if closer, ok := c.service.(interface{ Close() error }); ok {
+		return closer.Close()
 	}
-	
-	return &RAGClient{Service: service}, nil
+	return nil
 }
 
-// Close closes the RAG client and cleans up resources.
-func (c *RAGClient) Close() error {
-	return c.Service.Close()
+// mcpClient implements core.MCPClient for MCP-only usage
+type mcpClient struct {
+	service core.MCPService
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
-// MCPClient implements the individual MCP pillar client.
-type MCPClient struct {
-	*mcp.Service
+func (c *mcpClient) GetTools() []core.ToolInfo {
+	return c.service.GetTools()
 }
 
-// NewMCPClient creates a new standalone MCP client.
-func NewMCPClient(config core.MCPConfig) (core.MCPClient, error) {
-	service, err := mcp.NewService(config)
-	if err != nil {
-		return nil, core.WrapErrorWithContext(err, "factory", "NewMCPClient", "failed to create MCP service")
+func (c *mcpClient) GetToolsForLLM() []core.ToolInfo {
+	return c.service.GetToolsForLLM()
+}
+
+func (c *mcpClient) FindTool(name string) (*core.ToolInfo, bool) {
+	return c.service.FindTool(name)
+}
+
+func (c *mcpClient) SearchTools(query string) []core.ToolInfo {
+	return c.service.SearchTools(query)
+}
+
+func (c *mcpClient) GetToolsByCategory(category string) []core.ToolInfo {
+	return c.service.GetToolsByCategory(category)
+}
+
+func (c *mcpClient) AddTool(tool core.ToolInfo) {
+	c.service.AddTool(tool)
+}
+
+func (c *mcpClient) ReloadTools() error {
+	return c.service.ReloadTools()
+}
+
+func (c *mcpClient) GetMetrics() map[string]interface{} {
+	return c.service.GetMetrics()
+}
+
+func (c *mcpClient) Close() error {
+	c.cancel()
+	return nil
+}
+
+// agentClient implements core.AgentClient for Agent-only usage
+type agentClient struct {
+	service core.AgentService
+	ctx     context.Context
+	cancel  context.CancelFunc
+}
+
+func (c *agentClient) CreateWorkflow(definition core.WorkflowDefinition) error {
+	return c.service.CreateWorkflow(definition)
+}
+
+func (c *agentClient) ExecuteWorkflow(ctx context.Context, req core.WorkflowRequest) (*core.WorkflowResponse, error) {
+	return c.service.ExecuteWorkflow(ctx, req)
+}
+
+func (c *agentClient) ListWorkflows() []core.WorkflowInfo {
+	return c.service.ListWorkflows()
+}
+
+func (c *agentClient) DeleteWorkflow(name string) error {
+	return c.service.DeleteWorkflow(name)
+}
+
+func (c *agentClient) CreateAgent(definition core.AgentDefinition) error {
+	return c.service.CreateAgent(definition)
+}
+
+func (c *agentClient) ExecuteAgent(ctx context.Context, req core.AgentRequest) (*core.AgentResponse, error) {
+	return c.service.ExecuteAgent(ctx, req)
+}
+
+func (c *agentClient) ListAgents() []core.AgentInfo {
+	return c.service.ListAgents()
+}
+
+func (c *agentClient) DeleteAgent(name string) error {
+	return c.service.DeleteAgent(name)
+}
+
+func (c *agentClient) ScheduleWorkflow(name string, schedule core.ScheduleConfig) error {
+	return c.service.ScheduleWorkflow(name, schedule)
+}
+
+func (c *agentClient) GetScheduledTasks() []core.ScheduledTask {
+	return c.service.GetScheduledTasks()
+}
+
+func (c *agentClient) Close() error {
+	c.cancel()
+	if closer, ok := c.service.(interface{ Close() error }); ok {
+		return closer.Close()
 	}
-	
-	return &MCPClient{Service: service}, nil
-}
-
-// Close closes the MCP client and cleans up resources.
-func (c *MCPClient) Close() error {
-	return c.Service.Close()
-}
-
-// AgentClient implements the individual Agent pillar client.
-type AgentClient struct {
-	*agents.Service
-}
-
-// NewAgentClient creates a new standalone Agent client.
-func NewAgentClient(config core.AgentsConfig) (core.AgentClient, error) {
-	service, err := agents.NewService(config)
-	if err != nil {
-		return nil, core.WrapErrorWithContext(err, "factory", "NewAgentClient", "failed to create Agent service")
-	}
-	
-	return &AgentClient{Service: service}, nil
-}
-
-// Close closes the Agent client and cleans up resources.
-func (c *AgentClient) Close() error {
-	return c.Service.Close()
+	return nil
 }
 
 // ===== FACTORY FUNCTIONS =====
 
-// NewFromConfig creates the appropriate client based on configuration mode.
-func NewFromConfig(config core.Config) (core.Client, error) {
-	// Check for single-pillar modes
-	if config.Mode.LLMOnly {
-		return NewLLMOnlyClient(config)
-	}
-	
-	if config.Mode.RAGOnly {
-		return NewRAGOnlyClient(config)
-	}
-	
-	// Create full unified client
-	return New(config)
-}
-
-// NewLLMOnlyClient creates a client with only LLM pillar enabled.
-func NewLLMOnlyClient(config core.Config) (core.Client, error) {
-	// Disable other pillars
-	config.Mode.DisableMCP = true
-	config.Mode.DisableAgent = true
-	
-	return New(config)
-}
-
-// NewRAGOnlyClient creates a client with only RAG pillar enabled.
-func NewRAGOnlyClient(config core.Config) (core.Client, error) {
-	// Disable other pillars
-	config.Mode.DisableMCP = true
-	config.Mode.DisableAgent = true
-	
-	return New(config)
-}
-
-// NewMinimalClient creates a client with minimal pillars (LLM + RAG only).
-func NewMinimalClient(config core.Config) (core.Client, error) {
-	// Disable optional pillars
-	config.Mode.DisableMCP = true
-	config.Mode.DisableAgent = true
-	
-	return New(config)
-}
-
-// NewFullClient creates a client with all four pillars enabled.
-func NewFullClient(config core.Config) (core.Client, error) {
-	// Ensure all pillars are enabled
-	config.Mode.LLMOnly = false
-	config.Mode.RAGOnly = false
-	config.Mode.DisableMCP = false
-	config.Mode.DisableAgent = false
-	
-	return New(config)
-}
-
-// NewChatClient creates a client optimized for chat operations (LLM + RAG).
-func NewChatClient(config core.Config) (core.Client, error) {
-	// Enable essential pillars for chat
-	config.Mode.LLMOnly = false
-	config.Mode.RAGOnly = false
-	config.Mode.DisableMCP = true  // MCP optional for chat
-	config.Mode.DisableAgent = true // Agents optional for chat
-	
-	return New(config)
-}
-
-// NewAutomationClient creates a client optimized for automation (Agents + MCP + LLM).
-func NewAutomationClient(config core.Config) (core.Client, error) {
-	// Enable pillars needed for automation
-	config.Mode.LLMOnly = false
-	config.Mode.DisableAgent = false
-	config.Mode.DisableMCP = false
-	config.Mode.RAGOnly = false  // RAG can be disabled for pure automation
-	
-	return New(config)
-}
-
-// NewKnowledgeClient creates a client optimized for knowledge management (RAG + LLM).
-func NewKnowledgeClient(config core.Config) (core.Client, error) {
-	// Enable pillars needed for knowledge management
-	config.Mode.RAGOnly = false
-	config.Mode.LLMOnly = false
-	config.Mode.DisableMCP = true
-	config.Mode.DisableAgent = true
-	
-	return New(config)
-}
-
-// ===== BUILDER PATTERN =====
-
-// ClientBuilder provides a fluent interface for building clients.
-type ClientBuilder struct {
-	config core.Config
-	err    error
-}
-
-// NewBuilder creates a new client builder with default configuration.
-func NewBuilder() *ClientBuilder {
-	return &ClientBuilder{
-		config: core.Config{
-			DataDir:  "~/.rago",
-			LogLevel: "info",
-			Mode:     core.ModeConfig{},
-		},
-	}
-}
-
-// WithConfig sets the base configuration.
-func (b *ClientBuilder) WithConfig(config core.Config) *ClientBuilder {
-	b.config = config
-	return b
-}
-
-// WithConfigPath loads configuration from a file.
-func (b *ClientBuilder) WithConfigPath(path string) *ClientBuilder {
-	config, err := LoadCoreConfigFromPath(path)
+// NewLLMClient creates a standalone LLM client for language model operations only.
+// This is ideal for applications that only need LLM functionality without RAG, MCP, or Agents.
+func NewLLMClient(config core.LLMConfig) (core.LLMClient, error) {
+	service, err := llm.NewService(config)
 	if err != nil {
-		b.err = err
-		return b
+		return nil, fmt.Errorf("failed to create LLM service: %w", err)
 	}
-	b.config = *config
-	return b
+
+	ctx, cancel := context.WithCancel(context.Background())
+	
+	return &llmClient{
+		service: service,
+		ctx:     ctx,
+		cancel:  cancel,
+	}, nil
 }
 
-// WithLLM enables and configures the LLM pillar.
-func (b *ClientBuilder) WithLLM(config core.LLMConfig) *ClientBuilder {
-	b.config.LLM = config
-	b.config.Mode.LLMOnly = false
-	return b
+// NewRAGClient creates a standalone RAG client for document operations only.
+// This is ideal for applications that only need document ingestion and retrieval.
+// NOTE: Currently commented out due to interface mismatch - will be fixed in next iteration
+func NewRAGClient(config core.RAGConfig) (core.RAGClient, error) {
+	// TODO: Fix interface mismatch - rag.NewService needs different parameters
+	return nil, fmt.Errorf("RAG client creation not yet implemented - interface alignment needed")
+	
+	// service, err := rag.NewService(config)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create RAG service: %w", err)
+	// }
+
+	// ctx, cancel := context.WithCancel(context.Background())
+	
+	// return &ragClient{
+	// 	service: service,
+	// 	ctx:     ctx,
+	// 	cancel:  cancel,
+	// }, nil
 }
 
-// WithRAG enables and configures the RAG pillar.
-func (b *ClientBuilder) WithRAG(config core.RAGConfig) *ClientBuilder {
-	b.config.RAG = config
-	b.config.Mode.RAGOnly = false
-	return b
-}
-
-// WithMCP enables and configures the MCP pillar.
-func (b *ClientBuilder) WithMCP(config core.MCPConfig) *ClientBuilder {
-	b.config.MCP = config
-	b.config.Mode.DisableMCP = false
-	return b
-}
-
-// WithAgents enables and configures the Agent pillar.
-func (b *ClientBuilder) WithAgents(config core.AgentsConfig) *ClientBuilder {
-	b.config.Agents = config
-	b.config.Mode.DisableAgent = false
-	return b
-}
-
-// WithoutMCP disables the MCP pillar.
-func (b *ClientBuilder) WithoutMCP() *ClientBuilder {
-	b.config.Mode.DisableMCP = true
-	return b
-}
-
-// WithoutAgents disables the Agent pillar.
-func (b *ClientBuilder) WithoutAgents() *ClientBuilder {
-	b.config.Mode.DisableAgent = true
-	return b
-}
-
-// WithDataDir sets the data directory.
-func (b *ClientBuilder) WithDataDir(dir string) *ClientBuilder {
-	b.config.DataDir = dir
-	return b
-}
-
-// WithLogLevel sets the log level.
-func (b *ClientBuilder) WithLogLevel(level string) *ClientBuilder {
-	b.config.LogLevel = level
-	return b
-}
-
-// Build creates the client with the configured settings.
-func (b *ClientBuilder) Build() (core.Client, error) {
-	if b.err != nil {
-		return nil, b.err
-	}
-	return New(b.config)
-}
-
-// ===== CONVENIENCE CONSTRUCTORS FOR COMMON PATTERNS =====
-
-// NewWithDefaults creates a client with sensible defaults for all pillars.
-func NewWithDefaults() (core.Client, error) {
-	config, err := LoadDefaultCoreConfig()
+// NewMCPClient creates a standalone MCP client for tool operations only.
+// This is ideal for applications that only need external tool integrations.
+func NewMCPClient(config core.MCPConfig) (core.MCPClient, error) {
+	service, err := mcp.NewService(config)
 	if err != nil {
-		// Create minimal default configuration
-		config = &core.Config{
-			DataDir:  "~/.rago",
-			LogLevel: "info",
-			LLM: core.LLMConfig{
-				DefaultProvider: "ollama",
-				Providers: map[string]core.ProviderConfig{
-					"ollama": {
-						Type:    "ollama",
-						BaseURL: "http://localhost:11434",
-						Model:   "llama3.2",
-						Weight:  1,
-						Timeout: 30 * time.Second,
-					},
-				},
-				LoadBalancing: core.LoadBalancingConfig{
-					Strategy:      "round_robin",
-					HealthCheck:   true,
-					CheckInterval: 30 * time.Second,
-				},
-				HealthCheck: core.HealthCheckConfig{
-					Enabled:  true,
-					Interval: 30 * time.Second,
-					Timeout:  10 * time.Second,
-					Retries:  3,
-				},
-			},
-			RAG: core.RAGConfig{
-				StorageBackend: "dual",
-				ChunkingStrategy: core.ChunkingConfig{
-					Strategy:     "recursive",
-					ChunkSize:    500,
-					ChunkOverlap: 50,
-				},
-			},
-			MCP: core.MCPConfig{
-				ServersPath: "~/.rago/mcpServers.json",
-			},
-			Agents: core.AgentsConfig{
-				WorkflowEngine: core.WorkflowEngineConfig{
-					MaxSteps:    100,
-					StateBackend: "memory",
-				},
-			},
-		}
+		return nil, fmt.Errorf("failed to create MCP service: %w", err)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 	
-	return NewFullClient(*config)
+	return &mcpClient{
+		service: service,
+		ctx:     ctx,
+		cancel:  cancel,
+	}, nil
 }
 
-// NewForTesting creates a client suitable for testing with in-memory backends.
-func NewForTesting() (core.Client, error) {
-	config := core.Config{
-		DataDir:  "/tmp/rago-test",
-		LogLevel: "debug",
-		LLM: core.LLMConfig{
-			DefaultProvider: "mock",
-			Providers: map[string]core.ProviderConfig{
-				"mock": {
-					Type: "mock",
-					Parameters: map[string]interface{}{
-						"test_mode": true,
-					},
-				},
-			},
-		},
-		RAG: core.RAGConfig{
-			StorageBackend: "memory",
-			ChunkingStrategy: core.ChunkingConfig{
-				Strategy:  "fixed",
-				ChunkSize: 100,
-			},
-		},
-		MCP: core.MCPConfig{
-			ToolExecution: core.ToolExecutionConfig{
-				MaxConcurrent: 1,
-				EnableCache:   false,
-			},
-		},
-		Agents: core.AgentsConfig{
-			WorkflowEngine: core.WorkflowEngineConfig{
-				StateBackend: "memory",
-			},
-			StateStorage: core.StateStorageConfig{
-				Backend:    "memory",
-				Persistent: false,
-			},
-		},
+// NewAgentClient creates a standalone Agent client for workflow operations only.
+// This is ideal for applications that only need agent-based automation.
+func NewAgentClient(config core.AgentsConfig) (core.AgentClient, error) {
+	service, err := agents.NewService(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Agent service: %w", err)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 	
-	return NewFullClient(config)
+	return &agentClient{
+		service: service,
+		ctx:     ctx,
+		cancel:  cancel,
+	}, nil
+}
+
+// ===== BUILDER PATTERN FOR CUSTOM CONFIGURATIONS =====
+
+// Builder provides a flexible way to construct RAGO clients with specific pillar combinations.
+// This follows the builder pattern for maximum flexibility in client configuration.
+type Builder struct {
+	llmConfig    *core.LLMConfig
+	ragConfig    *core.RAGConfig
+	mcpConfig    *core.MCPConfig
+	agentsConfig *core.AgentsConfig
+	dataDir      string
+	logLevel     string
+}
+
+// NewBuilder creates a new client builder for custom configurations.
+func NewBuilder() *Builder {
+	return &Builder{
+		dataDir:  "~/.rago",
+		logLevel: "info",
+	}
+}
+
+// WithLLM enables the LLM pillar with the provided configuration.
+func (b *Builder) WithLLM(config core.LLMConfig) *Builder {
+	b.llmConfig = &config
+	return b
+}
+
+// WithRAG enables the RAG pillar with the provided configuration.
+func (b *Builder) WithRAG(config core.RAGConfig) *Builder {
+	b.ragConfig = &config
+	return b
+}
+
+// WithMCP enables the MCP pillar with the provided configuration.
+func (b *Builder) WithMCP(config core.MCPConfig) *Builder {
+	b.mcpConfig = &config
+	return b
+}
+
+// WithAgents enables the Agents pillar with the provided configuration.
+func (b *Builder) WithAgents(config core.AgentsConfig) *Builder {
+	b.agentsConfig = &config
+	return b
+}
+
+// WithoutLLM disables the LLM pillar (useful for RAG-only or MCP-only configurations).
+func (b *Builder) WithoutLLM() *Builder {
+	b.llmConfig = nil
+	return b
+}
+
+// WithoutRAG disables the RAG pillar (useful for LLM-only or MCP-only configurations).
+func (b *Builder) WithoutRAG() *Builder {
+	b.ragConfig = nil
+	return b
+}
+
+// WithoutMCP disables the MCP pillar (useful for LLM+RAG only configurations).
+func (b *Builder) WithoutMCP() *Builder {
+	b.mcpConfig = nil
+	return b
+}
+
+// WithoutAgents disables the Agents pillar (useful for simpler configurations).
+func (b *Builder) WithoutAgents() *Builder {
+	b.agentsConfig = nil
+	return b
+}
+
+// WithDataDir sets the data directory for all pillars.
+func (b *Builder) WithDataDir(dataDir string) *Builder {
+	b.dataDir = dataDir
+	return b
+}
+
+// WithLogLevel sets the logging level.
+func (b *Builder) WithLogLevel(level string) *Builder {
+	b.logLevel = level
+	return b
+}
+
+// Build constructs the RAGO client with the configured pillars.
+func (b *Builder) Build() (*Client, error) {
+	// Validate that at least one pillar is enabled
+	if b.llmConfig == nil && b.ragConfig == nil && b.mcpConfig == nil && b.agentsConfig == nil {
+		return nil, fmt.Errorf("at least one pillar must be enabled")
+	}
+
+	config := &Config{
+		Config: core.Config{
+			DataDir:  b.dataDir,
+			LogLevel: b.logLevel,
+			Mode: core.ModeConfig{
+				RAGOnly:      b.ragConfig != nil && b.llmConfig == nil && b.mcpConfig == nil && b.agentsConfig == nil,
+				LLMOnly:      b.llmConfig != nil && b.ragConfig == nil && b.mcpConfig == nil && b.agentsConfig == nil,
+				DisableMCP:   b.mcpConfig == nil,
+				DisableAgent: b.agentsConfig == nil,
+			},
+		},
+		ClientName:    "rago-client",
+		ClientVersion: "3.0.0",
+		LegacyMode:    false,
+	}
+
+	// Set pillar configs if provided
+	if b.llmConfig != nil {
+		config.LLM = *b.llmConfig
+	}
+	if b.ragConfig != nil {
+		config.RAG = *b.ragConfig
+	}
+	if b.mcpConfig != nil {
+		config.MCP = *b.mcpConfig
+	}
+	if b.agentsConfig != nil {
+		config.Agents = *b.agentsConfig
+	}
+
+	return NewWithConfig(config)
+}
+
+// ===== CONVENIENCE FUNCTIONS FOR COMMON CONFIGURATIONS =====
+
+// NewLLMOnlyClient creates a client with only the LLM pillar enabled.
+func NewLLMOnlyClient(llmConfig core.LLMConfig) (*Client, error) {
+	return NewBuilder().
+		WithLLM(llmConfig).
+		WithoutRAG().
+		WithoutMCP().
+		WithoutAgents().
+		Build()
+}
+
+// NewRAGOnlyClient creates a client with only the RAG pillar enabled.
+func NewRAGOnlyClient(ragConfig core.RAGConfig) (*Client, error) {
+	return NewBuilder().
+		WithRAG(ragConfig).
+		WithoutLLM().
+		WithoutMCP().
+		WithoutAgents().
+		Build()
+}
+
+// NewLLMRAGClient creates a client with LLM and RAG pillars enabled.
+// This is a common configuration for AI applications with knowledge retrieval.
+func NewLLMRAGClient(llmConfig core.LLMConfig, ragConfig core.RAGConfig) (*Client, error) {
+	return NewBuilder().
+		WithLLM(llmConfig).
+		WithRAG(ragConfig).
+		WithoutMCP().
+		WithoutAgents().
+		Build()
+}
+
+// NewToolIntegratedClient creates a client with LLM, RAG, and MCP pillars.
+// This provides AI capabilities with external tool integration.
+func NewToolIntegratedClient(llmConfig core.LLMConfig, ragConfig core.RAGConfig, mcpConfig core.MCPConfig) (*Client, error) {
+	return NewBuilder().
+		WithLLM(llmConfig).
+		WithRAG(ragConfig).
+		WithMCP(mcpConfig).
+		WithoutAgents().
+		Build()
 }

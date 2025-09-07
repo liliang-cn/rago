@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## IMPORTANT: V3 Migration Approach - NO BACKWARD COMPATIBILITY
+
+**Critical Decision**: RAGO V3 is a clean break from legacy code. We are NOT maintaining backward compatibility during the transition. This means:
+- Remove all legacy code and adapters
+- Single implementation location for each component
+- No duplicate packages (e.g., both /client and pkg/client is wrong)
+- Clean V3 API only - no old method signatures preserved
+- Users must migrate to V3 - no gradual transition support
+
+**Client Package Location**: Use `pkg/client/` ONLY. Remove `/client/` folder entirely.
+
 ## RAGO Vision: Local-First AI Foundation
 
 **RAGO's True Nature**: A **local-first, privacy-first Go AI foundation** that other applications can use as their AI infrastructure. Built as a library-first architecture with four equal core components that can work independently or together.

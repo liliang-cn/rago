@@ -10,7 +10,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/rag/ingest"
 	"github.com/liliang-cn/rago/v2/pkg/rag/search"
 	"github.com/liliang-cn/rago/v2/pkg/rag/storage"
-	"github.com/liliang-cn/rago/v2/pkg/store"
+// 	"github.com/liliang-cn/rago/v2/pkg/store"
 )
 
 // ===== INITIALIZATION HELPERS =====
@@ -32,15 +32,9 @@ func (s *Service) initializeStorage(embedder storage.Embedder) error {
 	}
 
 	// Initialize document backend (needs vector store for SQLite implementation)
-	if sqliteBackend, ok := s.vectorBackend.(*storage.SQLiteVectorBackend); ok {
-		// Access the underlying SQLite store
-		vectorStore := extractSQLiteStore(sqliteBackend)
-		s.documentBackend, err = storage.NewDocumentBackend(s.config.DocumentStore, vectorStore)
-		if err != nil {
-			return fmt.Errorf("failed to initialize document backend: %w", err)
-		}
-	} else {
-		return fmt.Errorf("unsupported backend combination")
+	s.documentBackend, err = storage.NewDocumentBackend(s.config.DocumentStore)
+	if err != nil {
+		return fmt.Errorf("failed to initialize document backend: %w", err)
 	}
 
 	// Create storage manager
@@ -313,7 +307,7 @@ func validateConfig(config *Config) error {
 
 // extractSQLiteStore extracts the underlying SQLite store from a vector backend
 // This allows the document backend to share the same SQLite database
-func extractSQLiteStore(backend storage.VectorBackend) *store.SQLiteStore {
+func extractSQLiteStore(backend storage.VectorBackend) interface{} {
 	if sqliteBackend, ok := backend.(*storage.SQLiteVectorBackend); ok {
 		return sqliteBackend.GetStore()
 	}

@@ -64,6 +64,10 @@ type LLMService interface {
 
 	// Batch Operations
 	GenerateBatch(ctx context.Context, requests []GenerationRequest) ([]GenerationResponse, error)
+
+	// Structured Generation
+	GenerateStructured(ctx context.Context, req StructuredGenerationRequest) (*StructuredResult, error)
+	ExtractMetadata(ctx context.Context, req MetadataExtractionRequest) (*ExtractedMetadata, error)
 }
 
 // RAGService defines the interface for the RAG pillar.
@@ -78,6 +82,10 @@ type RAGService interface {
 	// Search Operations
 	Search(ctx context.Context, req SearchRequest) (*SearchResponse, error)
 	HybridSearch(ctx context.Context, req HybridSearchRequest) (*HybridSearchResponse, error)
+	
+	// Question-Answer Operations
+	Answer(ctx context.Context, req QARequest) (*QAResponse, error)
+	StreamAnswer(ctx context.Context, req QARequest, callback StreamCallback) error
 
 	// Management Operations
 	GetStats(ctx context.Context) (*RAGStats, error)
@@ -86,22 +94,21 @@ type RAGService interface {
 }
 
 // MCPService defines the interface for the MCP pillar.
-// Focuses on tool integration and external service coordination.
+// Provides tool definitions for LLM function calling.
 type MCPService interface {
-	// Server Management
-	RegisterServer(config ServerConfig) error
-	UnregisterServer(name string) error
-	ListServers() []ServerInfo
-	GetServerHealth(name string) HealthStatus
-
 	// Tool Operations
-	ListTools() []ToolInfo
-	GetTool(name string) (*ToolInfo, error)
-	CallTool(ctx context.Context, req ToolCallRequest) (*ToolCallResponse, error)
-	CallToolAsync(ctx context.Context, req ToolCallRequest) (<-chan *ToolCallResponse, error)
-
-	// Batch Operations
-	CallToolsBatch(ctx context.Context, requests []ToolCallRequest) ([]ToolCallResponse, error)
+	GetTools() []ToolInfo
+	GetToolsForLLM() []ToolInfo
+	FindTool(name string) (*ToolInfo, bool)
+	SearchTools(query string) []ToolInfo
+	GetToolsByCategory(category string) []ToolInfo
+	
+	// Tool Management
+	AddTool(tool ToolInfo)
+	ReloadTools() error
+	
+	// Metrics
+	GetMetrics() map[string]interface{}
 }
 
 // AgentService defines the interface for the Agent pillar.

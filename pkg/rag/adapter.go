@@ -10,7 +10,7 @@ import (
 
 // NewServiceFromCoreConfig creates a RAG service from core configuration for backward compatibility.
 // This function acts as an adapter between the old core.RAGConfig and the new modular structure.
-func NewServiceFromCoreConfig(coreConfig core.RAGConfig, embedder storage.Embedder) (*Service, error) {
+func NewServiceFromCoreConfig(coreConfig core.RAGConfig, embedder storage.Embedder, llmService core.LLMService) (*Service, error) {
 	// Convert core config to new RAG config
 	config := &Config{
 		StorageBackend: coreConfig.StorageBackend,
@@ -47,7 +47,7 @@ func NewServiceFromCoreConfig(coreConfig core.RAGConfig, embedder storage.Embedd
 		config.DocumentStore.DBPath = "./data/documents.db"
 	}
 
-	return NewService(config, embedder)
+	return NewService(config, embedder, llmService)
 }
 
 // DefaultEmbedder provides a simple embedder implementation for compatibility.

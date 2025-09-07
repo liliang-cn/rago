@@ -50,45 +50,49 @@ func (c *DefaultChunker) Chunk(ctx context.Context, text string, options ChunkOp
 
 	switch strategy {
 	case "sentence":
-		return c.chunkBySentence(text, chunkSize, chunkOverlap, minChunkSize)
+		return c.chunkBySentence(text, chunkSize, chunkOverlap, minChunkSize, options)
 	case "paragraph":
-		return c.chunkByParagraph(text, chunkSize, chunkOverlap, minChunkSize)
+		return c.chunkByParagraph(text, chunkSize, chunkOverlap, minChunkSize, options)
 	case "fixed":
-		return c.chunkByFixed(text, chunkSize, chunkOverlap, minChunkSize)
+		return c.chunkByFixed(text, chunkSize, chunkOverlap, minChunkSize, options)
 	case "semantic":
 		// TODO: Implement semantic chunking using embeddings
-		return c.chunkBySentence(text, chunkSize, chunkOverlap, minChunkSize)
+		return c.chunkBySentence(text, chunkSize, chunkOverlap, minChunkSize, options)
 	default:
 		return nil, fmt.Errorf("unsupported chunking strategy: %s", strategy)
 	}
 }
 
 // chunkBySentence splits text by sentences and combines them into appropriately sized chunks.
-func (c *DefaultChunker) chunkBySentence(text string, chunkSize, chunkOverlap, minChunkSize int) ([]TextChunk, error) {
+func (c *DefaultChunker) chunkBySentence(text string, chunkSize, chunkOverlap, minChunkSize int, options ChunkOptions) ([]TextChunk, error) {
 	sentences := c.splitIntoSentences(text)
-	return c.combineIntoChunks(sentences, chunkSize, chunkOverlap, minChunkSize), nil
+	return c.combineIntoChunks(sentences, chunkSize, chunkOverlap, minChunkSize, options), nil
 }
 
 // chunkByParagraph splits text by paragraphs, then by sentences within paragraphs.
-func (c *DefaultChunker) chunkByParagraph(text string, chunkSize, chunkOverlap, minChunkSize int) ([]TextChunk, error) {
+func (c *DefaultChunker) chunkByParagraph(text string, chunkSize, chunkOverlap, minChunkSize int, options ChunkOptions) ([]TextChunk, error) {
 	paragraphs := c.splitIntoParagraphs(text)
 	var sentences []string
 	for _, para := range paragraphs {
 		sentences = append(sentences, c.splitIntoSentences(para)...)
 	}
-	return c.combineIntoChunks(sentences, chunkSize, chunkOverlap, minChunkSize), nil
+	return c.combineIntoChunks(sentences, chunkSize, chunkOverlap, minChunkSize, options), nil
 }
 
 // chunkByFixed splits text into fixed-size chunks by character count.
-func (c *DefaultChunker) chunkByFixed(text string, chunkSize, chunkOverlap, minChunkSize int) ([]TextChunk, error) {
+func (c *DefaultChunker) chunkByFixed(text string, chunkSize, chunkOverlap, minChunkSize int, options ChunkOptions) ([]TextChunk, error) {
 	var chunks []TextChunk
 	textRunes := []rune(text)
 	totalLength := len(textRunes)
 	
 	if totalLength <= chunkSize {
-		// Text fits in a single chunk
+		// Text fits in a single chunk  
+		chunkID := "chunk_0"
+		if options.DocumentUUID != "" {
+			chunkID = fmt.Sprintf("%s_0", options.DocumentUUID)
+		}
 		return []TextChunk{{
-			ID:       "chunk_0",
+			ID:       chunkID,
 			Content:  text,
 			Metadata: make(map[string]interface{}),
 			Position: 0,
@@ -110,8 +114,12 @@ func (c *DefaultChunker) chunkByFixed(text string, chunkSize, chunkOverlap, minC
 		
 		// Skip chunks that are too small (except the last one)
 		if len(strings.TrimSpace(chunkContent)) >= minChunkSize || chunkEnd == totalLength {
+			chunkID := fmt.Sprintf("chunk_%d", chunkIndex)
+			if options.DocumentUUID != "" {
+				chunkID = fmt.Sprintf("%s_%d", options.DocumentUUID, chunkIndex)
+			}
 			chunk := TextChunk{
-				ID:       fmt.Sprintf("chunk_%d", chunkIndex),
+				ID:       chunkID,
 				Content:  strings.TrimSpace(chunkContent),
 				Metadata: map[string]interface{}{
 					"chunk_index": chunkIndex,
@@ -211,7 +219,7 @@ func (c *DefaultChunker) splitIntoParagraphs(text string) []string {
 }
 
 // combineIntoChunks combines sentences into chunks of appropriate size.
-func (c *DefaultChunker) combineIntoChunks(sentences []string, chunkSize, chunkOverlap, minChunkSize int) []TextChunk {
+func (c *DefaultChunker) combineIntoChunks(sentences []string, chunkSize, chunkOverlap, minChunkSize int, options ChunkOptions) []TextChunk {
 	if len(sentences) == 0 {
 		return []TextChunk{}
 	}
@@ -233,8 +241,12 @@ func (c *DefaultChunker) combineIntoChunks(sentences []string, chunkSize, chunkO
 			// Current chunk is full, create it
 			content := strings.TrimSpace(currentChunk.String())
 			if len(content) >= minChunkSize {
+				chunkID := fmt.Sprintf("chunk_%d", chunkIndex)
+				if options.DocumentUUID != "" {
+					chunkID = fmt.Sprintf("%s_%d", options.DocumentUUID, chunkIndex)
+				}
 				chunk := TextChunk{
-					ID:       fmt.Sprintf("chunk_%d", chunkIndex),
+					ID:       chunkID,
 					Content:  content,
 					Metadata: map[string]interface{}{
 						"chunk_index":     chunkIndex,
@@ -275,8 +287,12 @@ func (c *DefaultChunker) combineIntoChunks(sentences []string, chunkSize, chunkO
 	if currentChunk.Len() > 0 {
 		content := strings.TrimSpace(currentChunk.String())
 		if len(content) >= minChunkSize {
+			chunkID := fmt.Sprintf("chunk_%d", chunkIndex)
+			if options.DocumentUUID != "" {
+				chunkID = fmt.Sprintf("%s_%d", options.DocumentUUID, chunkIndex)
+			}
 			chunk := TextChunk{
-				ID:       fmt.Sprintf("chunk_%d", chunkIndex),
+				ID:       chunkID,
 				Content:  content,
 				Metadata: map[string]interface{}{
 					"chunk_index":     chunkIndex,

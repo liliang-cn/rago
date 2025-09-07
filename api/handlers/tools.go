@@ -2,41 +2,38 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/liliang-cn/rago/v2/pkg/tools"
+	"github.com/liliang-cn/rago/v2/pkg/client"
+	"github.com/liliang-cn/rago/v2/pkg/core"
 )
 
-// ToolsHandler handles tool-related HTTP requests
+// ToolsHandler handles tool-related HTTP requests using V3 client
 type ToolsHandler struct {
-	registry *tools.Registry
-	executor *tools.Executor
+	client *client.Client
 }
 
 // NewToolsHandler creates a new tools handler
-func NewToolsHandler(registry *tools.Registry, executor *tools.Executor) *ToolsHandler {
+func NewToolsHandler(c *client.Client) *ToolsHandler {
 	return &ToolsHandler{
-		registry: registry,
-		executor: executor,
+		client: c,
 	}
 }
 
 // ListTools returns all available tools
 func (h *ToolsHandler) ListTools(c *gin.Context) {
-	enabled := c.Query("enabled")
-	includeDisabled := enabled != "true"
-
-	var toolInfos []tools.ToolInfo
-	if includeDisabled {
-		toolInfos = h.registry.List()
-	} else {
-		toolInfos = h.registry.ListEnabled()
+	if h.client.MCP() == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "MCP service not available",
+		})
+		return
 	}
 
+	tools := h.client.MCP().ListTools()
+
 	c.JSON(http.StatusOK, gin.H{
-		"tools": toolInfos,
-		"count": len(toolInfos),
+		"tools": tools,
+		"count": len(tools),
 	})
 }
 
@@ -50,25 +47,25 @@ func (h *ToolsHandler) GetTool(c *gin.Context) {
 		return
 	}
 
-	tool, exists := h.registry.Get(toolName)
-	if !exists {
+	if h.client.MCP() == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "MCP service not available",
+		})
+		return
+	}
+
+	tool, err := h.client.MCP().GetTool(toolName)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "tool not found",
 		})
 		return
 	}
 
-	info := tools.ToolInfo{
-		Name:        tool.Name(),
-		Description: tool.Description(),
-		Parameters:  tool.Parameters(),
-		Enabled:     h.registry.IsEnabled(toolName),
-	}
-
-	c.JSON(http.StatusOK, info)
+	c.JSON(http.StatusOK, tool)
 }
 
-// ExecuteTool directly executes a tool with given arguments
+// ExecuteTool executes a tool with given arguments
 func (h *ToolsHandler) ExecuteTool(c *gin.Context) {
 	toolName := c.Param("name")
 	if toolName == "" {
@@ -80,7 +77,6 @@ func (h *ToolsHandler) ExecuteTool(c *gin.Context) {
 
 	var request struct {
 		Arguments map[string]interface{} `json:"arguments"`
-		Timeout   string                 `json:"timeout,omitempty"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -90,39 +86,20 @@ func (h *ToolsHandler) ExecuteTool(c *gin.Context) {
 		return
 	}
 
-	// Check if tool exists and is enabled
-	tool, exists := h.registry.Get(toolName)
-	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "tool not found",
+	if h.client.MCP() == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "MCP service not available",
 		})
 		return
 	}
 
-	if !h.registry.IsEnabled(toolName) {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "tool is disabled",
-		})
-		return
+	// Execute tool via MCP
+	toolCall := core.ToolCall{
+		Name:      toolName,
+		Arguments: request.Arguments,
 	}
 
-	// Validate arguments
-	if err := tool.Validate(request.Arguments); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid arguments: " + err.Error(),
-		})
-		return
-	}
-
-	// Create execution context
-	execCtx := &tools.ExecutionContext{
-		RequestID: c.GetHeader("X-Request-ID"),
-		UserID:    c.GetHeader("X-User-ID"),
-		SessionID: c.GetHeader("X-Session-ID"),
-	}
-
-	// Execute tool
-	result, err := h.executor.Execute(c.Request.Context(), execCtx, toolName, request.Arguments)
+	result, err := h.client.MCP().CallTool(c.Request.Context(), toolCall)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "execution failed: " + err.Error(),
@@ -131,88 +108,7 @@ func (h *ToolsHandler) ExecuteTool(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"tool":    toolName,
-		"success": result.Success,
-		"data":    result.Data,
-		"error":   result.Error,
-	})
-}
-
-// GetToolStats returns tool execution statistics
-func (h *ToolsHandler) GetToolStats(c *gin.Context) {
-	stats := h.executor.GetStats()
-	c.JSON(http.StatusOK, stats)
-}
-
-// GetRegistryStats returns registry statistics
-func (h *ToolsHandler) GetRegistryStats(c *gin.Context) {
-	stats := h.registry.Stats()
-	c.JSON(http.StatusOK, stats)
-}
-
-// ListExecutions returns current executions
-func (h *ToolsHandler) ListExecutions(c *gin.Context) {
-	limit := 50 // default limit
-	if l := c.Query("limit"); l != "" {
-		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
-			limit = parsed
-		}
-	}
-
-	executions := h.executor.ListExecutions()
-
-	// Apply limit
-	if len(executions) > limit {
-		executions = executions[:limit]
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"executions": executions,
-		"count":      len(executions),
-	})
-}
-
-// GetExecution returns information about a specific execution
-func (h *ToolsHandler) GetExecution(c *gin.Context) {
-	executionID := c.Param("id")
-	if executionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "execution ID is required",
-		})
-		return
-	}
-
-	execution, exists := h.executor.GetExecutionInfo(executionID)
-	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "execution not found",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, execution)
-}
-
-// CancelExecution cancels a running execution
-func (h *ToolsHandler) CancelExecution(c *gin.Context) {
-	executionID := c.Param("id")
-	if executionID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "execution ID is required",
-		})
-		return
-	}
-
-	err := h.executor.CancelExecution(executionID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "execution cancelled",
+		"tool":   toolName,
+		"result": result,
 	})
 }

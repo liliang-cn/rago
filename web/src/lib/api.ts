@@ -1,70 +1,111 @@
 import { useState } from 'react'
 
+// V3 Core Types
+export interface Provider {
+  name: string
+  type: string
+  model: string
+  base_url?: string
+  enabled: boolean
+  weight: number
+  status?: 'healthy' | 'unhealthy' | 'unknown'
+}
+
 export interface Document {
   id: string
-  title?: string
   content: string
-  created: string
   metadata?: Record<string, any>
 }
 
-export interface SearchResult extends Document {
-  score: number
-}
-
-export interface IngestRequest {
-  content: string
-  title?: string
-  metadata?: Record<string, any>
-}
-
-export interface QueryRequest {
+export interface RAGQuery {
   query: string
-  context_only?: boolean
-  show_thinking?: boolean
+  top_k?: number
   filters?: Record<string, any>
 }
 
-export interface APIResponse<T> {
-  data?: T
-  error?: string
-  message?: string
-  success?: boolean
+export interface RAGResult {
+  documents: Document[]
+  answer?: string
+}
+
+export interface GenerationRequest {
+  prompt: string
+  provider?: string
+  max_tokens?: number
+  temperature?: number
+  stream?: boolean
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+}
+
+export interface ChatRequest {
+  messages: ChatMessage[]
+  provider?: string
+  max_tokens?: number
+  temperature?: number
+  stream?: boolean
+}
+
+export interface MCPServer {
+  name: string
+  command: string
+  args?: string[]
+  description: string
+  enabled: boolean
+  status?: 'running' | 'stopped' | 'error'
 }
 
 export interface MCPTool {
   name: string
   description: string
-  server_name: string
+  server: string
+  parameters?: Record<string, any>
 }
 
-export interface MCPServer {
+export interface WorkflowStep {
+  id: string
+  type: 'llm_generate' | 'rag_query' | 'mcp_tool' | 'condition'
+  description: string
+  parameters: Record<string, any>
+  depends_on?: string[]
+}
+
+export interface WorkflowDefinition {
+  id: string
   name: string
-  status: boolean
+  description: string
+  steps: WorkflowStep[]
 }
 
-export interface MCPToolResult {
-  success: boolean
-  data: any
+export interface AgentTask {
+  id?: string
+  goal: string
+  context?: string
+  workflow?: WorkflowDefinition
+}
+
+export interface HealthStatus {
+  overall: 'healthy' | 'degraded' | 'unhealthy'
+  providers: Record<string, string>
+  rag: string
+  mcp: {
+    status: string
+    servers: Record<string, string>
+  }
+  agents: string
+}
+
+export interface APIResponse<T> {
+  data?: T
   error?: string
-  server_name: string
-  tool_name: string
-  duration: number
+  success: boolean
 }
 
-export interface MCPToolCall {
-  tool_name: string
-  args: Record<string, any>
-}
-
-export interface TaskItem {
-  content: string
-  status: 'pending' | 'in_progress' | 'completed'
-  activeForm: string
-}
-
-class APIClient {
-  private baseURL = '/api'
+class V3APIClient {
+  private baseURL = '/api/v3'
 
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<APIResponse<T>> {
     try {
@@ -79,19 +120,79 @@ class APIClient {
       const data = await response.json()
 
       if (!response.ok) {
-        return { error: data.error || `HTTP ${response.status}` }
+        return { error: data.error || `HTTP ${response.status}`, success: false }
       }
 
-      return { data }
+      return { data, success: true }
     } catch (error) {
-      return { error: error instanceof Error ? error.message : 'Unknown error' }
+      return { error: error instanceof Error ? error.message : 'Unknown error', success: false }
     }
   }
 
-  async ingestText(content: string, title?: string, metadata?: Record<string, any>) {
-    return this.request('/ingest', {
+  // LLM Pillar APIs
+  async generate(request: GenerationRequest) {
+    return this.request<{ content: string; provider: string }>('/llm/generate', {
       method: 'POST',
-      body: JSON.stringify({ content, title, metadata }),
+      body: JSON.stringify(request),
+    })
+  }
+
+  async chat(request: ChatRequest) {
+    return this.request<{ content: string; provider: string }>('/llm/chat', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    })
+  }
+
+  async streamGenerate(request: GenerationRequest, onChunk: (chunk: string) => void) {
+    const response = await fetch(`${this.baseURL}/llm/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...request, stream: true }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+
+    if (!reader) throw new Error('No response body')
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      
+      const chunk = decoder.decode(value)
+      const lines = chunk.split('\n')
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6)
+          if (data === '[DONE]') return
+          try {
+            const parsed = JSON.parse(data)
+            onChunk(parsed.content || '')
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      }
+    }
+  }
+
+  async listProviders() {
+    return this.request<Provider[]>('/llm/providers', {
+      method: 'GET',
+    })
+  }
+
+  // RAG Pillar APIs
+  async ingestDocument(document: Document) {
+    return this.request('/rag/ingest', {
+      method: 'POST',
+      body: JSON.stringify(document),
     })
   }
 
@@ -101,206 +202,159 @@ class APIClient {
     if (metadata) {
       formData.append('metadata', JSON.stringify(metadata))
     }
-    
-    return fetch(`${this.baseURL}/ingest`, {
-      method: 'POST',
-      body: formData,
-    }).then(async (response) => {
+
+    try {
+      const response = await fetch(`${this.baseURL}/rag/ingest/file`, {
+        method: 'POST',
+        body: formData,
+      })
+
       const data = await response.json()
+
       if (!response.ok) {
-        return { error: data.error || `HTTP ${response.status}` }
+        return { error: data.error || `HTTP ${response.status}`, success: false }
       }
-      return { data }
-    }).catch((error) => {
-      return { error: error instanceof Error ? error.message : 'Unknown error' }
-    })
+
+      return { data, success: true }
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : 'Unknown error', success: false }
+    }
   }
 
-  async query(question: string, context_only = false, filters?: Record<string, any>, show_thinking = true): Promise<APIResponse<{ answer: string; sources: SearchResult[] }>> {
-    return this.request('/query', {
+  async queryRAG(query: RAGQuery) {
+    return this.request<RAGResult>('/rag/query', {
       method: 'POST',
-      body: JSON.stringify({ query: question, context_only, filters, show_thinking }),
+      body: JSON.stringify(query),
     })
   }
 
-  async search(query: string): Promise<APIResponse<SearchResult[]>> {
-    return this.request('/search', {
-      method: 'POST',
-      body: JSON.stringify({ query: query }),
+  async listDocuments() {
+    return this.request<Document[]>('/rag/documents', {
+      method: 'GET',
     })
-  }
-
-  async getDocuments(): Promise<APIResponse<Document[]>> {
-    return this.request('/documents')
   }
 
   async deleteDocument(id: string) {
-    return this.request(`/documents/${id}`, {
+    return this.request(`/rag/documents/${id}`, {
       method: 'DELETE',
     })
   }
 
-  async reset() {
-    return this.request('/reset', {
+  async resetRAG() {
+    return this.request('/rag/reset', {
       method: 'POST',
     })
   }
 
-  async health() {
-    return this.request('/health')
+  // MCP Pillar APIs
+  async listMCPServers() {
+    return this.request<MCPServer[]>('/mcp/servers', {
+      method: 'GET',
+    })
   }
 
-  // MCP API methods
-  async getMCPTools(): Promise<APIResponse<{ tools: MCPTool[]; count: number }>> {
-    return this.request('/mcp/tools')
+  async listMCPTools() {
+    return this.request<MCPTool[]>('/mcp/tools', {
+      method: 'GET',
+    })
   }
 
-  async getMCPTool(name: string): Promise<APIResponse<MCPTool & { schema: any }>> {
-    return this.request(`/mcp/tools/${name}`)
-  }
-
-  async callMCPTool(toolName: string, args: Record<string, any>, timeout = 30): Promise<APIResponse<MCPToolResult>> {
+  async callMCPTool(server: string, tool: string, params: Record<string, any>) {
     return this.request('/mcp/tools/call', {
       method: 'POST',
-      body: JSON.stringify({ tool_name: toolName, args, timeout }),
+      body: JSON.stringify({ server, tool, params }),
     })
   }
 
-  async batchCallMCPTools(calls: MCPToolCall[], timeout = 60): Promise<APIResponse<{ results: MCPToolResult[]; count: number }>> {
-    return this.request('/mcp/tools/batch', {
+  async startMCPServer(name: string) {
+    return this.request(`/mcp/servers/${name}/start`, {
       method: 'POST',
-      body: JSON.stringify({ calls, timeout }),
     })
   }
 
-  async getMCPServers(): Promise<APIResponse<{ servers: Record<string, boolean>; enabled: boolean }>> {
-    return this.request('/mcp/servers')
-  }
-
-  async startMCPServer(serverName: string): Promise<APIResponse<any>> {
-    return this.request('/mcp/servers/start', {
+  async stopMCPServer(name: string) {
+    return this.request(`/mcp/servers/${name}/stop`, {
       method: 'POST',
-      body: JSON.stringify({ server_name: serverName }),
     })
   }
 
-  async stopMCPServer(serverName: string): Promise<APIResponse<any>> {
-    return this.request('/mcp/servers/stop', {
+  // Agents Pillar APIs
+  async executeWorkflow(workflow: WorkflowDefinition) {
+    return this.request('/agents/workflow/execute', {
       method: 'POST',
-      body: JSON.stringify({ server_name: serverName }),
+      body: JSON.stringify(workflow),
     })
   }
 
-  async getMCPToolsForLLM(): Promise<APIResponse<{ tools: any[]; count: number }>> {
-    return this.request('/mcp/llm/tools')
+  async generateWorkflow(task: string) {
+    return this.request<WorkflowDefinition>('/agents/workflow/generate', {
+      method: 'POST',
+      body: JSON.stringify({ task }),
+    })
   }
 
-  async getMCPToolsByServer(serverName: string): Promise<APIResponse<{ server: string; tools: MCPTool[]; count: number }>> {
-    return this.request(`/mcp/servers/${serverName}/tools`)
+  async executeTask(task: AgentTask) {
+    return this.request('/agents/task', {
+      method: 'POST',
+      body: JSON.stringify(task),
+    })
+  }
+
+  async listScheduledTasks() {
+    return this.request('/agents/scheduled', {
+      method: 'GET',
+    })
+  }
+
+  async scheduleTask(task: AgentTask, schedule: string) {
+    return this.request('/agents/scheduled', {
+      method: 'POST',
+      body: JSON.stringify({ task, schedule }),
+    })
+  }
+
+  // System APIs
+  async getHealth() {
+    return this.request<HealthStatus>('/health', {
+      method: 'GET',
+    })
+  }
+
+  async getConfig() {
+    return this.request('/config', {
+      method: 'GET',
+    })
   }
 }
 
-export const apiClient = new APIClient()
+export const api = new V3APIClient()
 
-export function useRAGChat() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; sources?: SearchResult[] }>>([])
+// Hooks for common operations
+export function useAsyncOperation<T>() {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [data, setData] = useState<T | null>(null)
 
-  const sendMessage = async (content: string, filters?: Record<string, any>, showThinking = true) => {
-    setIsLoading(true)
-    setMessages(prev => [...prev, { role: 'user', content }])
-
+  const execute = async (operation: () => Promise<APIResponse<T>>) => {
+    setLoading(true)
+    setError(null)
+    
     try {
-      const response = await apiClient.query(content, false, filters, showThinking)
-      if (response.data) {
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: response.data!.answer,
-          sources: response.data!.sources 
-        }])
+      const result = await operation()
+      if (result.error) {
+        setError(result.error)
       } else {
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: `Error: ${response.error}` 
-        }])
+        setData(result.data || null)
       }
-    } catch (error) {
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` 
-      }])
+      return result
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+      setError(errorMsg)
+      return { error: errorMsg, success: false }
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  const sendMessageStream = async (content: string, filters?: Record<string, any>, onChunk?: (chunk: string) => void, showThinking = true) => {
-    setIsLoading(true)
-    setMessages(prev => [...prev, { role: 'user', content }])
-
-    try {
-      // Add empty assistant message that will be updated
-      const assistantMessageIndex = messages.length + 1
-      setMessages(prev => [...prev, { role: 'assistant', content: '' }])
-
-      const response = await fetch(`${apiClient['baseURL']}/query-stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query: content, filters, show_thinking: showThinking }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `HTTP ${response.status}`)
-      }
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let fullContent = ''
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          const chunk = decoder.decode(value, { stream: true })
-          fullContent += chunk
-          onChunk?.(chunk)
-          
-          // Update the assistant message
-          setMessages(prev => {
-            const newMessages = [...prev]
-            newMessages[assistantMessageIndex] = {
-              ...newMessages[assistantMessageIndex],
-              content: fullContent
-            }
-            return newMessages
-          })
-        }
-      }
-    } catch (error) {
-      setMessages(prev => {
-        const newMessages = [...prev]
-        newMessages[newMessages.length - 1] = {
-          role: 'assistant',
-          content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-        }
-        return newMessages
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const clearMessages = () => setMessages([])
-
-  return {
-    messages,
-    isLoading,
-    sendMessage,
-    sendMessageStream,
-    clearMessages,
-  }
+  return { loading, error, data, execute }
 }

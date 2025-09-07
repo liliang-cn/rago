@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"time"
 )
 
@@ -34,14 +35,83 @@ type ModeConfig struct {
 type LLMConfig struct {
 	DefaultProvider string                    `toml:"default_provider"`
 	LoadBalancing   LoadBalancingConfig       `toml:"load_balancing"`
-	Providers       map[string]ProviderConfig `toml:"providers"`
+	Providers       ProvidersConfig           `toml:"providers"`
 	HealthCheck     HealthCheckConfig         `toml:"health_check"`
+}
+
+// ProvidersConfig supports both legacy (map) and new (array) configurations
+type ProvidersConfig struct {
+	// New array-based configuration
+	List []ProviderConfig `toml:"list"`
+	
+	// Legacy map-based configuration (for backward compatibility)
+	Legacy map[string]ProviderConfig `toml:"-"` // Skip TOML parsing for legacy
+}
+
+// GetProviders returns all providers from both legacy and new configurations
+func (p *ProvidersConfig) GetProviders() []ProviderConfig {
+	providers := make([]ProviderConfig, 0)
+	
+	// Add providers from array-based config
+	providers = append(providers, p.List...)
+	
+	// Add providers from legacy map-based config
+	for name, config := range p.Legacy {
+		// Set the name from the map key if not already set
+		if config.Name == "" {
+			config.Name = name
+		}
+		// Default enabled to true for legacy configs
+		if !config.Enabled {
+			config.Enabled = true
+		}
+		providers = append(providers, config)
+	}
+	
+	return providers
+}
+
+// GetProvider returns a specific provider by name
+func (p *ProvidersConfig) GetProvider(name string) (ProviderConfig, bool) {
+	// Check array-based config first
+	for _, provider := range p.List {
+		if provider.Name == name {
+			return provider, true
+		}
+	}
+	
+	// Check legacy map-based config
+	if provider, exists := p.Legacy[name]; exists {
+		if provider.Name == "" {
+			provider.Name = name
+		}
+		if !provider.Enabled {
+			provider.Enabled = true
+		}
+		return provider, true
+	}
+	
+	return ProviderConfig{}, false
+}
+
+// GetEnabledProviders returns only enabled providers
+func (p *ProvidersConfig) GetEnabledProviders() []ProviderConfig {
+	allProviders := p.GetProviders()
+	enabled := make([]ProviderConfig, 0)
+	
+	for _, provider := range allProviders {
+		if provider.Enabled {
+			enabled = append(enabled, provider)
+		}
+	}
+	
+	return enabled
 }
 
 // RAGConfig contains configuration for the RAG pillar
 type RAGConfig struct {
 	StorageBackend   string              `toml:"storage_backend"`
-	ChunkingStrategy ChunkingConfig      `toml:"chunking"`
+	ChunkingStrategy ChunkingConfig      `toml:"chunking_strategy"`
 	VectorStore      VectorStoreConfig   `toml:"vector_store"`
 	KeywordStore     KeywordStoreConfig  `toml:"keyword_store"`
 	Search           SearchConfig        `toml:"search"`
@@ -93,12 +163,14 @@ type HealthReport struct {
 
 // ProviderConfig defines configuration for LLM providers
 type ProviderConfig struct {
+	Name       string            `toml:"name"`        // Provider name for referencing
 	Type       string            `toml:"type"`        // "ollama", "openai", "lmstudio"
 	BaseURL    string            `toml:"base_url"`
 	APIKey     string            `toml:"api_key"`
 	Model      string            `toml:"model"`
 	Parameters map[string]interface{} `toml:"parameters"`
 	Weight     int               `toml:"weight"`      // for load balancing
+	Enabled    bool              `toml:"enabled"`     // Enable/disable provider
 	Timeout    time.Duration     `toml:"timeout"`
 }
 
@@ -175,6 +247,44 @@ type TokenUsage struct {
 	TotalTokens      int `json:"total_tokens"`
 }
 
+// StructuredResult represents the result of structured JSON generation
+type StructuredResult struct {
+	Data  interface{} `json:"data"`  // Parsed structured data
+	Raw   string      `json:"raw"`   // Raw JSON string
+	Valid bool        `json:"valid"` // Whether the response passed schema validation
+	Error string      `json:"error,omitempty"` // Validation error if any
+}
+
+// StructuredGenerationRequest for JSON-structured output
+type StructuredGenerationRequest struct {
+	GenerationRequest
+	Schema       interface{} `json:"schema"`                  // JSON schema or Go struct for validation
+	ForceJSON    bool        `json:"force_json,omitempty"`   // Force JSON mode if provider supports it
+	ExampleJSON  string      `json:"example_json,omitempty"` // Example of expected JSON output
+}
+
+// ExtractedMetadata holds structured data extracted from content
+type ExtractedMetadata struct {
+	Summary      string                 `json:"summary"`
+	Keywords     []string               `json:"keywords"`
+	Topics       []string               `json:"topics,omitempty"`
+	DocumentType string                 `json:"document_type"`
+	Language     string                 `json:"language,omitempty"`
+	Sentiment    string                 `json:"sentiment,omitempty"`
+	CreationDate string                 `json:"creation_date,omitempty"`
+	Entities     map[string][]string    `json:"entities,omitempty"` // Named entities by type
+	CustomFields map[string]interface{} `json:"custom_fields,omitempty"`
+}
+
+// MetadataExtractionRequest for extracting structured metadata
+type MetadataExtractionRequest struct {
+	Content      string                 `json:"content"`
+	Model        string                 `json:"model,omitempty"`
+	Fields       []string               `json:"fields,omitempty"` // Specific fields to extract
+	CustomSchema interface{}            `json:"custom_schema,omitempty"` // Custom extraction schema
+	Parameters   map[string]interface{} `json:"parameters,omitempty"`
+}
+
 // ===== RAG PILLAR TYPES =====
 
 // IngestRequest represents a document ingestion request
@@ -247,6 +357,39 @@ type SearchResult struct {
 	Score       float32                `json:"score"`
 	Metadata    map[string]interface{} `json:"metadata"`
 	Highlights  []string               `json:"highlights,omitempty"`
+}
+
+// QARequest represents a question-answering request using RAG
+type QARequest struct {
+	Question    string                 `json:"question"`
+	MaxSources  int                    `json:"max_sources,omitempty"`  // Maximum number of sources to retrieve (default: 5)
+	MinScore    float32                `json:"min_score,omitempty"`    // Minimum relevance score for sources
+	Model       string                 `json:"model,omitempty"`        // LLM model to use for answer generation
+	Temperature float32                `json:"temperature,omitempty"`  // Generation temperature
+	MaxTokens   int                    `json:"max_tokens,omitempty"`   // Maximum tokens in response
+	Stream      bool                   `json:"stream,omitempty"`       // Enable streaming response
+	Context     map[string]interface{} `json:"context,omitempty"`      // Additional context for answer generation
+}
+
+// QAResponse represents the response to a question-answering request
+type QAResponse struct {
+	Question     string         `json:"question"`
+	Answer       string         `json:"answer"`
+	Sources      []SearchResult `json:"sources"`      // Sources used to generate the answer
+	Confidence   float32        `json:"confidence"`   // Confidence score of the answer
+	Model        string         `json:"model"`        // Model used for generation
+	TokensUsed   int            `json:"tokens_used"`  // Number of tokens used in generation
+	Duration     time.Duration  `json:"duration"`     // Time taken to generate answer
+	SearchStats  SearchStats    `json:"search_stats"` // Statistics about the search process
+}
+
+// SearchStats provides statistics about the search phase of QA
+type SearchStats struct {
+	SourcesFound    int           `json:"sources_found"`    // Total sources found
+	SourcesUsed     int           `json:"sources_used"`     // Sources actually used in answer
+	SearchDuration  time.Duration `json:"search_duration"`  // Time spent searching
+	HighestScore    float32       `json:"highest_score"`    // Highest relevance score
+	AverageScore    float32       `json:"average_score"`    // Average relevance score of used sources
 }
 
 // Document represents a stored document
@@ -551,9 +694,13 @@ type TaskResponse struct {
 
 // LoadBalancingConfig defines load balancing settings
 type LoadBalancingConfig struct {
-	Strategy      string        `toml:"strategy"` // "round_robin", "weighted", "least_connections"
-	HealthCheck   bool          `toml:"health_check"`
-	CheckInterval time.Duration `toml:"check_interval"`
+	Strategy                string        `toml:"strategy"`                   // "round_robin", "weighted_round_robin", "least_latency", "priority"
+	MaxRetries              int           `toml:"max_retries"`               // Max retries before failing
+	RetryDelay              time.Duration `toml:"retry_delay"`               // Delay between retries
+	CircuitBreakerThreshold int           `toml:"circuit_breaker_threshold"` // Failures before marking provider down
+	CircuitBreakerTimeout   time.Duration `toml:"circuit_breaker_timeout"`   // Time before retrying failed provider
+	HealthCheck             bool          `toml:"health_check"`
+	CheckInterval           time.Duration `toml:"check_interval"`
 }
 
 // HealthCheckConfig defines health checking settings
@@ -667,3 +814,38 @@ type ReasoningChainsConfig struct {
 type RRFParams struct {
 	K float32 `json:"k"` // RRF parameter, typically 60
 }
+
+// ===== LLM INTERFACES =====
+
+// Generator interface defines LLM text generation capabilities
+type Generator interface {
+	// Generate creates text completion from a prompt
+	Generate(ctx context.Context, prompt string, opts *GenerationOptions) (*GenerationResponse, error)
+	
+	// GenerateStructured creates structured output by parsing JSON into the provided schema
+	GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *GenerationOptions) (*StructuredResult, error)
+	
+	// Chat creates a conversational response
+	Chat(ctx context.Context, messages []Message, opts *GenerationOptions) (*GenerationResponse, error)
+	
+	// IsHealthy checks if the generator is operational
+	IsHealthy() bool
+	
+	// GetModels returns available models
+	GetModels() []string
+}
+
+// GenerationOptions contains parameters for text generation
+type GenerationOptions struct {
+	Model           string                 `json:"model,omitempty"`
+	Temperature     float32                `json:"temperature,omitempty"`
+	MaxTokens       int                    `json:"max_tokens,omitempty"`
+	TopP            float32                `json:"top_p,omitempty"`
+	FrequencyPenalty float32               `json:"frequency_penalty,omitempty"`
+	PresencePenalty  float32               `json:"presence_penalty,omitempty"`
+	Stop            []string               `json:"stop,omitempty"`
+	Stream          bool                   `json:"stream,omitempty"`
+	Tools           []ToolCall             `json:"tools,omitempty"`
+	Parameters      map[string]interface{} `json:"parameters,omitempty"`
+}
+

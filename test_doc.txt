@@ -1,0 +1,1 @@
+SQLite is a powerful database engine that is lightweight and embedded. It supports SQL queries and can handle multiple databases in a single file. The database files typically have a .db or .sqlite extension.
