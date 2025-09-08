@@ -3,6 +3,7 @@ package rago
 import (
 	"fmt"
 
+	"github.com/liliang-cn/rago/v2/cmd/rago/mcp"
 	"github.com/liliang-cn/rago/v2/cmd/rago/rag"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/spf13/cobra"
@@ -39,8 +40,9 @@ supporting document ingestion, semantic search, and context-enhanced Q&A.`,
 			cfg.Sqvect.DBPath = dbPath
 		}
 
-		// Pass shared variables to rag package
+		// Pass shared variables to rag and mcp packages
 		rag.SetSharedVariables(cfg, verbose, quiet, version)
+		mcp.SetSharedVariables(cfg, verbose, quiet)
 		
 		return nil
 	},
@@ -80,6 +82,9 @@ func init() {
 	
 	// Add RAG parent command from rag package
 	RootCmd.AddCommand(rag.RagCmd)
+	
+	// Add MCP parent command from mcp package
+	RootCmd.AddCommand(mcp.MCPCmd)
 	
 	RootCmd.AddCommand(serveCmd)
 	RootCmd.AddCommand(llmCmd)

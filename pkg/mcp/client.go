@@ -204,7 +204,7 @@ func (m *Manager) StartServer(ctx context.Context, serverName string) (*Client, 
 
 	// Find server config
 	var serverConfig *ServerConfig
-	for _, config := range m.config.Servers {
+	for _, config := range m.config.LoadedServers {
 		if config.Name == serverName {
 			serverConfig = &config
 			break
