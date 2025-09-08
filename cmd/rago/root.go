@@ -3,6 +3,7 @@ package rago
 import (
 	"fmt"
 
+	"github.com/liliang-cn/rago/v2/cmd/rago/rag"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/spf13/cobra"
 )
@@ -38,6 +39,9 @@ supporting document ingestion, semantic search, and context-enhanced Q&A.`,
 			cfg.Sqvect.DBPath = dbPath
 		}
 
+		// Pass shared variables to rag package
+		rag.SetSharedVariables(cfg, verbose, quiet, version)
+		
 		return nil
 	},
 }
@@ -73,10 +77,10 @@ func init() {
 
 	RootCmd.AddCommand(versionCmd)
 	RootCmd.AddCommand(initCmd)
-	RootCmd.AddCommand(ingestCmd)
-	RootCmd.AddCommand(queryCmd)
-	RootCmd.AddCommand(listCmd)
-	RootCmd.AddCommand(resetCmd)
+	
+	// Add RAG parent command from rag package
+	RootCmd.AddCommand(rag.RagCmd)
+	
 	RootCmd.AddCommand(serveCmd)
 	RootCmd.AddCommand(llmCmd)
 	RootCmd.AddCommand(chatCmd)

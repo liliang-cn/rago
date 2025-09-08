@@ -4,7 +4,7 @@
 # Get the latest git tag (fallback to v0.0.0 if no tags)
 GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
 # Variable to hold the Go linker flags
-LDFLAGS := -ldflags="-X 'main.version=$(GIT_TAG)'"
+LDFLAGS := -ldflags="-X 'github.com/liliang-cn/rago/v2/cmd/rago.version=$(GIT_TAG)'"
 
 # Default target
 all: build
