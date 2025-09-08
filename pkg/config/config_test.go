@@ -31,17 +31,10 @@ func TestConfig_Validate(t *testing.T) {
 					BatchSize: 100,
 					TopK:      5,
 				},
-				Keyword: KeywordConfig{
-					IndexPath: "./data/keyword.bleve",
-				},
 				Chunker: ChunkerConfig{
 					ChunkSize: 300,
 					Overlap:   50,
 					Method:    "sentence",
-				},
-				RRF: RRFConfig{
-					K:                  10,
-					RelevanceThreshold: 0.05,
 				},
 				Tools: tools.DefaultToolConfig(),
 			},
@@ -68,10 +61,6 @@ func TestConfig_Validate(t *testing.T) {
 					Overlap:   50,
 					Method:    "sentence",
 				},
-				RRF: RRFConfig{
-					K:                  10,
-					RelevanceThreshold: 0.05,
-				},
 			},
 			wantErr: true,
 		},
@@ -95,10 +84,6 @@ func TestConfig_Validate(t *testing.T) {
 					ChunkSize: 300,
 					Overlap:   50,
 					Method:    "sentence",
-				},
-				RRF: RRFConfig{
-					K:                  10,
-					RelevanceThreshold: 0.05,
 				},
 			},
 			wantErr: true,
@@ -124,10 +109,6 @@ func TestConfig_Validate(t *testing.T) {
 					Overlap:   50,
 					Method:    "sentence",
 				},
-				RRF: RRFConfig{
-					K:                  10,
-					RelevanceThreshold: 0.05,
-				},
 			},
 			wantErr: true,
 		},
@@ -151,10 +132,6 @@ func TestConfig_Validate(t *testing.T) {
 					ChunkSize: 300,
 					Overlap:   50,
 					Method:    "invalid",
-				},
-				RRF: RRFConfig{
-					K:                  10,
-					RelevanceThreshold: 0.05,
 				},
 			},
 			wantErr: true,

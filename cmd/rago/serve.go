@@ -56,15 +56,6 @@ var serveCmd = &cobra.Command{
 			}
 		}()
 
-		keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
-		if err != nil {
-			return fmt.Errorf("failed to create keyword store: %w", err)
-		}
-		defer func() {
-			if err := keywordStore.Close(); err != nil {
-				fmt.Printf("Warning: failed to close keyword store: %v\n", err)
-			}
-		}()
 
 		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
@@ -82,7 +73,6 @@ var serveCmd = &cobra.Command{
 			llmService,
 			chunkerService,
 			vectorStore,
-			keywordStore,
 			docStore,
 			cfg,
 			metadataExtractor,
