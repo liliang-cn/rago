@@ -36,17 +36,10 @@ func TestProviderConfigValidation(t *testing.T) {
 				BatchSize: 100,
 				TopK:      5,
 			},
-			Keyword: KeywordConfig{
-				IndexPath: "./test.bleve",
-			},
 			Chunker: ChunkerConfig{
 				ChunkSize: 300,
 				Overlap:   50,
 				Method:    "sentence",
-			},
-			RRF: RRFConfig{
-				K:                  10,
-				RelevanceThreshold: 0.05,
 			},
 			Tools: tools.ToolConfig{
 				Enabled:       false,
@@ -88,17 +81,10 @@ func TestProviderConfigValidation(t *testing.T) {
 				BatchSize: 100,
 				TopK:      5,
 			},
-			Keyword: KeywordConfig{
-				IndexPath: "./test.bleve",
-			},
 			Chunker: ChunkerConfig{
 				ChunkSize: 300,
 				Overlap:   50,
 				Method:    "sentence",
-			},
-			RRF: RRFConfig{
-				K:                  10,
-				RelevanceThreshold: 0.05,
 			},
 			Tools: tools.ToolConfig{
 				Enabled:       false,
@@ -131,17 +117,10 @@ func TestProviderConfigValidation(t *testing.T) {
 				BatchSize: 100,
 				TopK:      5,
 			},
-			Keyword: KeywordConfig{
-				IndexPath: "./test.bleve",
-			},
 			Chunker: ChunkerConfig{
 				ChunkSize: 300,
 				Overlap:   50,
 				Method:    "sentence",
-			},
-			RRF: RRFConfig{
-				K:                  10,
-				RelevanceThreshold: 0.05,
 			},
 			Tools: tools.ToolConfig{
 				Enabled:       false,

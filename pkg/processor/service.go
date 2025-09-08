@@ -6,9 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	pdf "github.com/dslipak/pdf"
@@ -25,7 +23,6 @@ type Service struct {
 	generator       domain.Generator
 	chunker         domain.Chunker
 	vectorStore     domain.VectorStore
-	keywordStore    domain.KeywordStore
 	documentStore   domain.DocumentStore
 	config          *config.Config
 	llmService      domain.MetadataExtractor
@@ -40,7 +37,6 @@ func New(
 	generator domain.Generator,
 	chunker domain.Chunker,
 	vectorStore domain.VectorStore,
-	keywordStore domain.KeywordStore,
 	documentStore domain.DocumentStore,
 	config *config.Config,
 	llmService domain.MetadataExtractor,
@@ -50,7 +46,6 @@ func New(
 		generator:     generator,
 		chunker:       chunker,
 		vectorStore:   vectorStore,
-		keywordStore:  keywordStore,
 		documentStore: documentStore,
 		config:        config,
 		llmService:    llmService,
@@ -169,10 +164,6 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 		}
 		chunks = append(chunks, chunk)
 
-		// Index the chunk in the keyword store as well.
-		if err := s.keywordStore.Index(ctx, chunk); err != nil {
-			return domain.IngestResponse{}, fmt.Errorf("failed to index chunk %d in keyword store: %w", i, err)
-		}
 	}
 
 	if err := s.vectorStore.Store(ctx, chunks); err != nil {
@@ -568,88 +559,26 @@ func (s *Service) hybridSearch(ctx context.Context, req domain.QueryRequest) ([]
 		req.TopK = 5
 	}
 
-	var wg sync.WaitGroup
-	var vectorErr, keywordErr error
-	var vectorChunks, keywordChunks []domain.Chunk
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		queryVector, err := s.embedder.Embed(ctx, req.Query)
-		if err != nil {
-			vectorErr = fmt.Errorf("failed to generate query embedding: %w", err)
-			return
-		}
-
-		if len(req.Filters) > 0 {
-			vectorChunks, vectorErr = s.vectorStore.SearchWithFilters(ctx, queryVector, req.TopK, req.Filters)
-		} else {
-			vectorChunks, vectorErr = s.vectorStore.Search(ctx, queryVector, req.TopK)
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		keywordChunks, keywordErr = s.keywordStore.Search(ctx, req.Query, req.TopK)
-	}()
-
-	wg.Wait()
-
-	if vectorErr != nil {
-		log.Printf("Warning: vector search failed: %v", vectorErr)
-		// Do not return error, proceed with keyword results if available
-	}
-	if keywordErr != nil {
-		log.Printf("Warning: keyword search failed: %v", keywordErr)
-		// Do not return error, proceed with vector results if available
+	// Simple vector search only
+	queryVector, err := s.embedder.Embed(ctx, req.Query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
 	}
 
-	fusedChunks := s.fuseResults(vectorChunks, keywordChunks)
+	var chunks []domain.Chunk
+	if len(req.Filters) > 0 {
+		chunks, err = s.vectorStore.SearchWithFilters(ctx, queryVector, req.TopK, req.Filters)
+	} else {
+		chunks, err = s.vectorStore.Search(ctx, queryVector, req.TopK)
+	}
 
-	return s.deduplicateChunks(fusedChunks), nil
+	if err != nil {
+		return nil, fmt.Errorf("failed to search vectors: %w", err)
+	}
+
+	return s.deduplicateChunks(chunks), nil
 }
 
-// fuseResults combines and re-ranks search results using Reciprocal Rank Fusion (RRF).
-func (s *Service) fuseResults(listA, listB []domain.Chunk) []domain.Chunk {
-	k := s.config.RRF.K // Use configurable RRF constant
-
-	scores := make(map[string]float64)
-	chunksMap := make(map[string]domain.Chunk)
-
-	// Process first list
-	for i, chunk := range listA {
-		rank := i + 1
-		scores[chunk.ID] += 1.0 / float64(k+rank)
-		if _, exists := chunksMap[chunk.ID]; !exists {
-			chunksMap[chunk.ID] = chunk
-		}
-	}
-
-	// Process second list
-	for i, chunk := range listB {
-		rank := i + 1
-		scores[chunk.ID] += 1.0 / float64(k+rank)
-		if _, exists := chunksMap[chunk.ID]; !exists {
-			chunksMap[chunk.ID] = chunk
-		}
-	}
-
-	// Create a slice of unique chunks
-	var fused []domain.Chunk
-	for id := range chunksMap {
-		chunk := chunksMap[id]
-		chunk.Score = scores[id] // Assign the fused RRF score
-		fused = append(fused, chunk)
-	}
-
-	// Sort by the new RRF score in descending order
-	sort.Slice(fused, func(i, j int) bool {
-		return fused[i].Score > fused[j].Score
-	})
-
-	return fused
-}
 
 func (s *Service) ListDocuments(ctx context.Context) ([]domain.Document, error) {
 	return s.documentStore.List(ctx)
@@ -664,9 +593,6 @@ func (s *Service) DeleteDocument(ctx context.Context, documentID string) error {
 		return fmt.Errorf("failed to delete from vector store: %w", err)
 	}
 
-	if err := s.keywordStore.Delete(ctx, documentID); err != nil {
-		return fmt.Errorf("failed to delete from keyword store: %w", err)
-	}
 
 	if err := s.documentStore.Delete(ctx, documentID); err != nil {
 		return fmt.Errorf("failed to delete from document store: %w", err)
@@ -680,9 +606,6 @@ func (s *Service) Reset(ctx context.Context) error {
 		return fmt.Errorf("failed to reset vector store: %w", err)
 	}
 
-	if err := s.keywordStore.Reset(ctx); err != nil {
-		return fmt.Errorf("failed to reset keyword store: %w", err)
-	}
 
 	return nil
 }
