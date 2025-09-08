@@ -135,8 +135,13 @@ func (tm *MCPToolManager) Start(ctx context.Context) error {
 		return fmt.Errorf("MCP is disabled in configuration")
 	}
 
+	// Load server configurations from JSON files
+	if err := tm.manager.config.LoadServersFromJSON(); err != nil {
+		return fmt.Errorf("failed to load server configurations: %w", err)
+	}
+	
 	// Start auto-start servers
-	for _, serverConfig := range tm.manager.config.Servers {
+	for _, serverConfig := range tm.manager.config.LoadedServers {
 		if serverConfig.AutoStart {
 			if err := tm.StartServer(ctx, serverConfig.Name); err != nil {
 				return fmt.Errorf("failed to start server %s: %w", serverConfig.Name, err)
@@ -162,6 +167,35 @@ func (tm *MCPToolManager) StartServer(ctx context.Context, serverName string) er
 	}
 
 	return nil
+}
+
+// StartWithFailures initializes MCP servers, continuing even if some fail
+func (tm *MCPToolManager) StartWithFailures(ctx context.Context) ([]string, []string) {
+	var succeeded []string
+	var failed []string
+	
+	if !tm.manager.config.Enabled {
+		return succeeded, failed
+	}
+	
+	// Load server configurations from JSON files
+	if err := tm.manager.config.LoadServersFromJSON(); err != nil {
+		// If we can't load configs, all servers are considered failed
+		return succeeded, failed
+	}
+	
+	// Start auto-start servers
+	for _, serverConfig := range tm.manager.config.LoadedServers {
+		if serverConfig.AutoStart {
+			if err := tm.StartServer(ctx, serverConfig.Name); err != nil {
+				failed = append(failed, serverConfig.Name)
+			} else {
+				succeeded = append(succeeded, serverConfig.Name)
+			}
+		}
+	}
+	
+	return succeeded, failed
 }
 
 // StopServer stops a specific MCP server and removes its tools
@@ -241,7 +275,7 @@ func (tm *MCPToolManager) GetServerStatus() map[string]bool {
 	}
 
 	// Also check configured servers that might not be running
-	for _, serverConfig := range tm.manager.config.Servers {
+	for _, serverConfig := range tm.manager.config.LoadedServers {
 		if _, exists := status[serverConfig.Name]; !exists {
 			status[serverConfig.Name] = false
 		}

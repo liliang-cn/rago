@@ -2,7 +2,7 @@
   "mcpServers": {
     "sqlite": {
       "command": "mcp-sqlite-server",
-      "args": ["./"],
+      "args": ["./", "./.rago/data/"],
       "description": "SQLite database operations with vector search support"
     },
     "filesystem": {

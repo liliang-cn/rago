@@ -32,8 +32,9 @@ type Config struct {
 	DefaultTimeout        time.Duration  `toml:"default_timeout" json:"default_timeout" mapstructure:"default_timeout"`
 	MaxConcurrentRequests int            `toml:"max_concurrent_requests" json:"max_concurrent_requests" mapstructure:"max_concurrent_requests"`
 	HealthCheckInterval   time.Duration  `toml:"health_check_interval" json:"health_check_interval" mapstructure:"health_check_interval"`
-	ServersConfigPath     string         `toml:"servers_config_path" json:"servers_config_path" mapstructure:"servers_config_path"` // Path to external JSON config
-	Servers               []ServerConfig `toml:"servers" json:"servers" mapstructure:"servers"`
+	Servers               []string       `toml:"servers" json:"servers" mapstructure:"servers"` // Array of server config file paths
+	ServersConfigPath     string         `toml:"servers_config_path" json:"servers_config_path" mapstructure:"servers_config_path"` // Deprecated: use Servers instead
+	LoadedServers         []ServerConfig `toml:"-" json:"-" mapstructure:"-"` // Internal: loaded server configurations
 }
 
 // DefaultConfig returns default MCP configuration
@@ -44,8 +45,9 @@ func DefaultConfig() Config {
 		DefaultTimeout:        30 * time.Second,
 		MaxConcurrentRequests: 10,
 		HealthCheckInterval:   60 * time.Second,
-		ServersConfigPath:     "", // Empty by default, can be set to "./mcpServers.json" or similar
-		Servers:               []ServerConfig{},
+		Servers:               []string{"./mcpServers.json"}, // Default to mcpServers.json in current directory
+		ServersConfigPath:     "", // Deprecated
+		LoadedServers:         []ServerConfig{},
 	}
 }
 
@@ -62,14 +64,32 @@ type JSONServersConfig struct {
 	MCPServers map[string]SimpleServerConfig `json:"mcpServers"`
 }
 
-// LoadServersFromJSON loads MCP server configurations from a JSON file
+// LoadServersFromJSON loads MCP server configurations from JSON files
 func (c *Config) LoadServersFromJSON() error {
-	if c.ServersConfigPath == "" {
-		return nil // No external config specified
+	// Clear loaded servers
+	c.LoadedServers = []ServerConfig{}
+	
+	// Load from new Servers array
+	for _, serverFile := range c.Servers {
+		if err := c.loadServerFile(serverFile); err != nil {
+			return fmt.Errorf("failed to load server file %s: %w", serverFile, err)
+		}
 	}
+	
+	// Backward compatibility: also load from ServersConfigPath if set
+	if c.ServersConfigPath != "" {
+		if err := c.loadServerFile(c.ServersConfigPath); err != nil {
+			return fmt.Errorf("failed to load server file %s: %w", c.ServersConfigPath, err)
+		}
+	}
+	
+	return nil
+}
 
+// loadServerFile loads a single server configuration file
+func (c *Config) loadServerFile(serverFile string) error {
 	// Resolve path - check current directory first, then ~/.rago/
-	configPath := c.ServersConfigPath
+	configPath := serverFile
 	if !filepath.IsAbs(configPath) {
 		// Try current directory first
 		if _, err := os.Stat(configPath); err != nil {
@@ -112,8 +132,8 @@ func (c *Config) LoadServersFromJSON() error {
 			Capabilities:     []string{}, // Will be discovered at runtime
 		}
 
-		// Add to servers list
-		c.Servers = append(c.Servers, serverConfig)
+		// Add to loaded servers list
+		c.LoadedServers = append(c.LoadedServers, serverConfig)
 	}
 
 	return nil
