@@ -174,7 +174,7 @@ func promptForProvider() (string, error) {
 	fmt.Println("   Config files are only needed for:")
 	fmt.Println("   • Using providers other than Ollama")
 	fmt.Println("   • Changing default models")
-	fmt.Println("   • Enabling advanced features\n")
+	fmt.Println("   • Enabling advanced features")
 	fmt.Println("📝 Create config for provider (optional):")
 	fmt.Println("  1) Skip - Use defaults (recommended)")
 	fmt.Println("  2) OpenAI - Cloud API")
@@ -206,10 +206,16 @@ func generateOllamaConfig(enableMCP bool) (string, error) {
 # 🚀 Quick Start: RAGO works without ANY configuration!
 # Just run: rago status
 
-# Uncomment only if you need different models:
+# Default configuration (already built-in, uncomment to override):
+# [providers]
+# default_llm = "ollama"
+# default_embedder = "ollama"
+
 # [providers.ollama]
+# base_url = "http://localhost:11434"
 # llm_model = "qwen3"              # or llama3, mistral, etc.
 # embedding_model = "nomic-embed-text"  # or mxbai-embed-large
+# timeout = "30s"
 `
 
 	if enableMCP {
@@ -237,10 +243,15 @@ func generateOpenAIConfig(enableMCP bool) (string, error) {
 	config := fmt.Sprintf(`# RAGO - Minimal Configuration (OpenAI)
 # Get started with just 3 lines!
 
+[providers]
+default_llm = "openai"
+default_embedder = "openai"
+
 [providers.openai]
 api_key = "%s"
 llm_model = "gpt-4o-mini"
 embedding_model = "text-embedding-3-small"
+timeout = "60s"
 `, apiKey)
 
 	if enableMCP {
@@ -266,7 +277,7 @@ func generateLMStudioConfig(enableMCP bool) (string, error) {
 		baseURL = "http://localhost:1234"
 	}
 
-	fmt.Print("Enter LLM model name (as shown in LM Studio): ")
+	fmt.Print("Enter LLM model name (e.g., 'qwen/qwen3-4b-2507'): ")
 	llmModel, _ := reader.ReadString('\n')
 	llmModel = strings.TrimSpace(llmModel)
 
@@ -274,7 +285,7 @@ func generateLMStudioConfig(enableMCP bool) (string, error) {
 		return "", fmt.Errorf("LLM model name is required")
 	}
 
-	fmt.Print("Enter embedding model name (as shown in LM Studio): ")
+	fmt.Print("Enter embedding model name (e.g., 'text-embedding-qwen3-embedding-4b'): ")
 	embeddingModel, _ := reader.ReadString('\n')
 	embeddingModel = strings.TrimSpace(embeddingModel)
 
@@ -285,10 +296,15 @@ func generateLMStudioConfig(enableMCP bool) (string, error) {
 	config := fmt.Sprintf(`# RAGO - Minimal Configuration (LM Studio)
 # Get started with just 3 lines!
 
+[providers]
+default_llm = "lmstudio"
+default_embedder = "lmstudio"
+
 [providers.lmstudio]
 base_url = "%s"
 llm_model = "%s"
 embedding_model = "%s"
+timeout = "120s"
 `, baseURL, llmModel, embeddingModel)
 
 	if enableMCP {
@@ -460,7 +476,7 @@ func generateCustomConfig(enableMCP bool) (string, error) {
 	fmt.Print("API Key (press Enter if not required): ")
 	apiKey, _ := reader.ReadString('\n')
 	apiKey = strings.TrimSpace(apiKey)
-	
+
 	// Show note about API key requirement
 	if apiKey == "" {
 		fmt.Println("   ℹ️  Note: Using placeholder API key for compatibility")
@@ -482,7 +498,7 @@ func generateCustomConfig(enableMCP bool) (string, error) {
 
 	// For custom providers, we always need an API key (even if placeholder)
 	if apiKey == "" {
-		apiKey = "not-needed"  // Placeholder for servers that don't require auth
+		apiKey = "not-needed" // Placeholder for servers that don't require auth
 	}
 
 	config := fmt.Sprintf(`# RAGO - Minimal Configuration

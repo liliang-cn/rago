@@ -139,9 +139,9 @@ func Load(configPath string) (*Config, error) {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			// Check if it's any kind of "file not found" error
 			errStr := err.Error()
-			if !strings.Contains(errStr, "no such file") && 
-			   !strings.Contains(errStr, "cannot find the file") &&
-			   !strings.Contains(errStr, "not found") {
+			if !strings.Contains(errStr, "no such file") &&
+				!strings.Contains(errStr, "cannot find the file") &&
+				!strings.Contains(errStr, "not found") {
 				return nil, fmt.Errorf("failed to read config file: %w", err)
 			}
 		}
