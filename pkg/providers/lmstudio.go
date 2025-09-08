@@ -106,6 +106,7 @@ func (p *LMStudioLLMProvider) GenerateWithTools(ctx context.Context, messages []
 		toolsReq := &lmstudio.ChatRequestWithTools{
 			ChatRequest: *req,
 			Tools:       lmTools,
+			ToolChoice:  lmstudio.ToolChoiceAuto,
 		}
 
 		resp, err := p.client.Chat.CompleteWithTools(ctx, toolsReq)
@@ -244,6 +245,7 @@ func (p *LMStudioLLMProvider) StreamWithTools(ctx context.Context, messages []do
 		toolsReq := &lmstudio.ChatRequestWithTools{
 			ChatRequest: *req,
 			Tools:       lmTools,
+			ToolChoice:  lmstudio.ToolChoiceAuto,
 		}
 
 		resp, err := p.client.Chat.CompleteWithTools(ctx, toolsReq)

@@ -96,6 +96,12 @@ func (api *MCPLibraryAPI) Start(ctx context.Context) error {
 	return api.service.Initialize(ctx)
 }
 
+// StartWithFailures initializes the MCP service, continuing even if some servers fail
+// Returns lists of succeeded and failed server names
+func (api *MCPLibraryAPI) StartWithFailures(ctx context.Context) ([]string, []string) {
+	return api.service.toolManager.StartWithFailures(ctx)
+}
+
 // CallTool is a convenience method for calling MCP tools
 func (api *MCPLibraryAPI) CallTool(ctx context.Context, toolName string, args map[string]interface{}) (*MCPToolResult, error) {
 	return api.service.CallTool(ctx, toolName, args)

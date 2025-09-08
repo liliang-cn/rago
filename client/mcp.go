@@ -16,6 +16,50 @@ type MCPClient struct {
 	enabled bool
 }
 
+// IsInitialized returns whether the MCP client is initialized and enabled
+func (m *MCPClient) IsInitialized() bool {
+	return m != nil && m.enabled && m.api != nil
+}
+
+// GetToolDefinitions returns tool definitions in domain format for LLM
+func (m *MCPClient) GetToolDefinitions() []domain.ToolDefinition {
+	if !m.IsInitialized() {
+		return nil
+	}
+	
+	llmTools := m.api.GetToolsForLLMIntegration()
+	var toolDefs []domain.ToolDefinition
+	
+	for _, tool := range llmTools {
+		if funcMap, ok := tool["function"].(map[string]interface{}); ok {
+			name, _ := funcMap["name"].(string)
+			desc, _ := funcMap["description"].(string)
+			params, _ := funcMap["parameters"].(map[string]interface{})
+			
+			toolDef := domain.ToolDefinition{
+				Type: "function",
+				Function: domain.ToolFunction{
+					Name:        name,
+					Description: desc,
+					Parameters:  params,
+				},
+			}
+			toolDefs = append(toolDefs, toolDef)
+		}
+	}
+	
+	return toolDefs
+}
+
+// CallTool calls an MCP tool with the specified arguments
+func (m *MCPClient) CallTool(ctx context.Context, toolName string, args map[string]interface{}) (*mcp.MCPToolResult, error) {
+	if !m.IsInitialized() {
+		return nil, fmt.Errorf("MCP client not initialized")
+	}
+	
+	return m.api.CallTool(ctx, toolName, args)
+}
+
 // EnableMCP enables MCP functionality for the rago client
 func (c *Client) EnableMCP(ctx context.Context) error {
 	if !c.config.MCP.Enabled {
@@ -27,8 +71,16 @@ func (c *Client) EnableMCP(ctx context.Context) error {
 	}
 
 	api := mcp.NewMCPLibraryAPI(&c.config.MCP)
-	if err := api.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start MCP service: %w", err)
+	
+	// Use StartWithFailures for better resilience
+	succeeded, failed := api.StartWithFailures(ctx)
+	
+	if len(failed) > 0 {
+		fmt.Printf("⚠️  Warning: Failed to start %d MCP server(s): %v\n", len(failed), failed)
+	}
+	
+	if len(succeeded) == 0 {
+		return fmt.Errorf("no MCP servers could be started")
 	}
 
 	c.mcpClient = &MCPClient{
