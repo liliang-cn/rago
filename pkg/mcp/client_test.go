@@ -65,7 +65,8 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, 30*time.Second, config.DefaultTimeout)
 	assert.Equal(t, 10, config.MaxConcurrentRequests)
 	assert.Equal(t, 60*time.Second, config.HealthCheckInterval)
-	assert.Empty(t, config.Servers)
+	assert.Equal(t, []string{"./mcpServers.json"}, config.Servers)
+	assert.Empty(t, config.LoadedServers)
 }
 
 func TestNewManager(t *testing.T) {
@@ -102,7 +103,7 @@ func TestManager_GetClient_NotFound(t *testing.T) {
 func TestManager_StartServer_ConfigNotFound(t *testing.T) {
 	config := &Config{
 		Enabled: true,
-		Servers: []ServerConfig{
+		LoadedServers: []ServerConfig{
 			{
 				Name:    "existing-server",
 				Command: []string{"echo"},
