@@ -14,14 +14,13 @@ import (
 
 // Client represents the main rago client
 type Client struct {
-	config       *config.Config
-	processor    *processor.Service
-	vectorStore  *store.SQLiteStore
-	keywordStore *store.KeywordStore
-	embedder     domain.Embedder
-	llm          domain.Generator
-	mcpClient    *MCPClient  // MCP functionality
-	taskClient   *TaskClient // Task scheduling functionality
+	config      *config.Config
+	processor   *processor.Service
+	vectorStore *store.SQLiteStore
+	embedder    domain.Embedder
+	llm         domain.Generator
+	mcpClient   *MCPClient  // MCP functionality
+	taskClient  *TaskClient // Task scheduling functionality
 }
 
 // New creates a new rago client with the specified config file path
@@ -43,13 +42,6 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 		return nil, fmt.Errorf("failed to create vector store: %w", err)
 	}
 
-	keywordStore, err := store.NewKeywordStore(cfg.Keyword.IndexPath)
-	if err != nil {
-		if err := vectorStore.Close(); err != nil {
-			fmt.Printf("Warning: failed to close vector store during cleanup: %v\n", err)
-		}
-		return nil, fmt.Errorf("failed to create keyword store: %w", err)
-	}
 
 	docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
@@ -59,9 +51,6 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 	if err != nil {
 		if err := vectorStore.Close(); err != nil {
 			fmt.Printf("Warning: failed to close vector store during cleanup: %v\n", err)
-		}
-		if err := keywordStore.Close(); err != nil {
-			fmt.Printf("Warning: failed to close keyword store during cleanup: %v\n", err)
 		}
 		return nil, fmt.Errorf("failed to initialize providers: %w", err)
 	}
@@ -73,19 +62,17 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 		llmService,
 		chunkerService,
 		vectorStore,
-		keywordStore,
 		docStore,
 		cfg,
 		metadataExtractor,
 	)
 
 	return &Client{
-		config:       cfg,
-		processor:    processor,
-		vectorStore:  vectorStore,
-		keywordStore: keywordStore,
-		embedder:     embedService,
-		llm:          llmService,
+		config:      cfg,
+		processor:   processor,
+		vectorStore: vectorStore,
+		embedder:    embedService,
+		llm:         llmService,
 	}, nil
 }
 
@@ -99,11 +86,6 @@ func (c *Client) Close() error {
 		}
 	}
 
-	if c.keywordStore != nil {
-		if err := c.keywordStore.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close keyword store: %w", err))
-		}
-	}
 
 	if len(errs) > 0 {
 		return fmt.Errorf("errors closing client: %v", errs)
