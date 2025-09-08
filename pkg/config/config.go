@@ -740,43 +740,16 @@ func (c *Config) validateMCPConfig() error {
 		return fmt.Errorf("invalid log_level: %s (must be debug, info, warn, or error)", c.MCP.LogLevel)
 	}
 
-	// Validate server configurations
-	for i, server := range c.MCP.Servers {
-		if err := c.validateMCPServerConfig(&server, i); err != nil {
-			return fmt.Errorf("invalid MCP server config at index %d: %w", i, err)
+	// Validate server file paths
+	for i, serverFile := range c.MCP.Servers {
+		if serverFile == "" {
+			return fmt.Errorf("empty server config file path at index %d", i)
 		}
 	}
 
 	return nil
 }
 
-// validateMCPServerConfig validates individual MCP server configuration
-func (c *Config) validateMCPServerConfig(server *mcp.ServerConfig, index int) error {
-	if server.Name == "" {
-		return fmt.Errorf("server name cannot be empty")
-	}
-
-	if len(server.Command) == 0 {
-		return fmt.Errorf("server command cannot be empty")
-	}
-
-	if server.MaxRestarts < 0 {
-		return fmt.Errorf("max_restarts must be non-negative: %d", server.MaxRestarts)
-	}
-
-	if server.RestartDelay < 0 {
-		return fmt.Errorf("restart_delay must be non-negative: %v", server.RestartDelay)
-	}
-
-	// Check for duplicate server names
-	for j, other := range c.MCP.Servers {
-		if j != index && other.Name == server.Name {
-			return fmt.Errorf("duplicate server name: %s", server.Name)
-		}
-	}
-
-	return nil
-}
 
 // validateRRFConfig validates RRF configuration
 func (c *Config) validateRRFConfig() error {

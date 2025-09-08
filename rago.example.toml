@@ -98,12 +98,15 @@ embedding_model = "nomic-embed-text"  # Change to your embedder
 
 # [mcp]
 # enabled = true                # Enable MCP servers
+# servers = ["./mcpServers.json"]  # Array of MCP server config files
+#                               # Can specify multiple files:
+#                               # servers = ["./mcpServers.json", "/tmp/custom-mcp.json"]
 # log_level = "info"           # Logging: "debug", "info", "warn", "error"
 # default_timeout = "30s"      # Request timeout
 # max_concurrent_requests = 10 # Parallel request limit
 # health_check_interval = "60s" # Server health monitoring
 
-# MCP servers are configured via mcpServers.json file.
+# MCP servers are configured via JSON files listed in the servers array.
 # Example mcpServers.json:
 # {
 #   "mcpServers": {

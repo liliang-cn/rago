@@ -54,6 +54,7 @@ func NewSimpleClient() (*SimpleClient, error) {
 
 // ensureDefaultServers ensures default MCP servers are configured
 func ensureDefaultServers(cfg *config.Config) {
+	// Default server configurations that would be in mcpServers.json
 	defaultServers := []mcp.ServerConfig{
 		{
 			Name:        "filesystem",
@@ -81,19 +82,28 @@ func ensureDefaultServers(cfg *config.Config) {
 		},
 	}
 
-	if cfg.MCP.Servers == nil {
-		cfg.MCP.Servers = defaultServers
+	// Since Servers is now []string (file paths), we need to handle this differently
+	// If no server files are configured, we'll add the default servers directly to LoadedServers
+	if cfg.MCP.Servers == nil || len(cfg.MCP.Servers) == 0 {
+		// No server configuration files specified, use defaults
+		cfg.MCP.LoadedServers = defaultServers
 	} else {
-		// Add missing servers
-		existing := make(map[string]bool)
-		for _, s := range cfg.MCP.Servers {
-			existing[s.Name] = true
-		}
-
-		for _, s := range defaultServers {
-			if !existing[s.Name] {
-				cfg.MCP.Servers = append(cfg.MCP.Servers, s)
+		// Load servers from JSON files first
+		if err := cfg.MCP.LoadServersFromJSON(); err == nil {
+			// Add missing default servers to LoadedServers
+			existing := make(map[string]bool)
+			for _, s := range cfg.MCP.LoadedServers {
+				existing[s.Name] = true
 			}
+
+			for _, s := range defaultServers {
+				if !existing[s.Name] {
+					cfg.MCP.LoadedServers = append(cfg.MCP.LoadedServers, s)
+				}
+			}
+		} else {
+			// If loading fails, use defaults
+			cfg.MCP.LoadedServers = defaultServers
 		}
 	}
 }
