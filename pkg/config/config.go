@@ -19,12 +19,10 @@ type Config struct {
 	Server    ServerConfig     `mapstructure:"server"`
 	Providers ProvidersConfig  `mapstructure:"providers"`
 	Sqvect    SqvectConfig     `mapstructure:"sqvect"`
-	Keyword   KeywordConfig    `mapstructure:"keyword"`
 	Chunker   ChunkerConfig    `mapstructure:"chunker"`
 	Ingest    IngestConfig     `mapstructure:"ingest"`
 	Tools     tools.ToolConfig `mapstructure:"tools"`
 	MCP       mcp.Config       `mapstructure:"mcp"`
-	RRF       RRFConfig        `mapstructure:"rrf"`
 
 	// Deprecated: Use Providers instead
 	Ollama OllamaConfig `mapstructure:"ollama"`
@@ -70,19 +68,10 @@ type SqvectConfig struct {
 	Threshold float64 `mapstructure:"threshold"`
 }
 
-type KeywordConfig struct {
-	IndexPath string `mapstructure:"index_path"`
-}
-
 type ChunkerConfig struct {
 	ChunkSize int    `mapstructure:"chunk_size"`
 	Overlap   int    `mapstructure:"overlap"`
 	Method    string `mapstructure:"method"`
-}
-
-type RRFConfig struct {
-	K                  int     `mapstructure:"k"`                   // RRF constant (default: 10)
-	RelevanceThreshold float64 `mapstructure:"relevance_threshold"` // Threshold for considering context relevant (default: 0.05)
 }
 
 func Load(configPath string) (*Config, error) {
@@ -214,13 +203,12 @@ func setDefaults() {
 	viper.SetDefault("ollama.base_url", "http://localhost:11434")
 	viper.SetDefault("ollama.timeout", "30s")
 
-	viper.SetDefault("sqvect.db_path", "~/.rago/rag.db")
+	viper.SetDefault("sqvect.db_path", "~/.rago/data/rag.db")
 	viper.SetDefault("sqvect.max_conns", 10)
 	viper.SetDefault("sqvect.batch_size", 100)
 	viper.SetDefault("sqvect.top_k", 5)
 	viper.SetDefault("sqvect.threshold", 0.0)
 
-	viper.SetDefault("keyword.index_path", "~/.rago/keyword.bleve")
 
 	viper.SetDefault("rrf.k", 10)
 	viper.SetDefault("rrf.relevance_threshold", 0.05)
@@ -353,16 +341,7 @@ func bindEnvVars() {
 		log.Printf("Warning: failed to bind sqvect.threshold env var: %v", err)
 	}
 
-	if err := viper.BindEnv("keyword.index_path", "RAGO_KEYWORD_INDEX_PATH"); err != nil {
-		log.Printf("Warning: failed to bind keyword.index_path env var: %v", err)
-	}
 
-	if err := viper.BindEnv("rrf.k", "RAGO_RRF_K"); err != nil {
-		log.Printf("Warning: failed to bind rrf.k env var: %v", err)
-	}
-	if err := viper.BindEnv("rrf.relevance_threshold", "RAGO_RRF_RELEVANCE_THRESHOLD"); err != nil {
-		log.Printf("Warning: failed to bind rrf.relevance_threshold env var: %v", err)
-	}
 
 	if err := viper.BindEnv("chunker.chunk_size", "RAGO_CHUNKER_CHUNK_SIZE"); err != nil {
 		log.Printf("Warning: failed to bind chunker.chunk_size env var: %v", err)
@@ -452,9 +431,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("database path cannot be empty")
 	}
 
-	if c.Keyword.IndexPath == "" {
-		return fmt.Errorf("keyword index path cannot be empty")
-	}
 
 	if c.Sqvect.TopK <= 0 {
 		return fmt.Errorf("topK must be positive: %d", c.Sqvect.TopK)
@@ -491,10 +467,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid MCP configuration: %w", err)
 	}
 
-	// Validate RRF configuration
-	if err := c.validateRRFConfig(); err != nil {
-		return fmt.Errorf("invalid RRF configuration: %w", err)
-	}
 
 	return nil
 }
@@ -751,31 +723,13 @@ func (c *Config) validateMCPConfig() error {
 }
 
 
-// validateRRFConfig validates RRF configuration
-func (c *Config) validateRRFConfig() error {
-	if c.RRF.K <= 0 {
-		return fmt.Errorf("RRF k value must be positive: %d", c.RRF.K)
-	}
-
-	if c.RRF.RelevanceThreshold < 0 {
-		return fmt.Errorf("relevance threshold must be non-negative: %f", c.RRF.RelevanceThreshold)
-	}
-
-	if c.RRF.RelevanceThreshold > 1.0 {
-		return fmt.Errorf("relevance threshold must be <= 1.0: %f", c.RRF.RelevanceThreshold)
-	}
-
-	return nil
-}
 
 // expandPaths expands ~ to home directory in file paths
 func (c *Config) expandPaths() {
 	c.Sqvect.DBPath = expandHomePath(c.Sqvect.DBPath)
-	c.Keyword.IndexPath = expandHomePath(c.Keyword.IndexPath)
 
 	// Ensure directories exist for default paths
 	ensureParentDir(c.Sqvect.DBPath)
-	ensureParentDir(c.Keyword.IndexPath)
 }
 
 // expandHomePath expands ~ to home directory
