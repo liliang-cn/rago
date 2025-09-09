@@ -15,6 +15,7 @@ import (
 	"github.com/liliang-cn/rago/v2/api/handlers"
 	"github.com/liliang-cn/rago/v2/pkg/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/processor"
 	"github.com/liliang-cn/rago/v2/pkg/store"
@@ -81,7 +82,7 @@ var serveCmd = &cobra.Command{
 		// 设置Gin为release模式
 		gin.SetMode(gin.ReleaseMode)
 
-		router, err := setupRouter(processorService, cfg)
+		router, err := setupRouter(processorService, cfg, embedService, llmService)
 		if err != nil {
 			return fmt.Errorf("failed to setup router: %w", err)
 		}
@@ -117,7 +118,7 @@ var serveCmd = &cobra.Command{
 	},
 }
 
-func setupRouter(processor *processor.Service, cfg *config.Config) (*gin.Engine, error) {
+func setupRouter(processor *processor.Service, cfg *config.Config, embedService domain.Embedder, llmService domain.Generator) (*gin.Engine, error) {
 	router := gin.New()
 
 	router.Use(gin.Logger())
@@ -173,6 +174,8 @@ func setupRouter(processor *processor.Service, cfg *config.Config) (*gin.Engine,
 		api.POST("/reset", handlers.NewResetHandler(processor).Handle)
 
 		// MCP API endpoints (only if MCP is enabled)
+		var mcpHandler *handlers.MCPHandler
+		var mcpService interface{}
 		if cfg.MCP.Enabled {
 			// Initialize MCP configuration
 			mcpConfig := &mcp.Config{
@@ -182,10 +185,14 @@ func setupRouter(processor *processor.Service, cfg *config.Config) (*gin.Engine,
 			}
 
 			// Initialize MCP handler
-			mcpHandler, err := handlers.NewMCPHandler(mcpConfig)
+			var err error
+			mcpHandler, err = handlers.NewMCPHandler(mcpConfig)
 			if err != nil {
 				log.Printf("Warning: failed to initialize MCP handler: %v", err)
 			} else {
+				// Create MCP service for agents
+				mcpService = mcp.NewMCPService(mcpConfig)
+				
 				// Setup MCP routes
 				mcpGroup := api.Group("/mcp")
 				{
@@ -211,6 +218,39 @@ func setupRouter(processor *processor.Service, cfg *config.Config) (*gin.Engine,
 					// This will be called when server shuts down
 					if c.Request.Context().Err() != nil {
 						_ = mcpHandler.Close()
+					}
+				})
+			}
+		}
+
+		// Agents API endpoints (only if agents are enabled)
+		if cfg.Agents != nil && cfg.Agents.Enabled {
+			// Initialize agents handler (pass mcpService as interface{})
+			agentsHandler, err := handlers.NewAgentsHandler(cfg, llmService, mcpService)
+			if err != nil {
+				log.Printf("Warning: failed to initialize agents handler: %v", err)
+			} else {
+				// Setup agent routes
+				agents := api.Group("/agents")
+				{
+					// Agent operations
+					agents.GET("", agentsHandler.ListAgents)
+					agents.GET("/:id", agentsHandler.GetAgent)
+					agents.POST("", agentsHandler.CreateAgent)
+					agents.POST("/execute", agentsHandler.ExecuteAgent)
+					
+					// Execution management
+					agents.GET("/executions", agentsHandler.GetActiveExecutions)
+					agents.POST("/executions/cancel", agentsHandler.CancelExecution)
+					agents.GET("/history/:id", agentsHandler.GetExecutionHistory)
+				}
+
+				// Register cleanup on server shutdown
+				router.Use(func(c *gin.Context) {
+					c.Next()
+					// This will be called when server shuts down
+					if c.Request.Context().Err() != nil {
+						_ = agentsHandler.Close()
 					}
 				})
 			}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -35,6 +36,7 @@ type Config struct {
 	Servers               []string       `toml:"servers" json:"servers" mapstructure:"servers"` // Array of server config file paths
 	ServersConfigPath     string         `toml:"servers_config_path" json:"servers_config_path" mapstructure:"servers_config_path"` // Deprecated: use Servers instead
 	LoadedServers         []ServerConfig `toml:"-" json:"-" mapstructure:"-"` // Internal: loaded server configurations
+	mu                    sync.Mutex     `toml:"-" json:"-" mapstructure:"-"` // Protects LoadedServers
 }
 
 // DefaultConfig returns default MCP configuration
@@ -66,6 +68,9 @@ type JSONServersConfig struct {
 
 // LoadServersFromJSON loads MCP server configurations from JSON files
 func (c *Config) LoadServersFromJSON() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	
 	// Clear loaded servers
 	c.LoadedServers = []ServerConfig{}
 	

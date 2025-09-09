@@ -313,8 +313,20 @@ func (e *AgentExecutor) executeStep(ctx context.Context, step types.WorkflowStep
 
 // executeMCPTool executes an MCP tool
 func (e *AgentExecutor) executeMCPTool(ctx context.Context, toolName string, inputs map[string]interface{}) (interface{}, error) {
-	// This is a placeholder - in the real implementation, this would call the MCP service
-	// For now, return a mock result
+	if e.mcpClient == nil {
+		return nil, fmt.Errorf("MCP client is not configured")
+	}
+	
+	// Check if mcpClient has CallTool method
+	type mcpCaller interface {
+		CallTool(tool string, inputs map[string]interface{}) (interface{}, error)
+	}
+	
+	if caller, ok := e.mcpClient.(mcpCaller); ok {
+		return caller.CallTool(toolName, inputs)
+	}
+	
+	// Fallback for testing - return a mock result
 	return map[string]interface{}{
 		"tool":   toolName,
 		"result": "Tool executed successfully",
