@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
@@ -67,7 +68,48 @@ func InitializeEmbedder(ctx context.Context, cfg *config.Config, factory *provid
 func InitializeLLM(ctx context.Context, cfg *config.Config, factory *providers.Factory) (domain.Generator, error) {
 	// Check if new provider configuration exists
 	if cfg.Providers.ProviderConfigs.Ollama != nil || cfg.Providers.ProviderConfigs.OpenAI != nil || cfg.Providers.ProviderConfigs.LMStudio != nil {
-		// Use new provider system
+		// Check if LLM pool is enabled
+		if cfg.Providers.LLMPool != nil && cfg.Providers.LLMPool.Enabled {
+			poolConfig, err := convertLLMPoolConfig(cfg.Providers.LLMPool)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert pool config: %w", err)
+			}
+
+			// Build provider configs map for the pool
+			providerConfigs := make(map[string]interface{})
+			for _, name := range cfg.Providers.LLMPool.Providers {
+				var providerConfig interface{}
+				switch strings.ToLower(name) {
+				case "ollama":
+					if cfg.Providers.ProviderConfigs.Ollama == nil {
+						return nil, fmt.Errorf("ollama provider configuration not found for pool")
+					}
+					providerConfig = cfg.Providers.ProviderConfigs.Ollama
+				case "openai":
+					if cfg.Providers.ProviderConfigs.OpenAI == nil {
+						return nil, fmt.Errorf("openai provider configuration not found for pool")
+					}
+					providerConfig = cfg.Providers.ProviderConfigs.OpenAI
+				case "lmstudio":
+					if cfg.Providers.ProviderConfigs.LMStudio == nil {
+						return nil, fmt.Errorf("lmstudio provider configuration not found for pool")
+					}
+					providerConfig = cfg.Providers.ProviderConfigs.LMStudio
+				default:
+					return nil, fmt.Errorf("unsupported provider in pool: %s", name)
+				}
+				providerConfigs[name] = providerConfig
+			}
+
+			pool, err := factory.CreateLLMPool(ctx, providerConfigs, poolConfig)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create LLM pool: %w", err)
+			}
+
+			return llm.NewService(pool), nil
+		}
+
+		// Use single provider
 		providerConfig, err := providers.GetLLMProviderConfig(&cfg.Providers.ProviderConfigs, cfg.Providers.DefaultLLM)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get LLM provider config: %w", err)
@@ -102,6 +144,47 @@ func CheckProviderHealth(ctx context.Context, embedService domain.Embedder, llmS
 	}
 
 	return nil
+}
+
+// convertLLMPoolConfig converts config.LLMPoolConfig to providers.LLMPoolConfig
+func convertLLMPoolConfig(cfg *config.LLMPoolConfig) (providers.LLMPoolConfig, error) {
+	poolConfig := providers.LLMPoolConfig{
+		MaxRetries: cfg.MaxRetries,
+	}
+
+	// Convert strategy
+	switch strings.ToLower(cfg.Strategy) {
+	case "round_robin":
+		poolConfig.Strategy = providers.RoundRobinStrategy
+	case "random":
+		poolConfig.Strategy = providers.RandomStrategy
+	case "least_load":
+		poolConfig.Strategy = providers.LeastLoadStrategy
+	case "failover":
+		poolConfig.Strategy = providers.FailoverStrategy
+	default:
+		poolConfig.Strategy = providers.RoundRobinStrategy // Default
+	}
+
+	// Parse health check interval
+	if cfg.HealthCheckInterval != "" {
+		duration, err := time.ParseDuration(cfg.HealthCheckInterval)
+		if err != nil {
+			return poolConfig, fmt.Errorf("invalid health check interval: %w", err)
+		}
+		poolConfig.HealthCheckInterval = duration
+	}
+
+	// Parse retry delay
+	if cfg.RetryDelay != "" {
+		duration, err := time.ParseDuration(cfg.RetryDelay)
+		if err != nil {
+			return poolConfig, fmt.Errorf("invalid retry delay: %w", err)
+		}
+		poolConfig.RetryDelay = duration
+	}
+
+	return poolConfig, nil
 }
 
 // ComposePrompt creates a RAG prompt from chunks and user query
