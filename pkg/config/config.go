@@ -23,9 +23,19 @@ type Config struct {
 	Ingest    IngestConfig     `mapstructure:"ingest"`
 	Tools     tools.ToolConfig `mapstructure:"tools"`
 	MCP       mcp.Config       `mapstructure:"mcp"`
+	Agents    *AgentsConfig    `mapstructure:"agents"`
 
 	// Deprecated: Use Providers instead
 	Ollama OllamaConfig `mapstructure:"ollama"`
+}
+
+type AgentsConfig struct {
+	Enabled           bool   `mapstructure:"enabled"`
+	StorageType       string `mapstructure:"storage_type"`       // "memory" or "persistent"
+	StoragePath       string `mapstructure:"storage_path"`       // Path for persistent storage
+	MaxConcurrent     int    `mapstructure:"max_concurrent"`     // Max concurrent agent executions
+	DefaultTimeout    int    `mapstructure:"default_timeout"`    // Default timeout in seconds
+	EnableGeneration  bool   `mapstructure:"enable_generation"`  // Enable agent/workflow generation from NL
 }
 
 type ProvidersConfig struct {
@@ -73,6 +83,9 @@ type ChunkerConfig struct {
 	Overlap   int    `mapstructure:"overlap"`
 	Method    string `mapstructure:"method"`
 }
+
+// ToolsConfig is an alias for tools.ToolConfig for backward compatibility
+type ToolsConfig = tools.ToolConfig
 
 func Load(configPath string) (*Config, error) {
 	config := &Config{}

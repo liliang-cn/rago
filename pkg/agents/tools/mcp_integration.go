@@ -301,6 +301,11 @@ func (m *MockMCPClient) ListTools(ctx context.Context) ([]MCPTool, error) {
 
 // CallTool executes a tool
 func (m *MockMCPClient) CallTool(ctx context.Context, name string, arguments map[string]interface{}) (interface{}, error) {
+	// Check if a custom result has been set for this tool
+	if result, exists := m.results[name]; exists {
+		return result, nil
+	}
+
 	// Simulate tool execution with mock results
 	switch name {
 	case "sqlite_query":
