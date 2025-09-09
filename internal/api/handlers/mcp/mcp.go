@@ -1,4 +1,4 @@
-package handlers
+package mcp
 
 import (
 	"context"
@@ -6,19 +6,19 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	mcppkg "github.com/liliang-cn/rago/v2/pkg/mcp"
 )
 
 // MCPHandler handles MCP-related HTTP requests
 type MCPHandler struct {
-	mcpService *mcp.MCPService
-	mcpAPI     *mcp.MCPLibraryAPI
+	mcpService *mcppkg.MCPService
+	mcpAPI     *mcppkg.MCPLibraryAPI
 }
 
 // NewMCPHandler creates a new MCP handler
-func NewMCPHandler(config *mcp.Config) (*MCPHandler, error) {
-	mcpAPI := mcp.NewMCPLibraryAPI(config)
-	mcpService := mcp.NewMCPService(config)
+func NewMCPHandler(config *mcppkg.Config) (*MCPHandler, error) {
+	mcpAPI := mcppkg.NewMCPLibraryAPI(config)
+	mcpService := mcppkg.NewMCPService(config)
 
 	// Initialize MCP service
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -114,7 +114,7 @@ func (h *MCPHandler) CallTool(c *gin.Context) {
 
 // BatchCallRequest represents a batch tool call request
 type BatchCallRequest struct {
-	Calls   []mcp.ToolCall `json:"calls" binding:"required"`
+	Calls   []mcppkg.ToolCall `json:"calls" binding:"required"`
 	Timeout int            `json:"timeout"` // timeout in seconds for all calls
 }
 

@@ -12,10 +12,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/liliang-cn/rago/v2/api/handlers"
+	"github.com/liliang-cn/rago/v2/internal/api/handlers"
+	agentHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/agent"
+	chatHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/chat"
+	mcpHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/mcp"
+	ragHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/rag"
 	"github.com/liliang-cn/rago/v2/pkg/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/llm"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/processor"
 	"github.com/liliang-cn/rago/v2/pkg/store"
@@ -141,22 +146,61 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 	{
 		api.GET("/health", handlers.NewHealthHandler().Handle)
 
-		ingestHandler := handlers.NewIngestHandler(processor)
+		// RAG endpoints
+		ragGroup := api.Group("/rag")
+		{
+			ingestHandler := ragHandlers.NewIngestHandler(processor)
+			ragGroup.POST("/ingest", ingestHandler.Handle)
+
+			queryHandler := ragHandlers.NewQueryHandler(processor)
+			ragGroup.POST("/query", queryHandler.Handle)
+			ragGroup.POST("/query-stream", queryHandler.HandleStream)
+			ragGroup.POST("/search", queryHandler.SearchOnly)
+
+			documentsHandler := ragHandlers.NewDocumentsHandler(processor)
+			ragGroup.GET("/documents", documentsHandler.List)
+			ragGroup.DELETE("/documents/:id", documentsHandler.Delete)
+
+			resetHandler := ragHandlers.NewResetHandler(processor)
+			ragGroup.POST("/reset", resetHandler.Handle)
+		}
+
+		// Keep legacy endpoints for backward compatibility
+		ingestHandler := ragHandlers.NewIngestHandler(processor)
 		api.POST("/ingest", ingestHandler.Handle)
 
-		queryHandler := handlers.NewQueryHandler(processor)
+		queryHandler := ragHandlers.NewQueryHandler(processor)
 		api.POST("/query", queryHandler.Handle)
 		api.POST("/query-stream", queryHandler.HandleStream)
 		api.POST("/search", queryHandler.SearchOnly)
 
-		documentsHandler := handlers.NewDocumentsHandler(processor)
+		documentsHandler := ragHandlers.NewDocumentsHandler(processor)
 		api.GET("/documents", documentsHandler.List)
 		api.DELETE("/documents/:id", documentsHandler.Delete)
+
+		// Chat endpoints
+		chatGroup := api.Group("/chat")
+		{
+			// Create llm.Service wrapper if needed
+			var llmSvc interface{}
+			if svc, ok := llmService.(interface{ GetService() interface{} }); ok {
+				llmSvc = svc.GetService()
+			} else {
+				llmSvc = llmService
+			}
+			
+			// Type assert to get the llm.Service
+			if llmServiceTyped, ok := llmSvc.(*llm.Service); ok {
+				chatHandler := chatHandlers.NewChatHandler(processor, llmServiceTyped)
+				chatGroup.POST("/", chatHandler.Handle)
+				chatGroup.POST("/complete", chatHandler.Complete)
+			}
+		}
 
 		// Tools API endpoints (only if tools are enabled)
 		if cfg.Tools.Enabled {
 			// Initialize tools handler
-			toolsHandler := handlers.NewToolsHandler(processor.GetToolRegistry(), processor.GetToolExecutor())
+			toolsHandler := mcpHandlers.NewToolsHandler(processor.GetToolRegistry(), processor.GetToolExecutor())
 
 			tools := api.Group("/tools")
 			{
@@ -171,10 +215,10 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 			}
 		}
 
-		api.POST("/reset", handlers.NewResetHandler(processor).Handle)
+		api.POST("/reset", ragHandlers.NewResetHandler(processor).Handle)
 
 		// MCP API endpoints (only if MCP is enabled)
-		var mcpHandler *handlers.MCPHandler
+		var mcpHandler *mcpHandlers.MCPHandler
 		var mcpService interface{}
 		if cfg.MCP.Enabled {
 			// Initialize MCP configuration
@@ -186,7 +230,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 
 			// Initialize MCP handler
 			var err error
-			mcpHandler, err = handlers.NewMCPHandler(mcpConfig)
+			mcpHandler, err = mcpHandlers.NewMCPHandler(mcpConfig)
 			if err != nil {
 				log.Printf("Warning: failed to initialize MCP handler: %v", err)
 			} else {
@@ -226,7 +270,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 		// Agents API endpoints (only if agents are enabled)
 		if cfg.Agents != nil && cfg.Agents.Enabled {
 			// Initialize agents handler (pass mcpService as interface{})
-			agentsHandler, err := handlers.NewAgentsHandler(cfg, llmService, mcpService)
+			agentsHandler, err := agentHandlers.NewAgentsHandler(cfg, llmService, mcpService)
 			if err != nil {
 				log.Printf("Warning: failed to initialize agents handler: %v", err)
 			} else {
