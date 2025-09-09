@@ -207,3 +207,192 @@ func TestProviderConfigHelpers(t *testing.T) {
 		}
 	})
 }
+
+func TestFactory_CreateLMStudioProviders(t *testing.T) {
+	factory := NewFactory()
+	ctx := context.Background()
+
+	t.Run("CreateLMStudioLLMProvider", func(t *testing.T) {
+		config := &domain.LMStudioProviderConfig{
+			BaseProviderConfig: domain.BaseProviderConfig{
+				Type: domain.ProviderLMStudio,
+			},
+			BaseURL:        "http://localhost:1234/v1",
+			APIKey:         "test-key",
+			EmbeddingModel: "embedding-model",
+			LLMModel:       "llm-model",
+		}
+
+		provider, err := factory.CreateLLMProvider(ctx, config)
+		if err != nil {
+			t.Fatalf("Failed to create LMStudio LLM provider: %v", err)
+		}
+
+		if provider.ProviderType() != domain.ProviderLMStudio {
+			t.Errorf("Expected provider type %s, got %s", domain.ProviderLMStudio, provider.ProviderType())
+		}
+	})
+
+	t.Run("CreateLMStudioEmbedderProvider", func(t *testing.T) {
+		config := &domain.LMStudioProviderConfig{
+			BaseProviderConfig: domain.BaseProviderConfig{
+				Type: domain.ProviderLMStudio,
+			},
+			BaseURL:        "http://localhost:1234/v1",
+			APIKey:         "test-key",
+			EmbeddingModel: "embedding-model",
+			LLMModel:       "llm-model",
+		}
+
+		provider, err := factory.CreateEmbedderProvider(ctx, config)
+		if err != nil {
+			t.Fatalf("Failed to create LMStudio embedder provider: %v", err)
+		}
+
+		if provider.ProviderType() != domain.ProviderLMStudio {
+			t.Errorf("Expected provider type %s, got %s", domain.ProviderLMStudio, provider.ProviderType())
+		}
+	})
+}
+
+func TestFactory_Validation(t *testing.T) {
+	factory := NewFactory()
+	if factory == nil {
+		t.Fatal("NewFactory returned nil")
+	}
+}
+
+func TestDetermineProviderType_AllCases(t *testing.T) {
+	testCases := []struct {
+		name         string
+		config       *domain.ProviderConfig
+		expected     domain.ProviderType
+		expectError  bool
+	}{
+		{
+			name: "LMStudio config",
+			config: &domain.ProviderConfig{
+				LMStudio: &domain.LMStudioProviderConfig{},
+			},
+			expected: domain.ProviderLMStudio,
+			expectError: false,
+		},
+		{
+			name: "Multiple configs - Ollama priority",
+			config: &domain.ProviderConfig{
+				Ollama: &domain.OllamaProviderConfig{},
+				OpenAI: &domain.OpenAIProviderConfig{},
+			},
+			expected: domain.ProviderOllama,
+			expectError: false,
+		},
+		{
+			name: "Empty config",
+			config: &domain.ProviderConfig{},
+			expected: "",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := DetermineProviderType(tc.config)
+			if tc.expectError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tc.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+			if result != tc.expected {
+				t.Errorf("Expected %s, got %s", tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestGetProviderConfig_AllProviders(t *testing.T) {
+	testCases := []struct {
+		name string
+		config *domain.ProviderConfig
+		expectError bool
+	}{
+		{
+			name: "LMStudio provider config",
+			config: &domain.ProviderConfig{
+				LMStudio: &domain.LMStudioProviderConfig{
+					BaseURL: "http://localhost:1234/v1",
+					APIKey: "test-key",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "Empty config",
+			config: &domain.ProviderConfig{},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := GetProviderConfig(tc.config)
+			if tc.expectError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tc.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+			if !tc.expectError && result == nil {
+				t.Error("Expected non-nil result")
+			}
+		})
+	}
+}
+
+func TestGetLLMProviderConfig_LMStudio(t *testing.T) {
+	config := &domain.ProviderConfig{
+		LMStudio: &domain.LMStudioProviderConfig{
+			BaseURL: "http://localhost:1234/v1",
+		},
+	}
+
+	result, err := GetLLMProviderConfig(config, "lmstudio")
+	if err != nil {
+		t.Fatalf("Failed to get LMStudio provider config: %v", err)
+	}
+
+	if result != config.LMStudio {
+		t.Error("Expected same config instance")
+	}
+
+	// Test missing LMStudio config
+	emptyConfig := &domain.ProviderConfig{}
+	_, err = GetLLMProviderConfig(emptyConfig, "lmstudio")
+	if err == nil {
+		t.Error("Expected error for missing lmstudio config")
+	}
+}
+
+func TestGetEmbedderProviderConfig_LMStudio(t *testing.T) {
+	config := &domain.ProviderConfig{
+		LMStudio: &domain.LMStudioProviderConfig{
+			BaseURL: "http://localhost:1234/v1",
+		},
+	}
+
+	result, err := GetEmbedderProviderConfig(config, "lmstudio")
+	if err != nil {
+		t.Fatalf("Failed to get LMStudio embedder config: %v", err)
+	}
+
+	if result != config.LMStudio {
+		t.Error("Expected same config instance")
+	}
+
+	// Test missing LMStudio config
+	emptyConfig := &domain.ProviderConfig{}
+	_, err = GetEmbedderProviderConfig(emptyConfig, "lmstudio")
+	if err == nil {
+		t.Error("Expected error for missing lmstudio config")
+	}
+}
