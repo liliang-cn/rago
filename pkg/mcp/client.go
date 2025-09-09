@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"sync"
 
@@ -40,7 +41,8 @@ func (c *Client) Connect(ctx context.Context) error {
 		cmd.Dir = c.config.WorkingDir
 	}
 
-	// Set environment variables
+	// Set environment variables - inherit parent environment and add custom ones
+	cmd.Env = os.Environ()
 	if len(c.config.Env) > 0 {
 		for key, value := range c.config.Env {
 			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))

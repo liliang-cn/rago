@@ -171,17 +171,24 @@ func (tm *MCPToolManager) StartServer(ctx context.Context, serverName string) er
 
 // StartWithFailures initializes MCP servers, continuing even if some fail
 func (tm *MCPToolManager) StartWithFailures(ctx context.Context) ([]string, []string) {
+	succeeded, failed, _ := tm.StartWithFailuresDetailed(ctx)
+	return succeeded, failed
+}
+
+// StartWithFailuresDetailed initializes MCP servers with detailed error information
+func (tm *MCPToolManager) StartWithFailuresDetailed(ctx context.Context) ([]string, []string, map[string]error) {
 	var succeeded []string
 	var failed []string
+	errors := make(map[string]error)
 	
 	if !tm.manager.config.Enabled {
-		return succeeded, failed
+		return succeeded, failed, errors
 	}
 	
 	// Load server configurations from JSON files
 	if err := tm.manager.config.LoadServersFromJSON(); err != nil {
 		// If we can't load configs, all servers are considered failed
-		return succeeded, failed
+		return succeeded, failed, errors
 	}
 	
 	// Start auto-start servers
@@ -189,13 +196,14 @@ func (tm *MCPToolManager) StartWithFailures(ctx context.Context) ([]string, []st
 		if serverConfig.AutoStart {
 			if err := tm.StartServer(ctx, serverConfig.Name); err != nil {
 				failed = append(failed, serverConfig.Name)
+				errors[serverConfig.Name] = err
 			} else {
 				succeeded = append(succeeded, serverConfig.Name)
 			}
 		}
 	}
 	
-	return succeeded, failed
+	return succeeded, failed, errors
 }
 
 // StopServer stops a specific MCP server and removes its tools
