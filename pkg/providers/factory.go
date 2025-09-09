@@ -99,6 +99,21 @@ func GetLLMProviderConfig(config *domain.ProviderConfig, defaultProvider string)
 	}
 }
 
+// CreateLLMPool creates a pool of LLM providers from configuration
+func (f *Factory) CreateLLMPool(ctx context.Context, providerConfigs map[string]interface{}, poolConfig LLMPoolConfig) (*LLMPool, error) {
+	providers := make(map[string]domain.LLMProvider)
+	
+	for name, config := range providerConfigs {
+		provider, err := f.CreateLLMProvider(ctx, config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create provider %s: %w", name, err)
+		}
+		providers[name] = provider
+	}
+	
+	return NewLLMPool(providers, poolConfig)
+}
+
 // GetEmbedderProviderConfig returns the embedder provider configuration based on default settings
 func GetEmbedderProviderConfig(config *domain.ProviderConfig, defaultProvider string) (interface{}, error) {
 	switch defaultProvider {

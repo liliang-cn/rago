@@ -45,6 +45,23 @@ type ProvidersConfig struct {
 	DefaultEmbedder string `mapstructure:"default_embedder"`
 	// Provider configurations
 	ProviderConfigs domain.ProviderConfig `mapstructure:",squash"`
+	// LLM Pool configuration
+	LLMPool *LLMPoolConfig `mapstructure:"llm_pool"`
+}
+
+type LLMPoolConfig struct {
+	// Enable LLM pool
+	Enabled bool `mapstructure:"enabled"`
+	// List of provider names to include in the pool
+	Providers []string `mapstructure:"providers"`
+	// Load balancing strategy: round_robin, random, least_load, failover
+	Strategy string `mapstructure:"strategy"`
+	// Health check interval (e.g., "30s", "1m")
+	HealthCheckInterval string `mapstructure:"health_check_interval"`
+	// Maximum retry attempts
+	MaxRetries int `mapstructure:"max_retries"`
+	// Delay between retries (e.g., "1s", "500ms")
+	RetryDelay string `mapstructure:"retry_delay"`
 }
 
 type IngestConfig struct {
