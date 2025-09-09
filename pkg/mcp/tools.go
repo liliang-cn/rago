@@ -248,7 +248,7 @@ func (tm *MCPToolManager) CallTool(ctx context.Context, toolName string, args ma
 
 // GetToolsForLLM returns tools in a format suitable for LLM function calling
 func (tm *MCPToolManager) GetToolsForLLM() []map[string]interface{} {
-	var llmTools []map[string]interface{}
+	llmTools := make([]map[string]interface{}, 0)
 
 	for _, tool := range tm.tools {
 		llmTool := map[string]interface{}{

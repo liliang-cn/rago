@@ -145,9 +145,12 @@ func (c *Client) CallTool(ctx context.Context, toolName string, arguments map[st
 
 // Close closes the connection to the MCP server
 func (c *Client) Close() error {
-	if c.connected && c.session != nil {
-		// Close the session
-		err := c.session.Close()
+	if c.connected {
+		var err error
+		if c.session != nil {
+			// Close the session
+			err = c.session.Close()
+		}
 		c.connected = false
 		c.session = nil
 		return err

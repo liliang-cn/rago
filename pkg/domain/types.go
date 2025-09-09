@@ -70,6 +70,11 @@ type ExtractedMetadata struct {
 	CreationDate string   `json:"creation_date"`
 }
 
+type Stats struct {
+	TotalDocuments int `json:"total_documents"`
+	TotalChunks    int `json:"total_chunks"`
+}
+
 type Embedder interface {
 	Embed(ctx context.Context, text string) ([]float64, error)
 }

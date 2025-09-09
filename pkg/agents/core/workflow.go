@@ -325,12 +325,37 @@ func (t *ToolChainExecutor) executeChainStep(ctx context.Context, step types.Cha
 	}
 	stepResult.Inputs = renderedInputs
 
-	// Execute tool (mock implementation)
-	toolResult := map[string]interface{}{
-		"tool":     step.ToolName,
-		"executed": true,
-		"result":   "Tool executed successfully",
-		"inputs":   renderedInputs,
+	// Execute tool
+	var toolResult map[string]interface{}
+	
+	// Check if mcpClient has CallTool method
+	type mcpCaller interface {
+		CallTool(tool string, inputs map[string]interface{}) (interface{}, error)
+	}
+	
+	if caller, ok := t.mcpClient.(mcpCaller); ok {
+		result, callErr := caller.CallTool(step.ToolName, renderedInputs)
+		if callErr != nil {
+			stepResult.Status = "failed"
+			stepResult.ErrorMessage = callErr.Error()
+			endTime := time.Now()
+			stepResult.EndTime = &endTime
+			stepResult.Duration = endTime.Sub(stepResult.StartTime)
+			return stepResult, callErr
+		}
+		if resultMap, ok := result.(map[string]interface{}); ok {
+			toolResult = resultMap
+		} else {
+			toolResult = map[string]interface{}{"result": result}
+		}
+	} else {
+		// Fallback mock implementation
+		toolResult = map[string]interface{}{
+			"tool":     step.ToolName,
+			"executed": true,
+			"result":   "Tool executed successfully",
+			"inputs":   renderedInputs,
+		}
 	}
 
 	// Map outputs

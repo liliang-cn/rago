@@ -248,15 +248,15 @@ func (g *AgentGenerator) validateWorkflow(workflow *types.WorkflowSpec) error {
 	}
 
 	// Validate each step
-	for i, step := range workflow.Steps {
-		if step.ID == "" {
-			step.ID = fmt.Sprintf("step%d", i+1)
+	for i := range workflow.Steps {
+		if workflow.Steps[i].ID == "" {
+			workflow.Steps[i].ID = fmt.Sprintf("step%d", i+1)
 		}
-		if step.Name == "" {
-			step.Name = fmt.Sprintf("Step %d", i+1)
+		if workflow.Steps[i].Name == "" {
+			workflow.Steps[i].Name = fmt.Sprintf("Step %d", i+1)
 		}
-		if step.Type == "" {
-			step.Type = "tool"
+		if workflow.Steps[i].Type == "" {
+			workflow.Steps[i].Type = "tool"
 		}
 	}
 
