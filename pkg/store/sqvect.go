@@ -82,16 +82,27 @@ func (s *SQLiteStore) Store(ctx context.Context, chunks []domain.Chunk) error {
 		// Mark as chunk for filtering during search
 		metadata["_type"] = "chunk"
 
+		// Determine collection from metadata
+		collection := "default"
+		if collectionName, ok := chunk.Metadata["collection"].(string); ok && collectionName != "" {
+			collection = collectionName
+			// Ensure collection exists
+			if err := s.ensureCollection(ctx, collection); err != nil {
+				return fmt.Errorf("failed to ensure collection %s: %w", collection, err)
+			}
+		}
+
 		embedding := &core.Embedding{
-			ID:       chunk.ID,
-			Vector:   vector,
-			Content:  chunk.Content,
-			DocID:    chunk.DocumentID,
-			Metadata: metadata,
+			ID:         chunk.ID,
+			Vector:     vector,
+			Content:    chunk.Content,
+			DocID:      chunk.DocumentID,
+			Collection: collection,
+			Metadata:   metadata,
 		}
 
 		if err := s.sqvect.Upsert(ctx, embedding); err != nil {
-			return fmt.Errorf("%w: failed to store chunk: %v", domain.ErrVectorStoreFailed, err)
+			return fmt.Errorf("%w: failed to store chunk in collection %s: %v", domain.ErrVectorStoreFailed, collection, err)
 		}
 	}
 
@@ -441,6 +452,33 @@ func (s *SQLiteStore) Close() error {
 	return s.sqvect.Close()
 }
 
+// ensureCollection ensures a collection exists, creating it if necessary
+func (s *SQLiteStore) ensureCollection(ctx context.Context, name string) error {
+	// Check if collection already exists
+	collections, err := s.sqvect.ListCollections(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list collections: %w", err)
+	}
+	
+	for _, col := range collections {
+		if col.Name == name {
+			return nil // Collection already exists
+		}
+	}
+	
+	// Create the collection with auto-detect dimensions (0)
+	_, err = s.sqvect.CreateCollection(ctx, name, 0)
+	if err != nil {
+		// Check if it's an "already exists" error - if so, ignore it
+		if strings.Contains(err.Error(), "already exists") {
+			return nil
+		}
+		return fmt.Errorf("failed to create collection %s: %w", name, err)
+	}
+	
+	return nil
+}
+
 // DocumentStore is a simple wrapper that uses sqvect for document storage too
 type DocumentStore struct {
 	sqvect *core.SQLiteStore
@@ -465,16 +503,27 @@ func (s *DocumentStore) Store(ctx context.Context, doc domain.Document) error {
 	metadata["_url"] = doc.URL
 	metadata["_created"] = doc.Created.Format("2006-01-02T15:04:05Z07:00")
 
+	// Determine collection from metadata
+	collection := "default"
+	if collectionName, ok := doc.Metadata["collection"].(string); ok && collectionName != "" {
+		collection = collectionName
+		// Ensure collection exists
+		if err := s.ensureCollection(ctx, collection); err != nil {
+			return fmt.Errorf("failed to ensure collection %s: %w", collection, err)
+		}
+	}
+
 	embedding := &core.Embedding{
-		ID:       doc.ID,
-		Vector:   []float32{}, // Empty vector for document metadata
-		Content:  doc.Content,
-		DocID:    doc.ID,
-		Metadata: metadata,
+		ID:         doc.ID,
+		Vector:     []float32{}, // Empty vector for document metadata
+		Content:    doc.Content,
+		DocID:      doc.ID,
+		Collection: collection,
+		Metadata:   metadata,
 	}
 
 	if err := s.sqvect.Upsert(ctx, embedding); err != nil {
-		return fmt.Errorf("%w: failed to store document: %v", domain.ErrDocumentStoreFailed, err)
+		return fmt.Errorf("%w: failed to store document in collection %s: %v", domain.ErrDocumentStoreFailed, collection, err)
 	}
 
 	return nil
@@ -695,6 +744,33 @@ func (s *DocumentStore) Delete(ctx context.Context, id string) error {
 	if err := s.sqvect.Delete(ctx, id); err != nil {
 		return fmt.Errorf("%w: failed to delete document: %v", domain.ErrDocumentStoreFailed, err)
 	}
+	return nil
+}
+
+// ensureCollection ensures a collection exists, creating it if necessary
+func (s *DocumentStore) ensureCollection(ctx context.Context, name string) error {
+	// Check if collection already exists
+	collections, err := s.sqvect.ListCollections(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list collections: %w", err)
+	}
+	
+	for _, col := range collections {
+		if col.Name == name {
+			return nil // Collection already exists
+		}
+	}
+	
+	// Create the collection with auto-detect dimensions (0)
+	_, err = s.sqvect.CreateCollection(ctx, name, 0)
+	if err != nil {
+		// Check if it's an "already exists" error - if so, ignore it
+		if strings.Contains(err.Error(), "already exists") {
+			return nil
+		}
+		return fmt.Errorf("failed to create collection %s: %w", name, err)
+	}
+	
 	return nil
 }
 

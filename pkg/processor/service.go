@@ -198,6 +198,9 @@ func (s *Service) mergeMetadata(base map[string]interface{}, extracted *domain.E
 	if extracted.CreationDate != "" {
 		base["creation_date"] = extracted.CreationDate
 	}
+	if extracted.Collection != "" {
+		base["collection"] = extracted.Collection
+	}
 	
 	// Merge enhanced fields
 	if len(extracted.TemporalRefs) > 0 {

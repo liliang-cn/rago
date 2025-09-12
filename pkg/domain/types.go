@@ -68,6 +68,7 @@ type ExtractedMetadata struct {
 	Keywords     []string               `json:"keywords"`
 	DocumentType string                 `json:"document_type"`
 	CreationDate string                 `json:"creation_date"`
+	Collection   string                 `json:"collection"`               // LLM-determined collection name
 	// Enhanced metadata fields
 	TemporalRefs map[string]string      `json:"temporal_refs,omitempty"` // e.g., "today": "2025-09-12", "tomorrow": "2025-09-13"
 	Entities     map[string][]string    `json:"entities,omitempty"`      // e.g., "person": ["张三"], "location": ["华西医院"]

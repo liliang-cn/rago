@@ -38,10 +38,27 @@ func NewScheduler(cfg *config.Config) *TaskScheduler {
 	schedulerConfig := DefaultSchedulerConfig()
 
 	// If the main config has scheduler settings, merge them
-	if cfg != nil {
+	if cfg != nil && cfg.Sqvect.DBPath != "" {
 		// TODO: Add scheduler config to main config struct when ready
 		// For now, use defaults with database path adjusted
-		schedulerConfig.DatabasePath = fmt.Sprintf("%s/scheduler.db", cfg.Sqvect.DBPath[:len(cfg.Sqvect.DBPath)-6])
+		if len(cfg.Sqvect.DBPath) > 10 { // Check for minimum path length
+			// Remove filename suffix and add "scheduler.db"
+			lastSlash := -1
+			for i := len(cfg.Sqvect.DBPath) - 1; i >= 0; i-- {
+				if cfg.Sqvect.DBPath[i] == '/' {
+					lastSlash = i
+					break
+				}
+			}
+			if lastSlash > 0 {
+				schedulerConfig.DatabasePath = cfg.Sqvect.DBPath[:lastSlash] + "/scheduler.db"
+			} else {
+				schedulerConfig.DatabasePath = "./data/scheduler.db"
+			}
+		} else {
+			// Use a default path if DBPath is too short
+			schedulerConfig.DatabasePath = "./data/scheduler.db"
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
