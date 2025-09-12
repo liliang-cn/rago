@@ -124,17 +124,17 @@ func (m *MockMCPClient) GetCallCount(tool string) int {
 func (m *MockMCPClient) CallTool(tool string, inputs map[string]interface{}) (interface{}, error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	m.callCount[tool]++
-	
+
 	if err, exists := m.errors[tool]; exists {
 		return nil, err
 	}
-	
+
 	if response, exists := m.responses[tool]; exists {
 		return response, nil
 	}
-	
+
 	// Default response
 	return map[string]interface{}{
 		"tool":   tool,
@@ -159,10 +159,10 @@ func TestNewAgentExecutor(t *testing.T) {
 
 func TestAgentExecutor_SetTemplateEngine(t *testing.T) {
 	executor := NewAgentExecutor(nil, NewMockAgentStorage())
-	
+
 	// Mock template engine
 	templateEngine := &SimpleTemplateEngine{}
-	
+
 	executor.SetTemplateEngine(templateEngine)
 	assert.Equal(t, templateEngine, executor.templateEngine)
 }
@@ -174,9 +174,9 @@ func TestAgentExecutor_Execute_SimpleAgent(t *testing.T) {
 
 	// Create a simple test agent
 	agent := &types.Agent{
-		ID:   "test-executor-agent",
-		Name: "Test Executor Agent",
-		Type: types.AgentTypeResearch,
+		ID:     "test-executor-agent",
+		Name:   "Test Executor Agent",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -232,14 +232,14 @@ func TestAgentExecutor_Execute_MaxConcurrentLimit(t *testing.T) {
 	storage := NewMockAgentStorage()
 	mcpClient := NewMockMCPClient()
 	executor := NewAgentExecutor(mcpClient, storage)
-	
+
 	// Set a low concurrent limit for testing
 	executor.maxConcurrentExecutions = 2
 
 	agent := &types.Agent{
-		ID:   "concurrent-test-agent",
-		Name: "Concurrent Test Agent",
-		Type: types.AgentTypeResearch,
+		ID:     "concurrent-test-agent",
+		Name:   "Concurrent Test Agent",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -276,7 +276,7 @@ func TestAgentExecutor_Execute_MaxConcurrentLimit(t *testing.T) {
 	// Count successful and failed executions
 	successCount := 0
 	failureCount := 0
-	
+
 	for i := 0; i < 5; i++ {
 		if errors[i] != nil {
 			failureCount++
@@ -298,9 +298,9 @@ func TestAgentExecutor_Execute_WithTimeout(t *testing.T) {
 	executor := NewAgentExecutor(mcpClient, storage)
 
 	agent := &types.Agent{
-		ID:   "timeout-test-agent",
-		Name: "Timeout Test Agent",
-		Type: types.AgentTypeResearch,
+		ID:     "timeout-test-agent",
+		Name:   "Timeout Test Agent",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 		Config: types.AgentConfig{
 			DefaultTimeout: 10 * time.Millisecond, // Very short timeout
@@ -333,7 +333,7 @@ func TestAgentExecutor_Execute_WithTimeout(t *testing.T) {
 			t.Skip("Test environment too fast, skipping timeout test")
 		}
 	}
-	
+
 	// The execution should either error out or return a cancelled/failed status
 	if err != nil {
 		// Error is expected for timeout
@@ -353,9 +353,9 @@ func TestAgentExecutor_Execute_StepExecutionError(t *testing.T) {
 	executor := NewAgentExecutor(mcpClient, storage)
 
 	agent := &types.Agent{
-		ID:   "error-test-agent",
-		Name: "Error Test Agent",
-		Type: types.AgentTypeResearch,
+		ID:     "error-test-agent",
+		Name:   "Error Test Agent",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -401,9 +401,9 @@ func TestAgentExecutor_Execute_VariableStep(t *testing.T) {
 	executor := NewAgentExecutor(mcpClient, storage)
 
 	agent := &types.Agent{
-		ID:   "variable-test-agent",
-		Name: "Variable Test Agent",
-		Type: types.AgentTypeWorkflow,
+		ID:     "variable-test-agent",
+		Name:   "Variable Test Agent",
+		Type:   types.AgentTypeWorkflow,
 		Status: types.AgentStatusActive,
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -522,9 +522,9 @@ func TestAgentExecutor_GetActiveExecutions(t *testing.T) {
 
 	// Start a long-running execution
 	agent := &types.Agent{
-		ID:   "long-running-agent",
-		Name: "Long Running Agent",
-		Type: types.AgentTypeResearch,
+		ID:     "long-running-agent",
+		Name:   "Long Running Agent",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -560,7 +560,7 @@ func TestAgentExecutor_GetActiveExecutions(t *testing.T) {
 	assert.GreaterOrEqual(t, len(active), 0)
 
 	wg.Wait()
-	
+
 	// After completion, should be empty again
 	active = executor.GetActiveExecutions()
 	assert.Empty(t, active)
@@ -572,9 +572,9 @@ func TestAgentExecutor_CancelExecution(t *testing.T) {
 	executor := NewAgentExecutor(mcpClient, storage)
 
 	agent := &types.Agent{
-		ID:   "cancellable-agent",
-		Name: "Cancellable Agent",
-		Type: types.AgentTypeResearch,
+		ID:     "cancellable-agent",
+		Name:   "Cancellable Agent",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -596,7 +596,7 @@ func TestAgentExecutor_CancelExecution(t *testing.T) {
 	// Start execution in background
 	var result *types.ExecutionResult
 	var wg sync.WaitGroup
-	
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -638,9 +638,9 @@ func TestAgentExecutor_CancelExecution_NotFound(t *testing.T) {
 
 func TestExecutionInstance(t *testing.T) {
 	agent := &types.Agent{
-		ID:   "test-instance-agent",
-		Name: "Test Instance Agent",
-		Type: types.AgentTypeResearch,
+		ID:     "test-instance-agent",
+		Name:   "Test Instance Agent",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 	}
 
@@ -675,14 +675,14 @@ func TestAgentExecutor_ConcurrentExecutions(t *testing.T) {
 	storage := NewMockAgentStorage()
 	mcpClient := NewMockMCPClient()
 	executor := NewAgentExecutor(mcpClient, storage)
-	
+
 	// Allow more concurrent executions for this test
 	executor.maxConcurrentExecutions = 10
 
 	agent := &types.Agent{
-		ID:   "concurrent-agent",
-		Name: "Concurrent Agent",
-		Type: types.AgentTypeWorkflow,
+		ID:     "concurrent-agent",
+		Name:   "Concurrent Agent",
+		Type:   types.AgentTypeWorkflow,
 		Status: types.AgentStatusActive,
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{

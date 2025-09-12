@@ -23,7 +23,7 @@ var (
 	recursive       bool
 	textInput       string
 	source          string
-	extractMetadata bool
+	enhancedExtract bool
 	concurrency     int
 )
 
@@ -43,8 +43,8 @@ You can also use --text flag to ingest text directly.`,
 		return cobra.ExactArgs(1)(cmd, args)
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Override config if flag is set
-		if extractMetadata {
+		// Enable metadata extraction if enhanced flag is set
+		if enhancedExtract {
 			Cfg.Ingest.MetadataExtraction.Enable = true
 		}
 
@@ -60,7 +60,6 @@ You can also use --text flag to ingest text directly.`,
 				log.Printf("failed to close vector store: %v", err)
 			}
 		}()
-
 
 		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
@@ -235,6 +234,6 @@ func init() {
 	ingestCmd.Flags().BoolVarP(&recursive, "recursive", "r", false, "process directory recursively")
 	ingestCmd.Flags().StringVar(&textInput, "text", "", "ingest text directly instead of from file")
 	ingestCmd.Flags().StringVar(&source, "source", "", "source name for text input (default: text-input)")
-	ingestCmd.Flags().BoolVarP(&extractMetadata, "extract-metadata", "e", false, "enable automatic metadata extraction via LLM")
+	ingestCmd.Flags().BoolVarP(&enhancedExtract, "enhanced", "e", false, "enable enhanced metadata extraction with temporal refs, entities, and events")
 	ingestCmd.Flags().IntVar(&concurrency, "concurrency", runtime.NumCPU(), "number of concurrent workers for ingestion")
 }

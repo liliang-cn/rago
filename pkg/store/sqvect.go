@@ -8,28 +8,40 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/sqvect"
+	"github.com/liliang-cn/sqvect/pkg/core"
+	"github.com/liliang-cn/sqvect/pkg/sqvect"
 )
 
 type SQLiteStore struct {
-	sqvect *sqvect.SQLiteStore
+	db     *sqvect.DB
+	sqvect *core.SQLiteStore
 }
 
 func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
-	// Use dimension 0 for auto-detection with sqvect v0.7.0
-	client, err := sqvect.New(dbPath, 0)
+	// Use sqvect v1.0.0's new API
+	config := sqvect.Config{
+		Path:       dbPath,
+		Dimensions: 0, // Auto-detect dimensions
+	}
+	
+	db, err := sqvect.Open(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create sqvect client: %w", err)
+		return nil, fmt.Errorf("failed to create sqvect database: %w", err)
 	}
-
-	// Initialize the database
-	ctx := context.Background()
-	if err := client.Init(ctx); err != nil {
-		return nil, fmt.Errorf("failed to initialize sqvect: %w", err)
+	
+	// Get the vector store from the database
+	vectorStore := db.Vector()
+	
+	// Type assert to get the concrete SQLiteStore
+	sqliteStore, ok := vectorStore.(*core.SQLiteStore)
+	if !ok {
+		db.Close()
+		return nil, fmt.Errorf("failed to get SQLiteStore from vector store")
 	}
-
+	
 	return &SQLiteStore{
-		sqvect: client,
+		db:     db,
+		sqvect: sqliteStore,
 	}, nil
 }
 
@@ -70,7 +82,7 @@ func (s *SQLiteStore) Store(ctx context.Context, chunks []domain.Chunk) error {
 		// Mark as chunk for filtering during search
 		metadata["_type"] = "chunk"
 
-		embedding := &sqvect.Embedding{
+		embedding := &core.Embedding{
 			ID:       chunk.ID,
 			Vector:   vector,
 			Content:  chunk.Content,
@@ -117,7 +129,7 @@ func (s *SQLiteStore) Search(ctx context.Context, vector []float64, topK int) ([
 		"_type": "chunk", // Only return chunks, not document metadata
 	}
 
-	results, err := s.sqvect.SearchWithFilter(ctx, queryVector, sqvect.SearchOptions{
+	results, err := s.sqvect.SearchWithFilter(ctx, queryVector, core.SearchOptions{
 		TopK:      topK,
 		Threshold: 0.0, // Return all results, let caller filter
 	}, filters)
@@ -187,7 +199,7 @@ func (s *SQLiteStore) SearchWithFilters(ctx context.Context, vector []float64, t
 		}
 		chunkFilters["_type"] = "chunk"
 
-		results, err := s.sqvect.SearchWithFilter(ctx, queryVector, sqvect.SearchOptions{
+		results, err := s.sqvect.SearchWithFilter(ctx, queryVector, core.SearchOptions{
 			TopK:      topK,
 			Threshold: 0.0, // Return all results, let caller filter
 		}, chunkFilters)
@@ -423,15 +435,18 @@ func (s *SQLiteStore) getVectorCount(ctx context.Context) (int64, error) {
 }
 
 func (s *SQLiteStore) Close() error {
+	if s.db != nil {
+		return s.db.Close()
+	}
 	return s.sqvect.Close()
 }
 
 // DocumentStore is a simple wrapper that uses sqvect for document storage too
 type DocumentStore struct {
-	sqvect *sqvect.SQLiteStore
+	sqvect *core.SQLiteStore
 }
 
-func NewDocumentStore(sqvectStore *sqvect.SQLiteStore) *DocumentStore {
+func NewDocumentStore(sqvectStore *core.SQLiteStore) *DocumentStore {
 	return &DocumentStore{
 		sqvect: sqvectStore,
 	}
@@ -450,7 +465,7 @@ func (s *DocumentStore) Store(ctx context.Context, doc domain.Document) error {
 	metadata["_url"] = doc.URL
 	metadata["_created"] = doc.Created.Format("2006-01-02T15:04:05Z07:00")
 
-	embedding := &sqvect.Embedding{
+	embedding := &core.Embedding{
 		ID:       doc.ID,
 		Vector:   []float32{}, // Empty vector for document metadata
 		Content:  doc.Content,
@@ -684,6 +699,11 @@ func (s *DocumentStore) Delete(ctx context.Context, id string) error {
 }
 
 // Helper function to get sqvect client for DocumentStore creation
-func (s *SQLiteStore) GetSqvectStore() *sqvect.SQLiteStore {
+func (s *SQLiteStore) GetSqvectStore() *core.SQLiteStore {
 	return s.sqvect
+}
+
+// Helper function to get the DB for other uses
+func (s *SQLiteStore) GetDB() *sqvect.DB {
+	return s.db
 }

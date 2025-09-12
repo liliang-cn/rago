@@ -115,7 +115,7 @@ func (h *MCPHandler) CallTool(c *gin.Context) {
 // BatchCallRequest represents a batch tool call request
 type BatchCallRequest struct {
 	Calls   []mcppkg.ToolCall `json:"calls" binding:"required"`
-	Timeout int            `json:"timeout"` // timeout in seconds for all calls
+	Timeout int               `json:"timeout"` // timeout in seconds for all calls
 }
 
 // BatchCallTools executes multiple MCP tools in parallel

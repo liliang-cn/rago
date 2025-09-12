@@ -139,7 +139,7 @@ func (tm *MCPToolManager) Start(ctx context.Context) error {
 	if err := tm.manager.config.LoadServersFromJSON(); err != nil {
 		return fmt.Errorf("failed to load server configurations: %w", err)
 	}
-	
+
 	// Start auto-start servers
 	for _, serverConfig := range tm.manager.config.LoadedServers {
 		if serverConfig.AutoStart {
@@ -180,17 +180,17 @@ func (tm *MCPToolManager) StartWithFailuresDetailed(ctx context.Context) ([]stri
 	var succeeded []string
 	var failed []string
 	errors := make(map[string]error)
-	
+
 	if !tm.manager.config.Enabled {
 		return succeeded, failed, errors
 	}
-	
+
 	// Load server configurations from JSON files
 	if err := tm.manager.config.LoadServersFromJSON(); err != nil {
 		// If we can't load configs, all servers are considered failed
 		return succeeded, failed, errors
 	}
-	
+
 	// Start auto-start servers
 	for _, serverConfig := range tm.manager.config.LoadedServers {
 		if serverConfig.AutoStart {
@@ -202,7 +202,7 @@ func (tm *MCPToolManager) StartWithFailuresDetailed(ctx context.Context) ([]stri
 			}
 		}
 	}
-	
+
 	return succeeded, failed, errors
 }
 

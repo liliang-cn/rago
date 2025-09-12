@@ -29,7 +29,7 @@ func main() {
 
 	// Create conversation history
 	var history *client.ConversationHistory
-	
+
 	// Determine chat mode from command line
 	chatMode := "normal"
 	if len(os.Args) > 1 {
@@ -72,41 +72,41 @@ func main() {
 	fmt.Println()
 
 	scanner := bufio.NewScanner(os.Stdin)
-	
+
 	for {
 		fmt.Print("You: ")
 		if !scanner.Scan() {
 			break
 		}
-		
+
 		input := strings.TrimSpace(scanner.Text())
-		
+
 		// Check for exit commands
 		if input == "exit" || input == "quit" || input == "bye" {
 			fmt.Println("\n👋 Goodbye!")
 			break
 		}
-		
+
 		// Check for clear command
 		if input == "clear" {
 			history.Clear()
 			fmt.Println("🔄 Conversation history cleared.")
 			continue
 		}
-		
+
 		// Skip empty input
 		if input == "" {
 			continue
 		}
-		
+
 		// Generate response based on mode
 		opts := &domain.GenerationOptions{
 			Temperature: 0.7,
 			MaxTokens:   2000,
 		}
-		
+
 		fmt.Print("\nAssistant: ")
-		
+
 		switch chatMode {
 		case "rag":
 			response, sources, err := ragoClient.ChatWithRAGHistory(ctx, input, history, opts)
@@ -115,7 +115,7 @@ func main() {
 				continue
 			}
 			fmt.Println(response)
-			
+
 			// Show sources if available
 			if len(sources) > 0 {
 				fmt.Println("\n📚 Sources:")
@@ -123,14 +123,14 @@ func main() {
 					fmt.Printf("  [%d] %.100s... (score: %.2f)\n", i+1, source.Content, source.Score)
 				}
 			}
-			
+
 		case "mcp":
 			response, toolCalls, err := ragoClient.ChatWithMCPHistory(ctx, input, history, opts)
 			if err != nil {
 				fmt.Printf("Error: %v\n", err)
 				continue
 			}
-			
+
 			// Show tool calls if any
 			if len(toolCalls) > 0 {
 				fmt.Println("\n🔧 Tools used:")
@@ -139,16 +139,16 @@ func main() {
 				}
 				fmt.Println()
 			}
-			
+
 			fmt.Println(response)
-			
+
 		case "ragmcp":
 			response, sources, toolCalls, err := ragoClient.ChatWithRAGAndMCPHistory(ctx, input, history, opts)
 			if err != nil {
 				fmt.Printf("Error: %v\n", err)
 				continue
 			}
-			
+
 			// Show sources if available
 			if len(sources) > 0 {
 				fmt.Println("\n📚 Sources:")
@@ -156,7 +156,7 @@ func main() {
 					fmt.Printf("  [%d] %.100s... (score: %.2f)\n", i+1, source.Content, source.Score)
 				}
 			}
-			
+
 			// Show tool calls if any
 			if len(toolCalls) > 0 {
 				fmt.Println("\n🔧 Tools used:")
@@ -164,13 +164,13 @@ func main() {
 					fmt.Printf("  - %s\n", tc.Function.Name)
 				}
 			}
-			
+
 			if len(sources) > 0 || len(toolCalls) > 0 {
 				fmt.Println()
 			}
-			
+
 			fmt.Println(response)
-			
+
 		default:
 			response, err := ragoClient.ChatWithHistory(ctx, input, history, opts)
 			if err != nil {
@@ -179,10 +179,10 @@ func main() {
 			}
 			fmt.Println(response)
 		}
-		
+
 		fmt.Println()
 	}
-	
+
 	if err := scanner.Err(); err != nil {
 		log.Fatalf("Error reading input: %v", err)
 	}

@@ -10,7 +10,7 @@ var (
 	// Shared configuration
 	Cfg          *config.Config
 	agentManager *agents.Manager
-	
+
 	// Shared flags (passed from root)
 	verbose bool
 	quiet   bool
@@ -29,11 +29,11 @@ func SetSharedVariables(cfg *config.Config, v bool, q bool) {
 // Initialize sets up the agent command structure
 func Initialize(cfg *config.Config) {
 	Cfg = cfg
-	
+
 	// Initialize agent command if not already done
 	if AgentCmd == nil {
 		setupCommands()
-		
+
 		// Add all subcommands
 		AgentCmd.AddCommand(agentCreateCmd)
 		AgentCmd.AddCommand(agentListCmd)
@@ -41,17 +41,17 @@ func Initialize(cfg *config.Config) {
 		AgentCmd.AddCommand(agentExecuteCmd)
 		AgentCmd.AddCommand(agentDeleteCmd)
 		AgentCmd.AddCommand(agentTemplatesCmd)
-		
+
 		// Add generate commands
 		AgentCmd.AddCommand(agentGenerateCmd)
-		
+
 		// Add run command
 		AgentCmd.AddCommand(agentRunCmd)
-		
+
 		// Add workflow commands
 		AgentCmd.AddCommand(workflowGenerateCmd)
 		AgentCmd.AddCommand(workflowTemplateCmd)
-		
+
 		// Add planner commands
 		AgentCmd.AddCommand(agentPlanCmd)
 		AgentCmd.AddCommand(agentRunPlanCmd)

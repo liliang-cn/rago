@@ -31,29 +31,29 @@ func NewMockLLMProvider(name string, healthy bool, maxFails int32) *MockLLMProvi
 
 func (m *MockLLMProvider) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
 	atomic.AddInt32(&m.generateCalled, 1)
-	
+
 	if atomic.LoadInt32(&m.failCount) < m.maxFails {
 		atomic.AddInt32(&m.failCount, 1)
 		return "", errors.New("mock generation error")
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.healthy {
 		return "", errors.New("provider unhealthy")
 	}
-	
+
 	return "mock response from " + m.name, nil
 }
 
 func (m *MockLLMProvider) Stream(ctx context.Context, prompt string, opts *domain.GenerationOptions, callback func(string)) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if !m.healthy {
 		return errors.New("provider unhealthy")
 	}
-	
+
 	callback("streaming ")
 	callback("response ")
 	callback("from ")
@@ -64,11 +64,11 @@ func (m *MockLLMProvider) Stream(ctx context.Context, prompt string, opts *domai
 func (m *MockLLMProvider) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if !m.healthy {
 		return nil, errors.New("provider unhealthy")
 	}
-	
+
 	return &domain.GenerationResult{
 		Content: "tool response from " + m.name,
 	}, nil
@@ -77,22 +77,22 @@ func (m *MockLLMProvider) GenerateWithTools(ctx context.Context, messages []doma
 func (m *MockLLMProvider) StreamWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if !m.healthy {
 		return errors.New("provider unhealthy")
 	}
-	
+
 	return nil
 }
 
 func (m *MockLLMProvider) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if !m.healthy {
 		return nil, errors.New("provider unhealthy")
 	}
-	
+
 	return &domain.StructuredResult{
 		Raw: "structured response from " + m.name,
 	}, nil
@@ -105,7 +105,7 @@ func (m *MockLLMProvider) ProviderType() domain.ProviderType {
 func (m *MockLLMProvider) Health(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if !m.healthy {
 		return errors.New("provider unhealthy")
 	}
@@ -115,11 +115,11 @@ func (m *MockLLMProvider) Health(ctx context.Context) error {
 func (m *MockLLMProvider) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if !m.healthy {
 		return nil, errors.New("provider unhealthy")
 	}
-	
+
 	return &domain.ExtractedMetadata{
 		Summary:      "Test Summary from " + m.name,
 		Keywords:     []string{"test", "keyword"},
@@ -185,7 +185,7 @@ func TestNewLLMPool(t *testing.T) {
 
 func TestLLMPool_Generate(t *testing.T) {
 	ctx := context.Background()
-	
+
 	tests := []struct {
 		name    string
 		setup   func() *LLMPool
@@ -264,16 +264,16 @@ func TestLLMPool_Generate(t *testing.T) {
 
 func TestLLMPool_LoadBalancingStrategies(t *testing.T) {
 	ctx := context.Background()
-	
+
 	t.Run("RoundRobinStrategy", func(t *testing.T) {
 		mock1 := NewMockLLMProvider("provider1", true, 0)
 		mock2 := NewMockLLMProvider("provider2", true, 0)
-		
+
 		providers := map[string]domain.LLMProvider{
 			"provider1": mock1,
 			"provider2": mock2,
 		}
-		
+
 		pool, err := NewLLMPool(providers, LLMPoolConfig{
 			Strategy: RoundRobinStrategy,
 		})
@@ -293,7 +293,7 @@ func TestLLMPool_LoadBalancingStrategies(t *testing.T) {
 		// Check that both providers were called equally (roughly)
 		calls1 := mock1.GetGenerateCalled()
 		calls2 := mock2.GetGenerateCalled()
-		
+
 		if calls1 == 0 || calls2 == 0 {
 			t.Errorf("Round-robin did not distribute calls: provider1=%d, provider2=%d", calls1, calls2)
 		}
@@ -305,7 +305,7 @@ func TestLLMPool_LoadBalancingStrategies(t *testing.T) {
 			"provider2": NewMockLLMProvider("provider2", true, 0),
 			"provider3": NewMockLLMProvider("provider3", true, 0),
 		}
-		
+
 		pool, err := NewLLMPool(providers, LLMPoolConfig{
 			Strategy: RandomStrategy,
 		})
@@ -328,7 +328,7 @@ func TestLLMPool_LoadBalancingStrategies(t *testing.T) {
 			"provider1": NewMockLLMProvider("provider1", true, 0),
 			"provider2": NewMockLLMProvider("provider2", true, 0),
 		}
-		
+
 		pool, err := NewLLMPool(providers, LLMPoolConfig{
 			Strategy: LeastLoadStrategy,
 		})
@@ -352,14 +352,14 @@ func TestLLMPool_LoadBalancingStrategies(t *testing.T) {
 	t.Run("FailoverStrategy", func(t *testing.T) {
 		mock1 := NewMockLLMProvider("provider1", true, 0)
 		mock2 := NewMockLLMProvider("provider2", true, 0)
-		
+
 		providers := map[string]domain.LLMProvider{
-			"a_provider1": mock1,  // Use alphabetic ordering to ensure consistent order
+			"a_provider1": mock1, // Use alphabetic ordering to ensure consistent order
 			"b_provider2": mock2,
 		}
-		
+
 		pool, err := NewLLMPool(providers, LLMPoolConfig{
-			Strategy: FailoverStrategy,
+			Strategy:   FailoverStrategy,
 			MaxRetries: 1, // Allow one retry to failover
 		})
 		if err != nil {
@@ -378,12 +378,12 @@ func TestLLMPool_LoadBalancingStrategies(t *testing.T) {
 		// First provider (alphabetically) should have all the calls
 		calls1 := mock1.GetGenerateCalled()
 		calls2 := mock2.GetGenerateCalled()
-		
+
 		// Since map order is not guaranteed, check that one has all calls and other has none
 		if (calls1 != 3 || calls2 != 0) && (calls1 != 0 || calls2 != 3) {
 			t.Errorf("Failover strategy did not use single provider exclusively: provider1=%d, provider2=%d", calls1, calls2)
 		}
-		
+
 		// Determine which was primary
 		var primary, secondary *MockLLMProvider
 		if calls1 > 0 {
@@ -396,16 +396,16 @@ func TestLLMPool_LoadBalancingStrategies(t *testing.T) {
 
 		// Mark primary as unhealthy
 		primary.SetHealthy(false)
-		
+
 		// Force health check to update status
 		pool.checkHealth()
-		
+
 		// Next request should go to secondary since primary is unhealthy
 		_, err = pool.Generate(ctx, "test", nil)
 		if err != nil {
 			t.Errorf("Generate() failed after primary failure: %v", err)
 		}
-		
+
 		secondaryCalls := secondary.GetGenerateCalled()
 		if secondaryCalls != 1 {
 			t.Errorf("Failover did not switch to secondary: secondary=%d", secondaryCalls)
@@ -416,12 +416,12 @@ func TestLLMPool_LoadBalancingStrategies(t *testing.T) {
 func TestLLMPool_HealthChecking(t *testing.T) {
 	mock1 := NewMockLLMProvider("provider1", true, 0)
 	mock2 := NewMockLLMProvider("provider2", true, 0)
-	
+
 	providers := map[string]domain.LLMProvider{
 		"provider1": mock1,
 		"provider2": mock2,
 	}
-	
+
 	pool, err := NewLLMPool(providers, LLMPoolConfig{
 		Strategy:            RoundRobinStrategy,
 		HealthCheckInterval: 50 * time.Millisecond,
@@ -439,10 +439,10 @@ func TestLLMPool_HealthChecking(t *testing.T) {
 
 	// Mark one as unhealthy
 	mock1.SetHealthy(false)
-	
+
 	// Wait for health check to run
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Check status again
 	status = pool.GetProviderStatus()
 	if status["provider1"] {
@@ -459,7 +459,7 @@ func TestLLMPool_ConcurrentAccess(t *testing.T) {
 		"provider2": NewMockLLMProvider("provider2", true, 0),
 		"provider3": NewMockLLMProvider("provider3", true, 0),
 	}
-	
+
 	pool, err := NewLLMPool(providers, LLMPoolConfig{
 		Strategy:   RoundRobinStrategy,
 		MaxRetries: 1,
@@ -470,11 +470,11 @@ func TestLLMPool_ConcurrentAccess(t *testing.T) {
 	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
-	
+
 	// Run concurrent operations
 	var wg sync.WaitGroup
 	errors := make(chan error, 100)
-	
+
 	// Concurrent Generate calls
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
@@ -486,7 +486,7 @@ func TestLLMPool_ConcurrentAccess(t *testing.T) {
 			}
 		}()
 	}
-	
+
 	// Concurrent Stream calls
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
@@ -498,7 +498,7 @@ func TestLLMPool_ConcurrentAccess(t *testing.T) {
 			}
 		}()
 	}
-	
+
 	// Concurrent Health checks
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -510,7 +510,7 @@ func TestLLMPool_ConcurrentAccess(t *testing.T) {
 			}
 		}()
 	}
-	
+
 	// Concurrent status checks
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -519,17 +519,17 @@ func TestLLMPool_ConcurrentAccess(t *testing.T) {
 			_ = pool.GetProviderStatus()
 		}()
 	}
-	
+
 	wg.Wait()
 	close(errors)
-	
+
 	// Check for errors
 	errorCount := 0
 	for err := range errors {
 		t.Errorf("Concurrent operation failed: %v", err)
 		errorCount++
 	}
-	
+
 	if errorCount > 0 {
 		t.Errorf("Total %d errors during concurrent access", errorCount)
 	}
@@ -537,11 +537,11 @@ func TestLLMPool_ConcurrentAccess(t *testing.T) {
 
 func TestLLMPool_Stream(t *testing.T) {
 	ctx := context.Background()
-	
+
 	providers := map[string]domain.LLMProvider{
 		"provider1": NewMockLLMProvider("provider1", true, 0),
 	}
-	
+
 	pool, err := NewLLMPool(providers, LLMPoolConfig{
 		Strategy: RoundRobinStrategy,
 	})
@@ -554,11 +554,11 @@ func TestLLMPool_Stream(t *testing.T) {
 	err = pool.Stream(ctx, "test", nil, func(s string) {
 		result += s
 	})
-	
+
 	if err != nil {
 		t.Errorf("Stream() failed: %v", err)
 	}
-	
+
 	if result != "streaming response from provider1" {
 		t.Errorf("Stream() returned unexpected result: %s", result)
 	}
@@ -568,7 +568,7 @@ func TestLLMPool_ProviderType(t *testing.T) {
 	providers := map[string]domain.LLMProvider{
 		"provider1": NewMockLLMProvider("provider1", true, 0),
 	}
-	
+
 	pool, err := NewLLMPool(providers, LLMPoolConfig{
 		Strategy: RoundRobinStrategy,
 	})

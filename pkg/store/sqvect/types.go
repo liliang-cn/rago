@@ -47,10 +47,10 @@ type SearchResult struct {
 // ScoredDocument represents a document with relevance score
 type ScoredDocument struct {
 	Document
-	Score          float64 `json:"score"`
-	VectorScore    float64 `json:"vector_score,omitempty"`
-	KeywordScore   float64 `json:"keyword_score,omitempty"`
-	HighlightedText string `json:"highlighted_text,omitempty"`
+	Score           float64 `json:"score"`
+	VectorScore     float64 `json:"vector_score,omitempty"`
+	KeywordScore    float64 `json:"keyword_score,omitempty"`
+	HighlightedText string  `json:"highlighted_text,omitempty"`
 }
 
 // ListOptions for listing documents
@@ -64,26 +64,26 @@ type ListOptions struct {
 
 // IndexConfig for creating indexes
 type IndexConfig struct {
-	Dimensions      int
-	Metric          DistanceMetric
-	IndexType       string
-	Parameters      map[string]interface{}
+	Dimensions int
+	Metric     DistanceMetric
+	IndexType  string
+	Parameters map[string]interface{}
 }
 
 // IndexInfo provides information about an index
 type IndexInfo struct {
-	Name       string
-	Config     IndexConfig
-	DocCount   int64
-	CreatedAt  time.Time
+	Name      string
+	Config    IndexConfig
+	DocCount  int64
+	CreatedAt time.Time
 }
 
 // DistanceMetric for similarity calculation
 type DistanceMetric string
 
 const (
-	DistanceCosine    DistanceMetric = "cosine"
-	DistanceEuclidean DistanceMetric = "euclidean"
+	DistanceCosine     DistanceMetric = "cosine"
+	DistanceEuclidean  DistanceMetric = "euclidean"
 	DistanceDotProduct DistanceMetric = "dot_product"
 )
 

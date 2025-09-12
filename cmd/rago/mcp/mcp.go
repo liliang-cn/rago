@@ -113,7 +113,7 @@ func runMCPChat(cmd *cobra.Command, args []string) error {
 	maxTokens, _ := cmd.Flags().GetInt("max-tokens")
 	showThinking, _ := cmd.Flags().GetBool("show-thinking")
 	allowedTools, _ := cmd.Flags().GetStringSlice("allowed-tools")
-	
+
 	// Check if interactive mode (no arguments provided)
 	if len(args) == 0 {
 		ctx := context.Background()
@@ -332,7 +332,7 @@ func runMCPStatus(cmd *cobra.Command, args []string) error {
 	if err := Cfg.MCP.LoadServersFromJSON(); err != nil {
 		return fmt.Errorf("failed to load server configurations: %w", err)
 	}
-	
+
 	for _, serverConfig := range Cfg.MCP.LoadedServers {
 		status := "❌ Stopped"
 		if connected, exists := serverStatus[serverConfig.Name]; exists && connected {

@@ -61,7 +61,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	
+
 	// Create client
 	ragoClient, err := client.NewWithConfig(cfg)
 	if err != nil {
@@ -73,10 +73,10 @@ func runChat(cmd *cobra.Command, args []string) error {
 	if chatInteractive || len(args) == 0 {
 		return runInteractiveChat(ctx, ragoClient)
 	}
-	
+
 	// Single message mode
 	var prompt string
-	
+
 	if len(args) > 0 {
 		// Message provided as argument
 		prompt = strings.Join(args, " ")
@@ -139,23 +139,23 @@ func runChat(cmd *cobra.Command, args []string) error {
 func readMultilineInput() string {
 	reader := bufio.NewReader(os.Stdin)
 	var lines []string
-	
+
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			break
 		}
-		
+
 		line = strings.TrimRight(line, "\n\r")
-		
+
 		// Empty line signals end of input
 		if line == "" {
 			break
 		}
-		
+
 		lines = append(lines, line)
 	}
-	
+
 	return strings.Join(lines, "\n")
 }
 
@@ -167,7 +167,7 @@ func runInteractiveChat(ctx context.Context, ragoClient *client.Client) error {
 		systemPrompt = chatSystem
 	}
 	history := client.NewConversationHistory(systemPrompt, 50)
-	
+
 	// Welcome message
 	fmt.Println("\n🎭 Interactive Chat Session")
 	fmt.Println("=" + strings.Repeat("=", 40))
@@ -177,12 +177,12 @@ func runInteractiveChat(ctx context.Context, ragoClient *client.Client) error {
 		fmt.Println("Multi-line mode: Press Enter twice to send your message.")
 	}
 	fmt.Println()
-	
+
 	reader := bufio.NewReader(os.Stdin)
-	
+
 	for {
 		fmt.Print("💭 You: ")
-		
+
 		var input string
 		if chatMultiline {
 			input = readMultilineInput()
@@ -193,34 +193,34 @@ func runInteractiveChat(ctx context.Context, ragoClient *client.Client) error {
 			}
 			input = strings.TrimSpace(line)
 		}
-		
+
 		// Check for exit commands
 		lowered := strings.ToLower(input)
 		if lowered == "exit" || lowered == "quit" || lowered == "bye" {
 			fmt.Println("\n👋 Goodbye! Thank you for chatting.")
 			break
 		}
-		
+
 		// Check for clear command
 		if lowered == "clear" {
 			history.Clear()
 			fmt.Println("🔄 Conversation history cleared.")
 			continue
 		}
-		
+
 		// Skip empty input
 		if input == "" {
 			continue
 		}
-		
+
 		// Generate response
 		opts := &domain.GenerationOptions{
 			Temperature: chatTemperature,
 			MaxTokens:   chatMaxTokens,
 		}
-		
+
 		fmt.Print("\n🤖 Assistant: ")
-		
+
 		if chatStream {
 			// Use streaming for better UX
 			err := ragoClient.StreamChatWithHistory(ctx, input, history, opts, func(chunk string) {
@@ -239,9 +239,9 @@ func runInteractiveChat(ctx context.Context, ragoClient *client.Client) error {
 			}
 			fmt.Println(response)
 		}
-		
+
 		fmt.Println()
 	}
-	
+
 	return nil
 }

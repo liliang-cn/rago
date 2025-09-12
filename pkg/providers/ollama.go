@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/liliang-cn/ollama-go"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
@@ -387,18 +388,36 @@ func (p *OllamaLLMProvider) GenerateStructured(ctx context.Context, prompt strin
 	}, nil
 }
 
-const metadataExtractionPromptTemplate = `You are an expert data extractor. Analyze the following document content and return ONLY a single valid JSON object with the following fields:
-- "summary": A concise, one-sentence summary of the document.
-- "keywords": An array of 3 to 5 most relevant keywords.
-- "document_type": The type of the document (e.g., "Article", "Meeting Notes", "Technical Manual", "Code Snippet", "Essay").
-- "creation_date": The creation date found in the document text in "YYYY-MM-DD" format. If no date is found, use null.
+const enhancedMetadataExtractionPromptTemplate = `You are an expert data extractor. Today's date is %s.
 
-Document Content:
+Analyze this document:
 """
 %s
 """
 
-JSON Output:`
+Extract ALL information into this JSON structure:
+{
+  "summary": "one-sentence summary of the document",
+  "keywords": ["keyword1", "keyword2", "keyword3"],
+  "document_type": "Medical Record|Article|Meeting Notes|Technical Manual|Code|Essay",
+  "creation_date": "YYYY-MM-DD or null if not found",
+  "temporal_refs": {
+    "today": "%s",
+    "tomorrow": "YYYY-MM-DD",
+    "yesterday": "YYYY-MM-DD",
+    "next week": "YYYY-MM-DD"
+  },
+  "entities": {
+    "person": ["names of people"],
+    "location": ["West China Hospital", "places mentioned"],
+    "organization": ["companies or institutions"],
+    "medical": ["vitrectomy", "medical procedures or terms"]
+  },
+  "events": ["pre-surgery examination", "scheduled surgery", "actions mentioned"],
+  "custom_meta": {}
+}
+
+IMPORTANT: Include ALL temporal references, entities, and events found in the text. If a category is empty, use empty array [].`
 
 // ExtractMetadata extracts metadata from content using Ollama
 func (p *OllamaLLMProvider) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
@@ -406,32 +425,77 @@ func (p *OllamaLLMProvider) ExtractMetadata(ctx context.Context, content string,
 		return nil, fmt.Errorf("%w: content cannot be empty", domain.ErrInvalidInput)
 	}
 
-	prompt := fmt.Sprintf(metadataExtractionPromptTemplate, content)
-
-	llmModel := p.config.LLMModel
-	if model != "" {
-		llmModel = model
-	}
-
-	stream := false
-	format := "json"
-	req := &ollama.GenerateRequest{
-		Model:  llmModel,
-		Prompt: prompt,
-		Stream: &stream,
-		Format: &format,
-	}
-
-	resp, err := p.client.Generate(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("%w: metadata extraction failed: %v", domain.ErrGenerationFailed, err)
-	}
-
-	var metadata domain.ExtractedMetadata
-	if err := json.Unmarshal([]byte(resp.Response), &metadata); err != nil {
-		return nil, fmt.Errorf("%w: failed to unmarshal metadata response: %v. Raw response: %s", domain.ErrInvalidInput, err, resp.Response)
-	}
-
+	// Always use structured generation for metadata extraction
+	currentDate := time.Now().Format("2006-01-02")
+	prompt := fmt.Sprintf(enhancedMetadataExtractionPromptTemplate, currentDate, content, currentDate)
+		
+		// Define the schema for structured output as a map for Ollama's format
+		schema := map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"summary": map[string]string{"type": "string"},
+				"keywords": map[string]interface{}{
+					"type": "array",
+					"items": map[string]string{"type": "string"},
+				},
+				"document_type": map[string]string{"type": "string"},
+				"creation_date": map[string]string{"type": "string"},
+				"temporal_refs": map[string]interface{}{
+					"type": "object",
+					"additionalProperties": map[string]string{"type": "string"},
+				},
+				"entities": map[string]interface{}{
+					"type": "object",
+					"additionalProperties": map[string]interface{}{
+						"type": "array",
+						"items": map[string]string{"type": "string"},
+					},
+				},
+				"events": map[string]interface{}{
+					"type": "array",
+					"items": map[string]string{"type": "string"},
+				},
+				"custom_meta": map[string]interface{}{
+					"type": "object",
+					"additionalProperties": true,
+				},
+			},
+			"required": []string{"summary", "keywords", "document_type"},
+		}
+		
+		// Temporarily override model if specified
+		originalModel := p.config.LLMModel
+		if model != "" {
+			p.config.LLMModel = model
+			defer func() { p.config.LLMModel = originalModel }()
+		}
+		
+		// Use GenerateStructured for reliable JSON parsing
+		result, err := p.GenerateStructured(ctx, prompt, schema, nil)
+		if err != nil {
+			return nil, fmt.Errorf("%w: enhanced metadata extraction failed: %v", domain.ErrGenerationFailed, err)
+		}
+		
+		// Parse the structured result directly from the raw JSON response
+		var metadata domain.ExtractedMetadata
+		if err := json.Unmarshal([]byte(result.Raw), &metadata); err != nil {
+			return nil, fmt.Errorf("%w: failed to unmarshal metadata: %v", domain.ErrInvalidInput, err)
+		}
+		
+		// Initialize empty maps/slices if nil to ensure consistent output
+		if metadata.TemporalRefs == nil {
+			metadata.TemporalRefs = make(map[string]string)
+		}
+		if metadata.Entities == nil {
+			metadata.Entities = make(map[string][]string)
+		}
+		if metadata.Events == nil {
+			metadata.Events = []string{}
+		}
+		if metadata.CustomMeta == nil {
+			metadata.CustomMeta = make(map[string]interface{})
+		}
+		
 	return &metadata, nil
 }
 

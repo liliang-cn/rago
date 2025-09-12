@@ -268,7 +268,7 @@ func TestLoadServersFromJSON_InvalidJSON(t *testing.T) {
 	// Create temporary file with invalid JSON
 	tempDir := t.TempDir()
 	configFile := filepath.Join(tempDir, "invalid.json")
-	
+
 	err := os.WriteFile(configFile, []byte("invalid json content"), 0644)
 	require.NoError(t, err)
 
@@ -285,7 +285,7 @@ func TestLoadServersFromJSON_HomeDirectory(t *testing.T) {
 	// This tests the home directory path resolution logic
 	// We can't easily test the actual home directory logic in unit tests
 	// but we can test the relative path behavior
-	
+
 	config := &Config{
 		Servers: []string{"nonexistent-relative-path.json"},
 	}
@@ -419,18 +419,18 @@ func TestToolResultTypes(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.True(t, unmarshaled.Success)
-		
+
 		// Check data structure (JSON unmarshal converts string arrays to []interface{})
 		resultData := unmarshaled.Data.(map[string]interface{})
 		assert.Equal(t, "value", resultData["string"])
 		assert.Equal(t, 42.5, resultData["number"])
-		
+
 		// Array becomes []interface{} after JSON unmarshal
 		array := resultData["array"].([]interface{})
 		assert.Len(t, array, 2)
 		assert.Equal(t, "item1", array[0])
 		assert.Equal(t, "item2", array[1])
-		
+
 		nested := resultData["nested"].(map[string]interface{})
 		assert.Equal(t, "nested value", nested["key"])
 	})
@@ -439,7 +439,7 @@ func TestToolResultTypes(t *testing.T) {
 // Additional comprehensive tests for DefaultConfig
 func TestDefaultConfig_Values(t *testing.T) {
 	config := DefaultConfig()
-	
+
 	// Test all default values
 	assert.False(t, config.Enabled)
 	assert.Equal(t, "info", config.LogLevel)
@@ -455,7 +455,7 @@ func TestDefaultConfig_Values(t *testing.T) {
 func TestConfig_EdgeCases(t *testing.T) {
 	t.Run("zero values", func(t *testing.T) {
 		config := Config{}
-		
+
 		// Test with all zero values
 		assert.False(t, config.Enabled)
 		assert.Empty(t, config.LogLevel)
@@ -466,14 +466,14 @@ func TestConfig_EdgeCases(t *testing.T) {
 		assert.Empty(t, config.ServersConfigPath)
 		assert.Empty(t, config.LoadedServers)
 	})
-	
+
 	t.Run("negative values", func(t *testing.T) {
 		config := Config{
 			DefaultTimeout:        -1 * time.Second,
 			MaxConcurrentRequests: -5,
 			HealthCheckInterval:   -10 * time.Second,
 		}
-		
+
 		// These should be handled gracefully by the application
 		assert.Equal(t, -1*time.Second, config.DefaultTimeout)
 		assert.Equal(t, -5, config.MaxConcurrentRequests)
@@ -485,7 +485,7 @@ func TestConfig_EdgeCases(t *testing.T) {
 func TestServerConfig_EdgeCases(t *testing.T) {
 	t.Run("empty server config", func(t *testing.T) {
 		config := ServerConfig{}
-		
+
 		assert.Empty(t, config.Name)
 		assert.Empty(t, config.Description)
 		assert.Empty(t, config.Command)
@@ -498,7 +498,7 @@ func TestServerConfig_EdgeCases(t *testing.T) {
 		assert.Equal(t, time.Duration(0), config.RestartDelay)
 		assert.Empty(t, config.Capabilities)
 	})
-	
+
 	t.Run("server config with special characters", func(t *testing.T) {
 		config := ServerConfig{
 			Name:        "test-server-ñ-unicode-测试",
@@ -508,15 +508,15 @@ func TestServerConfig_EdgeCases(t *testing.T) {
 			WorkingDir:  "/path/with spaces",
 			Env:         map[string]string{"SPECIAL_VAR": "value with spaces & symbols!"},
 		}
-		
+
 		// Test JSON marshaling handles special characters
 		data, err := json.Marshal(config)
 		require.NoError(t, err)
-		
+
 		var unmarshaled ServerConfig
 		err = json.Unmarshal(data, &unmarshaled)
 		require.NoError(t, err)
-		
+
 		assert.Equal(t, config, unmarshaled)
 	})
 }
@@ -526,38 +526,38 @@ func TestLoadServersFromJSON_EdgeCases(t *testing.T) {
 	t.Run("empty JSON file", func(t *testing.T) {
 		tempDir := t.TempDir()
 		configFile := filepath.Join(tempDir, "empty.json")
-		
+
 		// Create empty JSON object
 		emptyConfig := JSONServersConfig{MCPServers: map[string]SimpleServerConfig{}}
 		data, _ := json.Marshal(emptyConfig)
 		err := os.WriteFile(configFile, data, 0644)
 		require.NoError(t, err)
-		
+
 		config := &Config{Servers: []string{configFile}}
 		err = config.LoadServersFromJSON()
 		require.NoError(t, err)
-		
+
 		assert.Empty(t, config.LoadedServers)
 	})
-	
+
 	t.Run("minimal server config", func(t *testing.T) {
 		tempDir := t.TempDir()
 		configFile := filepath.Join(tempDir, "minimal.json")
-		
+
 		testConfig := JSONServersConfig{
 			MCPServers: map[string]SimpleServerConfig{
 				"minimal": {Command: "echo"},
 			},
 		}
-		
+
 		data, _ := json.Marshal(testConfig)
 		err := os.WriteFile(configFile, data, 0644)
 		require.NoError(t, err)
-		
+
 		config := &Config{Servers: []string{configFile}}
 		err = config.LoadServersFromJSON()
 		require.NoError(t, err)
-		
+
 		assert.Len(t, config.LoadedServers, 1)
 		server := config.LoadedServers[0]
 		assert.Equal(t, "minimal", server.Name)
@@ -565,14 +565,14 @@ func TestLoadServersFromJSON_EdgeCases(t *testing.T) {
 		assert.Empty(t, server.Args)
 		assert.Empty(t, server.WorkingDir)
 		assert.Empty(t, server.Env)
-		assert.True(t, server.AutoStart) // Should default to true
+		assert.True(t, server.AutoStart)        // Should default to true
 		assert.True(t, server.RestartOnFailure) // Should default to true
 	})
-	
+
 	t.Run("large number of servers", func(t *testing.T) {
 		tempDir := t.TempDir()
 		configFile := filepath.Join(tempDir, "many-servers.json")
-		
+
 		// Create config with 100 servers
 		servers := make(map[string]SimpleServerConfig)
 		for i := 0; i < 100; i++ {
@@ -581,32 +581,32 @@ func TestLoadServersFromJSON_EdgeCases(t *testing.T) {
 				Args:    []string{fmt.Sprintf("arg-%d", i)},
 			}
 		}
-		
+
 		testConfig := JSONServersConfig{MCPServers: servers}
 		data, _ := json.Marshal(testConfig)
 		err := os.WriteFile(configFile, data, 0644)
 		require.NoError(t, err)
-		
+
 		config := &Config{Servers: []string{configFile}}
 		err = config.LoadServersFromJSON()
 		require.NoError(t, err)
-		
+
 		assert.Len(t, config.LoadedServers, 100)
 	})
-	
+
 	t.Run("file permissions error", func(t *testing.T) {
 		tempDir := t.TempDir()
 		configFile := filepath.Join(tempDir, "no-read.json")
-		
+
 		// Create file with no read permissions
 		testConfig := JSONServersConfig{MCPServers: map[string]SimpleServerConfig{"test": {Command: "echo"}}}
 		data, _ := json.Marshal(testConfig)
 		err := os.WriteFile(configFile, data, 0000) // No permissions
 		require.NoError(t, err)
-		
+
 		config := &Config{Servers: []string{configFile}}
 		err = config.LoadServersFromJSON()
-		
+
 		// Should fail to read the file
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to read MCP servers config file")
@@ -618,35 +618,35 @@ func TestConfig_ConcurrentAccess(t *testing.T) {
 	t.Run("concurrent LoadServersFromJSON", func(t *testing.T) {
 		tempDir := t.TempDir()
 		configFile := filepath.Join(tempDir, "concurrent.json")
-		
+
 		testConfig := JSONServersConfig{
 			MCPServers: map[string]SimpleServerConfig{
 				"test": {Command: "echo"},
 			},
 		}
-		
+
 		data, _ := json.Marshal(testConfig)
 		err := os.WriteFile(configFile, data, 0644)
 		require.NoError(t, err)
-		
+
 		config := &Config{Servers: []string{configFile}}
-		
+
 		// Run multiple goroutines concurrently
 		const numGoroutines = 10
 		errChan := make(chan error, numGoroutines)
-		
+
 		for i := 0; i < numGoroutines; i++ {
 			go func() {
 				errChan <- config.LoadServersFromJSON()
 			}()
 		}
-		
+
 		// Check all goroutines completed without error
 		for i := 0; i < numGoroutines; i++ {
 			err := <-errChan
 			assert.NoError(t, err)
 		}
-		
+
 		// Verify final state
 		assert.Len(t, config.LoadedServers, 1)
 	})
@@ -659,14 +659,14 @@ func TestClientStruct(t *testing.T) {
 			Name:    "test",
 			Command: []string{"echo"},
 		}
-		
+
 		client := &Client{
 			config:    serverConfig,
 			session:   nil,
 			tools:     make(map[string]*mcp.Tool),
 			connected: false,
 		}
-		
+
 		assert.Equal(t, serverConfig, client.config)
 		assert.Nil(t, client.session)
 		assert.NotNil(t, client.tools)
@@ -678,17 +678,17 @@ func TestClientStruct(t *testing.T) {
 func TestToolInfo_EdgeCases(t *testing.T) {
 	t.Run("empty tool info", func(t *testing.T) {
 		info := ToolInfo{}
-		
+
 		data, err := json.Marshal(info)
 		require.NoError(t, err)
-		
+
 		var unmarshaled ToolInfo
 		err = json.Unmarshal(data, &unmarshaled)
 		require.NoError(t, err)
-		
+
 		assert.Equal(t, info, unmarshaled)
 	})
-	
+
 	t.Run("tool info with nil schema", func(t *testing.T) {
 		info := ToolInfo{
 			ServerName:  "server",
@@ -697,18 +697,18 @@ func TestToolInfo_EdgeCases(t *testing.T) {
 			InputSchema: nil, // nil schema
 			UsageCount:  0,
 		}
-		
+
 		data, err := json.Marshal(info)
 		require.NoError(t, err)
-		
+
 		var unmarshaled ToolInfo
 		err = json.Unmarshal(data, &unmarshaled)
 		require.NoError(t, err)
-		
+
 		assert.Equal(t, info, unmarshaled)
 		assert.Nil(t, unmarshaled.InputSchema)
 	})
-	
+
 	t.Run("tool info with complex schema", func(t *testing.T) {
 		complexSchema := map[string]interface{}{
 			"type": "object",
@@ -732,7 +732,7 @@ func TestToolInfo_EdgeCases(t *testing.T) {
 			},
 			"required": []string{"nested", "simple"},
 		}
-		
+
 		info := ToolInfo{
 			ServerName:  "complex-server",
 			Name:        "complex-tool",
@@ -741,32 +741,32 @@ func TestToolInfo_EdgeCases(t *testing.T) {
 			LastUsed:    time.Now(),
 			UsageCount:  999,
 		}
-		
+
 		data, err := json.Marshal(info)
 		require.NoError(t, err)
-		
+
 		var unmarshaled ToolInfo
 		err = json.Unmarshal(data, &unmarshaled)
 		require.NoError(t, err)
-		
+
 		assert.Equal(t, info.ServerName, unmarshaled.ServerName)
 		assert.Equal(t, info.Name, unmarshaled.Name)
 		assert.Equal(t, info.Description, unmarshaled.Description)
 		assert.Equal(t, info.UsageCount, unmarshaled.UsageCount)
-		
+
 		// Check schema structure (JSON unmarshal converts numbers to float64 and string arrays to []interface{})
 		schema := unmarshaled.InputSchema
 		assert.Equal(t, "object", schema["type"])
-		
+
 		properties := schema["properties"].(map[string]interface{})
 		nested := properties["nested"].(map[string]interface{})
 		nestedProps := nested["properties"].(map[string]interface{})
 		deep := nestedProps["deep"].(map[string]interface{})
-		
+
 		assert.Equal(t, "array", deep["type"])
-		assert.Equal(t, float64(1), deep["minItems"]) // JSON unmarshal converts to float64
+		assert.Equal(t, float64(1), deep["minItems"])  // JSON unmarshal converts to float64
 		assert.Equal(t, float64(10), deep["maxItems"]) // JSON unmarshal converts to float64
-		
+
 		required := schema["required"].([]interface{}) // JSON unmarshal converts to []interface{}
 		assert.Len(t, required, 2)
 		assert.Contains(t, required, "nested")
@@ -786,21 +786,21 @@ func (suite *TypesTestSuite) SetupTest() {
 
 func (suite *TypesTestSuite) TestLoadServerFile_AbsolutePath() {
 	configFile := filepath.Join(suite.tempDir, "absolute.json")
-	
+
 	testConfig := JSONServersConfig{
 		MCPServers: map[string]SimpleServerConfig{
 			"absolute-server": {Command: "absolute-cmd"},
 		},
 	}
-	
+
 	data, _ := json.Marshal(testConfig)
 	err := os.WriteFile(configFile, data, 0644)
 	suite.Require().NoError(err)
-	
+
 	config := &Config{}
 	err = config.loadServerFile(configFile) // Use absolute path
 	suite.Require().NoError(err)
-	
+
 	suite.Len(config.LoadedServers, 1)
 	suite.Equal("absolute-server", config.LoadedServers[0].Name)
 }

@@ -17,7 +17,7 @@ type MockGenerator struct {
 	response           string
 	structuredResponse *domain.StructuredResult
 	generationResult   *domain.GenerationResult
-	error             error
+	error              error
 }
 
 func (m *MockGenerator) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
@@ -115,7 +115,7 @@ func TestAgentGenerator_GenerateWorkflow_Structured(t *testing.T) {
 	}
 
 	generator := NewAgentGenerator(mockGen)
-	
+
 	ctx := context.Background()
 	result, err := generator.GenerateWorkflow(ctx, "Create a test workflow")
 
@@ -127,24 +127,24 @@ func TestAgentGenerator_GenerateWorkflow_Structured(t *testing.T) {
 }
 
 func TestAgentGenerator_GenerateAgent(t *testing.T) {
-	// This test uses the default behavior where the mock returns the schema parameter 
+	// This test uses the default behavior where the mock returns the schema parameter
 	// with zero values, so we test that the agent is created with default values
 	mockGen := &MockGenerator{} // Uses default behavior
 
 	generator := NewAgentGenerator(mockGen)
-	
+
 	ctx := context.Background()
 	agent, err := generator.GenerateAgent(ctx, "Create a research agent", types.AgentTypeResearch)
 
 	require.NoError(t, err)
 	assert.NotNil(t, agent)
-	assert.Equal(t, "", agent.Name) // Empty name from zero-value schema
-	assert.Equal(t, types.AgentTypeResearch, agent.Type) // Type is set by the test parameter
+	assert.Equal(t, "", agent.Name)                                   // Empty name from zero-value schema
+	assert.Equal(t, types.AgentTypeResearch, agent.Type)              // Type is set by the test parameter
 	assert.Equal(t, types.AutonomyManual, agent.Config.AutonomyLevel) // Default autonomy level
-	assert.Equal(t, 0, agent.Config.MaxConcurrentExecutions) // Zero value
-	assert.Equal(t, time.Duration(0), agent.Config.DefaultTimeout) // Zero value
-	assert.False(t, agent.Config.EnableMetrics) // Zero value
-	assert.Len(t, agent.Workflow.Steps, 0) // Empty workflow from zero-value schema
+	assert.Equal(t, 0, agent.Config.MaxConcurrentExecutions)          // Zero value
+	assert.Equal(t, time.Duration(0), agent.Config.DefaultTimeout)    // Zero value
+	assert.False(t, agent.Config.EnableMetrics)                       // Zero value
+	assert.Len(t, agent.Workflow.Steps, 0)                            // Empty workflow from zero-value schema
 }
 
 func TestAgentGenerator_GenerateToolCall(t *testing.T) {
@@ -162,7 +162,7 @@ func TestAgentGenerator_GenerateToolCall(t *testing.T) {
 	}
 
 	generator := NewAgentGenerator(mockGen)
-	
+
 	ctx := context.Background()
 	params, err := generator.GenerateToolCall(ctx, "filesystem", "Read a test file")
 
@@ -174,9 +174,9 @@ func TestAgentGenerator_GenerateToolCall(t *testing.T) {
 
 func TestAgentGenerator_BuildWorkflowPrompt(t *testing.T) {
 	generator := NewAgentGenerator(&MockGenerator{})
-	
+
 	prompt := generator.buildWorkflowPrompt("Create a file reading workflow")
-	
+
 	assert.Contains(t, prompt, "workflow generator")
 	assert.Contains(t, prompt, "filesystem")
 	assert.Contains(t, prompt, "Create a file reading workflow")
@@ -185,7 +185,7 @@ func TestAgentGenerator_BuildWorkflowPrompt(t *testing.T) {
 
 func TestAgentGenerator_BuildAgentPrompt(t *testing.T) {
 	generator := NewAgentGenerator(&MockGenerator{})
-	
+
 	tests := []struct {
 		agentType   types.AgentType
 		description string
@@ -211,7 +211,7 @@ func TestAgentGenerator_BuildAgentPrompt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.agentType), func(t *testing.T) {
 			prompt := generator.buildAgentPrompt(tt.description, tt.agentType)
-			
+
 			assert.Contains(t, prompt, string(tt.agentType))
 			assert.Contains(t, prompt, tt.description)
 			assert.Contains(t, prompt, tt.expected)
@@ -222,7 +222,7 @@ func TestAgentGenerator_BuildAgentPrompt(t *testing.T) {
 
 func TestAgentGenerator_ValidateWorkflow(t *testing.T) {
 	generator := NewAgentGenerator(&MockGenerator{})
-	
+
 	tests := []struct {
 		name        string
 		workflow    *types.WorkflowSpec
@@ -270,7 +270,7 @@ func TestAgentGenerator_ValidateWorkflow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := generator.validateWorkflow(tt.workflow)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
@@ -385,7 +385,7 @@ func TestAgentGenerator_GenerateWorkflow_FallbackToUnstructured(t *testing.T) {
 
 	generator := NewAgentGenerator(mockGen)
 	generator.SetVerbose(true) // Enable verbose for better testing
-	
+
 	ctx := context.Background()
 	result, err := generator.GenerateWorkflow(ctx, "Create a fallback workflow")
 
@@ -438,7 +438,7 @@ func TestAgentGenerator_AutonomyLevelMapping(t *testing.T) {
 			}
 
 			generator := NewAgentGenerator(mockGen)
-			
+
 			ctx := context.Background()
 			agent, err := generator.GenerateAgent(ctx, "Test", types.AgentTypeResearch)
 

@@ -327,12 +327,12 @@ func (t *ToolChainExecutor) executeChainStep(ctx context.Context, step types.Cha
 
 	// Execute tool
 	var toolResult map[string]interface{}
-	
+
 	// Check if mcpClient has CallTool method
 	type mcpCaller interface {
 		CallTool(tool string, inputs map[string]interface{}) (interface{}, error)
 	}
-	
+
 	if caller, ok := t.mcpClient.(mcpCaller); ok {
 		result, callErr := caller.CallTool(step.ToolName, renderedInputs)
 		if callErr != nil {

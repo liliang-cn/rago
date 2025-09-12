@@ -47,7 +47,7 @@ func TestMemoryAgentStore_SaveAgent(t *testing.T) {
 	// Test saving the same agent again (should update timestamp)
 	originalUpdatedAt := agent.UpdatedAt
 	time.Sleep(time.Millisecond) // Ensure time difference
-	
+
 	err = store.SaveAgent(agent)
 	require.NoError(t, err)
 	assert.True(t, agent.UpdatedAt.After(originalUpdatedAt))
@@ -108,7 +108,7 @@ func TestMemoryAgentStore_GetAgent(t *testing.T) {
 
 	// Verify it's a copy (modifying retrieved shouldn't affect stored)
 	retrievedAgent.Name = "Modified Name"
-	
+
 	retrievedAgain, err := store.GetAgent("test-agent-1")
 	require.NoError(t, err)
 	assert.Equal(t, "Test Agent", retrievedAgain.Name) // Should be unchanged
@@ -155,21 +155,21 @@ func TestMemoryAgentStore_ListAgents(t *testing.T) {
 	// Add some agents
 	testAgents := []*types.Agent{
 		{
-			ID:   "agent-1",
-			Name: "Agent 1",
-			Type: types.AgentTypeResearch,
+			ID:     "agent-1",
+			Name:   "Agent 1",
+			Type:   types.AgentTypeResearch,
 			Status: types.AgentStatusActive,
 		},
 		{
-			ID:   "agent-2",
-			Name: "Agent 2",
-			Type: types.AgentTypeWorkflow,
+			ID:     "agent-2",
+			Name:   "Agent 2",
+			Type:   types.AgentTypeWorkflow,
 			Status: types.AgentStatusInactive,
 		},
 		{
-			ID:   "agent-3",
-			Name: "Agent 3",
-			Type: types.AgentTypeMonitoring,
+			ID:     "agent-3",
+			Name:   "Agent 3",
+			Type:   types.AgentTypeMonitoring,
 			Status: types.AgentStatusActive,
 		},
 	}
@@ -196,7 +196,7 @@ func TestMemoryAgentStore_ListAgents(t *testing.T) {
 
 	// Verify they're copies
 	agents[0].Name = "Modified Name"
-	
+
 	retrievedAgent, err := store.GetAgent("agent-1")
 	require.NoError(t, err)
 	assert.Equal(t, "Agent 1", retrievedAgent.Name) // Should be unchanged
@@ -206,9 +206,9 @@ func TestMemoryAgentStore_DeleteAgent(t *testing.T) {
 	store := NewMemoryAgentStore()
 
 	agent := &types.Agent{
-		ID:   "test-agent-delete",
-		Name: "Agent to Delete",
-		Type: types.AgentTypeResearch,
+		ID:     "test-agent-delete",
+		Name:   "Agent to Delete",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 	}
 
@@ -354,7 +354,7 @@ func TestMemoryAgentStore_GetExecution(t *testing.T) {
 
 	// Verify it's a copy
 	retrieved.Status = types.ExecutionStatusFailed
-	
+
 	retrievedAgain, err := store.GetExecution("exec-get-test")
 	require.NoError(t, err)
 	assert.Equal(t, types.ExecutionStatusCompleted, retrievedAgain.Status)
@@ -488,7 +488,7 @@ func TestMemoryAgentStore_ListAllExecutions(t *testing.T) {
 
 	// Verify they're copies
 	allExecutions[0].Status = types.ExecutionStatusFailed
-	
+
 	retrieved, err := store.GetExecution("exec-1")
 	require.NoError(t, err)
 	assert.NotEqual(t, types.ExecutionStatusFailed, retrieved.Status)
@@ -585,7 +585,7 @@ func TestMemoryAgentStore_Clear(t *testing.T) {
 
 func TestMemoryAgentStore_ConcurrentAccess(t *testing.T) {
 	store := NewMemoryAgentStore()
-	
+
 	// Test concurrent writes
 	var wg sync.WaitGroup
 	numGoroutines := 10
@@ -617,7 +617,7 @@ func TestMemoryAgentStore_ConcurrentAccess(t *testing.T) {
 
 	// Test concurrent reads while writing
 	wg.Add(numGoroutines * 2)
-	
+
 	// Readers
 	for i := 0; i < numGoroutines; i++ {
 		go func(routineID int) {
@@ -659,9 +659,9 @@ func TestMemoryAgentStore_DataIsolation(t *testing.T) {
 	store := NewMemoryAgentStore()
 
 	originalAgent := &types.Agent{
-		ID:   "isolation-test",
-		Name: "Original Agent",
-		Type: types.AgentTypeResearch,
+		ID:     "isolation-test",
+		Name:   "Original Agent",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 		Config: types.AgentConfig{
 			MaxConcurrentExecutions: 5,
@@ -688,7 +688,7 @@ func TestMemoryAgentStore_DataIsolation(t *testing.T) {
 
 	// Modify original after save and verify it doesn't affect stored copy
 	originalAgent.Name = "Modified Original"
-	
+
 	retrieved3, err := store.GetAgent("isolation-test")
 	require.NoError(t, err)
 	assert.Equal(t, "Original Agent", retrieved3.Name)
