@@ -400,6 +400,7 @@ Extract ALL information into this JSON structure:
   "summary": "one-sentence summary of the document",
   "keywords": ["keyword1", "keyword2", "keyword3"],
   "document_type": "Medical Record|Article|Meeting Notes|Technical Manual|Code|Essay",
+  "collection": "Choose the most appropriate collection name based on content (use snake_case, e.g., medical_records, meeting_notes, technical_docs, research_papers, personal_notes, project_docs, legal_documents, financial_reports, customer_feedback, code_snippets)",
   "creation_date": "YYYY-MM-DD or null if not found",
   "temporal_refs": {
     "today": "%s",
@@ -417,7 +418,10 @@ Extract ALL information into this JSON structure:
   "custom_meta": {}
 }
 
-IMPORTANT: Include ALL temporal references, entities, and events found in the text. If a category is empty, use empty array [].`
+IMPORTANT: 
+- Include ALL temporal references, entities, and events found in the text. If a category is empty, use empty array [].
+- Choose collection name intelligently based on document content and purpose
+- Use consistent collection names for similar content types`
 
 // ExtractMetadata extracts metadata from content using Ollama
 func (p *OllamaLLMProvider) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
@@ -439,6 +443,7 @@ func (p *OllamaLLMProvider) ExtractMetadata(ctx context.Context, content string,
 					"items": map[string]string{"type": "string"},
 				},
 				"document_type": map[string]string{"type": "string"},
+				"collection": map[string]string{"type": "string"},
 				"creation_date": map[string]string{"type": "string"},
 				"temporal_refs": map[string]interface{}{
 					"type": "object",
@@ -460,7 +465,7 @@ func (p *OllamaLLMProvider) ExtractMetadata(ctx context.Context, content string,
 					"additionalProperties": true,
 				},
 			},
-			"required": []string{"summary", "keywords", "document_type"},
+			"required": []string{"summary", "keywords", "document_type", "collection"},
 		}
 		
 		// Temporarily override model if specified
