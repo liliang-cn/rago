@@ -256,7 +256,7 @@ func TestDefaultConfigValues(t *testing.T) {
 		// The Load function should still return a config with viper defaults
 		t.Skip("No config file found, skipping default config test")
 	}
-	
+
 	if config == nil {
 		t.Fatal("Load returned nil config")
 	}
@@ -277,7 +277,7 @@ func TestLoad_EmptyConfigPath(t *testing.T) {
 	if err != nil && !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "mcpServers.json") {
 		t.Errorf("Unexpected error: %v", err)
 	}
-	
+
 	// Even if config file is not found, we should get a config with defaults
 	if config == nil && err == nil {
 		t.Error("Expected either config or error")
@@ -336,7 +336,7 @@ func TestConfig_ValidateChunkerConfig(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &Config{
@@ -359,7 +359,7 @@ func TestConfig_ValidateChunkerConfig(t *testing.T) {
 				},
 				Chunker: tt.config,
 			}
-			
+
 			err := config.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -456,15 +456,15 @@ func TestProvidersConfig(t *testing.T) {
 			},
 		},
 	}
-	
+
 	if config.Providers.DefaultLLM != "ollama" {
 		t.Error("DefaultLLM not set correctly")
 	}
-	
+
 	if config.Providers.DefaultEmbedder != "openai" {
 		t.Error("DefaultEmbedder not set correctly")
 	}
-	
+
 	if config.Providers.ProviderConfigs.Ollama == nil {
 		t.Error("Ollama provider config not set")
 	}
@@ -479,11 +479,11 @@ func TestIngestConfig(t *testing.T) {
 			},
 		},
 	}
-	
+
 	if !config.Ingest.MetadataExtraction.Enable {
 		t.Error("Metadata extraction not enabled")
 	}
-	
+
 	if config.Ingest.MetadataExtraction.LLMModel != "gpt-4" {
 		t.Error("LLM model not set correctly")
 	}
@@ -498,7 +498,7 @@ func TestOllamaConfig_Timeout(t *testing.T) {
 			Timeout:        30 * time.Second,
 		},
 	}
-	
+
 	if config.Ollama.Timeout != 30*time.Second {
 		t.Errorf("Expected timeout 30s, got %v", config.Ollama.Timeout)
 	}

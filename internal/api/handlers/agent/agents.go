@@ -26,7 +26,7 @@ func NewAgentsHandler(cfg *config.Config, llmService interface{}, mcpService int
 		EnableMetrics:           true,
 		MCPIntegration:          cfg.MCP.Enabled,
 	}
-	
+
 	if cfg.Agents != nil {
 		if cfg.Agents.StorageType != "" {
 			agentConfig.StorageBackend = cfg.Agents.StorageType
@@ -38,7 +38,7 @@ func NewAgentsHandler(cfg *config.Config, llmService interface{}, mcpService int
 			agentConfig.DefaultTimeout = time.Duration(cfg.Agents.DefaultTimeout) * time.Second
 		}
 	}
-	
+
 	// Create agent manager
 	manager, err := agents.NewManager(mcpService, agentConfig)
 	if err != nil {
@@ -60,7 +60,7 @@ func (h *AgentsHandler) ListAgents(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -73,7 +73,7 @@ func (h *AgentsHandler) ListAgents(c *gin.Context) {
 // GetAgent returns details of a specific agent
 func (h *AgentsHandler) GetAgent(c *gin.Context) {
 	agentID := c.Param("id")
-	
+
 	agent, err := h.manager.GetAgent(agentID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -82,7 +82,7 @@ func (h *AgentsHandler) GetAgent(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    agent,
@@ -110,7 +110,7 @@ func (h *AgentsHandler) CreateAgent(c *gin.Context) {
 
 	// Convert type string to AgentType
 	agentType := types.AgentType(req.Type)
-	
+
 	// Create agent config
 	agentConfig := types.AgentConfig{
 		MaxConcurrentExecutions: 5,
@@ -118,7 +118,7 @@ func (h *AgentsHandler) CreateAgent(c *gin.Context) {
 		EnableMetrics:           true,
 		AutonomyLevel:           types.AutonomyManual,
 	}
-	
+
 	// Create agent
 	agent := &types.Agent{
 		ID:          "", // Will be generated
@@ -195,7 +195,7 @@ func (h *AgentsHandler) ExecuteAgent(c *gin.Context) {
 // GetActiveExecutions returns currently running executions
 func (h *AgentsHandler) GetActiveExecutions(c *gin.Context) {
 	executions := h.manager.GetActiveExecutions()
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
@@ -238,7 +238,7 @@ func (h *AgentsHandler) CancelExecution(c *gin.Context) {
 // GetExecutionHistory returns execution history for an agent
 func (h *AgentsHandler) GetExecutionHistory(c *gin.Context) {
 	agentID := c.Param("id")
-	
+
 	history, err := h.manager.GetExecutionHistory(agentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

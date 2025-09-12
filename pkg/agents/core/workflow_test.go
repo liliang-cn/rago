@@ -15,9 +15,9 @@ func TestNewWorkflowEngine(t *testing.T) {
 	storage := NewMockAgentStorage()
 	mcpClient := NewMockMCPClient()
 	executor := NewAgentExecutor(mcpClient, storage)
-	
+
 	engine := NewWorkflowEngine(executor)
-	
+
 	assert.NotNil(t, engine)
 	assert.Equal(t, executor, engine.executor)
 	assert.NotNil(t, engine.templateEngine)
@@ -31,9 +31,9 @@ func TestWorkflowEngine_ExecuteWorkflow(t *testing.T) {
 	engine := NewWorkflowEngine(executor)
 
 	agent := &types.Agent{
-		ID:   "workflow-engine-test",
-		Name: "Workflow Engine Test",
-		Type: types.AgentTypeWorkflow,
+		ID:     "workflow-engine-test",
+		Name:   "Workflow Engine Test",
+		Type:   types.AgentTypeWorkflow,
 		Status: types.AgentStatusActive,
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -66,7 +66,7 @@ func TestWorkflowEngine_ExecuteWorkflow(t *testing.T) {
 
 	baseAgent := NewBaseAgent(agent)
 	ctx := context.Background()
-	
+
 	variables := map[string]interface{}{
 		"input_var": "input_value",
 	}
@@ -83,7 +83,7 @@ func TestWorkflowEngine_ExecuteWorkflow(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, types.ExecutionStatusCompleted, result.Status)
 	assert.Len(t, result.StepResults, 2)
-	
+
 	// Verify global variables were merged
 	assert.Equal(t, true, result.Results["workflow_completed"])
 	assert.Equal(t, 2, result.Results["steps_executed"])
@@ -97,9 +97,9 @@ func TestWorkflowEngine_ExecuteWorkflow_ValidationFailure(t *testing.T) {
 
 	// Agent with invalid workflow (no steps)
 	agent := &types.Agent{
-		ID:   "invalid-workflow-agent",
-		Name: "Invalid Workflow Agent",
-		Type: types.AgentTypeWorkflow,
+		ID:     "invalid-workflow-agent",
+		Name:   "Invalid Workflow Agent",
+		Type:   types.AgentTypeWorkflow,
 		Status: types.AgentStatusActive,
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{}, // Empty steps - invalid
@@ -118,20 +118,20 @@ func TestWorkflowEngine_ExecuteWorkflow_ValidationFailure(t *testing.T) {
 
 func TestSimpleTemplateEngine_Render(t *testing.T) {
 	engine := NewSimpleTemplateEngine()
-	
+
 	variables := map[string]interface{}{
-		"name":    "John",
-		"age":     30,
-		"active":  true,
+		"name":   "John",
+		"age":    30,
+		"active": true,
 		"nested": map[string]interface{}{
 			"city": "New York",
 		},
 	}
 
 	tests := []struct {
-		name       string
-		template   string
-		expected   string
+		name     string
+		template string
+		expected string
 	}{
 		{
 			name:     "Simple variable",
@@ -181,7 +181,7 @@ func TestSimpleTemplateEngine_Render(t *testing.T) {
 
 func TestSimpleTemplateEngine_RenderObject(t *testing.T) {
 	engine := NewSimpleTemplateEngine()
-	
+
 	variables := map[string]interface{}{
 		"name": "Alice",
 		"id":   123,
@@ -264,7 +264,7 @@ func TestSimpleTemplateEngine_RenderObject(t *testing.T) {
 
 func TestSimpleTemplateEngine_GetNestedValue(t *testing.T) {
 	engine := NewSimpleTemplateEngine()
-	
+
 	variables := map[string]interface{}{
 		"user": map[string]interface{}{
 			"profile": map[string]interface{}{
@@ -401,7 +401,7 @@ func TestWorkflowValidator_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validator.Validate(tt.workflow)
-			
+
 			if tt.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
@@ -543,7 +543,7 @@ func TestWorkflowValidator_ValidateStep(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validator.ValidateStep(tt.step)
-			
+
 			if tt.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
@@ -557,7 +557,7 @@ func TestWorkflowValidator_ValidateStep(t *testing.T) {
 func TestNewToolChainExecutor(t *testing.T) {
 	mcpClient := NewMockMCPClient()
 	executor := NewToolChainExecutor(mcpClient)
-	
+
 	assert.NotNil(t, executor)
 	assert.Equal(t, mcpClient, executor.mcpClient)
 	assert.NotNil(t, executor.templateEngine)
@@ -608,12 +608,12 @@ func TestToolChainExecutor_ExecuteChain_Sequential(t *testing.T) {
 	assert.Equal(t, "test_chain", result.ChainID)
 	assert.Equal(t, "completed", result.Status)
 	assert.Len(t, result.StepResults, 2)
-	
+
 	// Verify steps executed in order
 	step1Result := result.StepResults[0]
 	assert.Equal(t, "step1", step1Result.StepID)
 	assert.Equal(t, "completed", step1Result.Status)
-	
+
 	step2Result := result.StepResults[1]
 	assert.Equal(t, "step2", step2Result.StepID)
 	assert.Equal(t, "completed", step2Result.Status)
@@ -684,11 +684,11 @@ func TestToolChainExecutor_ExecuteChain_WithError(t *testing.T) {
 	assert.Equal(t, "failed", result.Status)
 	assert.Contains(t, result.ErrorMessage, "step 1 failed")
 	assert.Len(t, result.StepResults, 2)
-	
+
 	// First step should succeed
 	step1 := result.StepResults[0]
 	assert.Equal(t, "completed", step1.Status)
-	
+
 	// Second step should fail
 	step2 := result.StepResults[1]
 	assert.Equal(t, "failed", step2.Status)

@@ -15,32 +15,32 @@ import (
 
 // TaskPlan represents a planned task with tracking
 type TaskPlan struct {
-	ID          string           `json:"id"`
-	Name        string           `json:"name"`
-	Description string           `json:"description"`
-	Status      TaskStatus       `json:"status"`
-	Priority    int              `json:"priority"`
-	Dependencies []string        `json:"dependencies,omitempty"`
-	Tools       []string         `json:"tools,omitempty"`
-	Steps       []TaskStep       `json:"steps"`
-	StartedAt   *time.Time       `json:"started_at,omitempty"`
-	CompletedAt *time.Time       `json:"completed_at,omitempty"`
-	Error       string           `json:"error,omitempty"`
-	Outputs     map[string]interface{} `json:"outputs,omitempty"`
+	ID           string                 `json:"id"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description"`
+	Status       TaskStatus             `json:"status"`
+	Priority     int                    `json:"priority"`
+	Dependencies []string               `json:"dependencies,omitempty"`
+	Tools        []string               `json:"tools,omitempty"`
+	Steps        []TaskStep             `json:"steps"`
+	StartedAt    *time.Time             `json:"started_at,omitempty"`
+	CompletedAt  *time.Time             `json:"completed_at,omitempty"`
+	Error        string                 `json:"error,omitempty"`
+	Outputs      map[string]interface{} `json:"outputs,omitempty"`
 }
 
 // TaskStep represents a single step in a task
 type TaskStep struct {
-	ID          string     `json:"id"`
-	Action      string     `json:"action"`
-	Description string     `json:"description"`
-	Tool        string     `json:"tool,omitempty"`
+	ID          string                 `json:"id"`
+	Action      string                 `json:"action"`
+	Description string                 `json:"description"`
+	Tool        string                 `json:"tool,omitempty"`
 	Parameters  map[string]interface{} `json:"parameters,omitempty"`
-	Status      TaskStatus `json:"status"`
-	StartedAt   *time.Time `json:"started_at,omitempty"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
-	Output      interface{} `json:"output,omitempty"`
-	Error       string     `json:"error,omitempty"`
+	Status      TaskStatus             `json:"status"`
+	StartedAt   *time.Time             `json:"started_at,omitempty"`
+	CompletedAt *time.Time             `json:"completed_at,omitempty"`
+	Output      interface{}            `json:"output,omitempty"`
+	Error       string                 `json:"error,omitempty"`
 }
 
 // TaskStatus represents the status of a task or step
@@ -56,37 +56,37 @@ const (
 
 // AgentPlan represents a complete agent execution plan
 type AgentPlan struct {
-	ID          string      `json:"id"`
-	AgentID     string      `json:"agent_id"`
-	Goal        string      `json:"goal"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
-	Status      PlanStatus  `json:"status"`
-	Tasks       []TaskPlan  `json:"tasks"`
-	Context     map[string]interface{} `json:"context,omitempty"`
-	Summary     string      `json:"summary,omitempty"`
-	TotalSteps  int         `json:"total_steps"`
-	CompletedSteps int     `json:"completed_steps"`
+	ID             string                 `json:"id"`
+	AgentID        string                 `json:"agent_id"`
+	Goal           string                 `json:"goal"`
+	CreatedAt      time.Time              `json:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at"`
+	Status         PlanStatus             `json:"status"`
+	Tasks          []TaskPlan             `json:"tasks"`
+	Context        map[string]interface{} `json:"context,omitempty"`
+	Summary        string                 `json:"summary,omitempty"`
+	TotalSteps     int                    `json:"total_steps"`
+	CompletedSteps int                    `json:"completed_steps"`
 }
 
 // PlanStatus represents the overall plan status
 type PlanStatus string
 
 const (
-	PlanStatusDraft      PlanStatus = "draft"
-	PlanStatusReady      PlanStatus = "ready"
-	PlanStatusExecuting  PlanStatus = "executing"
-	PlanStatusCompleted  PlanStatus = "completed"
-	PlanStatusFailed     PlanStatus = "failed"
-	PlanStatusCancelled  PlanStatus = "cancelled"
+	PlanStatusDraft     PlanStatus = "draft"
+	PlanStatusReady     PlanStatus = "ready"
+	PlanStatusExecuting PlanStatus = "executing"
+	PlanStatusCompleted PlanStatus = "completed"
+	PlanStatusFailed    PlanStatus = "failed"
+	PlanStatusCancelled PlanStatus = "cancelled"
 )
 
 // AgentPlanner handles plan creation and management
 type AgentPlanner struct {
-	llm          domain.Generator
-	storageDir   string
-	mcpTools     []domain.ToolDefinition
-	verbose      bool
+	llm        domain.Generator
+	storageDir string
+	mcpTools   []domain.ToolDefinition
+	verbose    bool
 }
 
 // NewAgentPlanner creates a new agent planner
@@ -112,40 +112,40 @@ func (p *AgentPlanner) SetVerbose(v bool) {
 // CreatePlan generates a plan for achieving a goal
 func (p *AgentPlanner) CreatePlan(ctx context.Context, goal string) (*AgentPlan, error) {
 	planID := uuid.New().String()
-	
+
 	// Create plan directory
 	planDir := filepath.Join(p.storageDir, "plans", planID)
 	if err := os.MkdirAll(planDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create plan directory: %w", err)
 	}
-	
+
 	// Generate plan using LLM
 	plan, err := p.generatePlan(ctx, goal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate plan: %w", err)
 	}
-	
+
 	plan.ID = planID
 	plan.CreatedAt = time.Now()
 	plan.UpdatedAt = time.Now()
 	plan.Status = PlanStatusReady
-	
+
 	// Count total steps
 	totalSteps := 0
 	for _, task := range plan.Tasks {
 		totalSteps += len(task.Steps)
 	}
 	plan.TotalSteps = totalSteps
-	
+
 	// Save plan to filesystem
 	if err := p.SavePlan(plan); err != nil {
 		return nil, fmt.Errorf("failed to save plan: %w", err)
 	}
-	
+
 	if p.verbose {
 		fmt.Printf("✅ Created plan %s with %d tasks and %d total steps\n", planID, len(plan.Tasks), totalSteps)
 	}
-	
+
 	return plan, nil
 }
 
@@ -159,7 +159,7 @@ func (p *AgentPlanner) generatePlan(ctx context.Context, goal string) (*AgentPla
 			toolDescriptions += fmt.Sprintf("- %s: %s\n", tool.Function.Name, tool.Function.Description)
 		}
 	}
-	
+
 	prompt := fmt.Sprintf(`Create a detailed execution plan for the following goal:
 %s
 %s
@@ -193,7 +193,7 @@ Return the plan as a JSON object with this structure:
 }
 
 Be specific and actionable in your plan. Break down complex tasks into manageable steps.`, goal, toolDescriptions)
-	
+
 	// Generate plan using LLM
 	response, err := p.llm.Generate(ctx, prompt, &domain.GenerationOptions{
 		Temperature: 0.7,
@@ -202,24 +202,24 @@ Be specific and actionable in your plan. Break down complex tasks into manageabl
 	if err != nil {
 		return nil, fmt.Errorf("LLM generation failed: %w", err)
 	}
-	
+
 	// Extract JSON from response
 	jsonStr := p.extractJSON(response)
 	if jsonStr == "" {
 		return nil, fmt.Errorf("no valid JSON found in LLM response")
 	}
-	
+
 	// Parse the plan
 	var planData struct {
 		Goal    string     `json:"goal"`
 		Summary string     `json:"summary"`
 		Tasks   []TaskPlan `json:"tasks"`
 	}
-	
+
 	if err := json.Unmarshal([]byte(jsonStr), &planData); err != nil {
 		return nil, fmt.Errorf("failed to parse plan JSON: %w", err)
 	}
-	
+
 	// Initialize task IDs and statuses
 	for i := range planData.Tasks {
 		planData.Tasks[i].ID = fmt.Sprintf("task_%d", i+1)
@@ -229,7 +229,7 @@ Be specific and actionable in your plan. Break down complex tasks into manageabl
 			planData.Tasks[i].Steps[j].Status = TaskStatusPlanned
 		}
 	}
-	
+
 	return &AgentPlan{
 		Goal:    planData.Goal,
 		Summary: planData.Summary,
@@ -243,7 +243,7 @@ func (p *AgentPlanner) extractJSON(content string) string {
 	// Look for JSON block markers
 	startIdx := -1
 	endIdx := -1
-	
+
 	// Try to find ```json blocks first
 	if idx := strings.Index(content, "```json"); idx != -1 {
 		startIdx = idx + 7
@@ -252,7 +252,7 @@ func (p *AgentPlanner) extractJSON(content string) string {
 			return strings.TrimSpace(content[startIdx:endIdx])
 		}
 	}
-	
+
 	// Try to find raw JSON object
 	if idx := strings.Index(content, "{"); idx != -1 {
 		startIdx = idx
@@ -273,67 +273,67 @@ func (p *AgentPlanner) extractJSON(content string) string {
 			return strings.TrimSpace(content[startIdx:endIdx])
 		}
 	}
-	
+
 	return ""
 }
 
 // SavePlan saves a plan to the filesystem
 func (p *AgentPlanner) SavePlan(plan *AgentPlan) error {
 	planFile := filepath.Join(p.storageDir, "plans", plan.ID, "plan.json")
-	
+
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(planFile), 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
-	
+
 	// Marshal plan to JSON
 	data, err := json.MarshalIndent(plan, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal plan: %w", err)
 	}
-	
+
 	// Write to file
 	if err := os.WriteFile(planFile, data, 0644); err != nil {
 		return fmt.Errorf("failed to write plan file: %w", err)
 	}
-	
+
 	// Also save a tracking file for quick status checks
 	trackingFile := filepath.Join(p.storageDir, "plans", plan.ID, "tracking.json")
 	tracking := map[string]interface{}{
-		"id":               plan.ID,
-		"goal":             plan.Goal,
-		"status":           plan.Status,
-		"total_steps":      plan.TotalSteps,
-		"completed_steps":  plan.CompletedSteps,
-		"updated_at":       plan.UpdatedAt,
+		"id":              plan.ID,
+		"goal":            plan.Goal,
+		"status":          plan.Status,
+		"total_steps":     plan.TotalSteps,
+		"completed_steps": plan.CompletedSteps,
+		"updated_at":      plan.UpdatedAt,
 	}
-	
+
 	trackingData, err := json.MarshalIndent(tracking, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal tracking data: %w", err)
 	}
-	
+
 	if err := os.WriteFile(trackingFile, trackingData, 0644); err != nil {
 		return fmt.Errorf("failed to write tracking file: %w", err)
 	}
-	
+
 	return nil
 }
 
 // LoadPlan loads a plan from the filesystem
 func (p *AgentPlanner) LoadPlan(planID string) (*AgentPlan, error) {
 	planFile := filepath.Join(p.storageDir, "plans", planID, "plan.json")
-	
+
 	data, err := os.ReadFile(planFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read plan file: %w", err)
 	}
-	
+
 	var plan AgentPlan
 	if err := json.Unmarshal(data, &plan); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal plan: %w", err)
 	}
-	
+
 	return &plan, nil
 }
 
@@ -343,28 +343,28 @@ func (p *AgentPlanner) UpdateTaskStatus(planID, taskID string, status TaskStatus
 	if err != nil {
 		return err
 	}
-	
+
 	// Find and update task
 	for i := range plan.Tasks {
 		if plan.Tasks[i].ID == taskID {
 			plan.Tasks[i].Status = status
 			now := time.Now()
-			
+
 			switch status {
 			case TaskStatusInProgress:
 				plan.Tasks[i].StartedAt = &now
 			case TaskStatusCompleted, TaskStatusFailed:
 				plan.Tasks[i].CompletedAt = &now
 			}
-			
+
 			break
 		}
 	}
-	
+
 	// Update plan metadata
 	plan.UpdatedAt = time.Now()
 	p.updatePlanStatus(plan)
-	
+
 	return p.SavePlan(plan)
 }
 
@@ -374,7 +374,7 @@ func (p *AgentPlanner) UpdateStepStatus(planID, taskID, stepID string, status Ta
 	if err != nil {
 		return err
 	}
-	
+
 	// Find and update step
 	for i := range plan.Tasks {
 		if plan.Tasks[i].ID == taskID {
@@ -383,7 +383,7 @@ func (p *AgentPlanner) UpdateStepStatus(planID, taskID, stepID string, status Ta
 					step := &plan.Tasks[i].Steps[j]
 					step.Status = status
 					now := time.Now()
-					
+
 					switch status {
 					case TaskStatusInProgress:
 						step.StartedAt = &now
@@ -396,14 +396,14 @@ func (p *AgentPlanner) UpdateStepStatus(planID, taskID, stepID string, status Ta
 							step.Error = errorMsg
 						}
 					}
-					
+
 					break
 				}
 			}
 			break
 		}
 	}
-	
+
 	// Update completed steps count
 	completedSteps := 0
 	for _, task := range plan.Tasks {
@@ -414,11 +414,11 @@ func (p *AgentPlanner) UpdateStepStatus(planID, taskID, stepID string, status Ta
 		}
 	}
 	plan.CompletedSteps = completedSteps
-	
+
 	// Update plan metadata
 	plan.UpdatedAt = time.Now()
 	p.updatePlanStatus(plan)
-	
+
 	return p.SavePlan(plan)
 }
 
@@ -427,7 +427,7 @@ func (p *AgentPlanner) updatePlanStatus(plan *AgentPlan) {
 	allCompleted := true
 	anyFailed := false
 	anyInProgress := false
-	
+
 	for _, task := range plan.Tasks {
 		switch task.Status {
 		case TaskStatusFailed:
@@ -439,7 +439,7 @@ func (p *AgentPlanner) updatePlanStatus(plan *AgentPlan) {
 			allCompleted = false
 		}
 	}
-	
+
 	if anyFailed {
 		plan.Status = PlanStatusFailed
 	} else if allCompleted {
@@ -452,17 +452,17 @@ func (p *AgentPlanner) updatePlanStatus(plan *AgentPlan) {
 // ListPlans lists all available plans
 func (p *AgentPlanner) ListPlans() ([]*AgentPlan, error) {
 	plansDir := filepath.Join(p.storageDir, "plans")
-	
+
 	// Ensure directory exists
 	if _, err := os.Stat(plansDir); os.IsNotExist(err) {
 		return []*AgentPlan{}, nil
 	}
-	
+
 	entries, err := os.ReadDir(plansDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read plans directory: %w", err)
 	}
-	
+
 	var plans []*AgentPlan
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -474,6 +474,6 @@ func (p *AgentPlanner) ListPlans() ([]*AgentPlan, error) {
 			plans = append(plans, plan)
 		}
 	}
-	
+
 	return plans, nil
 }

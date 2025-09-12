@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/liliang-cn/rago/v2/pkg/store"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
@@ -14,9 +14,9 @@ func main() {
 
 	// Example 1: Using the factory with configuration
 	fmt.Println("=== Example 1: Factory Pattern ===")
-	
+
 	factory := store.NewStoreFactory()
-	
+
 	// Create a SQLite/sqvect store
 	sqliteConfig := store.StoreConfig{
 		Type: "sqvect",
@@ -25,13 +25,13 @@ func main() {
 			"dimensions": 1536,
 		},
 	}
-	
+
 	sqliteStore, err := factory.CreateStore(sqliteConfig)
 	if err != nil {
 		log.Fatal("Failed to create SQLite store:", err)
 	}
 	defer sqliteStore.Close()
-	
+
 	// Use the store
 	doc := &store.Document{
 		ID:        "doc1",
@@ -43,13 +43,13 @@ func main() {
 			"author":   "example",
 		},
 	}
-	
+
 	if err := sqliteStore.Store(ctx, doc); err != nil {
 		log.Fatal("Failed to store document:", err)
 	}
-	
+
 	fmt.Println("✅ Document stored successfully")
-	
+
 	// Search for similar documents
 	searchQuery := store.SearchQuery{
 		Embedding:       generateMockEmbedding(1536),
@@ -57,17 +57,17 @@ func main() {
 		Threshold:       0.7,
 		IncludeMetadata: true,
 	}
-	
+
 	results, err := sqliteStore.Search(ctx, searchQuery)
 	if err != nil {
 		log.Fatal("Failed to search:", err)
 	}
-	
+
 	fmt.Printf("📊 Found %d similar documents in %v\n", results.TotalCount, results.QueryTime)
-	
+
 	// Example 2: Future store types (when implemented)
 	fmt.Println("\n=== Example 2: Future Store Types ===")
-	
+
 	// Show how different stores would be configured
 	configs := []store.StoreConfig{
 		{
@@ -123,21 +123,21 @@ func main() {
 			},
 		},
 	}
-	
+
 	fmt.Println("Supported store types (when implemented):")
 	for _, config := range configs {
 		fmt.Printf("  - %s: %v\n", config.Type, config.Parameters)
 	}
-	
+
 	// Example 3: Store abstraction benefits
 	fmt.Println("\n=== Example 3: Store Abstraction Benefits ===")
-	
+
 	// The same code works with any store implementation
 	var vectorStore store.VectorStore
-	
+
 	// Could switch between stores without changing application code
 	useStore := "sqvect" // Could be "pgvector", "qdrant", etc.
-	
+
 	switch useStore {
 	case "sqvect":
 		vectorStore, err = store.NewSqvectStore("./data/app.db", 1536)
@@ -149,18 +149,18 @@ func main() {
 	default:
 		vectorStore, err = store.NewDefaultStore("sqvect")
 	}
-	
+
 	if err != nil {
 		log.Fatal("Failed to create store:", err)
 	}
-	
+
 	// Application code remains the same regardless of store type
 	err = vectorStore.Initialize(ctx)
 	if err != nil {
 		log.Fatal("Failed to initialize store:", err)
 	}
 	defer vectorStore.Close()
-	
+
 	// Store documents
 	docs := []*store.Document{
 		{
@@ -176,24 +176,24 @@ func main() {
 			Source:    "rag.txt",
 		},
 	}
-	
+
 	if err := vectorStore.StoreBatch(ctx, docs); err != nil {
 		log.Fatal("Failed to store batch:", err)
 	}
-	
+
 	fmt.Printf("✅ Stored %d documents\n", len(docs))
-	
+
 	// Count documents
 	count, err := vectorStore.Count(ctx)
 	if err != nil {
 		log.Fatal("Failed to count:", err)
 	}
-	
+
 	fmt.Printf("📚 Total documents in store: %d\n", count)
-	
+
 	// Example 4: Configuration from file
 	fmt.Println("\n=== Example 4: Configuration Management ===")
-	
+
 	// In production, configuration would come from config file
 	// e.g., from rago.toml:
 	configExample := `
@@ -212,10 +212,10 @@ dimensions = 1536
 # connection_string = "postgresql://user:pass@localhost/vectordb"
 # dimensions = 1536
 `
-	
+
 	fmt.Println("Example configuration:")
 	fmt.Println(configExample)
-	
+
 	fmt.Println("\n✨ Benefits of abstraction:")
 	fmt.Println("1. Switch vector stores without changing application code")
 	fmt.Println("2. Test with SQLite locally, use Pgvector/Qdrant in production")

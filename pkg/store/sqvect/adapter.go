@@ -56,7 +56,7 @@ func (s *SqvectStore) Store(ctx context.Context, doc *Document) error {
 	if doc.ID == "" {
 		doc.ID = uuid.New().String()
 	}
-	
+
 	if doc.CreatedAt.IsZero() {
 		doc.CreatedAt = time.Now()
 	}
@@ -118,7 +118,7 @@ func (s *SqvectStore) StoreBatch(ctx context.Context, docs []*Document) error {
 		if doc.ID == "" {
 			doc.ID = uuid.New().String()
 		}
-		
+
 		if doc.CreatedAt.IsZero() {
 			doc.CreatedAt = time.Now()
 		}
@@ -308,7 +308,7 @@ func (s *SqvectStore) Get(ctx context.Context, id string) (*Document, error) {
 // List retrieves documents with pagination
 func (s *SqvectStore) List(ctx context.Context, opts ListOptions) ([]*Document, error) {
 	query := "SELECT id, content, embedding, source, metadata, chunk_index, created_at, updated_at FROM documents"
-	
+
 	// Add ordering
 	if opts.SortBy != "" {
 		query += fmt.Sprintf(" ORDER BY %s", opts.SortBy)

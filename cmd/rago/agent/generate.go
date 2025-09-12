@@ -73,13 +73,13 @@ func runAgentGenerate(cmd *cobra.Command, args []string) error {
 
 	// Initialize LLM provider
 	ctx := context.Background()
-	// Create LLM provider using providers factory  
+	// Create LLM provider using providers factory
 	factory := providers.NewFactory()
 	providerConfig, err := providers.GetProviderConfig(&Cfg.Providers.ProviderConfigs)
 	if err != nil {
 		return fmt.Errorf("failed to get provider config: %w", err)
 	}
-	
+
 	llmService, err := factory.CreateLLMProvider(ctx, providerConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize LLM service: %w", err)

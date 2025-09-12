@@ -62,7 +62,6 @@ var serveCmd = &cobra.Command{
 			}
 		}()
 
-
 		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
 		// Initialize services using shared provider system
@@ -188,7 +187,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 			} else {
 				llmSvc = llmService
 			}
-			
+
 			// Type assert to get the llm.Service
 			if llmServiceTyped, ok := llmSvc.(*llm.Service); ok {
 				chatHandler := chatHandlers.NewChatHandler(processor, llmServiceTyped)
@@ -236,7 +235,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 			} else {
 				// Create MCP service for agents
 				mcpService = mcp.NewMCPService(mcpConfig)
-				
+
 				// Setup MCP routes
 				mcpGroup := api.Group("/mcp")
 				{
@@ -282,7 +281,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 					agents.GET("/:id", agentsHandler.GetAgent)
 					agents.POST("", agentsHandler.CreateAgent)
 					agents.POST("/execute", agentsHandler.ExecuteAgent)
-					
+
 					// Execution management
 					agents.GET("/executions", agentsHandler.GetActiveExecutions)
 					agents.POST("/executions/cancel", agentsHandler.CancelExecution)

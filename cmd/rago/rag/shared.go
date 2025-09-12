@@ -27,4 +27,3 @@ func SetSharedVariables(cfg *config.Config, verbose, quiet bool, version string)
 	Quiet = quiet
 	Version = version
 }
-

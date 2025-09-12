@@ -29,12 +29,12 @@ func NewChatHandler(p *processor.Service, llm *llm.Service) *ChatHandler {
 
 // ChatRequest represents a chat request
 type ChatRequest struct {
-	Message      string                  `json:"message" binding:"required"`
-	Stream       bool                    `json:"stream"`
-	Temperature  float64                 `json:"temperature"`
-	MaxTokens    int                     `json:"max_tokens"`
-	SystemPrompt string                  `json:"system_prompt"`
-	History      []domain.Message        `json:"history"`
+	Message      string                    `json:"message" binding:"required"`
+	Stream       bool                      `json:"stream"`
+	Temperature  float64                   `json:"temperature"`
+	MaxTokens    int                       `json:"max_tokens"`
+	SystemPrompt string                    `json:"system_prompt"`
+	History      []domain.Message          `json:"history"`
 	Options      *domain.GenerationOptions `json:"options"`
 }
 

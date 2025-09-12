@@ -167,7 +167,7 @@ func TestClient_IsConnected(t *testing.T) {
 
 func TestClient_GetTools(t *testing.T) {
 	config := &ServerConfig{
-		Name:    "test-server", 
+		Name:    "test-server",
 		Command: []string{"echo", "test"},
 	}
 
@@ -222,7 +222,7 @@ func TestClient_Close_NotConnected(t *testing.T) {
 
 func TestClient_Close_Connected(t *testing.T) {
 	config := &ServerConfig{
-		Name:    "test-server", 
+		Name:    "test-server",
 		Command: []string{"echo", "test"},
 	}
 
@@ -250,7 +250,7 @@ func TestManager_ListClients(t *testing.T) {
 	// Add some mock clients
 	client1, _ := NewClient(&ServerConfig{Name: "server1", Command: []string{"echo"}})
 	client2, _ := NewClient(&ServerConfig{Name: "server2", Command: []string{"echo"}})
-	
+
 	manager.clients["server1"] = client1
 	manager.clients["server2"] = client2
 
@@ -272,7 +272,7 @@ func TestManager_StopServer_NotFound(t *testing.T) {
 
 func TestManager_StopServer_Success(t *testing.T) {
 	manager := NewManager(nil)
-	
+
 	// Add a client
 	client, _ := NewClient(&ServerConfig{Name: "test-server", Command: []string{"echo"}})
 	manager.clients["test-server"] = client
@@ -608,8 +608,8 @@ func TestClient_ErrorConditions(t *testing.T) {
 
 	t.Run("various invalid server configurations", func(t *testing.T) {
 		testCases := []struct {
-			name   string
-			config *ServerConfig
+			name    string
+			config  *ServerConfig
 			wantErr bool
 			errMsg  string
 		}{

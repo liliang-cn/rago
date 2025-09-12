@@ -26,16 +26,16 @@ func (m *MCPClient) GetToolDefinitions() []domain.ToolDefinition {
 	if !m.IsInitialized() {
 		return nil
 	}
-	
+
 	llmTools := m.api.GetToolsForLLMIntegration()
 	var toolDefs []domain.ToolDefinition
-	
+
 	for _, tool := range llmTools {
 		if funcMap, ok := tool["function"].(map[string]interface{}); ok {
 			name, _ := funcMap["name"].(string)
 			desc, _ := funcMap["description"].(string)
 			params, _ := funcMap["parameters"].(map[string]interface{})
-			
+
 			toolDef := domain.ToolDefinition{
 				Type: "function",
 				Function: domain.ToolFunction{
@@ -47,7 +47,7 @@ func (m *MCPClient) GetToolDefinitions() []domain.ToolDefinition {
 			toolDefs = append(toolDefs, toolDef)
 		}
 	}
-	
+
 	return toolDefs
 }
 
@@ -56,7 +56,7 @@ func (m *MCPClient) CallTool(ctx context.Context, toolName string, args map[stri
 	if !m.IsInitialized() {
 		return nil, fmt.Errorf("MCP client not initialized")
 	}
-	
+
 	return m.api.CallTool(ctx, toolName, args)
 }
 
@@ -71,14 +71,14 @@ func (c *Client) EnableMCP(ctx context.Context) error {
 	}
 
 	api := mcp.NewMCPLibraryAPI(&c.config.MCP)
-	
+
 	// Use StartWithFailures for better resilience
 	succeeded, failed := api.StartWithFailures(ctx)
-	
+
 	if len(failed) > 0 {
 		fmt.Printf("⚠️  Warning: Failed to start %d MCP server(s): %v\n", len(failed), failed)
 	}
-	
+
 	if len(succeeded) == 0 {
 		return fmt.Errorf("no MCP servers could be started")
 	}

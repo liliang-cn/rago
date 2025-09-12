@@ -64,10 +64,15 @@ type IngestResponse struct {
 // ExtractedMetadata holds the data extracted from a document by an LLM.
 
 type ExtractedMetadata struct {
-	Summary      string   `json:"summary"`
-	Keywords     []string `json:"keywords"`
-	DocumentType string   `json:"document_type"`
-	CreationDate string   `json:"creation_date"`
+	Summary      string                 `json:"summary"`
+	Keywords     []string               `json:"keywords"`
+	DocumentType string                 `json:"document_type"`
+	CreationDate string                 `json:"creation_date"`
+	// Enhanced metadata fields
+	TemporalRefs map[string]string      `json:"temporal_refs,omitempty"` // e.g., "today": "2025-09-12", "tomorrow": "2025-09-13"
+	Entities     map[string][]string    `json:"entities,omitempty"`      // e.g., "person": ["张三"], "location": ["华西医院"]
+	Events       []string               `json:"events,omitempty"`         // e.g., ["手术前检查", "玻璃体切割术"]
+	CustomMeta   map[string]interface{} `json:"custom_meta,omitempty"`   // For any additional metadata
 }
 
 type Stats struct {
@@ -174,7 +179,6 @@ type VectorStore interface {
 	List(ctx context.Context) ([]Document, error)
 	Reset(ctx context.Context) error
 }
-
 
 type DocumentStore interface {
 	Store(ctx context.Context, doc Document) error

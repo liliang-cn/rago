@@ -205,27 +205,27 @@ func TestProcessorService_New(t *testing.T) {
 	if service == nil {
 		t.Fatal("New returned nil service")
 	}
-	
+
 	if service.embedder == nil {
 		t.Error("Embedder not set")
 	}
-	
+
 	if service.generator == nil {
 		t.Error("Generator not set")
 	}
-	
+
 	if service.chunker == nil {
 		t.Error("Chunker not set")
 	}
-	
+
 	if service.vectorStore == nil {
 		t.Error("VectorStore not set")
 	}
-	
+
 	if service.documentStore == nil {
 		t.Error("DocumentStore not set")
 	}
-	
+
 	if service.config == nil {
 		t.Error("Config not set")
 	}
@@ -234,7 +234,7 @@ func TestProcessorService_New(t *testing.T) {
 func TestProcessorService_IngestBasic(t *testing.T) {
 	service := createSimpleTestService()
 	ctx := context.Background()
-	
+
 	req := domain.IngestRequest{
 		Content: "This is test content for basic ingestion",
 		Metadata: map[string]interface{}{
@@ -243,16 +243,16 @@ func TestProcessorService_IngestBasic(t *testing.T) {
 		ChunkSize: 50,
 		Overlap:   10,
 	}
-	
+
 	resp, err := service.Ingest(ctx, req)
 	if err != nil {
 		t.Errorf("Ingest failed: %v", err)
 	}
-	
+
 	if !resp.Success {
 		t.Error("Expected successful ingestion")
 	}
-	
+
 	if resp.ChunkCount == 0 {
 		t.Error("Expected at least one chunk to be processed")
 	}
@@ -261,32 +261,32 @@ func TestProcessorService_IngestBasic(t *testing.T) {
 func TestProcessorService_QueryBasic(t *testing.T) {
 	service := createSimpleTestService()
 	ctx := context.Background()
-	
+
 	// First ingest some content
 	ingestReq := domain.IngestRequest{
 		Content: "This is test content for querying",
 	}
-	
+
 	_, err := service.Ingest(ctx, ingestReq)
 	if err != nil {
 		t.Fatalf("Failed to ingest content: %v", err)
 	}
-	
+
 	// Now query
 	queryReq := domain.QueryRequest{
 		Query: "test query",
 		TopK:  5,
 	}
-	
+
 	resp, err := service.Query(ctx, queryReq)
 	if err != nil {
 		t.Errorf("Query failed: %v", err)
 	}
-	
+
 	if resp.Answer == "" {
 		t.Error("Expected non-empty answer")
 	}
-	
+
 	// Sources might be empty if no vector search results
 	// This is valid behavior for the simple mock
 }
@@ -294,65 +294,64 @@ func TestProcessorService_QueryBasic(t *testing.T) {
 func TestProcessorService_ListDocuments(t *testing.T) {
 	service := createSimpleTestService()
 	ctx := context.Background()
-	
+
 	// Initially should be empty
 	docs, err := service.ListDocuments(ctx)
 	if err != nil {
 		t.Errorf("ListDocuments failed: %v", err)
 	}
-	
+
 	if len(docs) != 0 {
 		t.Error("Expected empty document list initially")
 	}
-	
+
 	// Ingest a document
 	req := domain.IngestRequest{
 		Content: "Test document content",
 	}
-	
+
 	_, err = service.Ingest(ctx, req)
 	if err != nil {
 		t.Fatalf("Failed to ingest document: %v", err)
 	}
-	
+
 	// Now should have documents
 	docs, err = service.ListDocuments(ctx)
 	if err != nil {
 		t.Errorf("ListDocuments failed after ingest: %v", err)
 	}
-	
+
 	if len(docs) == 0 {
 		t.Error("Expected at least one document after ingestion")
 	}
 }
 
-
 func TestProcessorService_Reset(t *testing.T) {
 	service := createSimpleTestService()
 	ctx := context.Background()
-	
+
 	// Ingest some content first
 	req := domain.IngestRequest{
 		Content: "Content to be reset",
 	}
-	
+
 	_, err := service.Ingest(ctx, req)
 	if err != nil {
 		t.Fatalf("Failed to ingest content: %v", err)
 	}
-	
+
 	// Reset
 	err = service.Reset(ctx)
 	if err != nil {
 		t.Errorf("Reset failed: %v", err)
 	}
-	
+
 	// Verify reset worked
 	_, err = service.ListDocuments(ctx)
 	if err != nil {
 		t.Errorf("ListDocuments failed after reset: %v", err)
 	}
-	
+
 	// Reset might not clear everything in simple mock implementation
 	// This test verifies reset doesn't crash
 }
@@ -360,18 +359,18 @@ func TestProcessorService_Reset(t *testing.T) {
 func TestProcessorService_IngestEmptyContent(t *testing.T) {
 	service := createSimpleTestService()
 	ctx := context.Background()
-	
+
 	req := domain.IngestRequest{
 		Content: "",
 	}
-	
+
 	resp, err := service.Ingest(ctx, req)
 	// The error might be returned during validation
 	if err != nil {
 		// This is acceptable - empty content should cause an error
 		return
 	}
-	
+
 	if resp.Success {
 		t.Error("Expected failed ingestion for empty content")
 	}
@@ -412,18 +411,18 @@ func TestProcessorService_WithMetadataExtraction(t *testing.T) {
 			},
 		},
 	)
-	
+
 	ctx := context.Background()
-	
+
 	req := domain.IngestRequest{
 		Content: "Content for metadata extraction test",
 	}
-	
+
 	resp, err := service.Ingest(ctx, req)
 	if err != nil {
 		t.Errorf("Ingest with metadata extraction failed: %v", err)
 	}
-	
+
 	if !resp.Success {
 		t.Error("Expected successful ingestion with metadata extraction")
 	}
