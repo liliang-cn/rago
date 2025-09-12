@@ -31,28 +31,28 @@ var (
 func setupCommands() {
 	// Create the main agent command
 	AgentCmd = &cobra.Command{
-	Use:   "agent",
-	Short: "Manage and execute agents",
-	Long:  `Manage agents for workflow automation, research, and monitoring tasks with MCP integration.`,
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Initialize agent manager
-		// TODO: Use real MCP client from config when available
-		mcpClient := tools.NewMockMCPClient()
+		Use:   "agent",
+		Short: "Manage and execute agents",
+		Long:  `Manage agents for workflow automation, research, and monitoring tasks with MCP integration.`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Initialize agent manager
+			// TODO: Use real MCP client from config when available
+			mcpClient := tools.NewMockMCPClient()
 
-		config := agents.DefaultConfig()
-		if Cfg != nil && Cfg.Sqvect.DBPath != "" {
-			// Could use SQLite storage if implemented
-			config.StorageBackend = "memory"
-		}
+			config := agents.DefaultConfig()
+			if Cfg != nil && Cfg.Sqvect.DBPath != "" {
+				// Could use SQLite storage if implemented
+				config.StorageBackend = "memory"
+			}
 
-		var err error
-		agentManager, err = agents.NewManager(mcpClient, config)
-		if err != nil {
-			return fmt.Errorf("failed to initialize agent manager: %w", err)
-		}
+			var err error
+			agentManager, err = agents.NewManager(mcpClient, config)
+			if err != nil {
+				return fmt.Errorf("failed to initialize agent manager: %w", err)
+			}
 
-		return nil
-	},
+			return nil
+		},
 	}
 
 	// Global agent command flags

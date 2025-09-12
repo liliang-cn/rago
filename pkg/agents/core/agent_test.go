@@ -12,14 +12,14 @@ import (
 
 func TestNewBaseAgent(t *testing.T) {
 	agent := &types.Agent{
-		ID:   "test-agent-1",
-		Name: "Test Agent",
-		Type: types.AgentTypeResearch,
+		ID:     "test-agent-1",
+		Name:   "Test Agent",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 	}
 
 	baseAgent := NewBaseAgent(agent)
-	
+
 	assert.NotNil(t, baseAgent)
 	assert.Equal(t, agent, baseAgent.agent)
 }
@@ -50,10 +50,10 @@ func TestBaseAgent_UpdateStatus(t *testing.T) {
 	}
 
 	baseAgent := NewBaseAgent(agent)
-	
+
 	// Update status
 	baseAgent.UpdateStatus(types.AgentStatusError)
-	
+
 	assert.Equal(t, types.AgentStatusError, baseAgent.GetStatus())
 	assert.False(t, agent.UpdatedAt.IsZero())
 }
@@ -129,14 +129,14 @@ func TestBaseAgent_Validate(t *testing.T) {
 
 func TestBaseAgent_Execute(t *testing.T) {
 	agent := &types.Agent{
-		ID:   "test-agent-1",
-		Name: "Test Agent",
-		Type: types.AgentTypeResearch,
+		ID:     "test-agent-1",
+		Name:   "Test Agent",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 	}
 
 	baseAgent := NewBaseAgent(agent)
-	
+
 	ctx := types.ExecutionContext{
 		RequestID: "test-request-1",
 		Variables: map[string]interface{}{
@@ -147,7 +147,7 @@ func TestBaseAgent_Execute(t *testing.T) {
 	}
 
 	result, err := baseAgent.Execute(ctx)
-	
+
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, "test-request-1", result.ExecutionID)
@@ -164,21 +164,21 @@ func TestBaseAgent_Execute(t *testing.T) {
 func TestBaseAgent_Execute_ValidationFailure(t *testing.T) {
 	// Invalid agent (missing ID)
 	agent := &types.Agent{
-		ID:   "", // Invalid
-		Name: "Test Agent",
-		Type: types.AgentTypeResearch,
+		ID:     "", // Invalid
+		Name:   "Test Agent",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 	}
 
 	baseAgent := NewBaseAgent(agent)
-	
+
 	ctx := types.ExecutionContext{
 		RequestID: "test-request-1",
 		StartTime: time.Now(),
 	}
 
 	result, err := baseAgent.Execute(ctx)
-	
+
 	require.Error(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, types.ExecutionStatusFailed, result.Status)
@@ -188,13 +188,13 @@ func TestBaseAgent_Execute_ValidationFailure(t *testing.T) {
 
 func TestNewResearchAgent(t *testing.T) {
 	agent := &types.Agent{
-		ID:   "research-agent-1",
-		Name: "Research Agent",
+		ID:     "research-agent-1",
+		Name:   "Research Agent",
 		Status: types.AgentStatusActive,
 	}
 
 	researchAgent := NewResearchAgent(agent)
-	
+
 	assert.NotNil(t, researchAgent)
 	assert.Equal(t, types.AgentTypeResearch, researchAgent.GetType())
 	assert.Equal(t, "research-agent-1", researchAgent.GetID())
@@ -203,13 +203,13 @@ func TestNewResearchAgent(t *testing.T) {
 
 func TestResearchAgent_Execute(t *testing.T) {
 	agent := &types.Agent{
-		ID:   "research-agent-1",
-		Name: "Research Agent",
+		ID:     "research-agent-1",
+		Name:   "Research Agent",
 		Status: types.AgentStatusActive,
 	}
 
 	researchAgent := NewResearchAgent(agent)
-	
+
 	ctx := types.ExecutionContext{
 		RequestID: "research-request-1",
 		Variables: map[string]interface{}{
@@ -220,23 +220,23 @@ func TestResearchAgent_Execute(t *testing.T) {
 	}
 
 	result, err := researchAgent.Execute(ctx)
-	
+
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, types.ExecutionStatusCompleted, result.Status)
-	
+
 	// Check research-specific outputs
 	assert.Equal(t, "document_analysis", result.Outputs["research_type"])
 	assert.Equal(t, "Research completed successfully", result.Results["findings"])
-	
+
 	// Should have at least one log entry
 	assert.Greater(t, len(result.Logs), 0)
 }
 
 func TestNewWorkflowAgent(t *testing.T) {
 	agent := &types.Agent{
-		ID:   "workflow-agent-1",
-		Name: "Workflow Agent",
+		ID:     "workflow-agent-1",
+		Name:   "Workflow Agent",
 		Status: types.AgentStatusActive,
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -247,7 +247,7 @@ func TestNewWorkflowAgent(t *testing.T) {
 	}
 
 	workflowAgent := NewWorkflowAgent(agent)
-	
+
 	assert.NotNil(t, workflowAgent)
 	assert.Equal(t, types.AgentTypeWorkflow, workflowAgent.GetType())
 	assert.Equal(t, "workflow-agent-1", workflowAgent.GetID())
@@ -256,8 +256,8 @@ func TestNewWorkflowAgent(t *testing.T) {
 
 func TestWorkflowAgent_Execute(t *testing.T) {
 	agent := &types.Agent{
-		ID:   "workflow-agent-1",
-		Name: "Workflow Agent",
+		ID:     "workflow-agent-1",
+		Name:   "Workflow Agent",
 		Status: types.AgentStatusActive,
 		Workflow: types.WorkflowSpec{
 			Steps: []types.WorkflowStep{
@@ -268,7 +268,7 @@ func TestWorkflowAgent_Execute(t *testing.T) {
 	}
 
 	workflowAgent := NewWorkflowAgent(agent)
-	
+
 	ctx := types.ExecutionContext{
 		RequestID: "workflow-request-1",
 		Variables: make(map[string]interface{}),
@@ -277,11 +277,11 @@ func TestWorkflowAgent_Execute(t *testing.T) {
 	}
 
 	result, err := workflowAgent.Execute(ctx)
-	
+
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, types.ExecutionStatusCompleted, result.Status)
-	
+
 	// Check workflow-specific outputs
 	assert.Equal(t, "automation", result.Outputs["workflow_type"])
 	assert.Equal(t, 2, result.Results["steps_executed"])
@@ -289,13 +289,13 @@ func TestWorkflowAgent_Execute(t *testing.T) {
 
 func TestNewMonitoringAgent(t *testing.T) {
 	agent := &types.Agent{
-		ID:   "monitoring-agent-1",
-		Name: "Monitoring Agent",
+		ID:     "monitoring-agent-1",
+		Name:   "Monitoring Agent",
 		Status: types.AgentStatusActive,
 	}
 
 	monitoringAgent := NewMonitoringAgent(agent)
-	
+
 	assert.NotNil(t, monitoringAgent)
 	assert.Equal(t, types.AgentTypeMonitoring, monitoringAgent.GetType())
 	assert.Equal(t, "monitoring-agent-1", monitoringAgent.GetID())
@@ -304,13 +304,13 @@ func TestNewMonitoringAgent(t *testing.T) {
 
 func TestMonitoringAgent_Execute(t *testing.T) {
 	agent := &types.Agent{
-		ID:   "monitoring-agent-1",
-		Name: "Monitoring Agent",
+		ID:     "monitoring-agent-1",
+		Name:   "Monitoring Agent",
 		Status: types.AgentStatusActive,
 	}
 
 	monitoringAgent := NewMonitoringAgent(agent)
-	
+
 	ctx := types.ExecutionContext{
 		RequestID: "monitoring-request-1",
 		Variables: make(map[string]interface{}),
@@ -319,11 +319,11 @@ func TestMonitoringAgent_Execute(t *testing.T) {
 	}
 
 	result, err := monitoringAgent.Execute(ctx)
-	
+
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, types.ExecutionStatusCompleted, result.Status)
-	
+
 	// Check monitoring-specific outputs
 	assert.Equal(t, "health_check", result.Outputs["monitoring_type"])
 	assert.Equal(t, "all_systems_operational", result.Results["status"])
@@ -346,9 +346,9 @@ func TestAgentFactory_CreateAgent(t *testing.T) {
 		{
 			name: "Create Research Agent",
 			agentDef: &types.Agent{
-				ID:   "research-1",
-				Name: "Research Agent",
-				Type: types.AgentTypeResearch,
+				ID:     "research-1",
+				Name:   "Research Agent",
+				Type:   types.AgentTypeResearch,
 				Status: types.AgentStatusActive,
 			},
 			expectedType: types.AgentTypeResearch,
@@ -357,9 +357,9 @@ func TestAgentFactory_CreateAgent(t *testing.T) {
 		{
 			name: "Create Workflow Agent",
 			agentDef: &types.Agent{
-				ID:   "workflow-1",
-				Name: "Workflow Agent",
-				Type: types.AgentTypeWorkflow,
+				ID:     "workflow-1",
+				Name:   "Workflow Agent",
+				Type:   types.AgentTypeWorkflow,
 				Status: types.AgentStatusActive,
 			},
 			expectedType: types.AgentTypeWorkflow,
@@ -368,9 +368,9 @@ func TestAgentFactory_CreateAgent(t *testing.T) {
 		{
 			name: "Create Monitoring Agent",
 			agentDef: &types.Agent{
-				ID:   "monitoring-1",
-				Name: "Monitoring Agent",
-				Type: types.AgentTypeMonitoring,
+				ID:     "monitoring-1",
+				Name:   "Monitoring Agent",
+				Type:   types.AgentTypeMonitoring,
 				Status: types.AgentStatusActive,
 			},
 			expectedType: types.AgentTypeMonitoring,
@@ -379,9 +379,9 @@ func TestAgentFactory_CreateAgent(t *testing.T) {
 		{
 			name: "Create Base Agent (unknown type)",
 			agentDef: &types.Agent{
-				ID:   "unknown-1",
-				Name: "Unknown Agent",
-				Type: "unknown",
+				ID:     "unknown-1",
+				Name:   "Unknown Agent",
+				Type:   "unknown",
 				Status: types.AgentStatusActive,
 			},
 			expectedType: "unknown",
@@ -392,13 +392,13 @@ func TestAgentFactory_CreateAgent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			agent, err := factory.CreateAgent(tt.agentDef)
-			
+
 			require.NoError(t, err)
 			assert.NotNil(t, agent)
 			assert.Equal(t, tt.expectedType, agent.GetType())
 			assert.Equal(t, tt.agentDef.ID, agent.GetID())
 			assert.Equal(t, tt.agentDef.Name, agent.GetName())
-			
+
 			// Verify implementation type
 			assert.Contains(t, fmt.Sprintf("%T", agent), tt.expectedImpl)
 		})
@@ -418,9 +418,9 @@ func TestAgentInterface_Compliance(t *testing.T) {
 	for _, agentType := range agentTypes {
 		t.Run(string(agentType), func(t *testing.T) {
 			agentDef := &types.Agent{
-				ID:   "test-" + string(agentType),
-				Name: "Test " + string(agentType) + " Agent",
-				Type: agentType,
+				ID:     "test-" + string(agentType),
+				Name:   "Test " + string(agentType) + " Agent",
+				Type:   agentType,
 				Status: types.AgentStatusActive,
 			}
 
@@ -453,14 +453,14 @@ func TestAgentInterface_Compliance(t *testing.T) {
 
 func TestBaseAgent_LogInfo(t *testing.T) {
 	agent := &types.Agent{
-		ID:   "test-agent-1",
-		Name: "Test Agent",
-		Type: types.AgentTypeResearch,
+		ID:     "test-agent-1",
+		Name:   "Test Agent",
+		Type:   types.AgentTypeResearch,
 		Status: types.AgentStatusActive,
 	}
 
 	baseAgent := NewBaseAgent(agent)
-	
+
 	// Since logInfo is a private method on BaseAgent, we need to access it
 	// For testing purposes, we'll call it indirectly through Execute which uses it
 	ctx := types.ExecutionContext{
@@ -472,16 +472,16 @@ func TestBaseAgent_LogInfo(t *testing.T) {
 
 	_, err := baseAgent.Execute(ctx)
 	require.NoError(t, err)
-	
+
 	// The Execute method doesn't add logs in the base implementation,
 	// but derived classes do. Let's test with a research agent
 	researchAgent := NewResearchAgent(agent)
 	researchResult, err := researchAgent.Execute(ctx)
 	require.NoError(t, err)
-	
+
 	// Research agent should have added logs
 	assert.Greater(t, len(researchResult.Logs), 0)
-	
+
 	// Verify log structure
 	log := researchResult.Logs[0]
 	assert.Equal(t, types.LogLevelInfo, log.Level)
@@ -491,9 +491,9 @@ func TestBaseAgent_LogInfo(t *testing.T) {
 
 func TestAgent_ConcurrentExecution(t *testing.T) {
 	agent := &types.Agent{
-		ID:   "concurrent-test-agent",
-		Name: "Concurrent Test Agent",
-		Type: types.AgentTypeWorkflow,
+		ID:     "concurrent-test-agent",
+		Name:   "Concurrent Test Agent",
+		Type:   types.AgentTypeWorkflow,
 		Status: types.AgentStatusActive,
 	}
 
@@ -510,7 +510,7 @@ func TestAgent_ConcurrentExecution(t *testing.T) {
 	for i := 0; i < numExecutions; i++ {
 		go func(index int) {
 			defer func() { done <- true }()
-			
+
 			ctx := types.ExecutionContext{
 				RequestID: fmt.Sprintf("concurrent-request-%d", index),
 				Variables: map[string]interface{}{

@@ -2,7 +2,7 @@ package store
 
 import (
 	"context"
-	
+
 	"github.com/liliang-cn/rago/v2/pkg/store/sqvect"
 )
 
@@ -61,19 +61,19 @@ func (w *SqvectWrapper) Search(ctx context.Context, query SearchQuery) (*SearchR
 		IncludeMetadata: query.IncludeMetadata,
 		IncludeVector:   query.IncludeVector,
 	}
-	
+
 	sqvResult, err := w.SqvectStore.Search(ctx, sqvQuery)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert result
 	result := &SearchResult{
 		TotalCount: sqvResult.TotalCount,
 		QueryTime:  sqvResult.QueryTime,
 		Documents:  make([]*ScoredDocument, len(sqvResult.Documents)),
 	}
-	
+
 	for i, doc := range sqvResult.Documents {
 		result.Documents[i] = &ScoredDocument{
 			Document: Document{
@@ -92,7 +92,7 @@ func (w *SqvectWrapper) Search(ctx context.Context, query SearchQuery) (*SearchR
 			HighlightedText: doc.HighlightedText,
 		}
 	}
-	
+
 	return result, nil
 }
 
@@ -109,19 +109,19 @@ func (w *SqvectWrapper) HybridSearch(ctx context.Context, query HybridSearchQuer
 		IncludeMetadata: query.IncludeMetadata,
 		IncludeVector:   query.IncludeVector,
 	}
-	
+
 	sqvResult, err := w.SqvectStore.HybridSearch(ctx, sqvQuery)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert result
 	result := &SearchResult{
 		TotalCount: sqvResult.TotalCount,
 		QueryTime:  sqvResult.QueryTime,
 		Documents:  make([]*ScoredDocument, len(sqvResult.Documents)),
 	}
-	
+
 	for i, doc := range sqvResult.Documents {
 		result.Documents[i] = &ScoredDocument{
 			Document: Document{
@@ -140,7 +140,7 @@ func (w *SqvectWrapper) HybridSearch(ctx context.Context, query HybridSearchQuer
 			HighlightedText: doc.HighlightedText,
 		}
 	}
-	
+
 	return result, nil
 }
 
@@ -150,7 +150,7 @@ func (w *SqvectWrapper) Get(ctx context.Context, id string) (*Document, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &Document{
 		ID:         sqvDoc.ID,
 		Content:    sqvDoc.Content,
@@ -172,12 +172,12 @@ func (w *SqvectWrapper) List(ctx context.Context, opts ListOptions) ([]*Document
 		SortBy: opts.SortBy,
 		Order:  opts.Order,
 	}
-	
+
 	sqvDocs, err := w.SqvectStore.List(ctx, sqvOpts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	docs := make([]*Document, len(sqvDocs))
 	for i, sqvDoc := range sqvDocs {
 		docs[i] = &Document{
@@ -191,7 +191,7 @@ func (w *SqvectWrapper) List(ctx context.Context, opts ListOptions) ([]*Document
 			UpdatedAt:  sqvDoc.UpdatedAt,
 		}
 	}
-	
+
 	return docs, nil
 }
 
@@ -212,11 +212,11 @@ func (w *SqvectWrapper) ListIndexes(ctx context.Context) ([]IndexInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	indexes := make([]IndexInfo, len(sqvIndexes))
 	for i, sqvIdx := range sqvIndexes {
 		indexes[i] = IndexInfo{
-			Name:      sqvIdx.Name,
+			Name: sqvIdx.Name,
 			Config: IndexConfig{
 				Dimensions: sqvIdx.Config.Dimensions,
 				Metric:     DistanceMetric(sqvIdx.Config.Metric),
@@ -227,6 +227,6 @@ func (w *SqvectWrapper) ListIndexes(ctx context.Context) ([]IndexInfo, error) {
 			CreatedAt: sqvIdx.CreatedAt,
 		}
 	}
-	
+
 	return indexes, nil
 }

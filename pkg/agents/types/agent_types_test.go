@@ -11,7 +11,7 @@ import (
 
 func TestAgent_JSONSerialization(t *testing.T) {
 	now := time.Now().Truncate(time.Second) // Truncate for consistent comparison
-	
+
 	agent := &Agent{
 		ID:          "test-agent-1",
 		Name:        "Test Agent",
@@ -63,9 +63,9 @@ func TestAgent_JSONSerialization(t *testing.T) {
 
 func TestAgentType_Constants(t *testing.T) {
 	tests := []struct {
-		name     string
+		name      string
 		agentType AgentType
-		expected string
+		expected  string
 	}{
 		{"Research Agent", AgentTypeResearch, "research"},
 		{"Workflow Agent", AgentTypeWorkflow, "workflow"},
@@ -81,8 +81,8 @@ func TestAgentType_Constants(t *testing.T) {
 
 func TestAgentStatus_Constants(t *testing.T) {
 	tests := []struct {
-		name   string
-		status AgentStatus
+		name     string
+		status   AgentStatus
 		expected string
 	}{
 		{"Active Status", AgentStatusActive, "active"},
@@ -231,7 +231,7 @@ func TestLogLevel_Constants(t *testing.T) {
 
 func TestExecutionLog_Creation(t *testing.T) {
 	now := time.Now()
-	
+
 	log := ExecutionLog{
 		Timestamp: now,
 		Level:     LogLevelError,
@@ -316,11 +316,11 @@ type MockAgent struct {
 	agent *Agent
 }
 
-func (m *MockAgent) GetID() string                              { return m.agent.ID }
-func (m *MockAgent) GetName() string                            { return m.agent.Name }
-func (m *MockAgent) GetType() AgentType                         { return m.agent.Type }
-func (m *MockAgent) GetStatus() AgentStatus                     { return m.agent.Status }
-func (m *MockAgent) GetAgent() *Agent                           { return m.agent }
+func (m *MockAgent) GetID() string          { return m.agent.ID }
+func (m *MockAgent) GetName() string        { return m.agent.Name }
+func (m *MockAgent) GetType() AgentType     { return m.agent.Type }
+func (m *MockAgent) GetStatus() AgentStatus { return m.agent.Status }
+func (m *MockAgent) GetAgent() *Agent       { return m.agent }
 func (m *MockAgent) Execute(ctx ExecutionContext) (*ExecutionResult, error) {
 	return &ExecutionResult{
 		ExecutionID: ctx.RequestID,
@@ -337,9 +337,9 @@ func (m *MockAgent) Validate() error { return nil }
 
 func TestAgentInterface_Implementation(t *testing.T) {
 	agent := &Agent{
-		ID:   "test-agent",
-		Name: "Test Agent",
-		Type: AgentTypeResearch,
+		ID:     "test-agent",
+		Name:   "Test Agent",
+		Type:   AgentTypeResearch,
 		Status: AgentStatusActive,
 	}
 
@@ -358,7 +358,7 @@ func TestAgentInterface_Implementation(t *testing.T) {
 		RequestID: "test-request",
 		StartTime: time.Now(),
 	}
-	
+
 	result, err := mockAgent.Execute(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "test-request", result.ExecutionID)
@@ -375,9 +375,9 @@ func TestAgent_EmptyFieldValidation(t *testing.T) {
 		{
 			name: "Valid agent",
 			agent: Agent{
-				ID:   "test-1",
-				Name: "Test Agent",
-				Type: AgentTypeResearch,
+				ID:     "test-1",
+				Name:   "Test Agent",
+				Type:   AgentTypeResearch,
 				Status: AgentStatusActive,
 			},
 			valid: true,
@@ -385,9 +385,9 @@ func TestAgent_EmptyFieldValidation(t *testing.T) {
 		{
 			name: "Empty ID",
 			agent: Agent{
-				ID:   "",
-				Name: "Test Agent",
-				Type: AgentTypeResearch,
+				ID:     "",
+				Name:   "Test Agent",
+				Type:   AgentTypeResearch,
 				Status: AgentStatusActive,
 			},
 			valid: false,
@@ -395,9 +395,9 @@ func TestAgent_EmptyFieldValidation(t *testing.T) {
 		{
 			name: "Empty Name",
 			agent: Agent{
-				ID:   "test-1",
-				Name: "",
-				Type: AgentTypeResearch,
+				ID:     "test-1",
+				Name:   "",
+				Type:   AgentTypeResearch,
 				Status: AgentStatusActive,
 			},
 			valid: false,
@@ -407,7 +407,7 @@ func TestAgent_EmptyFieldValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockAgent := &MockAgent{agent: &tt.agent}
-			
+
 			// Basic validation through interface
 			if tt.valid {
 				assert.Equal(t, tt.agent.ID, mockAgent.GetID())

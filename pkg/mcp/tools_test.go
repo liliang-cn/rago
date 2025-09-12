@@ -153,10 +153,10 @@ func TestMCPToolWrapper_Call(t *testing.T) {
 			connected: false, // Not connected
 			tools:     make(map[string]*mcp.Tool),
 		}
-		
+
 		wrapper := &MCPToolWrapper{
 			client:     client,
-			serverName: "test-server", 
+			serverName: "test-server",
 			toolName:   "test-tool",
 		}
 
@@ -165,7 +165,7 @@ func TestMCPToolWrapper_Call(t *testing.T) {
 
 		// This should fail gracefully since client is not connected
 		result, err := wrapper.Call(ctx, expectedArgs)
-		
+
 		// The Call method returns results, not errors
 		assert.Nil(t, err) // Call method doesn't return errors
 		assert.NotNil(t, result)
@@ -318,7 +318,7 @@ func TestMCPToolManager_GetToolsForLLM(t *testing.T) {
 		},
 	}
 	tool2 := &MCPToolWrapper{
-		serverName: "server2", 
+		serverName: "server2",
 		toolName:   "tool2",
 		tool: &mcp.Tool{
 			Name:        "tool2",
@@ -513,13 +513,13 @@ func TestMCPToolWrapper_ComprehensiveTests(t *testing.T) {
 
 		ctx := context.Background()
 		args := map[string]interface{}{
-			"string_arg":  "test",
-			"int_arg":     42,
-			"float_arg":   3.14,
-			"bool_arg":    true,
-			"array_arg":   []interface{}{"item1", "item2"},
+			"string_arg": "test",
+			"int_arg":    42,
+			"float_arg":  3.14,
+			"bool_arg":   true,
+			"array_arg":  []interface{}{"item1", "item2"},
 			"object_arg": map[string]interface{}{"key": "value"},
-			"null_arg":    nil,
+			"null_arg":   nil,
 		}
 
 		result, err := wrapper.Call(ctx, args)
@@ -795,14 +795,14 @@ func TestMCPToolResult_Serialization(t *testing.T) {
 			ToolName:   "test-tool",
 			Duration:   250 * time.Millisecond,
 			Data: map[string]interface{}{
-				"string":   "test",
-				"number":   42,
-				"float":    3.14,
-				"boolean":  true,
-				"null":     nil,
-				"array":    []interface{}{1, 2, 3},
-				"object":   map[string]interface{}{"nested": "value"},
-				"unicode":  "测试数据🚀",
+				"string":  "test",
+				"number":  42,
+				"float":   3.14,
+				"boolean": true,
+				"null":    nil,
+				"array":   []interface{}{1, 2, 3},
+				"object":  map[string]interface{}{"nested": "value"},
+				"unicode": "测试数据🚀",
 			},
 		}
 
@@ -817,7 +817,7 @@ func TestMCPToolResult_Serialization(t *testing.T) {
 		assert.Equal(t, result.ServerName, unmarshaled.ServerName)
 		assert.Equal(t, result.ToolName, unmarshaled.ToolName)
 		assert.Equal(t, result.Duration, unmarshaled.Duration)
-		
+
 		// Check data structure (JSON unmarshal converts integers to float64)
 		resultData := unmarshaled.Data.(map[string]interface{})
 		assert.Equal(t, "test", resultData["string"])
@@ -826,14 +826,14 @@ func TestMCPToolResult_Serialization(t *testing.T) {
 		assert.Equal(t, true, resultData["boolean"])
 		assert.Nil(t, resultData["null"])
 		assert.Equal(t, "测试数据🚀", resultData["unicode"])
-		
+
 		// Array elements become float64 after JSON unmarshal
 		array := resultData["array"].([]interface{})
 		assert.Len(t, array, 3)
 		assert.Equal(t, float64(1), array[0])
 		assert.Equal(t, float64(2), array[1])
 		assert.Equal(t, float64(3), array[2])
-		
+
 		object := resultData["object"].(map[string]interface{})
 		assert.Equal(t, "value", object["nested"])
 	})

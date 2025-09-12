@@ -100,7 +100,7 @@ func TestMCPService_Initialize_Enabled(t *testing.T) {
 	}
 
 	service := NewMCPService(config)
-	
+
 	// We can't easily test the actual initialization without a real MCP server
 	// but we can test the error path
 	ctx := context.Background()
@@ -339,7 +339,7 @@ func TestMCPLibraryAPI_BatchCall(t *testing.T) {
 			Args:     map[string]interface{}{"param": "value1"},
 		},
 		{
-			ToolName: "tool2", 
+			ToolName: "tool2",
 			Args:     map[string]interface{}{"param": "value2"},
 		},
 	}
@@ -358,7 +358,7 @@ func TestMCPLibraryAPI_BatchCall_Empty(t *testing.T) {
 
 	calls := []ToolCall{}
 	ctx := context.Background()
-	
+
 	results, err := api.BatchCall(ctx, calls)
 	assert.NoError(t, err)
 	assert.Empty(t, results)
@@ -400,25 +400,25 @@ func TestToolCall(t *testing.T) {
 
 func TestExampleBasicUsage(t *testing.T) {
 	t.Skip("Example function - requires real MCP server for integration test")
-	
+
 	// This would test the ExampleBasicUsage function
 	// but it requires a real MCP server to be meaningful
 	config := &Config{
 		Enabled: false, // Keep disabled to avoid startup issues
 	}
-	
+
 	err := ExampleBasicUsage(config)
 	assert.Error(t, err) // Should error because MCP is disabled
 }
 
 func TestExampleLLMIntegration(t *testing.T) {
 	t.Skip("Example function - requires real MCP server for integration test")
-	
+
 	// This would test the ExampleLLMIntegration function
 	config := &Config{
 		Enabled: false, // Keep disabled
 	}
-	
+
 	tools, err := ExampleLLMIntegration(config)
 	assert.Error(t, err)
 	assert.Nil(t, tools)
@@ -432,15 +432,15 @@ func TestMCPLibraryAPI_WithMockedManager(t *testing.T) {
 
 	// We can't easily replace the internal tool manager without changing the API,
 	// but we can test the basic structure and ensure methods are called correctly
-	
+
 	// Test that tools list is initially empty
 	tools := api.ListTools()
 	assert.Empty(t, tools)
-	
+
 	// Test server statuses
 	statuses := api.GetServerStatuses()
 	assert.NotNil(t, statuses)
-	
+
 	// Test LLM integration tools
 	llmTools := api.GetToolsForLLMIntegration()
 	assert.NotNil(t, llmTools)
@@ -675,20 +675,20 @@ func TestMCPAPI_DataStructures(t *testing.T) {
 
 		assert.Equal(t, options.Timeout, unmarshaled.Timeout)
 		assert.Equal(t, options.ServerName, unmarshaled.ServerName)
-		
+
 		// Check args structure (JSON unmarshal converts integers to float64)
 		args := unmarshaled.Args
 		assert.Equal(t, "test", args["string"])
 		assert.Equal(t, float64(42), args["number"]) // JSON converts int to float64
 		assert.Equal(t, true, args["boolean"])
 		assert.Equal(t, "测试数据", args["unicode"])
-		
+
 		array := args["array"].([]interface{})
 		assert.Len(t, array, 3)
 		assert.Equal(t, float64(1), array[0])
 		assert.Equal(t, float64(2), array[1])
 		assert.Equal(t, float64(3), array[2])
-		
+
 		object := args["object"].(map[string]interface{})
 		assert.Equal(t, "value", object["nested"])
 	})
@@ -716,20 +716,20 @@ func TestMCPAPI_DataStructures(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, call.ToolName, unmarshaled.ToolName)
-		
+
 		// Check args structure (JSON unmarshal converts integers to float64)
 		args := unmarshaled.Args
 		assert.Equal(t, "中文测试🚀✨", args["unicode_string"])
 		assert.Nil(t, args["empty_value"])
-		
+
 		nestedObject := args["nested_object"].(map[string]interface{})
 		deepArray := nestedObject["deep_array"].([]interface{})
 		assert.Len(t, deepArray, 2)
-		
+
 		item1 := deepArray[0].(map[string]interface{})
 		assert.Equal(t, float64(1), item1["id"]) // JSON converts int to float64
 		assert.Equal(t, "item1", item1["name"])
-		
+
 		item2 := deepArray[1].(map[string]interface{})
 		assert.Equal(t, float64(2), item2["id"]) // JSON converts int to float64
 		assert.Equal(t, "item2", item2["name"])
@@ -753,7 +753,7 @@ func BenchmarkMCPLibraryAPI_ListTools(b *testing.B) {
 func TestMCPAPI_EdgeCases(t *testing.T) {
 	t.Run("service operations after close", func(t *testing.T) {
 		api := NewMCPLibraryAPI(&Config{Enabled: true})
-		
+
 		// Close the API
 		err := api.Stop()
 		assert.NoError(t, err)
@@ -768,7 +768,7 @@ func TestMCPAPI_EdgeCases(t *testing.T) {
 
 	t.Run("concurrent start and stop", func(t *testing.T) {
 		api := NewMCPLibraryAPI(&Config{Enabled: true})
-		
+
 		const numGoroutines = 10
 		wg := sync.WaitGroup{}
 		wg.Add(numGoroutines * 2)

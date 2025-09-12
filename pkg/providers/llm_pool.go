@@ -27,10 +27,10 @@ const (
 
 // LLMPoolConfig configuration for the LLM pool
 type LLMPoolConfig struct {
-	Strategy        LoadBalancingStrategy
+	Strategy            LoadBalancingStrategy
 	HealthCheckInterval time.Duration
-	MaxRetries      int
-	RetryDelay      time.Duration
+	MaxRetries          int
+	RetryDelay          time.Duration
 }
 
 // ProviderStatus tracks the health and load of a provider
@@ -45,12 +45,12 @@ type ProviderStatus struct {
 
 // LLMPool manages multiple LLM providers with load balancing
 type LLMPool struct {
-	providers    []*ProviderStatus
-	config       LLMPoolConfig
+	providers     []*ProviderStatus
+	config        LLMPoolConfig
 	roundRobinIdx uint32
-	mu           sync.RWMutex
-	stopChan     chan struct{}
-	wg           sync.WaitGroup
+	mu            sync.RWMutex
+	stopChan      chan struct{}
+	wg            sync.WaitGroup
 }
 
 // NewLLMPool creates a new LLM pool with the given providers and configuration
@@ -174,7 +174,7 @@ func (p *LLMPool) selectProvider() (*ProviderStatus, error) {
 func (p *LLMPool) withRetry(ctx context.Context, fn func(*ProviderStatus) error) error {
 	var lastErr error
 	attemptedProviders := make(map[string]bool)
-	
+
 	for attempt := 0; attempt <= p.config.MaxRetries; attempt++ {
 		if attempt > 0 && p.config.RetryDelay > 0 {
 			select {
@@ -196,10 +196,10 @@ func (p *LLMPool) withRetry(ctx context.Context, fn func(*ProviderStatus) error)
 
 		// Increment active loads
 		atomic.AddInt32(&provider.ActiveLoads, 1)
-		
+
 		err = fn(provider)
 		atomic.AddInt32(&provider.ActiveLoads, -1)
-		
+
 		if err == nil {
 			return nil
 		}
@@ -210,16 +210,16 @@ func (p *LLMPool) withRetry(ctx context.Context, fn func(*ProviderStatus) error)
 			provider.Healthy = false
 			provider.mu.Unlock()
 		}
-		
+
 		lastErr = fmt.Errorf("provider %s failed: %w", provider.Name, err)
-		
+
 		// For failover strategy, try different providers on retry
 		if p.config.Strategy == FailoverStrategy {
 			// Mark current provider as temporarily unhealthy to force failover
 			provider.mu.Lock()
 			provider.Healthy = false
 			provider.mu.Unlock()
-			
+
 			// Restore health after a short delay (for next requests)
 			go func(p *ProviderStatus) {
 				time.Sleep(100 * time.Millisecond)
@@ -294,14 +294,14 @@ func (p *LLMPool) Health(ctx context.Context) error {
 		provider.mu.RLock()
 		healthy := provider.Healthy
 		provider.mu.RUnlock()
-		
+
 		if healthy {
 			if err := provider.Provider.Health(ctx); err == nil {
 				return nil
 			}
 		}
 	}
-	
+
 	return fmt.Errorf("no healthy providers in pool")
 }
 

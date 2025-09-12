@@ -81,15 +81,15 @@ func TestInitializeEmbedder_NoProviderConfigured(t *testing.T) {
 	cfg := &config.Config{
 		Providers: config.ProvidersConfig{},
 	}
-	
+
 	ctx := context.Background()
 	var factory *providers.Factory // Not needed for this test
-	
+
 	_, err := InitializeEmbedder(ctx, cfg, factory)
 	if err == nil {
 		t.Error("Expected error when no embedder provider configured")
 	}
-	
+
 	if err.Error() != "no embedder provider configured" {
 		t.Errorf("Expected specific error message, got: %v", err)
 	}
@@ -99,15 +99,15 @@ func TestInitializeLLM_NoProviderConfigured(t *testing.T) {
 	cfg := &config.Config{
 		Providers: config.ProvidersConfig{},
 	}
-	
+
 	ctx := context.Background()
 	var factory *providers.Factory // Not needed for this test
-	
+
 	_, err := InitializeLLM(ctx, cfg, factory)
 	if err == nil {
 		t.Error("Expected error when no LLM provider configured")
 	}
-	
+
 	if err.Error() != "no LLM provider configured" {
 		t.Errorf("Expected specific error message, got: %v", err)
 	}
@@ -166,21 +166,21 @@ func TestCheckProviderHealth(t *testing.T) {
 			errMsg:  "LLM health check failed",
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			
+
 			err := CheckProviderHealth(ctx, tc.embedder, tc.generator)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
-			
+
 			if !tc.wantErr && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			
+
 			if tc.wantErr && tc.errMsg != "" {
 				if err == nil || !contains(err.Error(), tc.errMsg) {
 					t.Errorf("Expected error containing %q, got %v", tc.errMsg, err)
@@ -240,7 +240,7 @@ User Question: What is AI?
 Please provide a detailed and accurate answer based on the document content:`,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := ComposePrompt(tc.chunks, tc.query)
@@ -255,7 +255,7 @@ func TestComposePrompt_EmptyQuery(t *testing.T) {
 	chunks := []domain.Chunk{
 		{Content: "Test content"},
 	}
-	
+
 	result := ComposePrompt(chunks, "")
 	if !contains(result, "User Question: ") {
 		t.Error("Expected prompt to contain 'User Question:' even with empty query")
@@ -267,16 +267,16 @@ func TestComposePrompt_EmptyChunkContent(t *testing.T) {
 		{Content: ""},
 		{Content: "Non-empty content"},
 	}
-	
+
 	result := ComposePrompt(chunks, "Test query")
 	if !contains(result, "[Document Fragment 1]") {
 		t.Error("Expected prompt to contain document fragment markers")
 	}
-	
+
 	if !contains(result, "[Document Fragment 2]") {
 		t.Error("Expected prompt to contain second document fragment marker")
 	}
-	
+
 	if !contains(result, "Non-empty content") {
 		t.Error("Expected prompt to contain non-empty content")
 	}
@@ -284,9 +284,9 @@ func TestComposePrompt_EmptyChunkContent(t *testing.T) {
 
 // Helper function to check if string contains substring
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || 
-		(len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || 
-		containsHelper(s, substr))))
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
+			containsHelper(s, substr))))
 }
 
 func containsHelper(s, substr string) bool {

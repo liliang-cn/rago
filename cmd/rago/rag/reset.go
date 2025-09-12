@@ -46,12 +46,10 @@ var resetCmd = &cobra.Command{
 			}
 		}()
 
-
 		ctx := context.Background()
 		if err := vectorStore.Reset(ctx); err != nil {
 			return fmt.Errorf("failed to reset vector store: %w", err)
 		}
-
 
 		fmt.Println("Database has been reset successfully.")
 		return nil

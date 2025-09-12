@@ -45,7 +45,7 @@ MCP tools provide enhanced functionality for file operations, database queries, 
 			ctx := context.Background()
 			return runInteractiveRAGQuery(ctx)
 		}
-		
+
 		// Handle MCP mode
 		if useMCP {
 			return processMCPQuery(cmd, args)
@@ -63,7 +63,6 @@ MCP tools provide enhanced functionality for file operations, database queries, 
 				fmt.Printf("failed to close vector store: %v\n", err)
 			}
 		}()
-
 
 		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
@@ -408,7 +407,6 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 			fmt.Printf("Warning: failed to close vector store: %v\n", err)
 		}
 	}()
-
 
 	docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 

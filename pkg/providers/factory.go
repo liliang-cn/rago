@@ -102,7 +102,7 @@ func GetLLMProviderConfig(config *domain.ProviderConfig, defaultProvider string)
 // CreateLLMPool creates a pool of LLM providers from configuration
 func (f *Factory) CreateLLMPool(ctx context.Context, providerConfigs map[string]interface{}, poolConfig LLMPoolConfig) (*LLMPool, error) {
 	providers := make(map[string]domain.LLMProvider)
-	
+
 	for name, config := range providerConfigs {
 		provider, err := f.CreateLLMProvider(ctx, config)
 		if err != nil {
@@ -110,7 +110,7 @@ func (f *Factory) CreateLLMPool(ctx context.Context, providerConfigs map[string]
 		}
 		providers[name] = provider
 	}
-	
+
 	return NewLLMPool(providers, poolConfig)
 }
 
