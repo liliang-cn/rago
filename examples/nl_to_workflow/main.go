@@ -65,7 +65,7 @@ func main() {
 	fmt.Println()
 
 	// Execute the generated workflow
-	executor := execution.NewWorkflowExecutor(cfg, llmService)
+	executor := execution.NewWorkflowExecutorV2(cfg, llmService)
 	executor.SetVerbose(true)
 
 	fmt.Println("⚙️  Executing generated workflow...")

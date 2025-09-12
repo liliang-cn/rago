@@ -70,7 +70,7 @@ func main() {
 	}
 
 	// Create workflow executor (nil for LLM since we don't need it)
-	executor := execution.NewWorkflowExecutor(cfg, nil)
+	executor := execution.NewWorkflowExecutorV2(cfg, nil)
 	executor.SetVerbose(true)
 
 	// Execute the workflow

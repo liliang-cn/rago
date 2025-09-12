@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/agents/types"
@@ -15,26 +16,20 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
-// WorkflowExecutor handles the execution of workflow steps
+// WorkflowExecutor handles workflow execution with async and parallel support
 type WorkflowExecutor struct {
 	config      *config.Config
 	llmProvider domain.Generator
-	mcpClients  map[string]*MCPClient
 	memory      map[string]interface{}
 	verbose     bool
+	mu          sync.RWMutex
 }
 
-// MCPClient represents a connection to an MCP server
-type MCPClient struct {
-	// Note: This type is currently unused but kept for future MCP integration
-}
-
-// NewWorkflowExecutor creates a new workflow executor
+// NewWorkflowExecutor creates a new workflow executor with async support
 func NewWorkflowExecutor(cfg *config.Config, llm domain.Generator) *WorkflowExecutor {
 	return &WorkflowExecutor{
 		config:      cfg,
 		llmProvider: llm,
-		mcpClients:  make(map[string]*MCPClient),
 		memory:      make(map[string]interface{}),
 		verbose:     false,
 	}
@@ -45,7 +40,7 @@ func (e *WorkflowExecutor) SetVerbose(v bool) {
 	e.verbose = v
 }
 
-// Execute runs a complete workflow
+// Execute runs a workflow with async and parallel support
 func (e *WorkflowExecutor) Execute(ctx context.Context, workflow *types.WorkflowSpec) (*types.ExecutionResult, error) {
 	result := &types.ExecutionResult{
 		ExecutionID: fmt.Sprintf("exec_%d", time.Now().Unix()),
@@ -55,80 +50,110 @@ func (e *WorkflowExecutor) Execute(ctx context.Context, workflow *types.Workflow
 		StepResults: make([]types.StepResult, 0),
 	}
 
-	// Initialize variables from workflow
+	// Initialize variables
 	variables := make(map[string]interface{})
 	for k, v := range workflow.Variables {
 		variables[k] = v
 	}
 
-	// Execute each step
-	for _, step := range workflow.Steps {
-		if e.verbose {
-			fmt.Printf("\n⚙️  Executing Step: %s\n", step.Name)
+	// Build dependency graph
+	stepDeps := e.buildDependencyGraph(workflow)
+
+	// Execute steps with dependency resolution
+	completed := make(map[string]bool)
+	results := make(map[string]interface{})
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(workflow.Steps))
+	resultChan := make(chan types.StepResult, len(workflow.Steps))
+	var executionError error
+
+	for len(completed) < len(workflow.Steps) && executionError == nil {
+		// Find steps that can be executed (all deps satisfied)
+		readySteps := e.findReadySteps(workflow.Steps, stepDeps, completed)
+
+		if len(readySteps) == 0 && len(completed) < len(workflow.Steps) {
+			return result, fmt.Errorf("circular dependency detected or no executable steps")
 		}
 
-		stepResult := types.StepResult{
-			StepID:    step.ID,
-			Status:    "running",
-			StartTime: time.Now(),
-			Outputs:   make(map[string]interface{}),
+		// Execute ready steps in parallel
+		for _, step := range readySteps {
+			wg.Add(1)
+			go func(s types.WorkflowStep) {
+				defer wg.Done()
+
+				if e.verbose {
+					fmt.Printf("\n⚡ Starting Step (async): %s\n", s.Name)
+				}
+
+				// Execute the step
+				stepResult, err := e.executeStep(ctx, s, variables, results)
+				if err != nil {
+					errChan <- fmt.Errorf("step %s failed: %w", s.ID, err)
+					// Mark as completed even on error to prevent infinite loop
+					e.mu.Lock()
+					completed[s.ID] = true
+					e.mu.Unlock()
+					return
+				}
+
+				// Store results
+				e.mu.Lock()
+				if s.Outputs != nil {
+					for _, varName := range s.Outputs {
+						results[varName] = stepResult.Outputs["result"]
+						variables[varName] = stepResult.Outputs["result"]
+					}
+				}
+				completed[s.ID] = true
+				e.mu.Unlock()
+
+				resultChan <- stepResult
+
+				if e.verbose {
+					fmt.Printf("   ✅ Completed (async): %s\n", s.Name)
+				}
+			}(step)
 		}
 
-		// Replace variables in inputs
-		inputs := e.resolveVariables(step.Inputs, variables)
-
-		// Execute based on tool type
-		var output interface{}
-		var err error
-
-		switch step.Tool {
-		case "fetch":
-			output, err = e.executeFetch(ctx, inputs)
-		case "filesystem":
-			output, err = e.executeFilesystem(ctx, inputs)
-		case "memory":
-			output, err = e.executeMemory(ctx, inputs)
-		case "time":
-			output, err = e.executeTime(ctx, inputs)
-		case "sequential-thinking":
-			output, err = e.executeSequentialThinking(ctx, inputs, variables)
+		// Wait for this batch to complete
+		wg.Wait()
+		
+		// Check for errors from this batch
+		select {
+		case err := <-errChan:
+			if err != nil {
+				executionError = err
+			}
 		default:
-			err = fmt.Errorf("unknown tool: %s", step.Tool)
+			// No error
 		}
+	}
 
+	close(errChan)
+	close(resultChan)
+
+	// Return early if we had an execution error
+	if executionError != nil {
+		result.Status = types.ExecutionStatusFailed
+		return result, executionError
+	}
+
+	// Check for any remaining errors
+	for err := range errChan {
 		if err != nil {
-			stepResult.Status = "failed"
-			result.StepResults = append(result.StepResults, stepResult)
 			result.Status = types.ExecutionStatusFailed
 			return result, err
 		}
+	}
 
-		// Store outputs in variables
-		if step.Outputs != nil {
-			for outKey, varName := range step.Outputs {
-				variables[varName] = output
-				result.Outputs[varName] = output
-				stepResult.Outputs[outKey] = output
-				if e.verbose {
-					// Show a preview of stored data
-					preview := fmt.Sprintf("%v", output)
-					if len(preview) > 100 {
-						preview = preview[:100] + "..."
-					}
-					fmt.Printf("   💾 Stored %s = %s\n", varName, preview)
-				}
-			}
-		}
-
-		stepResult.Status = "completed"
-		now := time.Now()
-		stepResult.EndTime = &now
-		stepResult.Duration = now.Sub(stepResult.StartTime)
+	// Collect results
+	for stepResult := range resultChan {
 		result.StepResults = append(result.StepResults, stepResult)
+	}
 
-		if e.verbose {
-			fmt.Printf("   ✅ Completed: %s\n", step.Name)
-		}
+	// Copy final outputs
+	for k, v := range results {
+		result.Outputs[k] = v
 	}
 
 	result.Status = types.ExecutionStatusCompleted
@@ -137,6 +162,123 @@ func (e *WorkflowExecutor) Execute(ctx context.Context, workflow *types.Workflow
 	result.Duration = now.Sub(result.StartTime)
 
 	return result, nil
+}
+
+// executeStep executes a single workflow step
+func (e *WorkflowExecutor) executeStep(ctx context.Context, step types.WorkflowStep, variables, results map[string]interface{}) (types.StepResult, error) {
+	stepResult := types.StepResult{
+		StepID:    step.ID,
+		Status:    "running",
+		StartTime: time.Now(),
+		Outputs:   make(map[string]interface{}),
+	}
+
+	// Resolve variables in inputs
+	e.mu.RLock()
+	allVars := make(map[string]interface{})
+	for k, v := range variables {
+		allVars[k] = v
+	}
+	for k, v := range results {
+		allVars[k] = v
+	}
+	e.mu.RUnlock()
+
+	inputs := e.resolveVariables(step.Inputs, allVars)
+
+	// Execute based on tool type
+	var output interface{}
+	var err error
+
+	switch step.Tool {
+	case "fetch":
+		output, err = e.executeFetch(ctx, inputs)
+	case "filesystem":
+		output, err = e.executeFilesystem(ctx, inputs)
+	case "memory":
+		output, err = e.executeMemory(ctx, inputs)
+	case "time":
+		output, err = e.executeTime(ctx, inputs)
+	case "sequential-thinking":
+		output, err = e.executeSequentialThinking(ctx, inputs, allVars)
+	default:
+		err = fmt.Errorf("unknown tool: %s", step.Tool)
+	}
+
+	if err != nil {
+		stepResult.Status = "failed"
+		return stepResult, err
+	}
+
+	stepResult.Outputs["result"] = output
+	stepResult.Status = "completed"
+	now := time.Now()
+	stepResult.EndTime = &now
+	stepResult.Duration = now.Sub(stepResult.StartTime)
+
+	return stepResult, nil
+}
+
+// buildDependencyGraph analyzes steps to find dependencies
+func (e *WorkflowExecutor) buildDependencyGraph(workflow *types.WorkflowSpec) map[string][]string {
+	deps := make(map[string][]string)
+
+	// Build output to step mapping
+	outputToStep := make(map[string]string)
+	for _, step := range workflow.Steps {
+		if step.Outputs != nil {
+			for _, varName := range step.Outputs {
+				outputToStep[varName] = step.ID
+			}
+		}
+	}
+
+	// Find dependencies based on variable usage
+	for _, step := range workflow.Steps {
+		deps[step.ID] = []string{}
+
+		// Check if step uses variables from other steps
+		inputStr := fmt.Sprintf("%v", step.Inputs)
+		for varName, producerStep := range outputToStep {
+			if strings.Contains(inputStr, "{{"+varName+"}}") ||
+				strings.Contains(inputStr, "{{$"+varName+"}}") {
+				deps[step.ID] = append(deps[step.ID], producerStep)
+			}
+		}
+
+		// Also check explicit DependsOn field if it exists
+		if len(step.DependsOn) > 0 {
+			deps[step.ID] = append(deps[step.ID], step.DependsOn...)
+		}
+	}
+
+	return deps
+}
+
+// findReadySteps finds steps that can be executed now
+func (e *WorkflowExecutor) findReadySteps(steps []types.WorkflowStep, deps map[string][]string, completed map[string]bool) []types.WorkflowStep {
+	var ready []types.WorkflowStep
+
+	for _, step := range steps {
+		if completed[step.ID] {
+			continue
+		}
+
+		// Check if all dependencies are satisfied
+		canExecute := true
+		for _, dep := range deps[step.ID] {
+			if !completed[dep] {
+				canExecute = false
+				break
+			}
+		}
+
+		if canExecute {
+			ready = append(ready, step)
+		}
+	}
+
+	return ready
 }
 
 // executeFetch handles HTTP fetch operations
@@ -157,7 +299,7 @@ func (e *WorkflowExecutor) executeFetch(ctx context.Context, inputs map[string]i
 		return nil, err
 	}
 
-	// Add headers if provided
+	// Add headers
 	if headers, ok := inputs["headers"].(map[string]interface{}); ok {
 		for k, v := range headers {
 			if vStr, ok := v.(string); ok {
@@ -192,11 +334,11 @@ func (e *WorkflowExecutor) executeFetch(ctx context.Context, inputs map[string]i
 	return string(body), nil
 }
 
-// executeFilesystem handles file operations
+// Other execute methods remain similar but with proper async handling
 func (e *WorkflowExecutor) executeFilesystem(ctx context.Context, inputs map[string]interface{}) (interface{}, error) {
 	action, ok := inputs["action"].(string)
 	if !ok {
-		// Try to infer action from other parameters
+		// Infer action
 		if _, hasPath := inputs["path"]; hasPath {
 			if _, hasData := inputs["data"]; hasData {
 				action = "write"
@@ -248,9 +390,7 @@ func (e *WorkflowExecutor) executeFilesystem(ctx context.Context, inputs map[str
 		if c, ok := inputs["content"].(string); ok {
 			content = c
 		}
-		// Read existing content
 		existing, _ := os.ReadFile(path)
-		// Append new content
 		newContent := string(existing) + content
 		err := os.WriteFile(path, []byte(newContent), 0644)
 		if err != nil {
@@ -258,36 +398,23 @@ func (e *WorkflowExecutor) executeFilesystem(ctx context.Context, inputs map[str
 		}
 		return path, nil
 
-	case "list":
-		path := "./"
-		if p, ok := inputs["path"].(string); ok {
-			path = p
-		}
-		// Simple implementation - just return the path for now
-		return fmt.Sprintf("Files in %s", path), nil
-
 	default:
 		return nil, fmt.Errorf("unknown filesystem action: %s", action)
 	}
 }
 
-// executeMemory handles in-memory storage
 func (e *WorkflowExecutor) executeMemory(ctx context.Context, inputs map[string]interface{}) (interface{}, error) {
 	action, ok := inputs["action"].(string)
 	if !ok {
-		// If no action, try to infer it
 		if key, ok := inputs["key"].(string); ok {
 			if value, ok := inputs["value"]; ok {
-				// Store value directly and return
+				e.mu.Lock()
 				e.memory[key] = value
+				e.mu.Unlock()
 				return value, nil
-			} else {
-				// Default to retrieve action
-				action = "retrieve"
 			}
-		} else {
-			return nil, fmt.Errorf("memory requires 'action' or 'key' input")
 		}
+		return nil, fmt.Errorf("memory requires 'action' input")
 	}
 
 	key, _ := inputs["key"].(string)
@@ -295,33 +422,31 @@ func (e *WorkflowExecutor) executeMemory(ctx context.Context, inputs map[string]
 	switch action {
 	case "store":
 		value := inputs["value"]
+		e.mu.Lock()
 		e.memory[key] = value
+		e.mu.Unlock()
 		return value, nil
 
 	case "retrieve":
+		e.mu.RLock()
 		value, exists := e.memory[key]
+		e.mu.RUnlock()
 		if !exists {
 			return nil, nil
 		}
 		return value, nil
 
 	case "delete":
+		e.mu.Lock()
 		delete(e.memory, key)
+		e.mu.Unlock()
 		return "deleted", nil
-
-	case "append":
-		existing, _ := e.memory[key].(string)
-		newValue, _ := inputs["value"].(string)
-		combined := existing + newValue
-		e.memory[key] = combined
-		return combined, nil
 
 	default:
 		return nil, fmt.Errorf("unknown memory action: %s", action)
 	}
 }
 
-// executeTime handles time operations
 func (e *WorkflowExecutor) executeTime(ctx context.Context, inputs map[string]interface{}) (interface{}, error) {
 	action := "now"
 	if a, ok := inputs["action"].(string); ok {
@@ -332,8 +457,7 @@ func (e *WorkflowExecutor) executeTime(ctx context.Context, inputs map[string]in
 	case "now":
 		format := "2006-01-02 15:04:05"
 		if f, ok := inputs["format"].(string); ok {
-			// Convert common time formats to Go format
-			format = convertTimeFormat(f)
+			format = f
 		}
 		return time.Now().Format(format), nil
 
@@ -342,9 +466,8 @@ func (e *WorkflowExecutor) executeTime(ctx context.Context, inputs map[string]in
 	}
 }
 
-// executeSequentialThinking handles LLM calls
 func (e *WorkflowExecutor) executeSequentialThinking(ctx context.Context, inputs map[string]interface{}, variables map[string]interface{}) (interface{}, error) {
-	// Build the prompt
+	// Build prompt
 	prompt := ""
 	if p, ok := inputs["prompt"].(string); ok {
 		prompt = p
@@ -352,34 +475,22 @@ func (e *WorkflowExecutor) executeSequentialThinking(ctx context.Context, inputs
 		prompt = p
 	}
 
-	// Resolve variables in prompt first
-	prompt = e.resolveString(prompt, variables)
-
-	// Add context data (also resolve variables in these)
+	// Add context data
 	if context, ok := inputs["context"].(string); ok {
-		contextResolved := e.resolveString(context, variables)
-		prompt = fmt.Sprintf("%s\n\nContext: %s", prompt, contextResolved)
+		prompt = fmt.Sprintf("%s\n\nContext: %s", prompt, context)
 	}
 	if data, ok := inputs["data"].(string); ok {
-		dataResolved := e.resolveString(data, variables)
-		prompt = fmt.Sprintf("%s\n\nData: %s", prompt, dataResolved)
+		prompt = fmt.Sprintf("%s\n\nData: %s", prompt, data)
 	}
 
-	// Add all other inputs as context
-	for k, v := range inputs {
-		if k != "prompt" && k != "task" && k != "context" && k != "data" {
-			if vStr, ok := v.(string); ok {
-				v = e.resolveString(vStr, variables)
-			}
-			prompt = fmt.Sprintf("%s\n\n%s: %v", prompt, k, v)
-		}
-	}
+	// Resolve variables in prompt
+	prompt = e.resolveString(prompt, variables)
 
 	if e.verbose {
-		fmt.Printf("   🧠 Calling LLM with prompt: %s...\n", prompt[:min(50, len(prompt))])
+		fmt.Printf("   🧠 Calling LLM with prompt: %s...\n", prompt[:minInt(50, len(prompt))])
 	}
 
-	// Call the LLM
+	// Call LLM
 	opts := &domain.GenerationOptions{
 		Temperature: 0.7,
 		MaxTokens:   1000,
@@ -410,13 +521,11 @@ func (e *WorkflowExecutor) resolveVariables(inputs map[string]interface{}, varia
 func (e *WorkflowExecutor) resolveString(str string, variables map[string]interface{}) string {
 	result := str
 	for key, value := range variables {
-		// Convert value to string, handling different types
 		var valueStr string
 		switch v := value.(type) {
 		case string:
 			valueStr = v
 		case map[string]interface{}:
-			// For complex objects, try to marshal as JSON
 			if jsonBytes, err := json.Marshal(v); err == nil {
 				valueStr = string(jsonBytes)
 			} else {
@@ -426,7 +535,6 @@ func (e *WorkflowExecutor) resolveString(str string, variables map[string]interf
 			valueStr = fmt.Sprintf("%v", value)
 		}
 
-		// Try multiple variable formats
 		patterns := []string{
 			fmt.Sprintf("{{%s}}", key),
 			fmt.Sprintf("{{outputs.%s}}", key),
@@ -441,31 +549,20 @@ func (e *WorkflowExecutor) resolveString(str string, variables map[string]interf
 	return result
 }
 
-func min(a, b int) int {
+// minInt returns the minimum of two integers
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
 }
 
-// convertTimeFormat converts common time format strings to Go's time format
-func convertTimeFormat(format string) string {
-	// Handle common format strings
-	switch format {
-	case "HH:mm:ss":
-		return "15:04:05"
-	case "HH:mm":
-		return "15:04"
-	case "YYYY-MM-DD":
-		return "2006-01-02"
-	case "DD/MM/YYYY":
-		return "02/01/2006"
-	case "MM/DD/YYYY":
-		return "01/02/2006"
-	case "YYYY-MM-DD HH:mm:ss":
-		return "2006-01-02 15:04:05"
-	default:
-		// Return as-is if it's already in Go format or unknown
-		return format
-	}
+// Backward compatibility aliases for V2
+
+// WorkflowExecutorV2 is an alias for WorkflowExecutor for backward compatibility
+type WorkflowExecutorV2 = WorkflowExecutor
+
+// NewWorkflowExecutorV2 is an alias for NewWorkflowExecutor for backward compatibility
+func NewWorkflowExecutorV2(cfg *config.Config, llm domain.Generator) *WorkflowExecutor {
+	return NewWorkflowExecutor(cfg, llm)
 }
