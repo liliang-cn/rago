@@ -38,12 +38,12 @@ func TestNewService(t *testing.T) {
 	provider := &MockEmbedderProvider{
 		providerType: domain.ProviderOllama,
 	}
-	
+
 	service := NewService(provider)
 	if service == nil {
 		t.Fatal("NewService returned nil")
 	}
-	
+
 	if service.provider != provider {
 		t.Error("Service provider not set correctly")
 	}
@@ -97,22 +97,22 @@ func TestService_Embed(t *testing.T) {
 			wantErr: false,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			service := NewService(tc.provider)
 			ctx := context.Background()
-			
+
 			embeddings, err := service.Embed(ctx, tc.text)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
-			
+
 			if !tc.wantErr && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			
+
 			if len(embeddings) != tc.wantLen {
 				t.Errorf("Expected embedding length %d, got %d", tc.wantLen, len(embeddings))
 			}
@@ -145,18 +145,18 @@ func TestService_Health(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			service := NewService(tc.provider)
 			ctx := context.Background()
-			
+
 			err := service.Health(ctx)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
-			
+
 			if !tc.wantErr && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -182,16 +182,16 @@ func TestService_ProviderType(t *testing.T) {
 			providerType: domain.ProviderLMStudio,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			provider := &MockEmbedderProvider{
 				providerType: tc.providerType,
 			}
-			
+
 			service := NewService(provider)
 			providerType := service.ProviderType()
-			
+
 			if providerType != tc.providerType {
 				t.Errorf("Expected provider type %s, got %s", tc.providerType, providerType)
 			}
@@ -210,18 +210,18 @@ func TestService_Embed_ContextCancellation(t *testing.T) {
 			}
 		},
 	}
-	
+
 	service := NewService(provider)
-	
+
 	// Test with cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	
+
 	_, err := service.Embed(ctx, "test")
 	if err == nil {
 		t.Error("Expected error from cancelled context")
 	}
-	
+
 	if err != context.Canceled {
 		t.Errorf("Expected context.Canceled error, got %v", err)
 	}
@@ -238,18 +238,18 @@ func TestService_Health_ContextCancellation(t *testing.T) {
 			}
 		},
 	}
-	
+
 	service := NewService(provider)
-	
+
 	// Test with cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	
+
 	err := service.Health(ctx)
 	if err == nil {
 		t.Error("Expected error from cancelled context")
 	}
-	
+
 	if err != context.Canceled {
 		t.Errorf("Expected context.Canceled error, got %v", err)
 	}
@@ -266,21 +266,21 @@ func TestService_EmbedLargeText(t *testing.T) {
 			return embeddings, nil
 		},
 	}
-	
+
 	service := NewService(provider)
 	ctx := context.Background()
-	
+
 	// Test with large text
 	largeText := make([]byte, 10000)
 	for i := range largeText {
 		largeText[i] = 'a'
 	}
-	
+
 	embeddings, err := service.Embed(ctx, string(largeText))
 	if err != nil {
 		t.Errorf("Unexpected error with large text: %v", err)
 	}
-	
+
 	if len(embeddings) == 0 {
 		t.Error("Expected non-empty embeddings for large text")
 	}
@@ -296,21 +296,21 @@ func TestService_EmbedSpecialCharacters(t *testing.T) {
 			return []float64{0.1, 0.2, 0.3}, nil
 		},
 	}
-	
+
 	service := NewService(provider)
 	ctx := context.Background()
-	
+
 	// Test with special characters
 	embeddings, err := service.Embed(ctx, "Hello 世界! 🌍")
 	if err != nil {
 		t.Errorf("Unexpected error with special characters: %v", err)
 	}
-	
+
 	expected := []float64{0.5, 0.6, 0.7}
 	if len(embeddings) != len(expected) {
 		t.Errorf("Expected %d dimensions, got %d", len(expected), len(embeddings))
 	}
-	
+
 	for i, val := range expected {
 		if i < len(embeddings) && embeddings[i] != val {
 			t.Errorf("Expected embedding[%d] = %f, got %f", i, val, embeddings[i])

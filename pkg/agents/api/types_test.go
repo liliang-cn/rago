@@ -56,7 +56,7 @@ func TestUpdateAgentRequest_JSONSerialization(t *testing.T) {
 		MaxConcurrentExecutions: 10,
 		DefaultTimeout:          15 * time.Minute,
 	}
-	
+
 	workflow := &types.WorkflowSpec{
 		Steps: []types.WorkflowStep{
 			{
@@ -95,9 +95,9 @@ func TestUpdateAgentRequest_JSONSerialization(t *testing.T) {
 func TestExecuteAgentRequest(t *testing.T) {
 	request := ExecuteAgentRequest{
 		Variables: map[string]interface{}{
-			"input_file": "/path/to/file.txt",
+			"input_file":  "/path/to/file.txt",
 			"max_results": 10,
-			"enabled": true,
+			"enabled":     true,
 		},
 		Timeout: 300, // 5 minutes in seconds
 		UserID:  "user-123",
@@ -122,9 +122,9 @@ func TestExecuteAgentRequest(t *testing.T) {
 
 func TestCreateAgentResponse(t *testing.T) {
 	agent := &types.Agent{
-		ID:   "response-agent-1",
-		Name: "Response Agent",
-		Type: types.AgentTypeWorkflow,
+		ID:     "response-agent-1",
+		Name:   "Response Agent",
+		Type:   types.AgentTypeWorkflow,
 		Status: types.AgentStatusActive,
 	}
 
@@ -161,7 +161,7 @@ func TestListAgentsResponse(t *testing.T) {
 	// Test JSON serialization
 	jsonData, err := json.Marshal(response)
 	require.NoError(t, err)
-	
+
 	var unmarshaled ListAgentsResponse
 	err = json.Unmarshal(jsonData, &unmarshaled)
 	require.NoError(t, err)
@@ -197,7 +197,7 @@ func TestListExecutionsResponse(t *testing.T) {
 	// Test JSON serialization
 	jsonData, err := json.Marshal(response)
 	require.NoError(t, err)
-	
+
 	var unmarshaled ListExecutionsResponse
 	err = json.Unmarshal(jsonData, &unmarshaled)
 	require.NoError(t, err)
@@ -241,7 +241,7 @@ func TestWorkflowTemplate(t *testing.T) {
 	// Test JSON serialization
 	jsonData, err := json.Marshal(template)
 	require.NoError(t, err)
-	
+
 	var unmarshaled WorkflowTemplate
 	err = json.Unmarshal(jsonData, &unmarshaled)
 	require.NoError(t, err)
@@ -292,11 +292,11 @@ func TestValidateWorkflowResponse(t *testing.T) {
 			// Test JSON serialization
 			jsonData, err := json.Marshal(tt.response)
 			require.NoError(t, err)
-			
+
 			var unmarshaled ValidateWorkflowResponse
 			err = json.Unmarshal(jsonData, &unmarshaled)
 			require.NoError(t, err)
-			
+
 			assert.Equal(t, tt.response.Valid, unmarshaled.Valid)
 			assert.Equal(t, tt.response.Message, unmarshaled.Message)
 			assert.Equal(t, tt.response.ErrorMessage, unmarshaled.ErrorMessage)
@@ -329,7 +329,7 @@ func TestAgentsStatusResponse(t *testing.T) {
 	// Test JSON serialization
 	jsonData, err := json.Marshal(response)
 	require.NoError(t, err)
-	
+
 	var unmarshaled AgentsStatusResponse
 	err = json.Unmarshal(jsonData, &unmarshaled)
 	require.NoError(t, err)
@@ -397,7 +397,7 @@ func TestErrorResponse(t *testing.T) {
 	// Test JSON serialization
 	jsonData, err := json.Marshal(response)
 	require.NoError(t, err)
-	
+
 	var unmarshaled ErrorResponse
 	err = json.Unmarshal(jsonData, &unmarshaled)
 	require.NoError(t, err)
@@ -417,7 +417,7 @@ func TestPaginationRequest(t *testing.T) {
 	// Test JSON serialization
 	jsonData, err := json.Marshal(request)
 	require.NoError(t, err)
-	
+
 	var unmarshaled PaginationRequest
 	err = json.Unmarshal(jsonData, &unmarshaled)
 	require.NoError(t, err)
@@ -660,7 +660,7 @@ func TestAPIConfig(t *testing.T) {
 	// Test JSON serialization
 	jsonData, err := json.Marshal(config)
 	require.NoError(t, err)
-	
+
 	var unmarshaled APIConfig
 	err = json.Unmarshal(jsonData, &unmarshaled)
 	require.NoError(t, err)

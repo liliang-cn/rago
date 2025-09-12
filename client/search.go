@@ -11,16 +11,16 @@ import (
 type SearchOptions struct {
 	// Number of results to return
 	TopK int
-	
+
 	// Minimum score threshold for results
 	ScoreThreshold float64
-	
+
 	// Whether to include metadata in results
 	IncludeMetadata bool
-	
+
 	// Whether to use hybrid search (vector + keyword)
 	HybridSearch bool
-	
+
 	// Weight for vector search in hybrid mode (0-1)
 	VectorWeight float64
 }
@@ -49,23 +49,23 @@ func (c *Client) Search(ctx context.Context, query string, opts *SearchOptions) 
 	if opts == nil {
 		opts = DefaultSearchOptions()
 	}
-	
+
 	if c.processor == nil {
 		return nil, fmt.Errorf("processor not initialized")
 	}
-	
+
 	// Perform the search using Query
 	req := domain.QueryRequest{
 		Query:       query,
 		TopK:        opts.TopK,
 		ShowSources: true,
 	}
-	
+
 	resp, err := c.processor.Query(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
-	
+
 	// Convert to SearchResult
 	results := make([]SearchResult, 0, len(resp.Sources))
 	for _, chunk := range resp.Sources {
@@ -74,14 +74,14 @@ func (c *Client) Search(ctx context.Context, query string, opts *SearchOptions) 
 			Score:   chunk.Score,
 			Source:  chunk.DocumentID,
 		}
-		
+
 		if opts.IncludeMetadata && chunk.Metadata != nil {
 			result.Metadata = chunk.Metadata
 		}
-		
+
 		results = append(results, result)
 	}
-	
+
 	return results, nil
 }
 
@@ -91,11 +91,11 @@ func (c *Client) SearchWithContext(ctx context.Context, query string, opts *Sear
 	if err != nil {
 		return "", nil, err
 	}
-	
+
 	if len(results) == 0 {
 		return "", results, nil
 	}
-	
+
 	// Build context from results
 	context := "Relevant information from knowledge base:\n"
 	for i, result := range results {
@@ -104,6 +104,6 @@ func (c *Client) SearchWithContext(ctx context.Context, query string, opts *Sear
 			context += fmt.Sprintf("   Source: %s\n", result.Source)
 		}
 	}
-	
+
 	return context, results, nil
 }

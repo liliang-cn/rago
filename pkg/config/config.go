@@ -30,12 +30,12 @@ type Config struct {
 }
 
 type AgentsConfig struct {
-	Enabled           bool   `mapstructure:"enabled"`
-	StorageType       string `mapstructure:"storage_type"`       // "memory" or "persistent"
-	StoragePath       string `mapstructure:"storage_path"`       // Path for persistent storage
-	MaxConcurrent     int    `mapstructure:"max_concurrent"`     // Max concurrent agent executions
-	DefaultTimeout    int    `mapstructure:"default_timeout"`    // Default timeout in seconds
-	EnableGeneration  bool   `mapstructure:"enable_generation"`  // Enable agent/workflow generation from NL
+	Enabled          bool   `mapstructure:"enabled"`
+	StorageType      string `mapstructure:"storage_type"`      // "memory" or "persistent"
+	StoragePath      string `mapstructure:"storage_path"`      // Path for persistent storage
+	MaxConcurrent    int    `mapstructure:"max_concurrent"`    // Max concurrent agent executions
+	DefaultTimeout   int    `mapstructure:"default_timeout"`   // Default timeout in seconds
+	EnableGeneration bool   `mapstructure:"enable_generation"` // Enable agent/workflow generation from NL
 }
 
 type ProvidersConfig struct {
@@ -179,19 +179,21 @@ func Load(configPath string) (*Config, error) {
 	// Initialize MCP config if not properly loaded
 	if config.MCP.DefaultTimeout == 0 {
 		defaultMCP := mcp.DefaultConfig()
+		// Apply defaults without copying the mutex
 		if config.MCP.LogLevel == "" {
-			config.MCP = defaultMCP
-		} else {
-			// Preserve any values that were set
-			if config.MCP.DefaultTimeout == 0 {
-				config.MCP.DefaultTimeout = defaultMCP.DefaultTimeout
-			}
-			if config.MCP.MaxConcurrentRequests == 0 {
-				config.MCP.MaxConcurrentRequests = defaultMCP.MaxConcurrentRequests
-			}
-			if config.MCP.HealthCheckInterval == 0 {
-				config.MCP.HealthCheckInterval = defaultMCP.HealthCheckInterval
-			}
+			config.MCP.LogLevel = defaultMCP.LogLevel
+		}
+		if config.MCP.DefaultTimeout == 0 {
+			config.MCP.DefaultTimeout = defaultMCP.DefaultTimeout
+		}
+		if config.MCP.MaxConcurrentRequests == 0 {
+			config.MCP.MaxConcurrentRequests = defaultMCP.MaxConcurrentRequests
+		}
+		if config.MCP.HealthCheckInterval == 0 {
+			config.MCP.HealthCheckInterval = defaultMCP.HealthCheckInterval
+		}
+		if !config.MCP.Enabled && defaultMCP.Enabled {
+			config.MCP.Enabled = defaultMCP.Enabled
 		}
 	}
 
@@ -200,6 +202,9 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to load MCP servers from JSON: %w", err)
 	}
 
+	// Resolve database path with priority
+	config.resolveDatabasePath()
+	
 	// Expand home directory paths
 	config.expandPaths()
 
@@ -238,7 +243,6 @@ func setDefaults() {
 	viper.SetDefault("sqvect.batch_size", 100)
 	viper.SetDefault("sqvect.top_k", 5)
 	viper.SetDefault("sqvect.threshold", 0.0)
-
 
 	viper.SetDefault("rrf.k", 10)
 	viper.SetDefault("rrf.relevance_threshold", 0.05)
@@ -371,8 +375,6 @@ func bindEnvVars() {
 		log.Printf("Warning: failed to bind sqvect.threshold env var: %v", err)
 	}
 
-
-
 	if err := viper.BindEnv("chunker.chunk_size", "RAGO_CHUNKER_CHUNK_SIZE"); err != nil {
 		log.Printf("Warning: failed to bind chunker.chunk_size env var: %v", err)
 	}
@@ -461,7 +463,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("database path cannot be empty")
 	}
 
-
 	if c.Sqvect.TopK <= 0 {
 		return fmt.Errorf("topK must be positive: %d", c.Sqvect.TopK)
 	}
@@ -496,7 +497,6 @@ func (c *Config) Validate() error {
 	if err := c.validateMCPConfig(); err != nil {
 		return fmt.Errorf("invalid MCP configuration: %w", err)
 	}
-
 
 	return nil
 }
@@ -752,7 +752,28 @@ func (c *Config) validateMCPConfig() error {
 	return nil
 }
 
-
+// resolveDatabasePath resolves the database path with the following priority:
+// 1. If explicitly set in config file (not the default), use it
+// 2. Check if ./.rago/data/rag.db exists, use it  
+// 3. Otherwise, use ~/.rago/data/rag.db (default)
+func (c *Config) resolveDatabasePath() {
+	// If DBPath is already set and it's not the default, keep it
+	// (user explicitly configured it)
+	if c.Sqvect.DBPath != "" && c.Sqvect.DBPath != "~/.rago/data/rag.db" {
+		return
+	}
+	
+	// Check if ./.rago/data/rag.db exists (existing local database)
+	localDBPath := "./.rago/data/rag.db"
+	if _, err := os.Stat(localDBPath); err == nil {
+		c.Sqvect.DBPath = localDBPath
+		return
+	}
+	
+	// Default to ~/.rago/data/rag.db
+	// This will be used for new installations or when no local database exists
+	c.Sqvect.DBPath = "~/.rago/data/rag.db"
+}
 
 // expandPaths expands ~ to home directory in file paths
 func (c *Config) expandPaths() {

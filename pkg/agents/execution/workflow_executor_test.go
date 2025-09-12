@@ -20,7 +20,7 @@ type MockGenerator struct {
 	response         string
 	generationResult *domain.GenerationResult
 	structuredResult *domain.StructuredResult
-	error           error
+	error            error
 }
 
 func (m *MockGenerator) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
@@ -77,9 +77,9 @@ func (m *MockGenerator) GenerateStructured(ctx context.Context, prompt string, s
 func TestNewWorkflowExecutor(t *testing.T) {
 	cfg := &config.Config{}
 	llm := &MockGenerator{response: "test response"}
-	
+
 	executor := NewWorkflowExecutor(cfg, llm)
-	
+
 	assert.NotNil(t, executor)
 	assert.Equal(t, cfg, executor.config)
 	assert.Equal(t, llm, executor.llmProvider)
@@ -90,25 +90,25 @@ func TestNewWorkflowExecutor(t *testing.T) {
 
 func TestWorkflowExecutor_SetVerbose(t *testing.T) {
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
-	
+
 	executor.SetVerbose(true)
 	assert.True(t, executor.verbose)
-	
+
 	executor.SetVerbose(false)
 	assert.False(t, executor.verbose)
 }
 
 func TestWorkflowExecutor_Execute_EmptyWorkflow(t *testing.T) {
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
-	
+
 	workflow := &types.WorkflowSpec{
 		Steps:     []types.WorkflowStep{},
 		Variables: map[string]interface{}{"test": "value"},
 	}
-	
+
 	ctx := context.Background()
 	result, err := executor.Execute(ctx, workflow)
-	
+
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, types.ExecutionStatusCompleted, result.Status)
@@ -123,20 +123,20 @@ func TestWorkflowExecutor_ExecuteFetch(t *testing.T) {
 		w.Write([]byte(`{"message": "test response", "status": "ok"}`))
 	}))
 	defer server.Close()
-	
+
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
-	
+
 	inputs := map[string]interface{}{
 		"url":    server.URL,
 		"method": "GET",
 	}
-	
+
 	ctx := context.Background()
 	result, err := executor.executeFetch(ctx, inputs)
-	
+
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	
+
 	// Should return parsed JSON
 	jsonResult, ok := result.(map[string]interface{})
 	require.True(t, ok)
@@ -151,16 +151,16 @@ func TestWorkflowExecutor_ExecuteFetch_TextResponse(t *testing.T) {
 		w.Write([]byte("plain text response"))
 	}))
 	defer server.Close()
-	
+
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
-	
+
 	inputs := map[string]interface{}{
 		"url": server.URL,
 	}
-	
+
 	ctx := context.Background()
 	result, err := executor.executeFetch(ctx, inputs)
-	
+
 	require.NoError(t, err)
 	assert.Equal(t, "plain text response", result)
 }
@@ -176,19 +176,19 @@ func TestWorkflowExecutor_ExecuteFetch_WithHeaders(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	
+
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
-	
+
 	inputs := map[string]interface{}{
 		"url": server.URL,
 		"headers": map[string]interface{}{
 			"X-Custom-Header": "test-value",
 		},
 	}
-	
+
 	ctx := context.Background()
 	result, err := executor.executeFetch(ctx, inputs)
-	
+
 	require.NoError(t, err)
 	assert.Equal(t, "header received", result)
 }
@@ -198,21 +198,21 @@ func TestWorkflowExecutor_ExecuteFilesystem_Read(t *testing.T) {
 	tmpDir := os.TempDir()
 	testFile := filepath.Join(tmpDir, "test_read.txt")
 	testContent := "test file content"
-	
+
 	err := os.WriteFile(testFile, []byte(testContent), 0644)
 	require.NoError(t, err)
 	defer os.Remove(testFile)
-	
+
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
-	
+
 	inputs := map[string]interface{}{
 		"action": "read",
 		"path":   testFile,
 	}
-	
+
 	ctx := context.Background()
 	result, err := executor.executeFilesystem(ctx, inputs)
-	
+
 	require.NoError(t, err)
 	assert.Equal(t, testContent, result)
 }
@@ -221,23 +221,23 @@ func TestWorkflowExecutor_ExecuteFilesystem_Write(t *testing.T) {
 	tmpDir := os.TempDir()
 	testFile := filepath.Join(tmpDir, "test_write.txt")
 	testContent := "written content"
-	
+
 	defer os.Remove(testFile)
-	
+
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
-	
+
 	inputs := map[string]interface{}{
 		"action":  "write",
 		"path":    testFile,
 		"content": testContent,
 	}
-	
+
 	ctx := context.Background()
 	result, err := executor.executeFilesystem(ctx, inputs)
-	
+
 	require.NoError(t, err)
 	assert.Equal(t, testFile, result)
-	
+
 	// Verify file was written
 	written, err := os.ReadFile(testFile)
 	require.NoError(t, err)
@@ -249,25 +249,25 @@ func TestWorkflowExecutor_ExecuteFilesystem_Append(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "test_append.txt")
 	initialContent := "initial"
 	appendContent := " appended"
-	
+
 	err := os.WriteFile(testFile, []byte(initialContent), 0644)
 	require.NoError(t, err)
 	defer os.Remove(testFile)
-	
+
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
-	
+
 	inputs := map[string]interface{}{
 		"action":  "append",
 		"path":    testFile,
 		"content": appendContent,
 	}
-	
+
 	ctx := context.Background()
 	result, err := executor.executeFilesystem(ctx, inputs)
-	
+
 	require.NoError(t, err)
 	assert.Equal(t, testFile, result)
-	
+
 	// Verify content was appended
 	final, err := os.ReadFile(testFile)
 	require.NoError(t, err)
@@ -277,55 +277,55 @@ func TestWorkflowExecutor_ExecuteFilesystem_Append(t *testing.T) {
 func TestWorkflowExecutor_ExecuteMemory(t *testing.T) {
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
 	ctx := context.Background()
-	
+
 	// Test store
 	inputs := map[string]interface{}{
 		"action": "store",
 		"key":    "test_key",
 		"value":  "test_value",
 	}
-	
+
 	result, err := executor.executeMemory(ctx, inputs)
 	require.NoError(t, err)
 	assert.Equal(t, "test_value", result)
-	
+
 	// Test retrieve
 	inputs = map[string]interface{}{
 		"action": "retrieve",
 		"key":    "test_key",
 	}
-	
+
 	result, err = executor.executeMemory(ctx, inputs)
 	require.NoError(t, err)
 	assert.Equal(t, "test_value", result)
-	
+
 	// Test append
 	inputs = map[string]interface{}{
 		"action": "append",
 		"key":    "test_key",
 		"value":  " appended",
 	}
-	
+
 	result, err = executor.executeMemory(ctx, inputs)
 	require.NoError(t, err)
 	assert.Equal(t, "test_value appended", result)
-	
+
 	// Test delete
 	inputs = map[string]interface{}{
 		"action": "delete",
 		"key":    "test_key",
 	}
-	
+
 	result, err = executor.executeMemory(ctx, inputs)
 	require.NoError(t, err)
 	assert.Equal(t, "deleted", result)
-	
+
 	// Verify deleted
 	inputs = map[string]interface{}{
 		"action": "retrieve",
 		"key":    "test_key",
 	}
-	
+
 	result, err = executor.executeMemory(ctx, inputs)
 	require.NoError(t, err)
 	assert.Nil(t, result)
@@ -334,22 +334,22 @@ func TestWorkflowExecutor_ExecuteMemory(t *testing.T) {
 func TestWorkflowExecutor_ExecuteMemory_ShorthandSyntax(t *testing.T) {
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
 	ctx := context.Background()
-	
+
 	// Test shorthand store (no explicit action)
 	inputs := map[string]interface{}{
 		"key":   "shorthand_key",
 		"value": "shorthand_value",
 	}
-	
+
 	result, err := executor.executeMemory(ctx, inputs)
 	require.NoError(t, err)
 	assert.Equal(t, "shorthand_value", result)
-	
+
 	// Test shorthand retrieve (no explicit action)
 	inputs = map[string]interface{}{
 		"key": "shorthand_key",
 	}
-	
+
 	result, err = executor.executeMemory(ctx, inputs)
 	require.NoError(t, err)
 	assert.Equal(t, "shorthand_value", result)
@@ -358,26 +358,26 @@ func TestWorkflowExecutor_ExecuteMemory_ShorthandSyntax(t *testing.T) {
 func TestWorkflowExecutor_ExecuteTime(t *testing.T) {
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
 	ctx := context.Background()
-	
+
 	// Test default "now" action
 	inputs := map[string]interface{}{}
-	
+
 	result, err := executor.executeTime(ctx, inputs)
 	require.NoError(t, err)
-	
+
 	// Should return current time as string
 	timeStr, ok := result.(string)
 	require.True(t, ok)
 	assert.NotEmpty(t, timeStr)
-	
+
 	// Test with custom format
 	inputs = map[string]interface{}{
 		"format": "HH:mm:ss",
 	}
-	
+
 	result, err = executor.executeTime(ctx, inputs)
 	require.NoError(t, err)
-	
+
 	timeStr, ok = result.(string)
 	require.True(t, ok)
 	// Should match HH:mm:ss format (15:04:05 in Go)
@@ -388,16 +388,16 @@ func TestWorkflowExecutor_ExecuteSequentialThinking(t *testing.T) {
 	mockLLM := &MockGenerator{response: "LLM response to the prompt"}
 	executor := NewWorkflowExecutor(&config.Config{}, mockLLM)
 	ctx := context.Background()
-	
+
 	inputs := map[string]interface{}{
 		"prompt": "Analyze this data",
 		"data":   "{{test_data}}",
 	}
-	
+
 	variables := map[string]interface{}{
 		"test_data": "sample data for analysis",
 	}
-	
+
 	result, err := executor.executeSequentialThinking(ctx, inputs, variables)
 	require.NoError(t, err)
 	assert.Equal(t, "LLM response to the prompt", result)
@@ -405,22 +405,22 @@ func TestWorkflowExecutor_ExecuteSequentialThinking(t *testing.T) {
 
 func TestWorkflowExecutor_ResolveVariables(t *testing.T) {
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
-	
+
 	inputs := map[string]interface{}{
-		"text_with_var":   "Hello {{name}}",
-		"number":          42,
-		"nested_var":      "Value: {{outputs.result}}",
-		"multiple_vars":   "{{greeting}} {{name}}!",
+		"text_with_var": "Hello {{name}}",
+		"number":        42,
+		"nested_var":    "Value: {{outputs.result}}",
+		"multiple_vars": "{{greeting}} {{name}}!",
 	}
-	
+
 	variables := map[string]interface{}{
-		"name":   "World",
-		"result": "success",
+		"name":     "World",
+		"result":   "success",
 		"greeting": "Hi",
 	}
-	
+
 	resolved := executor.resolveVariables(inputs, variables)
-	
+
 	assert.Equal(t, "Hello World", resolved["text_with_var"])
 	assert.Equal(t, 42, resolved["number"])
 	assert.Equal(t, "Value: success", resolved["nested_var"])
@@ -429,14 +429,14 @@ func TestWorkflowExecutor_ResolveVariables(t *testing.T) {
 
 func TestWorkflowExecutor_ResolveString(t *testing.T) {
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
-	
+
 	variables := map[string]interface{}{
-		"name":        "Alice",
-		"count":       5,
-		"active":      true,
-		"data":        map[string]interface{}{"key": "value"},
+		"name":   "Alice",
+		"count":  5,
+		"active": true,
+		"data":   map[string]interface{}{"key": "value"},
 	}
-	
+
 	tests := []struct {
 		input    string
 		expected string
@@ -450,7 +450,7 @@ func TestWorkflowExecutor_ResolveString(t *testing.T) {
 		{"No variables", "No variables"},
 		{"Multiple {{name}} and {{count}}", "Multiple Alice and 5"},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			result := executor.resolveString(tt.input, variables)
@@ -462,11 +462,11 @@ func TestWorkflowExecutor_ResolveString(t *testing.T) {
 func TestWorkflowExecutor_Execute_FullWorkflow(t *testing.T) {
 	mockLLM := &MockGenerator{response: "Thinking complete"}
 	executor := NewWorkflowExecutor(&config.Config{}, mockLLM)
-	
+
 	// Create a temporary file for testing
 	tmpFile := filepath.Join(os.TempDir(), "workflow_test.txt")
 	defer os.Remove(tmpFile)
-	
+
 	workflow := &types.WorkflowSpec{
 		Steps: []types.WorkflowStep{
 			{
@@ -512,24 +512,24 @@ func TestWorkflowExecutor_Execute_FullWorkflow(t *testing.T) {
 			"initial": "start",
 		},
 	}
-	
+
 	ctx := context.Background()
 	result, err := executor.Execute(ctx, workflow)
-	
+
 	require.NoError(t, err)
 	assert.Equal(t, types.ExecutionStatusCompleted, result.Status)
 	assert.Len(t, result.StepResults, 3)
-	
+
 	// Check all steps completed
 	for i, stepResult := range result.StepResults {
 		assert.Equal(t, types.ExecutionStatusCompleted, stepResult.Status, "Step %d should be completed", i+1)
 	}
-	
+
 	// Check outputs
 	assert.Equal(t, "test content", result.Outputs["stored_data"])
 	assert.Equal(t, tmpFile, result.Outputs["file_path"])
 	assert.Equal(t, "Thinking complete", result.Outputs["thinking_result"])
-	
+
 	// Verify file was created
 	content, err := os.ReadFile(tmpFile)
 	require.NoError(t, err)
@@ -538,7 +538,7 @@ func TestWorkflowExecutor_Execute_FullWorkflow(t *testing.T) {
 
 func TestWorkflowExecutor_Execute_StepError(t *testing.T) {
 	executor := NewWorkflowExecutor(&config.Config{}, &MockGenerator{})
-	
+
 	workflow := &types.WorkflowSpec{
 		Steps: []types.WorkflowStep{
 			{
@@ -548,10 +548,10 @@ func TestWorkflowExecutor_Execute_StepError(t *testing.T) {
 			},
 		},
 	}
-	
+
 	ctx := context.Background()
 	result, err := executor.Execute(ctx, workflow)
-	
+
 	require.Error(t, err)
 	assert.Equal(t, types.ExecutionStatusFailed, result.Status)
 	assert.Contains(t, err.Error(), "unknown tool")
@@ -571,7 +571,7 @@ func TestConvertTimeFormat(t *testing.T) {
 		{"unknown format", "unknown format"},
 		{"2006-01-02", "2006-01-02"}, // Already Go format
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			result := convertTimeFormat(tt.input)
@@ -590,7 +590,7 @@ func TestMinFunction(t *testing.T) {
 		{0, 0, 0},
 		{-1, 1, -1},
 	}
-	
+
 	for _, tt := range tests {
 		result := min(tt.a, tt.b)
 		assert.Equal(t, tt.expected, result)

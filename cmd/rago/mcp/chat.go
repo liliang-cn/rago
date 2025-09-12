@@ -68,7 +68,7 @@ Examples:
 		if err := mcpConfig.LoadServersFromJSON(); err != nil {
 			return fmt.Errorf("failed to load server configurations: %w", err)
 		}
-		
+
 		if mcpChatVerbose {
 			fmt.Printf("📦 Loaded %d MCP servers\n", len(mcpConfig.LoadedServers))
 			for _, s := range mcpConfig.LoadedServers {

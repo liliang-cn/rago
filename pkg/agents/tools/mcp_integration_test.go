@@ -11,11 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 func TestNewMCPToolExecutor(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	executor := NewMCPToolExecutor(mockClient)
-	
+
 	assert.NotNil(t, executor)
 	assert.Equal(t, mockClient, executor.mcpClient)
 }
@@ -23,7 +22,7 @@ func TestNewMCPToolExecutor(t *testing.T) {
 func TestMCPToolExecutor_ExecuteTool_Success(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	executor := NewMCPToolExecutor(mockClient)
-	
+
 	ctx := context.Background()
 	toolName := "sqlite_query"
 	inputs := map[string]interface{}{
@@ -51,9 +50,9 @@ func TestMCPToolExecutor_ExecuteTool_Success(t *testing.T) {
 func TestMCPToolExecutor_ExecuteTool_Success_AllTools(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	executor := NewMCPToolExecutor(mockClient)
-	
+
 	ctx := context.Background()
-	
+
 	// Test all supported tools
 	tests := []struct {
 		toolName string
@@ -97,7 +96,7 @@ func TestMCPToolExecutor_ExecuteTool_Success_AllTools(t *testing.T) {
 func TestMCPToolExecutor_ListAvailableTools(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	executor := NewMCPToolExecutor(mockClient)
-	
+
 	ctx := context.Background()
 	tools, err := executor.ListAvailableTools(ctx)
 
@@ -116,7 +115,7 @@ func TestMCPToolExecutor_ListAvailableTools(t *testing.T) {
 		assert.NotEmpty(t, tool.Description)
 		assert.NotNil(t, tool.InputSchema)
 		assert.NotEmpty(t, tool.Server)
-		
+
 		if _, exists := expectedTools[tool.Name]; exists {
 			expectedTools[tool.Name] = true
 		}
@@ -131,9 +130,9 @@ func TestMCPToolExecutor_ListAvailableTools(t *testing.T) {
 func TestMCPToolExecutor_ValidateToolInputs_Success(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	executor := NewMCPToolExecutor(mockClient)
-	
+
 	ctx := context.Background()
-	
+
 	tests := []struct {
 		name     string
 		toolName string
@@ -175,9 +174,9 @@ func TestMCPToolExecutor_ValidateToolInputs_Success(t *testing.T) {
 func TestMCPToolExecutor_ValidateToolInputs_Failures(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	executor := NewMCPToolExecutor(mockClient)
-	
+
 	ctx := context.Background()
-	
+
 	tests := []struct {
 		name        string
 		toolName    string
@@ -197,9 +196,9 @@ func TestMCPToolExecutor_ValidateToolInputs_Failures(t *testing.T) {
 			expectedErr: "required field query is missing",
 		},
 		{
-			name:     "Missing required field for file_read",
-			toolName: "file_read",
-			inputs:   map[string]interface{}{}, // Missing required "path" field
+			name:        "Missing required field for file_read",
+			toolName:    "file_read",
+			inputs:      map[string]interface{}{}, // Missing required "path" field
 			expectedErr: "required field path is missing",
 		},
 	}
@@ -217,7 +216,7 @@ func TestNewMCPWorkflowStepExecutor(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	templateEngine := &MockTemplateEngine{}
 	executor := NewMCPWorkflowStepExecutor(mockClient, templateEngine)
-	
+
 	assert.NotNil(t, executor)
 	assert.NotNil(t, executor.toolExecutor)
 	assert.Equal(t, templateEngine, executor.templateEngine)
@@ -227,7 +226,7 @@ func TestMCPWorkflowStepExecutor_ExecuteStep_Success(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	templateEngine := &MockTemplateEngine{}
 	executor := NewMCPWorkflowStepExecutor(mockClient, templateEngine)
-	
+
 	step := types.WorkflowStep{
 		ID:   "test_step",
 		Name: "Test Step",
@@ -275,7 +274,7 @@ func TestMCPWorkflowStepExecutor_ExecuteStep_TemplateError(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	templateEngine := &MockTemplateEngine{}
 	executor := NewMCPWorkflowStepExecutor(mockClient, templateEngine)
-	
+
 	step := types.WorkflowStep{
 		ID:   "template_error_step",
 		Name: "Template Error Step",
@@ -304,7 +303,7 @@ func TestMCPWorkflowStepExecutor_ExecuteStep_ValidationError(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	templateEngine := &MockTemplateEngine{}
 	executor := NewMCPWorkflowStepExecutor(mockClient, templateEngine)
-	
+
 	step := types.WorkflowStep{
 		ID:   "validation_error_step",
 		Name: "Validation Error Step",
@@ -542,7 +541,7 @@ func TestConvertToMCPResult(t *testing.T) {
 	assert.Equal(t, "5s", mcpResult["duration"])
 	assert.Equal(t, executionResult.Results, mcpResult["results"])
 	assert.Equal(t, executionResult.Outputs, mcpResult["outputs"])
-	
+
 	// Should not have error field since ErrorMessage is empty
 	_, hasError := mcpResult["error"]
 	assert.False(t, hasError)
@@ -638,12 +637,12 @@ func TestMCPWorkflowStepExecutor_MapStepOutputs(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	templateEngine := &MockTemplateEngine{}
 	executor := NewMCPWorkflowStepExecutor(mockClient, templateEngine)
-	
+
 	step := types.WorkflowStep{
 		Outputs: map[string]string{
-			"result":   "mapped_result",
-			"count":    "mapped_count",
-			"missing":  "mapped_missing", // This key won't exist in result
+			"result":  "mapped_result",
+			"count":   "mapped_count",
+			"missing": "mapped_missing", // This key won't exist in result
 		},
 	}
 
@@ -670,7 +669,7 @@ func TestMCPWorkflowStepExecutor_MapStepOutputs_NonMapResult(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	templateEngine := &MockTemplateEngine{}
 	executor := NewMCPWorkflowStepExecutor(mockClient, templateEngine)
-	
+
 	step := types.WorkflowStep{
 		Outputs: map[string]string{
 			"result": "mapped_result",
@@ -696,7 +695,7 @@ func TestMCPWorkflowStepExecutor_MapStepOutputs_NonMapResult(t *testing.T) {
 func TestMCPWorkflowStepExecutor_NoTemplateEngine(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	executor := NewMCPWorkflowStepExecutor(mockClient, nil) // No template engine
-	
+
 	step := types.WorkflowStep{
 		ID:   "no_template_step",
 		Name: "No Template Step",
@@ -718,7 +717,7 @@ func TestMCPWorkflowStepExecutor_NoTemplateEngine(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, types.ExecutionStatusCompleted, result.Status)
-	
+
 	// Inputs should remain unchanged since no template engine
 	assert.Equal(t, "SELECT * FROM users", result.Inputs["query"])
 }
@@ -726,7 +725,7 @@ func TestMCPWorkflowStepExecutor_NoTemplateEngine(t *testing.T) {
 func TestMCPToolExecutor_IntegrationFlow(t *testing.T) {
 	mockClient := NewMockMCPClient()
 	executor := NewMCPToolExecutor(mockClient)
-	
+
 	ctx := context.Background()
 
 	// 1. List available tools

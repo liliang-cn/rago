@@ -401,7 +401,6 @@ func initializeDatabase(configPath string) error {
 		return fmt.Errorf("failed to create database directory %s: %w", dbDir, err)
 	}
 
-
 	// Initialize SQLite vector store
 	vectorStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath)
 	if err != nil {
@@ -412,7 +411,6 @@ func initializeDatabase(configPath string) error {
 			fmt.Printf("Warning: failed to close vector store: %v\n", err)
 		}
 	}()
-
 
 	// Create a .gitignore file if it doesn't exist
 	gitignorePath := "./.gitignore"

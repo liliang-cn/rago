@@ -89,12 +89,12 @@ func TestNewService(t *testing.T) {
 	provider := &MockLLMProvider{
 		providerType: domain.ProviderOpenAI,
 	}
-	
+
 	service := NewService(provider)
 	if service == nil {
 		t.Fatal("NewService returned nil")
 	}
-	
+
 	if service.provider != provider {
 		t.Error("Service provider not set correctly")
 	}
@@ -134,22 +134,22 @@ func TestService_Generate(t *testing.T) {
 			wantErr:  true,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			service := NewService(tc.provider)
 			ctx := context.Background()
-			
+
 			response, err := service.Generate(ctx, tc.prompt, nil)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
-			
+
 			if !tc.wantErr && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			
+
 			if response != tc.expected {
 				t.Errorf("Expected response %q, got %q", tc.expected, response)
 			}
@@ -165,24 +165,24 @@ func TestService_Stream(t *testing.T) {
 			return nil
 		},
 	}
-	
+
 	service := NewService(provider)
 	ctx := context.Background()
-	
+
 	var chunks []string
 	callback := func(chunk string) {
 		chunks = append(chunks, chunk)
 	}
-	
+
 	err := service.Stream(ctx, "test prompt", nil, callback)
 	if err != nil {
 		t.Errorf("Stream failed: %v", err)
 	}
-	
+
 	if len(chunks) != 2 {
 		t.Errorf("Expected 2 chunks, got %d", len(chunks))
 	}
-	
+
 	if chunks[0] != "chunk 1" || chunks[1] != "chunk 2" {
 		t.Errorf("Unexpected chunks: %v", chunks)
 	}
@@ -197,26 +197,26 @@ func TestService_GenerateWithTools(t *testing.T) {
 			}, nil
 		},
 	}
-	
+
 	service := NewService(provider)
 	ctx := context.Background()
-	
+
 	messages := []domain.Message{{Role: "user", Content: "test message"}}
 	tools := []domain.ToolDefinition{{Type: "function"}}
-	
+
 	result, err := service.GenerateWithTools(ctx, messages, tools, nil)
 	if err != nil {
 		t.Errorf("GenerateWithTools failed: %v", err)
 	}
-	
+
 	if result == nil {
 		t.Fatal("GenerateWithTools returned nil result")
 	}
-	
+
 	if result.Content != "Tool-enhanced response" {
 		t.Errorf("Expected 'Tool-enhanced response', got %q", result.Content)
 	}
-	
+
 	if !result.Finished {
 		t.Error("Expected result to be finished")
 	}
@@ -232,25 +232,25 @@ func TestService_GenerateStructured(t *testing.T) {
 			}, nil
 		},
 	}
-	
+
 	service := NewService(provider)
 	ctx := context.Background()
-	
+
 	schema := map[string]interface{}{"type": "object"}
-	
+
 	result, err := service.GenerateStructured(ctx, "test prompt", schema, nil)
 	if err != nil {
 		t.Errorf("GenerateStructured failed: %v", err)
 	}
-	
+
 	if result == nil {
 		t.Fatal("GenerateStructured returned nil result")
 	}
-	
+
 	if !result.Valid {
 		t.Error("Expected valid structured result")
 	}
-	
+
 	if result.Raw != `{"key": "value"}` {
 		t.Errorf("Expected raw JSON, got %q", result.Raw)
 	}
@@ -266,27 +266,27 @@ func TestService_ExtractMetadata(t *testing.T) {
 			}, nil
 		},
 	}
-	
+
 	service := NewService(provider)
 	ctx := context.Background()
-	
+
 	metadata, err := service.ExtractMetadata(ctx, "test content", "test-model")
 	if err != nil {
 		t.Errorf("ExtractMetadata failed: %v", err)
 	}
-	
+
 	if metadata == nil {
 		t.Fatal("ExtractMetadata returned nil")
 	}
-	
+
 	if metadata.Summary != "Test summary" {
 		t.Errorf("Expected 'Test summary', got %q", metadata.Summary)
 	}
-	
+
 	if len(metadata.Keywords) != 2 {
 		t.Errorf("Expected 2 keywords, got %d", len(metadata.Keywords))
 	}
-	
+
 	if metadata.DocumentType != "article" {
 		t.Errorf("Expected 'article', got %q", metadata.DocumentType)
 	}
@@ -317,18 +317,18 @@ func TestService_Health(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			service := NewService(tc.provider)
 			ctx := context.Background()
-			
+
 			err := service.Health(ctx)
-			
+
 			if tc.wantErr && err == nil {
 				t.Error("Expected error but got none")
 			}
-			
+
 			if !tc.wantErr && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -354,16 +354,16 @@ func TestService_ProviderType(t *testing.T) {
 			providerType: domain.ProviderLMStudio,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			provider := &MockLLMProvider{
 				providerType: tc.providerType,
 			}
-			
+
 			service := NewService(provider)
 			providerType := service.ProviderType()
-			
+
 			if providerType != tc.providerType {
 				t.Errorf("Expected provider type %s, got %s", tc.providerType, providerType)
 			}

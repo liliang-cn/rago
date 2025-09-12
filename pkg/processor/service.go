@@ -106,7 +106,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 
 	// Automatic metadata extraction
 	if s.config.Ingest.MetadataExtraction.Enable {
-		log.Println("Metadata extraction enabled, calling LLM...")
+		log.Println("Enhanced metadata extraction enabled, calling LLM...")
 		extracted, err := s.llmService.ExtractMetadata(ctx, content, s.config.Ingest.MetadataExtraction.LLMModel)
 		if err != nil {
 			log.Printf("Warning: metadata extraction failed, proceeding without it. Error: %v", err)
@@ -197,6 +197,22 @@ func (s *Service) mergeMetadata(base map[string]interface{}, extracted *domain.E
 	}
 	if extracted.CreationDate != "" {
 		base["creation_date"] = extracted.CreationDate
+	}
+	
+	// Merge enhanced fields
+	if len(extracted.TemporalRefs) > 0 {
+		base["temporal_refs"] = extracted.TemporalRefs
+	}
+	if len(extracted.Entities) > 0 {
+		base["entities"] = extracted.Entities
+	}
+	if len(extracted.Events) > 0 {
+		base["events"] = extracted.Events
+	}
+	if len(extracted.CustomMeta) > 0 {
+		for k, v := range extracted.CustomMeta {
+			base[k] = v
+		}
 	}
 }
 
@@ -579,7 +595,6 @@ func (s *Service) hybridSearch(ctx context.Context, req domain.QueryRequest) ([]
 	return s.deduplicateChunks(chunks), nil
 }
 
-
 func (s *Service) ListDocuments(ctx context.Context) ([]domain.Document, error) {
 	return s.documentStore.List(ctx)
 }
@@ -593,7 +608,6 @@ func (s *Service) DeleteDocument(ctx context.Context, documentID string) error {
 		return fmt.Errorf("failed to delete from vector store: %w", err)
 	}
 
-
 	if err := s.documentStore.Delete(ctx, documentID); err != nil {
 		return fmt.Errorf("failed to delete from document store: %w", err)
 	}
@@ -605,7 +619,6 @@ func (s *Service) Reset(ctx context.Context) error {
 	if err := s.vectorStore.Reset(ctx); err != nil {
 		return fmt.Errorf("failed to reset vector store: %w", err)
 	}
-
 
 	return nil
 }

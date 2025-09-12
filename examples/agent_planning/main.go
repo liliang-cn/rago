@@ -44,7 +44,7 @@ func main() {
 	// Example 1: Create a simple plan
 	fmt.Println("=== Example 1: Creating a Plan ===")
 	goal := "Write a Python script that fetches weather data and saves it to a JSON file"
-	
+
 	plan, err := agentPlanner.CreatePlan(ctx, goal)
 	if err != nil {
 		log.Fatal("Failed to create plan:", err)
@@ -67,7 +67,7 @@ func main() {
 
 	// Example 2: Execute the plan
 	fmt.Println("\n=== Example 2: Executing the Plan ===")
-	
+
 	executor := planner.NewPlanExecutor(agentPlanner, nil)
 	executor.SetVerbose(true)
 
@@ -80,7 +80,7 @@ func main() {
 
 	// Example 3: Check progress
 	fmt.Println("\n=== Example 3: Checking Progress ===")
-	
+
 	progress, err := executor.GetPlanProgress(plan.ID)
 	if err != nil {
 		log.Fatal("Failed to get progress:", err)
@@ -88,7 +88,7 @@ func main() {
 
 	fmt.Printf("📊 Progress: %.1f%% complete\n", progress.PercentComplete)
 	fmt.Printf("✅ Completed: %d/%d steps\n", progress.CompletedSteps, progress.TotalSteps)
-	
+
 	for _, taskProg := range progress.TaskProgress {
 		status := "⏳"
 		if taskProg.Status == planner.TaskStatusCompleted {
@@ -96,13 +96,13 @@ func main() {
 		} else if taskProg.Status == planner.TaskStatusFailed {
 			status = "❌"
 		}
-		fmt.Printf("%s %s: %d/%d steps\n", status, taskProg.Name, 
+		fmt.Printf("%s %s: %d/%d steps\n", status, taskProg.Name,
 			taskProg.CompletedSteps, taskProg.TotalSteps)
 	}
 
 	// Example 4: List all plans
 	fmt.Println("\n=== Example 4: Listing All Plans ===")
-	
+
 	plans, err := agentPlanner.ListPlans()
 	if err != nil {
 		log.Fatal("Failed to list plans:", err)

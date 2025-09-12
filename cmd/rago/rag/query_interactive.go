@@ -19,7 +19,7 @@ func runInteractiveRAGQuery(ctx context.Context) error {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
 	defer ragoClient.Close()
-	
+
 	// Enable MCP if requested
 	if useMCP || enableTools {
 		if err := ragoClient.EnableMCP(ctx); err != nil {
@@ -27,14 +27,14 @@ func runInteractiveRAGQuery(ctx context.Context) error {
 			fmt.Println("Continuing without MCP tools...")
 		}
 	}
-	
+
 	// Create conversation history
 	systemPrompt := "You are a helpful assistant with access to a knowledge base. Use the provided context to answer questions accurately."
 	if useMCP || enableTools {
 		systemPrompt = "You are a helpful assistant with access to both a knowledge base and MCP tools. Use the provided context and available tools to answer questions accurately and complete tasks."
 	}
 	history := client.NewConversationHistory(systemPrompt, 50)
-	
+
 	// Welcome message
 	fmt.Println("\n📚 Interactive RAG Query Session")
 	fmt.Println("=" + strings.Repeat("=", 40))
@@ -45,51 +45,51 @@ func runInteractiveRAGQuery(ctx context.Context) error {
 		fmt.Println("MCP tools are also available for enhanced capabilities.")
 	}
 	fmt.Println()
-	
+
 	reader := bufio.NewReader(os.Stdin)
-	
+
 	for {
 		fmt.Print("💭 You: ")
-		
+
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			break
 		}
 		input := strings.TrimSpace(line)
-		
+
 		// Check for exit commands
 		lowered := strings.ToLower(input)
 		if lowered == "exit" || lowered == "quit" || lowered == "bye" {
 			fmt.Println("\n👋 Goodbye! Thank you for your questions.")
 			break
 		}
-		
+
 		// Check for clear command
 		if lowered == "clear" {
 			history.Clear()
 			fmt.Println("🔄 Conversation history cleared.")
 			continue
 		}
-		
+
 		// Skip empty input
 		if input == "" {
 			continue
 		}
-		
+
 		// Generate response with RAG (and optionally MCP)
 		opts := &domain.GenerationOptions{
 			Temperature: temperature,
 			MaxTokens:   maxTokens,
 			ToolChoice:  "auto",
 		}
-		
+
 		if showThinking {
 			think := true
 			opts.Think = &think
 		}
-		
+
 		fmt.Print("\n🤖 Assistant: ")
-		
+
 		if useMCP || enableTools {
 			// RAG + MCP with streaming
 			sources, toolCalls, err := ragoClient.StreamChatWithRAGAndMCPHistory(ctx, input, history, opts, func(chunk string) {
@@ -99,7 +99,7 @@ func runInteractiveRAGQuery(ctx context.Context) error {
 				fmt.Printf("\nError: %v\n", err)
 				continue
 			}
-			
+
 			// Show sources if requested and available
 			if showSources && len(sources) > 0 {
 				fmt.Println("\n\n📚 Sources:")
@@ -110,7 +110,7 @@ func runInteractiveRAGQuery(ctx context.Context) error {
 					}
 				}
 			}
-			
+
 			// Show tool calls if any
 			if len(toolCalls) > 0 {
 				fmt.Println("\n🔧 Tools used:")
@@ -118,7 +118,7 @@ func runInteractiveRAGQuery(ctx context.Context) error {
 					fmt.Printf("  - %s\n", tc.Function.Name)
 				}
 			}
-			
+
 			fmt.Println() // End the line after streaming
 		} else {
 			// RAG only with streaming
@@ -129,7 +129,7 @@ func runInteractiveRAGQuery(ctx context.Context) error {
 				fmt.Printf("\nError: %v\n", err)
 				continue
 			}
-			
+
 			// Show sources if requested and available
 			if showSources && len(sources) > 0 {
 				fmt.Println("\n\n📚 Sources:")
@@ -140,12 +140,12 @@ func runInteractiveRAGQuery(ctx context.Context) error {
 					}
 				}
 			}
-			
+
 			fmt.Println() // End the line after streaming
 		}
-		
+
 		fmt.Println()
 	}
-	
+
 	return nil
 }

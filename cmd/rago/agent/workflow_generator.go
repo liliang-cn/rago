@@ -56,7 +56,7 @@ func generateWorkflow(cmd *cobra.Command, args []string) error {
 
 	// Initialize LLM service
 	ctx := context.Background()
-	
+
 	// Load config if needed
 	if Cfg == nil {
 		var err error
@@ -65,14 +65,14 @@ func generateWorkflow(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 	}
-	
-	// Create LLM provider using providers factory  
+
+	// Create LLM provider using providers factory
 	factory := providers.NewFactory()
 	providerConfig, err := providers.GetProviderConfig(&Cfg.Providers.ProviderConfigs)
 	if err != nil {
 		return fmt.Errorf("failed to get provider config: %w", err)
 	}
-	
+
 	llmService, err := factory.CreateLLMProvider(ctx, providerConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize LLM service: %w", err)

@@ -400,8 +400,8 @@ func TestChainStep_Creation(t *testing.T) {
 			"schema": "user-schema.json",
 		},
 		Outputs: map[string]string{
-			"is_valid":     "validation_result",
-			"error_count":  "errors",
+			"is_valid":    "validation_result",
+			"error_count": "errors",
 		},
 		Conditions: []Condition{
 			{
@@ -544,7 +544,7 @@ func TestWorkflowSpec_ComplexWorkflow(t *testing.T) {
 	assert.Equal(t, StepTypeCondition, spec.Steps[1].Type)
 	assert.Equal(t, StepTypeTool, spec.Steps[2].Type)
 	assert.Equal(t, StepTypeDelay, spec.Steps[3].Type)
-	
+
 	// Verify dependencies
 	assert.Len(t, spec.Steps[1].DependsOn, 1)
 	assert.Contains(t, spec.Steps[1].DependsOn, "init")

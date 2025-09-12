@@ -33,10 +33,10 @@ type Config struct {
 	DefaultTimeout        time.Duration  `toml:"default_timeout" json:"default_timeout" mapstructure:"default_timeout"`
 	MaxConcurrentRequests int            `toml:"max_concurrent_requests" json:"max_concurrent_requests" mapstructure:"max_concurrent_requests"`
 	HealthCheckInterval   time.Duration  `toml:"health_check_interval" json:"health_check_interval" mapstructure:"health_check_interval"`
-	Servers               []string       `toml:"servers" json:"servers" mapstructure:"servers"` // Array of server config file paths
+	Servers               []string       `toml:"servers" json:"servers" mapstructure:"servers"`                                     // Array of server config file paths
 	ServersConfigPath     string         `toml:"servers_config_path" json:"servers_config_path" mapstructure:"servers_config_path"` // Deprecated: use Servers instead
-	LoadedServers         []ServerConfig `toml:"-" json:"-" mapstructure:"-"` // Internal: loaded server configurations
-	mu                    sync.Mutex     `toml:"-" json:"-" mapstructure:"-"` // Protects LoadedServers
+	LoadedServers         []ServerConfig `toml:"-" json:"-" mapstructure:"-"`                                                       // Internal: loaded server configurations
+	mu                    sync.Mutex     `toml:"-" json:"-" mapstructure:"-"`                                                       // Protects LoadedServers
 }
 
 // DefaultConfig returns default MCP configuration
@@ -48,7 +48,7 @@ func DefaultConfig() Config {
 		MaxConcurrentRequests: 10,
 		HealthCheckInterval:   60 * time.Second,
 		Servers:               []string{"./mcpServers.json"}, // Default to mcpServers.json in current directory
-		ServersConfigPath:     "", // Deprecated
+		ServersConfigPath:     "",                            // Deprecated
 		LoadedServers:         []ServerConfig{},
 	}
 }
@@ -70,24 +70,24 @@ type JSONServersConfig struct {
 func (c *Config) LoadServersFromJSON() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Clear loaded servers
 	c.LoadedServers = []ServerConfig{}
-	
+
 	// Load from new Servers array
 	for _, serverFile := range c.Servers {
 		if err := c.loadServerFile(serverFile); err != nil {
 			return fmt.Errorf("failed to load server file %s: %w", serverFile, err)
 		}
 	}
-	
+
 	// Backward compatibility: also load from ServersConfigPath if set
 	if c.ServersConfigPath != "" {
 		if err := c.loadServerFile(c.ServersConfigPath); err != nil {
 			return fmt.Errorf("failed to load server file %s: %w", c.ServersConfigPath, err)
 		}
 	}
-	
+
 	return nil
 }
 

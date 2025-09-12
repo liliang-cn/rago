@@ -18,7 +18,7 @@ type MockGenerator struct {
 	response         string
 	generationResult *domain.GenerationResult
 	structuredResult *domain.StructuredResult
-	error           error
+	error            error
 }
 
 func (m *MockGenerator) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
@@ -75,9 +75,9 @@ func (m *MockGenerator) GenerateStructured(ctx context.Context, prompt string, s
 func TestNewAgentPlanner(t *testing.T) {
 	llm := &MockGenerator{}
 	storageDir := "/tmp/test-planner"
-	
+
 	planner := NewAgentPlanner(llm, storageDir)
-	
+
 	assert.NotNil(t, planner)
 	assert.Equal(t, llm, planner.llm)
 	assert.Equal(t, storageDir, planner.storageDir)
@@ -87,7 +87,7 @@ func TestNewAgentPlanner(t *testing.T) {
 
 func TestAgentPlanner_SetMCPTools(t *testing.T) {
 	planner := NewAgentPlanner(&MockGenerator{}, "/tmp")
-	
+
 	tools := []domain.ToolDefinition{
 		{
 			Type: "function",
@@ -98,17 +98,17 @@ func TestAgentPlanner_SetMCPTools(t *testing.T) {
 			},
 		},
 	}
-	
+
 	planner.SetMCPTools(tools)
 	assert.Equal(t, tools, planner.mcpTools)
 }
 
 func TestAgentPlanner_SetVerbose(t *testing.T) {
 	planner := NewAgentPlanner(&MockGenerator{}, "/tmp")
-	
+
 	planner.SetVerbose(true)
 	assert.True(t, planner.verbose)
-	
+
 	planner.SetVerbose(false)
 	assert.False(t, planner.verbose)
 }
@@ -124,7 +124,7 @@ func TestTaskStatus_Constants(t *testing.T) {
 		{TaskStatusFailed, "failed"},
 		{TaskStatusSkipped, "skipped"},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(string(tt.status), func(t *testing.T) {
 			assert.Equal(t, tt.expected, string(tt.status))
@@ -144,7 +144,7 @@ func TestPlanStatus_Constants(t *testing.T) {
 		{PlanStatusFailed, "failed"},
 		{PlanStatusCancelled, "cancelled"},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(string(tt.status), func(t *testing.T) {
 			assert.Equal(t, tt.expected, string(tt.status))
@@ -154,7 +154,7 @@ func TestPlanStatus_Constants(t *testing.T) {
 
 func TestTaskPlan_Structure(t *testing.T) {
 	now := time.Now()
-	
+
 	task := TaskPlan{
 		ID:           "task-1",
 		Name:         "Test Task",
@@ -180,7 +180,7 @@ func TestTaskPlan_Structure(t *testing.T) {
 			"result": "success",
 		},
 	}
-	
+
 	assert.Equal(t, "task-1", task.ID)
 	assert.Equal(t, "Test Task", task.Name)
 	assert.Equal(t, TaskStatusPlanned, task.Status)
@@ -192,7 +192,7 @@ func TestTaskPlan_Structure(t *testing.T) {
 
 func TestAgentPlan_Structure(t *testing.T) {
 	now := time.Now()
-	
+
 	plan := AgentPlan{
 		ID:        "plan-1",
 		AgentID:   "agent-1",
@@ -216,7 +216,7 @@ func TestAgentPlan_Structure(t *testing.T) {
 		TotalSteps:     2,
 		CompletedSteps: 0,
 	}
-	
+
 	assert.Equal(t, "plan-1", plan.ID)
 	assert.Equal(t, "Complete a test goal", plan.Goal)
 	assert.Equal(t, PlanStatusReady, plan.Status)
@@ -227,7 +227,7 @@ func TestAgentPlan_Structure(t *testing.T) {
 
 func TestAgentPlanner_ExtractJSON(t *testing.T) {
 	planner := NewAgentPlanner(&MockGenerator{}, "/tmp")
-	
+
 	tests := []struct {
 		name     string
 		input    string
@@ -261,7 +261,7 @@ func TestAgentPlanner_ExtractJSON(t *testing.T) {
 			expected: "",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := planner.extractJSON(tt.input)
@@ -275,7 +275,7 @@ func TestAgentPlanner_CreatePlan(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "planner-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
-	
+
 	// Mock LLM response with valid JSON
 	mockResponse := `{
 		"goal": "Create a test file",
@@ -301,20 +301,20 @@ func TestAgentPlanner_CreatePlan(t *testing.T) {
 			}
 		]
 	}`
-	
+
 	llm := &MockGenerator{response: mockResponse}
 	planner := NewAgentPlanner(llm, tmpDir)
-	
+
 	ctx := context.Background()
 	plan, err := planner.CreatePlan(ctx, "Create a test file")
-	
+
 	require.NoError(t, err)
 	assert.NotNil(t, plan)
 	assert.Equal(t, "Create a test file", plan.Goal)
 	assert.Equal(t, PlanStatusReady, plan.Status)
 	assert.Len(t, plan.Tasks, 1)
 	assert.Equal(t, 1, plan.TotalSteps)
-	
+
 	// Verify task and step IDs were generated
 	task := plan.Tasks[0]
 	assert.Equal(t, "task_1", task.ID)
@@ -322,7 +322,7 @@ func TestAgentPlanner_CreatePlan(t *testing.T) {
 	assert.Len(t, task.Steps, 1)
 	assert.Equal(t, "step_1_1", task.Steps[0].ID)
 	assert.Equal(t, TaskStatusPlanned, task.Steps[0].Status)
-	
+
 	// Verify plan was saved to filesystem
 	planFile := filepath.Join(tmpDir, "plans", plan.ID, "plan.json")
 	_, err = os.Stat(planFile)
@@ -333,9 +333,9 @@ func TestAgentPlanner_SaveLoadPlan(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "planner-save-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
-	
+
 	planner := NewAgentPlanner(&MockGenerator{}, tmpDir)
-	
+
 	// Create a test plan
 	now := time.Now()
 	plan := &AgentPlan{
@@ -366,15 +366,15 @@ func TestAgentPlanner_SaveLoadPlan(t *testing.T) {
 		TotalSteps:     1,
 		CompletedSteps: 0,
 	}
-	
+
 	// Test save
 	err = planner.SavePlan(plan)
 	require.NoError(t, err)
-	
+
 	// Test load
 	loaded, err := planner.LoadPlan(plan.ID)
 	require.NoError(t, err)
-	
+
 	assert.Equal(t, plan.ID, loaded.ID)
 	assert.Equal(t, plan.Goal, loaded.Goal)
 	assert.Equal(t, plan.Status, loaded.Status)
@@ -386,9 +386,9 @@ func TestAgentPlanner_UpdateTaskStatus(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "planner-update-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
-	
+
 	planner := NewAgentPlanner(&MockGenerator{}, tmpDir)
-	
+
 	// Create and save initial plan
 	plan := &AgentPlan{
 		ID:     "update-test-plan",
@@ -401,18 +401,18 @@ func TestAgentPlanner_UpdateTaskStatus(t *testing.T) {
 			},
 		},
 	}
-	
+
 	err = planner.SavePlan(plan)
 	require.NoError(t, err)
-	
+
 	// Update task status
 	err = planner.UpdateTaskStatus(plan.ID, "task-1", TaskStatusInProgress)
 	require.NoError(t, err)
-	
+
 	// Load and verify
 	updated, err := planner.LoadPlan(plan.ID)
 	require.NoError(t, err)
-	
+
 	assert.Equal(t, TaskStatusInProgress, updated.Tasks[0].Status)
 	assert.NotNil(t, updated.Tasks[0].StartedAt)
 }
@@ -421,9 +421,9 @@ func TestAgentPlanner_UpdateStepStatus(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "planner-step-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
-	
+
 	planner := NewAgentPlanner(&MockGenerator{}, tmpDir)
-	
+
 	// Create plan with steps
 	plan := &AgentPlan{
 		ID:     "step-test-plan",
@@ -445,18 +445,18 @@ func TestAgentPlanner_UpdateStepStatus(t *testing.T) {
 		},
 		TotalSteps: 2,
 	}
-	
+
 	err = planner.SavePlan(plan)
 	require.NoError(t, err)
-	
+
 	// Complete first step
 	err = planner.UpdateStepStatus(plan.ID, "task-1", "step-1", TaskStatusCompleted, "step output", "")
 	require.NoError(t, err)
-	
+
 	// Load and verify
 	updated, err := planner.LoadPlan(plan.ID)
 	require.NoError(t, err)
-	
+
 	step1 := updated.Tasks[0].Steps[0]
 	assert.Equal(t, TaskStatusCompleted, step1.Status)
 	assert.Equal(t, "step output", step1.Output)
@@ -468,30 +468,30 @@ func TestAgentPlanner_ListPlans(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "planner-list-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
-	
+
 	planner := NewAgentPlanner(&MockGenerator{}, tmpDir)
-	
+
 	// Initially no plans
 	plans, err := planner.ListPlans()
 	require.NoError(t, err)
 	assert.Empty(t, plans)
-	
+
 	// Create some plans
 	testPlans := []*AgentPlan{
 		{ID: "plan-1", Goal: "Goal 1", Status: PlanStatusReady, TotalSteps: 1},
 		{ID: "plan-2", Goal: "Goal 2", Status: PlanStatusCompleted, TotalSteps: 2},
 	}
-	
+
 	for _, plan := range testPlans {
 		err = planner.SavePlan(plan)
 		require.NoError(t, err)
 	}
-	
+
 	// List plans
 	plans, err = planner.ListPlans()
 	require.NoError(t, err)
 	assert.Len(t, plans, 2)
-	
+
 	// Verify plan IDs are present
 	planIDs := make(map[string]bool)
 	for _, plan := range plans {
@@ -503,7 +503,7 @@ func TestAgentPlanner_ListPlans(t *testing.T) {
 
 func TestAgentPlanner_UpdatePlanStatus(t *testing.T) {
 	planner := NewAgentPlanner(&MockGenerator{}, "/tmp")
-	
+
 	tests := []struct {
 		name           string
 		tasks          []TaskPlan
@@ -542,14 +542,14 @@ func TestAgentPlanner_UpdatePlanStatus(t *testing.T) {
 			expectedStatus: PlanStatusReady, // No change from initial
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			plan := &AgentPlan{
 				Status: PlanStatusReady,
 				Tasks:  tt.tasks,
 			}
-			
+
 			planner.updatePlanStatus(plan)
 			assert.Equal(t, tt.expectedStatus, plan.Status)
 		})
@@ -560,14 +560,14 @@ func TestAgentPlanner_GeneratePlan_Error(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "planner-error-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
-	
+
 	// Mock LLM that returns an error
 	llm := &MockGenerator{error: fmt.Errorf("LLM error")}
 	planner := NewAgentPlanner(llm, tmpDir)
-	
+
 	ctx := context.Background()
 	plan, err := planner.CreatePlan(ctx, "Test goal")
-	
+
 	require.Error(t, err)
 	assert.Nil(t, plan)
 	assert.Contains(t, err.Error(), "failed to generate plan")
@@ -577,14 +577,14 @@ func TestAgentPlanner_GeneratePlan_InvalidJSON(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "planner-json-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
-	
+
 	// Mock LLM that returns invalid JSON
 	llm := &MockGenerator{response: "This is not JSON at all"}
 	planner := NewAgentPlanner(llm, tmpDir)
-	
+
 	ctx := context.Background()
 	plan, err := planner.CreatePlan(ctx, "Test goal")
-	
+
 	require.Error(t, err)
 	assert.Nil(t, plan)
 	assert.Contains(t, err.Error(), "no valid JSON found")
@@ -594,9 +594,9 @@ func TestAgentPlanner_LoadPlan_NotFound(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "planner-notfound-test-*")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
-	
+
 	planner := NewAgentPlanner(&MockGenerator{}, tmpDir)
-	
+
 	plan, err := planner.LoadPlan("non-existent-plan")
 	require.Error(t, err)
 	assert.Nil(t, plan)

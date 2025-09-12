@@ -42,7 +42,6 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 		return nil, fmt.Errorf("failed to create vector store: %w", err)
 	}
 
-
 	docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
 	// Initialize services using provider system
@@ -85,7 +84,6 @@ func (c *Client) Close() error {
 			errs = append(errs, fmt.Errorf("failed to close vector store: %w", err))
 		}
 	}
-
 
 	if len(errs) > 0 {
 		return fmt.Errorf("errors closing client: %v", errs)

@@ -264,17 +264,17 @@ func TestFactory_Validation(t *testing.T) {
 
 func TestDetermineProviderType_AllCases(t *testing.T) {
 	testCases := []struct {
-		name         string
-		config       *domain.ProviderConfig
-		expected     domain.ProviderType
-		expectError  bool
+		name        string
+		config      *domain.ProviderConfig
+		expected    domain.ProviderType
+		expectError bool
 	}{
 		{
 			name: "LMStudio config",
 			config: &domain.ProviderConfig{
 				LMStudio: &domain.LMStudioProviderConfig{},
 			},
-			expected: domain.ProviderLMStudio,
+			expected:    domain.ProviderLMStudio,
 			expectError: false,
 		},
 		{
@@ -283,13 +283,13 @@ func TestDetermineProviderType_AllCases(t *testing.T) {
 				Ollama: &domain.OllamaProviderConfig{},
 				OpenAI: &domain.OpenAIProviderConfig{},
 			},
-			expected: domain.ProviderOllama,
+			expected:    domain.ProviderOllama,
 			expectError: false,
 		},
 		{
-			name: "Empty config",
-			config: &domain.ProviderConfig{},
-			expected: "",
+			name:        "Empty config",
+			config:      &domain.ProviderConfig{},
+			expected:    "",
 			expectError: true,
 		},
 	}
@@ -312,8 +312,8 @@ func TestDetermineProviderType_AllCases(t *testing.T) {
 
 func TestGetProviderConfig_AllProviders(t *testing.T) {
 	testCases := []struct {
-		name string
-		config *domain.ProviderConfig
+		name        string
+		config      *domain.ProviderConfig
 		expectError bool
 	}{
 		{
@@ -321,14 +321,14 @@ func TestGetProviderConfig_AllProviders(t *testing.T) {
 			config: &domain.ProviderConfig{
 				LMStudio: &domain.LMStudioProviderConfig{
 					BaseURL: "http://localhost:1234/v1",
-					APIKey: "test-key",
+					APIKey:  "test-key",
 				},
 			},
 			expectError: false,
 		},
 		{
-			name: "Empty config",
-			config: &domain.ProviderConfig{},
+			name:        "Empty config",
+			config:      &domain.ProviderConfig{},
 			expectError: true,
 		},
 	}
