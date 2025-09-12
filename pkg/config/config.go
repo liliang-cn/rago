@@ -43,8 +43,10 @@ type ProvidersConfig struct {
 	DefaultLLM string `mapstructure:"default_llm"`
 	// The default provider to use for embedding operations
 	DefaultEmbedder string `mapstructure:"default_embedder"`
-	// Provider configurations
+	// Provider configurations (legacy structure for backward compatibility)
 	ProviderConfigs domain.ProviderConfig `mapstructure:",squash"`
+	// Dynamic provider configurations keyed by name
+	Providers map[string]interface{} `mapstructure:",remain"`
 	// LLM Pool configuration
 	LLMPool *LLMPoolConfig `mapstructure:"llm_pool"`
 }
@@ -223,7 +225,7 @@ func setDefaults() {
 
 	// Provider defaults
 	viper.SetDefault("providers.default_llm", "ollama")
-	viper.SetDefault("providers.default_embedder", "ollama")
+	viper.SetDefault("providers.default_embedder", "") // Will default to same as default_llm
 
 	// Ollama provider defaults (backward compatibility)
 	viper.SetDefault("providers.ollama.type", "ollama")
@@ -231,6 +233,12 @@ func setDefaults() {
 	viper.SetDefault("providers.ollama.llm_model", "qwen3")
 	viper.SetDefault("providers.ollama.base_url", "http://localhost:11434")
 	viper.SetDefault("providers.ollama.timeout", "30s")
+	
+	// OpenAI provider defaults
+	viper.SetDefault("providers.openai.type", "openai")
+	
+	// LMStudio provider defaults
+	viper.SetDefault("providers.lmstudio.type", "lmstudio")
 
 	// Deprecated: Keep for backward compatibility
 	viper.SetDefault("ollama.embedding_model", "nomic-embed-text")
@@ -529,8 +537,9 @@ func (c *Config) validateProviderConfig() error {
 	if c.Providers.DefaultLLM == "" {
 		return fmt.Errorf("default_llm cannot be empty")
 	}
+	// If default_embedder is not set, use the same as default_llm
 	if c.Providers.DefaultEmbedder == "" {
-		return fmt.Errorf("default_embedder cannot be empty")
+		c.Providers.DefaultEmbedder = c.Providers.DefaultLLM
 	}
 
 	validProviders := map[string]bool{"ollama": true, "openai": true, "lmstudio": true}
@@ -541,22 +550,31 @@ func (c *Config) validateProviderConfig() error {
 		return fmt.Errorf("invalid default_embedder provider: %s (supported: ollama, openai, lmstudio)", c.Providers.DefaultEmbedder)
 	}
 
-	// Validate individual provider configurations
+	// Validate individual provider configurations only if they're being used
 	if c.Providers.ProviderConfigs.Ollama != nil {
-		if err := c.validateOllamaProviderConfig(c.Providers.ProviderConfigs.Ollama); err != nil {
-			return fmt.Errorf("invalid ollama provider config: %w", err)
+		// Only validate if ollama is being used
+		if c.Providers.DefaultLLM == "ollama" || c.Providers.DefaultEmbedder == "ollama" {
+			if err := c.validateOllamaProviderConfig(c.Providers.ProviderConfigs.Ollama); err != nil {
+				return fmt.Errorf("invalid ollama provider config: %w", err)
+			}
 		}
 	}
 
 	if c.Providers.ProviderConfigs.OpenAI != nil {
-		if err := c.validateOpenAIProviderConfig(c.Providers.ProviderConfigs.OpenAI); err != nil {
-			return fmt.Errorf("invalid openai provider config: %w", err)
+		// Only validate if openai is being used
+		if c.Providers.DefaultLLM == "openai" || c.Providers.DefaultEmbedder == "openai" {
+			if err := c.validateOpenAIProviderConfig(c.Providers.ProviderConfigs.OpenAI); err != nil {
+				return fmt.Errorf("invalid openai provider config: %w", err)
+			}
 		}
 	}
 
 	if c.Providers.ProviderConfigs.LMStudio != nil {
-		if err := c.validateLMStudioProviderConfig(c.Providers.ProviderConfigs.LMStudio); err != nil {
-			return fmt.Errorf("invalid lmstudio provider config: %w", err)
+		// Only validate if lmstudio is being used
+		if c.Providers.DefaultLLM == "lmstudio" || c.Providers.DefaultEmbedder == "lmstudio" {
+			if err := c.validateLMStudioProviderConfig(c.Providers.ProviderConfigs.LMStudio); err != nil {
+				return fmt.Errorf("invalid lmstudio provider config: %w", err)
+			}
 		}
 	}
 
