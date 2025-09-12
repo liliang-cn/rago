@@ -180,3 +180,4 @@ git push origin main --tags
 4. Add corresponding API endpoint in `api/handlers/` if needed
 
 The codebase follows Go best practices with clear separation of concerns, comprehensive error handling, and extensive configuration options for different deployment scenarios.
+- go run . to test it
