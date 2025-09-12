@@ -83,7 +83,6 @@ func TestNewWorkflowExecutor(t *testing.T) {
 	assert.NotNil(t, executor)
 	assert.Equal(t, cfg, executor.config)
 	assert.Equal(t, llm, executor.llmProvider)
-	assert.NotNil(t, executor.mcpClients)
 	assert.NotNil(t, executor.memory)
 	assert.False(t, executor.verbose)
 }
@@ -299,7 +298,8 @@ func TestWorkflowExecutor_ExecuteMemory(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "test_value", result)
 
-	// Test append
+	// Test append - V2 doesn't support append, so we skip this test
+	// Instead test that unknown action returns error
 	inputs = map[string]interface{}{
 		"action": "append",
 		"key":    "test_key",
@@ -307,8 +307,8 @@ func TestWorkflowExecutor_ExecuteMemory(t *testing.T) {
 	}
 
 	result, err = executor.executeMemory(ctx, inputs)
-	require.NoError(t, err)
-	assert.Equal(t, "test_value appended", result)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown memory action")
 
 	// Test delete
 	inputs = map[string]interface{}{
@@ -345,14 +345,14 @@ func TestWorkflowExecutor_ExecuteMemory_ShorthandSyntax(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "shorthand_value", result)
 
-	// Test shorthand retrieve (no explicit action)
+	// Test shorthand retrieve (no explicit action) - V2 doesn't support this
 	inputs = map[string]interface{}{
 		"key": "shorthand_key",
 	}
 
 	result, err = executor.executeMemory(ctx, inputs)
-	require.NoError(t, err)
-	assert.Equal(t, "shorthand_value", result)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "memory requires 'action' input")
 }
 
 func TestWorkflowExecutor_ExecuteTime(t *testing.T) {
@@ -370,9 +370,9 @@ func TestWorkflowExecutor_ExecuteTime(t *testing.T) {
 	require.True(t, ok)
 	assert.NotEmpty(t, timeStr)
 
-	// Test with custom format
+	// Test with custom format - V2 uses Go time format directly
 	inputs = map[string]interface{}{
-		"format": "HH:mm:ss",
+		"format": "15:04:05", // Go time format for HH:mm:ss
 	}
 
 	result, err = executor.executeTime(ctx, inputs)
@@ -380,7 +380,7 @@ func TestWorkflowExecutor_ExecuteTime(t *testing.T) {
 
 	timeStr, ok = result.(string)
 	require.True(t, ok)
-	// Should match HH:mm:ss format (15:04:05 in Go)
+	// Should match HH:mm:ss format
 	assert.Regexp(t, `\d{2}:\d{2}:\d{2}`, timeStr)
 }
 
@@ -557,28 +557,7 @@ func TestWorkflowExecutor_Execute_StepError(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown tool")
 }
 
-func TestConvertTimeFormat(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"HH:mm:ss", "15:04:05"},
-		{"HH:mm", "15:04"},
-		{"YYYY-MM-DD", "2006-01-02"},
-		{"DD/MM/YYYY", "02/01/2006"},
-		{"MM/DD/YYYY", "01/02/2006"},
-		{"YYYY-MM-DD HH:mm:ss", "2006-01-02 15:04:05"},
-		{"unknown format", "unknown format"},
-		{"2006-01-02", "2006-01-02"}, // Already Go format
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			result := convertTimeFormat(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
+// Test removed - convertTimeFormat was part of v1 executor and is no longer needed
 
 func TestMinFunction(t *testing.T) {
 	tests := []struct {

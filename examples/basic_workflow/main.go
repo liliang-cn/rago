@@ -92,7 +92,7 @@ func main() {
 	}
 
 	// Step 4: Create and configure workflow executor
-	executor := execution.NewWorkflowExecutor(cfg, llmService)
+	executor := execution.NewWorkflowExecutorV2(cfg, llmService)
 	executor.SetVerbose(true) // Enable verbose output
 
 	// Step 5: Execute the workflow
