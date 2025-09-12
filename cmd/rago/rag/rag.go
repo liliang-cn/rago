@@ -27,4 +27,5 @@ func init() {
 	RagCmd.AddCommand(resetCmd)
 	RagCmd.AddCommand(importCmd)
 	RagCmd.AddCommand(exportCmd)
+	RagCmd.AddCommand(collectionsCmd)
 }
