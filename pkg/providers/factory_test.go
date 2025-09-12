@@ -104,6 +104,114 @@ func TestFactoryCreateProviders(t *testing.T) {
 			t.Error("Expected error for unsupported provider config type")
 		}
 	})
+
+	t.Run("CreateFromMapConfig", func(t *testing.T) {
+		// Test creating Ollama provider from map config
+		mapConfig := map[string]interface{}{
+			"type":            "ollama",
+			"base_url":        "http://localhost:11434",
+			"llm_model":       "qwen3",
+			"embedding_model": "nomic-embed-text",
+			"timeout":         "30s",
+		}
+
+		provider, err := factory.CreateLLMProvider(ctx, mapConfig)
+		if err != nil {
+			t.Fatalf("Failed to create LLM provider from map config: %v", err)
+		}
+		if provider == nil {
+			t.Fatal("Expected non-nil provider")
+		}
+		if provider.ProviderType() != domain.ProviderOllama {
+			t.Errorf("Expected provider type %s, got %s", domain.ProviderOllama, provider.ProviderType())
+		}
+
+		// Test creating embedder from map config
+		embedder, err := factory.CreateEmbedderProvider(ctx, mapConfig)
+		if err != nil {
+			t.Fatalf("Failed to create embedder provider from map config: %v", err)
+		}
+		if embedder == nil {
+			t.Fatal("Expected non-nil embedder")
+		}
+		if embedder.ProviderType() != domain.ProviderOllama {
+			t.Errorf("Expected embedder type %s, got %s", domain.ProviderOllama, embedder.ProviderType())
+		}
+	})
+}
+
+func TestDetectProviderType(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      interface{}
+		expected    domain.ProviderType
+		expectError bool
+	}{
+		{
+			name: "Valid ollama type",
+			config: map[string]interface{}{
+				"type": "ollama",
+			},
+			expected:    domain.ProviderOllama,
+			expectError: false,
+		},
+		{
+			name: "Valid openai type",
+			config: map[string]interface{}{
+				"type": "openai",
+			},
+			expected:    domain.ProviderOpenAI,
+			expectError: false,
+		},
+		{
+			name: "Valid lmstudio type",
+			config: map[string]interface{}{
+				"type": "lmstudio",
+			},
+			expected:    domain.ProviderLMStudio,
+			expectError: false,
+		},
+		{
+			name: "Missing type field",
+			config: map[string]interface{}{
+				"base_url": "http://localhost",
+			},
+			expected:    "",
+			expectError: true,
+		},
+		{
+			name: "Invalid type value",
+			config: map[string]interface{}{
+				"type": "invalid",
+			},
+			expected:    "",
+			expectError: true,
+		},
+		{
+			name:        "Non-map config",
+			config:      "not a map",
+			expected:    "",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := DetectProviderType(tt.config)
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				if result != tt.expected {
+					t.Errorf("Expected %s, got %s", tt.expected, result)
+				}
+			}
+		})
+	}
 }
 
 func TestProviderConfigHelpers(t *testing.T) {

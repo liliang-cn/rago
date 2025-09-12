@@ -209,12 +209,12 @@ func generateOllamaConfig(enableMCP bool) (string, error) {
 # Default configuration (already built-in, uncomment to override):
 # [providers]
 # default_llm = "ollama"
-# default_embedder = "ollama"
 
 # [providers.ollama]
+# type = "ollama"                      # Provider type
 # base_url = "http://localhost:11434"
-# llm_model = "qwen3"              # or llama3, mistral, etc.
-# embedding_model = "nomic-embed-text"  # or mxbai-embed-large
+# llm_model = "qwen3"                  # or llama3, mistral, etc.
+# embedding_model = "nomic-embed-text" # or mxbai-embed-large
 # timeout = "30s"
 `
 
@@ -248,6 +248,7 @@ default_llm = "openai"
 default_embedder = "openai"
 
 [providers.openai]
+type = "openai"
 api_key = "%s"
 llm_model = "gpt-4o-mini"
 embedding_model = "text-embedding-3-small"
@@ -301,6 +302,7 @@ default_llm = "lmstudio"
 default_embedder = "lmstudio"
 
 [providers.lmstudio]
+type = "lmstudio"
 base_url = "%s"
 llm_model = "%s"
 embedding_model = "%s"
