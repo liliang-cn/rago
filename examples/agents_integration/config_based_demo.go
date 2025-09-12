@@ -106,7 +106,7 @@ func main() {
 
 	// Execute the workflow
 	fmt.Println("⚡ Executing workflow...")
-	executor := execution.NewWorkflowExecutor(cfg, llmService)
+	executor := execution.NewWorkflowExecutorV2(cfg, llmService)
 	executor.SetVerbose(true)
 
 	result, err := executor.Execute(ctx, workflow)
