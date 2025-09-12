@@ -1,124 +1,86 @@
 package store
 
 import (
-	"context"
 	"fmt"
-	"strings"
+	
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
-// StoreFactory creates vector stores based on configuration
-type StoreFactory struct {
-	registeredTypes map[string]StoreCreator
+// StoreConfig holds configuration for vector stores
+type StoreConfig struct {
+	Type       string                 `mapstructure:"type"`
+	Parameters map[string]interface{} `mapstructure:"parameters"`
 }
 
-// StoreCreator is a function that creates a VectorStore from config
-type StoreCreator func(config StoreConfig) (VectorStore, error)
-
-// NewStoreFactory creates a new store factory
-func NewStoreFactory() *StoreFactory {
-	f := &StoreFactory{
-		registeredTypes: make(map[string]StoreCreator),
+// NewVectorStore creates a vector store based on configuration
+func NewVectorStore(config StoreConfig) (domain.VectorStore, error) {
+	switch config.Type {
+	case "sqlite", "sqvect":
+		var dbPath string
+		if config.Parameters != nil {
+			dbPath, _ = config.Parameters["db_path"].(string)
+		}
+		if dbPath == "" {
+			dbPath = "./.rago/data/rag.db"
+		}
+		return NewSQLiteStore(dbPath)
+		
+	// Future implementations can be added here:
+	/*
+	case "qdrant":
+		url := config.Parameters["url"].(string)
+		apiKey := config.Parameters["api_key"].(string)
+		collection := config.Parameters["collection"].(string)
+		return NewQdrantStore(url, apiKey, collection)
+		
+	case "pinecone":
+		apiKey := config.Parameters["api_key"].(string)
+		environment := config.Parameters["environment"].(string)
+		indexName := config.Parameters["index_name"].(string)
+		return NewPineconeStore(apiKey, environment, indexName)
+		
+	case "pgvector":
+		connString := config.Parameters["connection_string"].(string)
+		tableName := config.Parameters["table_name"].(string)
+		return NewPgVectorStore(connString, tableName)
+		
+	case "weaviate":
+		url := config.Parameters["url"].(string)
+		apiKey := config.Parameters["api_key"].(string)
+		className := config.Parameters["class_name"].(string)
+		return NewWeaviateStore(url, apiKey, className)
+		
+	case "milvus":
+		host := config.Parameters["host"].(string)
+		port := config.Parameters["port"].(int)
+		collection := config.Parameters["collection"].(string)
+		return NewMilvusStore(host, port, collection)
+		
+	case "chromadb":
+		url := config.Parameters["url"].(string)
+		collection := config.Parameters["collection"].(string)
+		return NewChromaStore(url, collection)
+	*/
+		
+	default:
+		return nil, fmt.Errorf("unsupported vector store type: %s", config.Type)
 	}
-
-	// Register default store types
-	f.registerDefaults()
-
-	return f
 }
 
-// registerDefaults registers the built-in store types
-func (f *StoreFactory) registerDefaults() {
-	// Register SQLite/sqvect store
-	f.Register("sqvect", createSqvectStore)
-	f.Register("sqlite", createSqvectStore) // Alias
-
-	// Future store types can be registered here:
-	// f.Register("pgvector", createPgVectorStore)
-	// f.Register("qdrant", createQdrantStore)
-	// f.Register("weaviate", createWeaviateStore)
-	// f.Register("pinecone", createPineconeStore)
-	// f.Register("milvus", createMilvusStore)
-	// f.Register("chromadb", createChromaStore)
-}
-
-// Register adds a new store type to the factory
-func (f *StoreFactory) Register(storeType string, creator StoreCreator) {
-	f.registeredTypes[strings.ToLower(storeType)] = creator
-}
-
-// CreateStore creates a vector store based on configuration
-func (f *StoreFactory) CreateStore(config StoreConfig) (VectorStore, error) {
-	storeType := strings.ToLower(config.Type)
-
-	creator, exists := f.registeredTypes[storeType]
-	if !exists {
-		return nil, fmt.Errorf("unsupported store type: %s", config.Type)
+// NewDocumentStoreFor creates a document store compatible with the given vector store
+func NewDocumentStoreFor(vectorStore domain.VectorStore) domain.DocumentStore {
+	// For SQLite, we can reuse the same underlying store
+	if sqliteStore, ok := vectorStore.(*SQLiteStore); ok {
+		return NewDocumentStore(sqliteStore.GetSqvectStore())
 	}
-
-	return creator(config)
-}
-
-// SupportedTypes returns a list of supported store types
-func (f *StoreFactory) SupportedTypes() []string {
-	types := make([]string, 0, len(f.registeredTypes))
-	for t := range f.registeredTypes {
-		types = append(types, t)
-	}
-	return types
-}
-
-// createSqvectStore creates a SQLite vector store
-func createSqvectStore(config StoreConfig) (VectorStore, error) {
-	// Extract parameters
-	dbPath, ok := config.Parameters["db_path"].(string)
-	if !ok || dbPath == "" {
-		dbPath = "./.rago/data/rag.db"
-	}
-
-	dimensions := 1536 // Default for OpenAI embeddings
-	if dim, ok := config.Parameters["dimensions"].(int); ok {
-		dimensions = dim
-	} else if dim, ok := config.Parameters["dimensions"].(float64); ok {
-		dimensions = int(dim)
-	}
-
-	store := NewSqvectWrapper(dbPath, dimensions)
-
-	// Initialize the store
-	ctx := context.Background()
-	if err := store.Initialize(ctx); err != nil {
-		return nil, fmt.Errorf("failed to initialize sqvect store: %w", err)
-	}
-
-	return store, nil
-}
-
-// Helper function to get a store with default configuration
-func NewDefaultStore(storeType string) (VectorStore, error) {
-	factory := NewStoreFactory()
-
-	config := StoreConfig{
-		Type: storeType,
-		Parameters: map[string]interface{}{
-			"db_path":    "./.rago/data/rag.db",
-			"dimensions": 1536,
-		},
-	}
-
-	return factory.CreateStore(config)
-}
-
-// NewSqvectStore creates a SQLite vector store with specific configuration
-func NewSqvectStore(dbPath string, dimensions int) (VectorStore, error) {
-	factory := NewStoreFactory()
-
-	config := StoreConfig{
-		Type: "sqvect",
-		Parameters: map[string]interface{}{
-			"db_path":    dbPath,
-			"dimensions": dimensions,
-		},
-	}
-
-	return factory.CreateStore(config)
+	
+	// For other stores, you might need different implementations
+	// For example, store documents in a separate collection/index
+	// or use a different storage backend entirely
+	
+	// Default: return a generic document store that uses the vector store
+	// (you'd need to implement this)
+	// return NewGenericDocumentStore(vectorStore)
+	
+	return nil
 }
