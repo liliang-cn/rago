@@ -80,6 +80,14 @@ func (m *MockGenerator) GenerateStructured(ctx context.Context, prompt string, s
 	return args.Get(0).(*domain.StructuredResult), args.Error(1)
 }
 
+func (m *MockGenerator) RecognizeIntent(ctx context.Context, request string) (*domain.IntentResult, error) {
+	args := m.Called(ctx, request)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.IntentResult), args.Error(1)
+}
+
 func setupCoordinator(t *testing.T) (*Coordinator, *Registry, *Executor) {
 	config := DefaultToolConfig()
 	// Enable test tools for testing

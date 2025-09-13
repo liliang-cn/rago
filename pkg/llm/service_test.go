@@ -81,6 +81,15 @@ func (m *MockLLMProvider) Health(ctx context.Context) error {
 	return nil
 }
 
+func (m *MockLLMProvider) RecognizeIntent(ctx context.Context, request string) (*domain.IntentResult, error) {
+	// Simple mock implementation for tests
+	return &domain.IntentResult{
+		Intent:     domain.IntentAction,
+		Confidence: 0.9,
+		Reasoning:  "Mock intent recognition",
+	}, nil
+}
+
 func (m *MockLLMProvider) ProviderType() domain.ProviderType {
 	return m.providerType
 }

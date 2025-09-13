@@ -10,31 +10,45 @@ RAGO (Retrieval-Augmented Generation Offline) 是一个完全本地的 RAG 系�
 - **文档摄取** - 导入文本、Markdown、PDF 文件并自动分块
 - **向量数据库** - 基于 SQLite 的向量存储，使用 sqvect 实现高性能搜索
 - **语义搜索** - 使用嵌入相似性查找相关文档
+- **混合搜索** - 结合向量相似性和关键词匹配以获得更好的结果
 - **智能分块** - 可配置的文本分割（句子、段落、词元方法）
 - **问答生成** - 使用检索文档进行上下文增强回答
+- **元数据提取** - 自动生成文档的关键词和摘要
 
 ### 🔧 **多提供商 LLM 支持**
 - **Ollama 集成** - 使用 ollama-go 客户端进行本地 LLM 推理
 - **OpenAI 兼容** - 支持 OpenAI API 和兼容服务
 - **LM Studio** - 通过 LM Studio 集成进行本地模型服务
 - **提供商切换** - 通过配置轻松切换不同提供商
+- **流式支持** - 实时令牌流式传输以获得更好的用户体验
+- **结构化生成** - 生成符合特定模式的 JSON 输出
 
 ### 🛠️ **MCP 工具集成**
 - **模型上下文协议** - 标准工具集成框架
 - **内置工具** - filesystem、fetch、memory、time、sequential-thinking
 - **外部服务器** - 连接任何 MCP 兼容的工具服务器
 - **查询增强** - 在 RAG 查询期间使用工具获得更丰富的答案
+- **批量操作** - 并行执行多个工具调用
 
 ### 🤖 **智能代理自动化**
 - **自然语言工作流** - 从纯文本描述生成工作流
 - **MCP 工具编排** - 在自动化工作流中协调多个工具
 - **异步执行** - 支持依赖解析的并行步骤执行
+- **意图识别** - 自动检测用户意图以提供更智能的响应
+
+### 💻 **开发者体验**
+- **简化的客户端 API** - 所有操作的清晰、直观的客户端包
+- **全面的示例** - 常见用例的即用型示例
+- **交互模式** - 内置 REPL 用于测试和探索
+- **聊天历史管理** - 完整的对话跟踪和上下文保留
+- **高级搜索选项** - 使用分数、过滤器和元数据微调搜索
 
 ### 🏢 **生产就绪**
 - **100% 本地** - 使用本地提供商完全离线操作
 - **HTTP API** - 所有操作的 RESTful 端点
 - **高性能** - 优化的 Go 实现
 - **可配置** - 通过 TOML 进行广泛配置
+- **零配置模式** - 使用智能默认值开箱即用
 
 ## 🚀 快速开始（零配置！）
 
@@ -110,65 +124,86 @@ ollama pull nomic-embed-text   # 默认嵌入器
 
 ## 📖 库使用
 
-使用 RAGO 作为 Go 库进行 RAG 操作：
+### 简化的客户端 API（推荐）
+
+新的客户端包为所有 RAGO 功能提供了简洁的接口：
+
+```go
+import "github.com/liliang-cn/rago/v2/client"
+
+// 使用默认配置创建客户端
+client, err := client.New("")
+defer client.Close()
+
+// 基本 RAG 操作
+err = client.IngestText("您的内容", "doc-id")
+err = client.IngestFile("document.pdf")
+
+response, err := client.Query("这是关于什么的？")
+fmt.Println(response.Answer)
+
+// 带来源的查询
+resp, err := client.QueryWithSources("告诉我更多", true)
+for _, source := range resp.Sources {
+    fmt.Printf("来源: %s (分数: %.2f)\n", source.ID, source.Score)
+}
+
+// MCP 工具集成
+client.EnableMCP(ctx)
+result, err := client.CallMCPTool(ctx, "filesystem_read", map[string]interface{}{
+    "path": "README.md",
+})
+
+// 带历史的聊天
+chatResp, err := client.ChatWithHistory(ctx, "你好", conversation)
+
+// LLM 操作
+llmResp, err := client.LLMGenerate(ctx, client.LLMGenerateRequest{
+    Prompt:      "写一首俳句",
+    Temperature: 0.9,
+})
+```
+
+### 高级用法示例
+
+展示所有客户端功能的综合示例：
+
+- **[基本 RAG 操作](./examples/client_basic_rag)** - 文档摄取、查询、元数据提取
+- **[MCP 工具集成](./examples/client_mcp_tools)** - 工具调用、批量操作、MCP 增强聊天
+- **[交互式聊天](./examples/client_chat_history)** - 对话历史、流式传输、交互模式
+- **[高级搜索](./examples/client_advanced_search)** - 语义/混合搜索、过滤、性能调优
+- **[LLM 操作](./examples/client_llm_operations)** - 生成、聊天、流式传输、结构化输出
+
+### 直接包使用（高级）
+
+如需精细控制，可直接使用底层包：
 
 ```go
 import (
     "github.com/liliang-cn/rago/v2/pkg/config"
+    "github.com/liliang-cn/rago/v2/pkg/rag/processor"
     "github.com/liliang-cn/rago/v2/pkg/store"
-    "github.com/liliang-cn/rago/v2/pkg/processor"
 )
 
-// 初始化 RAGO
+// 初始化组件
 cfg, _ := config.Load("rago.toml")
 store, _ := store.NewSQLiteStore(cfg.Sqvect.DBPath)
 processor := processor.New(cfg, store)
 
-// 摄取文档
+// 直接 RAG 操作
 doc := domain.Document{
     ID:      "doc1",
     Content: "您的文档内容",
-    Path:    "/path/to/doc.txt",
 }
-
 err := processor.IngestDocument(ctx, doc)
 
-// 查询文档
+// 使用自定义参数查询
 req := domain.QueryRequest{
     Query:       "这是关于什么的？",
     TopK:        5,
     Temperature: 0.7,
-    MaxTokens:   500,
 }
-
 response, _ := processor.Query(ctx, req)
-fmt.Println(response.Answer)
-```
-
-### 代理库使用
-
-```go
-import (
-    "github.com/liliang-cn/rago/v2/pkg/agents/execution"
-    "github.com/liliang-cn/rago/v2/pkg/agents/types"
-)
-
-// 定义工作流
-workflow := &types.WorkflowSpec{
-    Steps: []types.WorkflowStep{
-        {
-            ID:   "fetch",
-            Tool: "fetch",
-            Inputs: map[string]interface{}{
-                "url": "https://api.github.com/repos/golang/go",
-            },
-        },
-    },
-}
-
-// 执行工作流
-executor := execution.NewWorkflowExecutor(cfg, llmService)
-result, _ := executor.Execute(ctx, workflow)
 ```
 
 ## 🛠️ MCP 工具
@@ -271,7 +306,16 @@ servers_config_path = "mcpServers.json"
 
 ## 📚 文档
 
-- [示例](./examples/) - 代码示例和用例
+### 示例
+- [客户端使用示例](./examples/) - 全面的客户端库示例
+  - [基本 RAG](./examples/client_basic_rag) - RAG 操作入门
+  - [MCP 工具](./examples/client_mcp_tools) - 工具集成模式
+  - [聊天与历史](./examples/client_chat_history) - 交互式对话
+  - [高级搜索](./examples/client_advanced_search) - 搜索优化
+  - [LLM 操作](./examples/client_llm_operations) - 直接 LLM 使用
+- [代理示例](./examples/agent_usage/) - 代理自动化模式
+
+### 参考文档
 - [API 参考](./docs/api.md) - HTTP API 文档
 - [配置指南](./rago.example.toml) - 完整配置选项
 - [English Docs](./README.md) - 英文文档
