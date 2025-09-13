@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/rag"
 )
 
 // SearchOptions configures the search parameters
@@ -50,18 +50,17 @@ func (c *Client) Search(ctx context.Context, query string, opts *SearchOptions) 
 		opts = DefaultSearchOptions()
 	}
 
-	if c.processor == nil {
-		return nil, fmt.Errorf("processor not initialized")
+	if c.ragClient == nil {
+		return nil, fmt.Errorf("RAG client not initialized")
 	}
 
-	// Perform the search using Query
-	req := domain.QueryRequest{
-		Query:       query,
+	// Perform the search using RAG client
+	ragOpts := &rag.QueryOptions{
 		TopK:        opts.TopK,
 		ShowSources: true,
 	}
 
-	resp, err := c.processor.Query(ctx, req)
+	resp, err := c.ragClient.Query(ctx, query, ragOpts)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}

@@ -138,7 +138,7 @@ func (c *Client) InteractiveChat(ctx context.Context, opts *InteractiveChatOptio
 
 		if c.mcpClient != nil && c.mcpClient.IsInitialized() {
 			// Get available tools
-			tools := c.mcpClient.GetToolDefinitions()
+			tools := c.mcpClient.GetToolDefinitions(ctx)
 			if len(tools) > 0 {
 				// Generate with tools
 				result, err := c.llm.GenerateWithTools(ctx, messages, tools, genOpts)
@@ -349,7 +349,7 @@ func (c *Client) InteractiveChatWithRAG(ctx context.Context, opts *InteractiveCh
 		// Generate response (with or without tools)
 		var response string
 		if c.mcpClient != nil && c.mcpClient.IsInitialized() {
-			tools := c.mcpClient.GetToolDefinitions()
+			tools := c.mcpClient.GetToolDefinitions(ctx)
 			if len(tools) > 0 {
 				result, err := c.llm.GenerateWithTools(ctx, messages, tools, genOpts)
 				if err != nil {
