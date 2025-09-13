@@ -24,7 +24,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
-	"github.com/liliang-cn/rago/v2/pkg/web"
+	"github.com/liliang-cn/rago/v2/internal/web"
 	"github.com/spf13/cobra"
 )
 
