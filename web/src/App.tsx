@@ -2,10 +2,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { IngestTab } from '@/components/IngestTab'
 import { ChatTab } from '@/components/ChatTab'
 import { DocumentsTab } from '@/components/DocumentsTab'
+import { SearchTab } from '@/components/SearchTab'
+import { LLMTab } from '@/components/LLMTab'
 import { MCPTab } from '@/components/MCPTab'
 import { TasksTab } from '@/components/TasksTab'
 import { StatusTab } from '@/components/StatusTab'
-import { Database, MessageSquare, FileText, Github, Zap, ListTodo, Activity, Layers } from 'lucide-react'
+import { Database, MessageSquare, FileText, Github, Zap, ListTodo, Activity, Layers, Search, Brain } from 'lucide-react'
 import './App.css'
 
 function App() {
@@ -36,7 +38,7 @@ function App() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="chat" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 mb-8">
+          <TabsList className="grid w-full grid-cols-8 mb-8">
             <TabsTrigger value="chat" className="flex items-center gap-2">
               <MessageSquare className="h-4 w-4" />
               Chat
@@ -48,6 +50,14 @@ function App() {
             <TabsTrigger value="documents" className="flex items-center gap-2">
               <Database className="h-4 w-4" />
               Documents
+            </TabsTrigger>
+            <TabsTrigger value="search" className="flex items-center gap-2">
+              <Search className="h-4 w-4" />
+              Search
+            </TabsTrigger>
+            <TabsTrigger value="llm" className="flex items-center gap-2">
+              <Brain className="h-4 w-4" />
+              LLM
             </TabsTrigger>
             <TabsTrigger value="mcp" className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
@@ -73,6 +83,14 @@ function App() {
           
           <TabsContent value="documents">
             <DocumentsTab />
+          </TabsContent>
+          
+          <TabsContent value="search">
+            <SearchTab />
+          </TabsContent>
+          
+          <TabsContent value="llm">
+            <LLMTab />
           </TabsContent>
           
           <TabsContent value="mcp">
