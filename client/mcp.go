@@ -10,54 +10,48 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/providers"
 )
 
-// MCPClient provides MCP (Model Context Protocol) functionality
+// MCPClient provides advanced MCP functionality for interactive features
 type MCPClient struct {
-	api     *mcp.MCPLibraryAPI
+	service *mcp.Service
 	enabled bool
 }
 
 // IsInitialized returns whether the MCP client is initialized and enabled
 func (m *MCPClient) IsInitialized() bool {
-	return m != nil && m.enabled && m.api != nil
+	return m != nil && m.enabled && m.service != nil
 }
 
-// GetToolDefinitions returns tool definitions in domain format for LLM
-func (m *MCPClient) GetToolDefinitions() []domain.ToolDefinition {
+// GetToolDefinitions returns tool definitions in domain format for LLM (advanced feature)
+func (m *MCPClient) GetToolDefinitions(ctx context.Context) []domain.ToolDefinition {
 	if !m.IsInitialized() {
 		return nil
 	}
 
-	llmTools := m.api.GetToolsForLLMIntegration()
+	tools := m.service.GetAvailableTools(ctx)
 	var toolDefs []domain.ToolDefinition
 
-	for _, tool := range llmTools {
-		if funcMap, ok := tool["function"].(map[string]interface{}); ok {
-			name, _ := funcMap["name"].(string)
-			desc, _ := funcMap["description"].(string)
-			params, _ := funcMap["parameters"].(map[string]interface{})
-
-			toolDef := domain.ToolDefinition{
-				Type: "function",
-				Function: domain.ToolFunction{
-					Name:        name,
-					Description: desc,
-					Parameters:  params,
-				},
-			}
-			toolDefs = append(toolDefs, toolDef)
+	for _, tool := range tools {
+		toolDef := domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        tool.Name,
+				Description: tool.Description,
+				Parameters:  map[string]interface{}{}, // TODO: Add parameter schemas
+			},
 		}
+		toolDefs = append(toolDefs, toolDef)
 	}
 
 	return toolDefs
 }
 
 // CallTool calls an MCP tool with the specified arguments
-func (m *MCPClient) CallTool(ctx context.Context, toolName string, args map[string]interface{}) (*mcp.MCPToolResult, error) {
+func (m *MCPClient) CallTool(ctx context.Context, toolName string, args map[string]interface{}) (*mcp.ToolResult, error) {
 	if !m.IsInitialized() {
 		return nil, fmt.Errorf("MCP client not initialized")
 	}
 
-	return m.api.CallTool(ctx, toolName, args)
+	return m.service.CallTool(ctx, toolName, args)
 }
 
 // EnableMCP enables MCP functionality for the rago client
@@ -70,21 +64,17 @@ func (c *Client) EnableMCP(ctx context.Context) error {
 		return nil // Already enabled
 	}
 
-	api := mcp.NewMCPLibraryAPI(&c.config.MCP)
-
-	// Use StartWithFailures for better resilience
-	succeeded, failed := api.StartWithFailures(ctx)
-
-	if len(failed) > 0 {
-		fmt.Printf("⚠️  Warning: Failed to start %d MCP server(s): %v\n", len(failed), failed)
+	if c.mcpService == nil {
+		return fmt.Errorf("MCP service not available")
 	}
 
-	if len(succeeded) == 0 {
-		return fmt.Errorf("no MCP servers could be started")
+	// Start MCP servers
+	if err := c.mcpService.StartServers(ctx, nil); err != nil {
+		return fmt.Errorf("failed to start MCP servers: %w", err)
 	}
 
 	c.mcpClient = &MCPClient{
-		api:     api,
+		service: c.mcpService,
 		enabled: true,
 	}
 
@@ -97,9 +87,8 @@ func (c *Client) DisableMCP() error {
 		return nil
 	}
 
-	if err := c.mcpClient.api.Stop(); err != nil {
-		return fmt.Errorf("failed to stop MCP service: %w", err)
-	}
+	// MCP service lifecycle is managed at the service layer
+	// Just mark as disabled in client
 
 	c.mcpClient.enabled = false
 	return nil
@@ -116,7 +105,12 @@ func (c *Client) ListMCPTools() ([]mcp.ToolSummary, error) {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
 
-	return c.mcpClient.api.ListTools(), nil
+	servers := c.mcpService.ListServers()
+	var tools []mcp.ToolSummary
+	for _, server := range servers {
+		tools = append(tools, server.Tools...)
+	}
+	return tools, nil
 }
 
 // GetMCPToolsForLLM returns MCP tools in LLM-compatible format
@@ -125,25 +119,40 @@ func (c *Client) GetMCPToolsForLLM() ([]map[string]interface{}, error) {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
 
-	return c.mcpClient.api.GetToolsForLLMIntegration(), nil
+	tools := c.mcpService.GetAvailableTools(context.Background())
+	var llmTools []map[string]interface{}
+	for _, tool := range tools {
+		llmTool := map[string]interface{}{
+			"type": "function",
+			"function": map[string]interface{}{
+				"name":        tool.Name,
+				"description": tool.Description,
+				"parameters":  map[string]interface{}{},
+			},
+		}
+		llmTools = append(llmTools, llmTool)
+	}
+	return llmTools, nil
 }
 
 // CallMCPTool calls an MCP tool with the specified arguments
-func (c *Client) CallMCPTool(ctx context.Context, toolName string, args map[string]interface{}) (*mcp.MCPToolResult, error) {
+func (c *Client) CallMCPTool(ctx context.Context, toolName string, args map[string]interface{}) (*mcp.ToolResult, error) {
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
 
-	return c.mcpClient.api.CallTool(ctx, toolName, args)
+	return c.mcpService.CallTool(ctx, toolName, args)
 }
 
 // CallMCPToolWithTimeout calls an MCP tool with a timeout
-func (c *Client) CallMCPToolWithTimeout(toolName string, args map[string]interface{}, timeout time.Duration) (*mcp.MCPToolResult, error) {
+func (c *Client) CallMCPToolWithTimeout(toolName string, args map[string]interface{}, timeout time.Duration) (*mcp.ToolResult, error) {
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
 
-	return c.mcpClient.api.CallToolWithTimeout(toolName, args, timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return c.mcpService.CallTool(ctx, toolName, args)
 }
 
 // GetMCPServerStatus returns the status of MCP servers
@@ -152,7 +161,12 @@ func (c *Client) GetMCPServerStatus() (map[string]bool, error) {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
 
-	return c.mcpClient.api.GetServerStatuses(), nil
+	servers := c.mcpService.ListServers()
+	status := make(map[string]bool)
+	for _, server := range servers {
+		status[server.Name] = server.Running
+	}
+	return status, nil
 }
 
 // BatchCallMCPTools calls multiple MCP tools in parallel
@@ -161,16 +175,35 @@ func (c *Client) BatchCallMCPTools(ctx context.Context, calls []ToolCall) ([]mcp
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
 
-	// Convert to mcp.ToolCall format
-	mcpCalls := make([]mcp.ToolCall, len(calls))
+	results := make([]mcp.MCPToolResult, len(calls))
+	errChan := make(chan error, len(calls))
+
 	for i, call := range calls {
-		mcpCalls[i] = mcp.ToolCall{
-			ToolName: call.ToolName,
-			Args:     call.Args,
+		go func(index int, toolCall ToolCall) {
+			result, err := c.mcpService.CallTool(ctx, toolCall.ToolName, toolCall.Args)
+			if err != nil {
+				errChan <- fmt.Errorf("tool %s failed: %w", toolCall.ToolName, err)
+				return
+			}
+			if result != nil {
+				results[index] = mcp.MCPToolResult{
+					Success: result.Success,
+					Data:    result.Data,
+					Error:   result.Error,
+				}
+			}
+			errChan <- nil
+		}(i, call)
+	}
+
+	// Wait for all calls to complete
+	for i := 0; i < len(calls); i++ {
+		if err := <-errChan; err != nil {
+			return nil, err
 		}
 	}
 
-	return c.mcpClient.api.BatchCall(ctx, mcpCalls)
+	return results, nil
 }
 
 // ToolCall represents a tool call request for lib usage

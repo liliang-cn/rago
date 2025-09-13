@@ -75,19 +75,19 @@ func NewMockOllamaMetadataExtractor() *MockOllamaMetadataExtractor {
 
 func (m *MockOllamaMetadataExtractor) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
 	// Determine document type based on content keywords
-	if contains(content, []string{"patient", "medical", "diagnosis", "ECG", "doctor"}) {
+	if containsKeywords(content, []string{"patient", "medical", "diagnosis", "ECG", "doctor"}) {
 		return m.mockResponses["medical"], nil
 	}
-	if contains(content, []string{"meeting", "discuss", "team", "agenda"}) {
+	if containsKeywords(content, []string{"meeting", "discuss", "team", "agenda"}) {
 		return m.mockResponses["meeting"], nil
 	}
-	if contains(content, []string{"function", "def", "class", "code", "algorithm"}) {
+	if containsKeywords(content, []string{"function", "def", "class", "code", "algorithm"}) {
 		return m.mockResponses["code"], nil
 	}
-	if contains(content, []string{"research", "paper", "abstract", "study"}) {
+	if containsKeywords(content, []string{"research", "paper", "abstract", "study"}) {
 		return m.mockResponses["research"], nil
 	}
-	if contains(content, []string{"invoice", "payment", "bill", "financial"}) {
+	if containsKeywords(content, []string{"invoice", "payment", "bill", "financial"}) {
 		return m.mockResponses["financial"], nil
 	}
 	
@@ -100,7 +100,7 @@ func (m *MockOllamaMetadataExtractor) ExtractMetadata(ctx context.Context, conte
 	}, nil
 }
 
-func contains(text string, keywords []string) bool {
+func containsKeywords(text string, keywords []string) bool {
 	lowerText := strings.ToLower(text)
 	for _, keyword := range keywords {
 		if strings.Contains(lowerText, strings.ToLower(keyword)) {

@@ -1,1 +1,0 @@
-Hello from intent recognition - Patient test results and follow-up appointments analyzed using machine learning for disease diagnosis

@@ -51,6 +51,14 @@ func (s *SimpleGenerator) StreamWithTools(ctx context.Context, messages []domain
 	return nil
 }
 
+func (s *SimpleGenerator) RecognizeIntent(ctx context.Context, request string) (*domain.IntentResult, error) {
+	return &domain.IntentResult{
+		Intent:     domain.IntentAction,
+		Confidence: 0.9,
+		Reasoning:  "Test intent recognition",
+	}, nil
+}
+
 func (s *SimpleGenerator) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
 	return &domain.StructuredResult{
 		Data:  map[string]string{"result": "structured"},

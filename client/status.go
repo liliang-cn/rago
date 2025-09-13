@@ -3,8 +3,6 @@ package client
 import (
 	"context"
 	"time"
-
-	"github.com/liliang-cn/rago/v2/pkg/providers"
 )
 
 // StatusResult represents the result of a status check
@@ -15,28 +13,28 @@ type StatusResult struct {
 	Error              error  `json:"error,omitempty"`
 }
 
-// CheckStatus checks the health and status of the rago client
+// CheckStatus checks the health and status of the rago client (delegated to status checker)
 func (c *Client) CheckStatus() StatusResult {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	result := StatusResult{
-		LLMProvider:      c.config.Providers.DefaultLLM,
-		EmbedderProvider: c.config.Providers.DefaultEmbedder,
+		LLMProvider:      string(c.config.Providers.DefaultLLM),
+		EmbedderProvider: string(c.config.Providers.DefaultEmbedder),
 	}
 
-	// If using legacy config, show that instead
-	if c.config.Providers.DefaultLLM == "" {
-		result.LLMProvider = "ollama (legacy)"
-		result.EmbedderProvider = "ollama (legacy)"
-	}
-
-	// Check provider health using the utils function
-	if err := providers.CheckProviderHealth(ctx, c.embedder, c.llm); err != nil {
-		result.ProvidersAvailable = false
-		result.Error = err
+	// Use the status checker service
+	if c.statusChecker != nil {
+		status, err := c.statusChecker.CheckAll(ctx)
+		if err != nil {
+			result.ProvidersAvailable = false
+			result.Error = err
+		} else {
+			result.ProvidersAvailable = status.Healthy
+		}
 	} else {
-		result.ProvidersAvailable = true
+		// Fallback if status checker not available
+		result.ProvidersAvailable = c.llm != nil && c.embedder != nil
 	}
 
 	return result

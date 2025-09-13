@@ -127,6 +127,21 @@ func (m *MockLLMProvider) ExtractMetadata(ctx context.Context, content string, m
 	}, nil
 }
 
+func (m *MockLLMProvider) RecognizeIntent(ctx context.Context, request string) (*domain.IntentResult, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if !m.healthy {
+		return nil, errors.New("provider unhealthy")
+	}
+
+	return &domain.IntentResult{
+		Intent:     domain.IntentAction,
+		Confidence: 0.9,
+		Reasoning:  "Mock intent from " + m.name,
+	}, nil
+}
+
 func (m *MockLLMProvider) SetHealthy(healthy bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
