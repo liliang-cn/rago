@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/utils"
+	"github.com/liliang-cn/rago/v2/pkg/providers"
 )
 
 // StatusResult represents the result of a status check
@@ -32,7 +32,7 @@ func (c *Client) CheckStatus() StatusResult {
 	}
 
 	// Check provider health using the utils function
-	if err := utils.CheckProviderHealth(ctx, c.embedder, c.llm); err != nil {
+	if err := providers.CheckProviderHealth(ctx, c.embedder, c.llm); err != nil {
 		result.ProvidersAvailable = false
 		result.Error = err
 	} else {

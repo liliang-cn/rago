@@ -1,15 +1,13 @@
 package agent
 
 import (
-	"github.com/liliang-cn/rago/v2/pkg/agents"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/spf13/cobra"
 )
 
 var (
 	// Shared configuration
-	Cfg          *config.Config
-	agentManager *agents.Manager
+	Cfg *config.Config
 
 	// Shared flags (passed from root)
 	verbose bool
@@ -32,31 +30,20 @@ func Initialize(cfg *config.Config) {
 
 	// Initialize agent command if not already done
 	if AgentCmd == nil {
-		setupCommands()
+		// Create the main agent command
+		AgentCmd = &cobra.Command{
+			Use:   "agent",
+			Short: "Execute natural language requests using MCP tools",
+			Long:  `Execute natural language requests by planning and executing MCP tools dynamically.`,
+		}
 
-		// Add all subcommands
-		AgentCmd.AddCommand(agentCreateCmd)
-		AgentCmd.AddCommand(agentListCmd)
-		AgentCmd.AddCommand(agentGetCmd)
-		AgentCmd.AddCommand(agentExecuteCmd)
-		AgentCmd.AddCommand(agentDeleteCmd)
-		AgentCmd.AddCommand(agentTemplatesCmd)
-
-		// Add generate commands
-		AgentCmd.AddCommand(agentGenerateCmd)
-
-		// Add run command
+		// Add run command - the main agent functionality
 		AgentCmd.AddCommand(agentRunCmd)
-
-		// Add workflow commands
-		AgentCmd.AddCommand(workflowGenerateCmd)
-		AgentCmd.AddCommand(workflowTemplateCmd)
-
-		// Add planner commands
-		AgentCmd.AddCommand(agentPlanCmd)
-		AgentCmd.AddCommand(agentRunPlanCmd)
-		AgentCmd.AddCommand(agentListPlansCmd)
-		AgentCmd.AddCommand(agentPlanStatusCmd)
-		AgentCmd.AddCommand(agentAutoRunCmd)
+		
+		// Add exec command - execute saved plans
+		AgentCmd.AddCommand(agentExecCmd)
+		
+		// Add do command - intelligent RAG + planning + execution
+		AgentCmd.AddCommand(agentDoCmd)
 	}
 }

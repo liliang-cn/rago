@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/liliang-cn/rago/v2/pkg/chunker"
+	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
-	"github.com/liliang-cn/rago/v2/pkg/processor"
-	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
+	"github.com/liliang-cn/rago/v2/pkg/rag/store"
 	"github.com/spf13/cobra"
 )
 
@@ -521,7 +521,7 @@ Analyze the question and use the appropriate MCP tools to answer it. Be proactiv
 		Query:        finalQuery,
 		TopK:         5,
 		Temperature:  0.7,
-		MaxTokens:    1000,
+		MaxTokens:    30000,
 		Stream:       false,
 		ShowSources:  false,
 		ToolsEnabled: true,

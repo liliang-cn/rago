@@ -7,7 +7,6 @@ import (
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
-	"github.com/liliang-cn/rago/v2/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -48,14 +47,14 @@ var llmChatCmd = &cobra.Command{
 
 		// Create LLM service using utils helper
 		factory := providers.NewFactory()
-		llmService, err := utils.InitializeLLM(ctx, cfg, factory)
+		llmService, err := providers.InitializeLLM(ctx, cfg, factory)
 		if err != nil {
 			return fmt.Errorf("failed to create LLM service: %w", err)
 		}
 
 		// Create generation options
 		opts := &domain.GenerationOptions{
-			MaxTokens:   1000,
+			MaxTokens:   30000,
 			Temperature: 0.7,
 		}
 

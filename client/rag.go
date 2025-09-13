@@ -39,7 +39,7 @@ func (c *Client) IngestFileWithOptions(filePath string, opts *IngestOptions) err
 		req.ChunkSize = opts.ChunkSize
 		req.Overlap = opts.Overlap
 		req.Metadata = opts.Metadata
-		
+
 		// Enable enhanced extraction if requested
 		if opts.EnhancedExtraction {
 			// Temporarily enable metadata extraction for this request
@@ -71,11 +71,11 @@ func (c *Client) IngestTextWithMetadata(text, source string, additionalMetadata 
 // IngestTextWithOptions ingests text content with custom options
 func (c *Client) IngestTextWithOptions(text, source string, opts *IngestOptions) error {
 	ctx := context.Background()
-	
+
 	metadata := make(map[string]interface{})
 	metadata["source"] = source
 	metadata["type"] = "text"
-	
+
 	req := domain.IngestRequest{
 		Content:  text,
 		Metadata: metadata,
@@ -84,14 +84,14 @@ func (c *Client) IngestTextWithOptions(text, source string, opts *IngestOptions)
 	if opts != nil {
 		req.ChunkSize = opts.ChunkSize
 		req.Overlap = opts.Overlap
-		
+
 		// Merge additional metadata
 		if opts.Metadata != nil {
 			for k, v := range opts.Metadata {
 				req.Metadata[k] = v
 			}
 		}
-		
+
 		// Enable enhanced extraction if requested
 		if opts.EnhancedExtraction {
 			// Temporarily enable metadata extraction for this request
@@ -332,12 +332,12 @@ func (c *Client) ListDocumentsWithInfo() ([]DocumentInfo, error) {
 // parseMapString parses a string like "map[key:value key2:value2]" into a map
 func parseMapString(s string) map[string]string {
 	result := make(map[string]string)
-	
+
 	// Remove "map[" prefix and "]" suffix
 	if strings.HasPrefix(s, "map[") {
 		s = strings.TrimPrefix(s, "map[")
 		s = strings.TrimSuffix(s, "]")
-		
+
 		// Split by spaces and parse key:value pairs
 		pairs := strings.Fields(s)
 		for _, pair := range pairs {
@@ -347,7 +347,7 @@ func parseMapString(s string) map[string]string {
 			}
 		}
 	}
-	
+
 	return result
 }
 
@@ -406,7 +406,7 @@ Please analyze the question and determine which MCP tool(s) to use to answer it 
 		Query:        systemPrompt,
 		TopK:         c.config.Sqvect.TopK,
 		Temperature:  0.7,
-		MaxTokens:    1000,
+		MaxTokens:    30000,
 		ToolsEnabled: true,
 		MaxToolCalls: 3,
 	}
