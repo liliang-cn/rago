@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/liliang-cn/rago/v2/internal/api/handlers"
 	chatHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/chat"
+	llmHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/llm"
 	mcpHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/mcp"
 	ragHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/rag"
 	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
@@ -157,7 +158,15 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 
 			documentsHandler := ragHandlers.NewDocumentsHandler(processor)
 			ragGroup.GET("/documents", documentsHandler.List)
+			ragGroup.GET("/documents/info", documentsHandler.ListWithInfo)
+			ragGroup.GET("/documents/:id", documentsHandler.GetDocumentInfo)
 			ragGroup.DELETE("/documents/:id", documentsHandler.Delete)
+			
+			// Advanced search endpoints
+			searchHandler := ragHandlers.NewSearchHandler(processor)
+			ragGroup.POST("/search/semantic", searchHandler.SemanticSearch)
+			ragGroup.POST("/search/hybrid", searchHandler.HybridSearch)
+			ragGroup.POST("/search/filtered", searchHandler.FilteredSearch)
 
 			resetHandler := ragHandlers.NewResetHandler(processor)
 			ragGroup.POST("/reset", resetHandler.Handle)
@@ -192,6 +201,26 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 				chatHandler := chatHandlers.NewChatHandler(processor, llmServiceTyped)
 				chatGroup.POST("/", chatHandler.Handle)
 				chatGroup.POST("/complete", chatHandler.Complete)
+			}
+		}
+		
+		// LLM endpoints for direct operations
+		llmGroup := api.Group("/llm")
+		{
+			// Create llm.Service wrapper if needed
+			var llmSvc interface{}
+			if svc, ok := llmService.(interface{ GetService() interface{} }); ok {
+				llmSvc = svc.GetService()
+			} else {
+				llmSvc = llmService
+			}
+
+			// Type assert to get the llm.Service
+			if llmServiceTyped, ok := llmSvc.(*llm.Service); ok {
+				llmHandler := llmHandlers.NewLLMHandler(llmServiceTyped)
+				llmGroup.POST("/generate", llmHandler.Generate)
+				llmGroup.POST("/chat", llmHandler.Chat)
+				llmGroup.POST("/structured", llmHandler.GenerateStructured)
 			}
 		}
 
@@ -242,6 +271,10 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 					mcpGroup.GET("/tools/:name", mcpHandler.GetTool)
 					mcpGroup.POST("/tools/call", mcpHandler.CallTool)
 					mcpGroup.POST("/tools/batch", mcpHandler.BatchCallTools)
+					
+					// Enhanced MCP operations
+					mcpGroup.POST("/chat", mcpHandler.ChatWithMCP)
+					mcpGroup.POST("/query", mcpHandler.QueryWithMCP)
 
 					// Server operations
 					mcpGroup.GET("/servers", mcpHandler.GetServerStatus)
