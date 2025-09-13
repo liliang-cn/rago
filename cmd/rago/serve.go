@@ -13,17 +13,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/liliang-cn/rago/v2/internal/api/handlers"
-	agentHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/agent"
 	chatHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/chat"
 	mcpHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/mcp"
 	ragHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/rag"
-	"github.com/liliang-cn/rago/v2/pkg/chunker"
+	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/llm"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
-	"github.com/liliang-cn/rago/v2/pkg/processor"
-	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
+	"github.com/liliang-cn/rago/v2/pkg/rag/store"
 	"github.com/liliang-cn/rago/v2/pkg/web"
 	"github.com/spf13/cobra"
 )
@@ -218,7 +217,6 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 
 		// MCP API endpoints (only if MCP is enabled)
 		var mcpHandler *mcpHandlers.MCPHandler
-		var mcpService interface{}
 		if cfg.MCP.Enabled {
 			// Initialize MCP configuration
 			mcpConfig := &mcp.Config{
@@ -234,7 +232,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 				log.Printf("Warning: failed to initialize MCP handler: %v", err)
 			} else {
 				// Create MCP service for agents
-				mcpService = mcp.NewMCPService(mcpConfig)
+				// mcpService used to be passed to agent handlers, no longer needed
 
 				// Setup MCP routes
 				mcpGroup := api.Group("/mcp")
@@ -266,38 +264,8 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 			}
 		}
 
-		// Agents API endpoints (only if agents are enabled)
-		if cfg.Agents != nil && cfg.Agents.Enabled {
-			// Initialize agents handler (pass mcpService as interface{})
-			agentsHandler, err := agentHandlers.NewAgentsHandler(cfg, llmService, mcpService)
-			if err != nil {
-				log.Printf("Warning: failed to initialize agents handler: %v", err)
-			} else {
-				// Setup agent routes
-				agents := api.Group("/agents")
-				{
-					// Agent operations
-					agents.GET("", agentsHandler.ListAgents)
-					agents.GET("/:id", agentsHandler.GetAgent)
-					agents.POST("", agentsHandler.CreateAgent)
-					agents.POST("/execute", agentsHandler.ExecuteAgent)
-
-					// Execution management
-					agents.GET("/executions", agentsHandler.GetActiveExecutions)
-					agents.POST("/executions/cancel", agentsHandler.CancelExecution)
-					agents.GET("/history/:id", agentsHandler.GetExecutionHistory)
-				}
-
-				// Register cleanup on server shutdown
-				router.Use(func(c *gin.Context) {
-					c.Next()
-					// This will be called when server shuts down
-					if c.Request.Context().Err() != nil {
-						_ = agentsHandler.Close()
-					}
-				})
-			}
-		}
+		// Agent functionality is available via CLI: rago agent run
+		// Web API for agents has been simplified and moved to CLI-only
 	}
 
 	if enableUI {

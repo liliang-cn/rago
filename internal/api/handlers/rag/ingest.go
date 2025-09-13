@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/processor"
+	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 )
 
 type IngestHandler struct {

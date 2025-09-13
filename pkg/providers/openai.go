@@ -489,6 +489,115 @@ JSON Output:`, content)
 	return &metadata, nil
 }
 
+// RecognizeIntent analyzes user request to determine intent type
+func (p *OpenAILLMProvider) RecognizeIntent(ctx context.Context, request string) (*domain.IntentResult, error) {
+	if request == "" {
+		return nil, fmt.Errorf("%w: empty request", domain.ErrInvalidInput)
+	}
+
+	prompt := fmt.Sprintf(`Analyze this request and determine the user's intent. Categorize it into ONE of these types:
+
+REQUEST: %s
+
+INTENT CATEGORIES:
+- "question": User is asking a question that needs an answer (what, why, how, explain, etc.)
+- "action": User wants to perform an action (create, delete, modify, run, execute, etc.)
+- "analysis": User wants to analyze or process data (analyze, compare, evaluate, review, etc.)
+- "search": User wants to find or list information (find, search, list, show, get, etc.)
+- "calculation": User wants a mathematical or logical computation (calculate, compute, count, etc.)
+- "status": User wants to check status or state (check, status, verify, test, etc.)
+
+Also determine if this request requires external tools to complete.
+
+Respond with JSON only:
+{
+  "intent": "one of the categories above",
+  "confidence": 0.0-1.0,
+  "key_verbs": ["verb1", "verb2"],
+  "entities": ["entity1", "entity2"],
+  "needs_tools": true/false,
+  "reasoning": "brief explanation"
+}`, request)
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(prompt),
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:       openai.ChatModel(p.config.LLMModel),
+		Messages:    messages,
+		Temperature: openai.Float(0.1),
+		MaxTokens:   openai.Int(300),
+	}
+
+	completion, err := p.client.Chat.Completions.New(ctx, params)
+	if err != nil {
+		// Fallback to unknown intent
+		return &domain.IntentResult{
+			Intent:     domain.IntentUnknown,
+			Confidence: 0.0,
+			NeedsTools: true,
+			Reasoning:  "Failed to determine intent",
+		}, nil
+	}
+
+	if len(completion.Choices) == 0 {
+		return &domain.IntentResult{
+			Intent:     domain.IntentUnknown,
+			Confidence: 0.0,
+			NeedsTools: true,
+			Reasoning:  "No response from model",
+		}, nil
+	}
+
+	// Parse the response
+	var intentData struct {
+		Intent     string   `json:"intent"`
+		Confidence float64  `json:"confidence"`
+		KeyVerbs   []string `json:"key_verbs"`
+		Entities   []string `json:"entities"`
+		NeedsTools bool     `json:"needs_tools"`
+		Reasoning  string   `json:"reasoning"`
+	}
+
+	if err := json.Unmarshal([]byte(completion.Choices[0].Message.Content), &intentData); err != nil {
+		return &domain.IntentResult{
+			Intent:     domain.IntentUnknown,
+			Confidence: 0.0,
+			NeedsTools: true,
+			Reasoning:  "Failed to parse intent",
+		}, nil
+	}
+
+	// Map string to IntentType
+	var intentType domain.IntentType
+	switch intentData.Intent {
+	case "question":
+		intentType = domain.IntentQuestion
+	case "action":
+		intentType = domain.IntentAction
+	case "analysis":
+		intentType = domain.IntentAnalysis
+	case "search":
+		intentType = domain.IntentSearch
+	case "calculation":
+		intentType = domain.IntentCalculation
+	case "status":
+		intentType = domain.IntentStatus
+	default:
+		intentType = domain.IntentUnknown
+	}
+
+	return &domain.IntentResult{
+		Intent:     intentType,
+		Confidence: intentData.Confidence,
+		KeyVerbs:   intentData.KeyVerbs,
+		Entities:   intentData.Entities,
+		NeedsTools: intentData.NeedsTools,
+		Reasoning:  intentData.Reasoning,
+	}, nil
+}
+
 // OpenAIEmbedderProvider implements EmbedderProvider for OpenAI-compatible services
 type OpenAIEmbedderProvider struct {
 	client openai.Client

@@ -10,7 +10,6 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	mcppkg "github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
-	"github.com/liliang-cn/rago/v2/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -46,7 +45,7 @@ Examples:
 
 		// Initialize LLM service
 		factory := providers.NewFactory()
-		llmSvc, err := utils.InitializeLLM(ctx, Cfg, factory)
+		llmSvc, err := providers.InitializeLLM(ctx, Cfg, factory)
 		if err != nil {
 			return fmt.Errorf("failed to initialize LLM service: %w", err)
 		}

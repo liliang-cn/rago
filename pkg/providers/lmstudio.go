@@ -427,6 +427,113 @@ Return only the JSON object:`, content)
 	return metadata, nil
 }
 
+// RecognizeIntent analyzes a user request to determine its intent
+func (p *LMStudioLLMProvider) RecognizeIntent(ctx context.Context, request string) (*domain.IntentResult, error) {
+	prompt := fmt.Sprintf(`Analyze this user request and classify its intent.
+
+REQUEST: %s
+
+Classify this request into one of these intents:
+- question: Asking for information or explanation
+- action: Requesting to perform a specific action or task
+- analysis: Requesting data analysis or investigation
+- search: Looking for specific information in files or documents
+- calculation: Mathematical or computational tasks
+- status: Checking status or state of something
+- unknown: Cannot determine the intent
+
+Also determine:
+- Confidence level (0-1)
+- Whether tools/actions are needed to fulfill this request
+- Key verbs and entities in the request
+
+Respond with JSON:
+{
+  "intent": "one of the above intent types",
+  "confidence": 0.8,
+  "key_verbs": ["list", "of", "verbs"],
+  "entities": ["list", "of", "entities"],
+  "needs_tools": true/false,
+  "reasoning": "brief explanation of why this intent was chosen"
+}`, request)
+
+	opts := &domain.GenerationOptions{
+		Temperature: 0.3,
+		MaxTokens:   500,
+	}
+
+	// Use regular generation since LM Studio might not support structured output
+	response, err := p.Generate(ctx, prompt, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to recognize intent: %w", err)
+	}
+
+	// Parse JSON response
+	var result struct {
+		Intent     string   `json:"intent"`
+		Confidence float64  `json:"confidence"`
+		KeyVerbs   []string `json:"key_verbs"`
+		Entities   []string `json:"entities"`
+		NeedsTools bool     `json:"needs_tools"`
+		Reasoning  string   `json:"reasoning"`
+	}
+
+	// Extract JSON from response (handle markdown code blocks)
+	jsonStr := response
+	if strings.Contains(response, "```json") {
+		start := strings.Index(response, "```json") + 7
+		end := strings.Index(response[start:], "```")
+		if end > 0 {
+			jsonStr = response[start : start+end]
+		}
+	} else if strings.Contains(response, "{") {
+		// Try to extract raw JSON
+		start := strings.Index(response, "{")
+		end := strings.LastIndex(response, "}")
+		if start >= 0 && end > start {
+			jsonStr = response[start : end+1]
+		}
+	}
+
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		// Fallback to unknown intent if parsing fails
+		return &domain.IntentResult{
+			Intent:     domain.IntentUnknown,
+			Confidence: 0.0,
+			NeedsTools: true,
+			Reasoning:  "Failed to parse intent recognition response",
+		}, nil
+	}
+
+	// Map string to IntentType
+	var intentType domain.IntentType
+	switch strings.ToLower(result.Intent) {
+	case "question":
+		intentType = domain.IntentQuestion
+	case "action":
+		intentType = domain.IntentAction
+	case "analysis":
+		intentType = domain.IntentAnalysis
+	case "search":
+		intentType = domain.IntentSearch
+	case "calculation":
+		intentType = domain.IntentCalculation
+	case "status":
+		intentType = domain.IntentStatus
+	default:
+		intentType = domain.IntentUnknown
+	}
+
+	return &domain.IntentResult{
+		Intent:     intentType,
+		Confidence: result.Confidence,
+		KeyVerbs:   result.KeyVerbs,
+		Entities:   result.Entities,
+		NeedsTools: result.NeedsTools,
+		Reasoning:  result.Reasoning,
+	}, nil
+}
+
 // LMStudioEmbedderProvider implements the EmbedderProvider interface using LM Studio
 type LMStudioEmbedderProvider struct {
 	client         *lmstudio.Client

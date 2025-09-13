@@ -1,9 +1,7 @@
 {
   "mcpServers": {
-    "sqlite": {
-      "command": "mcp-sqlite-server",
-      "args": ["./"],
-      "description": "SQLite database operations with vector search support"
+    "websearch": {
+      "command": "mcp-websearch-server"
     },
     "filesystem": {
       "command": "npx",
@@ -12,32 +10,6 @@
       "env": {
         "NODE_OPTIONS": "--max-old-space-size=4096"
       }
-    },
-    "memory": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-memory"],
-      "description": "In-memory key-value store for temporary data storage",
-      "env": {
-        "MEMORY_MAX_SIZE": "100MB"
-      }
-    },
-    "sequential-thinking": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-      "description": "Enhanced reasoning through step-by-step problem decomposition",
-      "env": {
-        "THINKING_MAX_DEPTH": "10"
-      }
-    },
-    "playwright": {
-      "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"],
-      "description": "Browser automation and web scraping with Playwright"
-    },
-    "time": {
-      "command": "uvx",
-      "args": ["mcp-server-time"],
-      "description": "Time and date utilities with timezone support"
     }
   }
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/agents/types"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/utils"
+	"github.com/liliang-cn/rago/v2/pkg/providers"
 )
 
 // NaturalLanguageToWorkflowExample demonstrates converting natural language to workflows
