@@ -9,7 +9,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/agents/execution"
 	"github.com/liliang-cn/rago/v2/pkg/agents/types"
 	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/utils"
+	"github.com/liliang-cn/rago/v2/pkg/providers"
 )
 
 // AsyncWorkflowExample demonstrates async workflow execution with parallel steps

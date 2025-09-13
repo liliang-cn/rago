@@ -7,7 +7,7 @@ import (
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
-	"github.com/liliang-cn/rago/v2/pkg/utils"
+	"github.com/liliang-cn/rago/v2/pkg/providers"
 )
 
 // MCPClient provides MCP (Model Context Protocol) functionality
@@ -192,7 +192,7 @@ func (c *Client) ChatWithMCP(message string, opts *MCPChatOptions) (*MCPChatResp
 	if opts == nil {
 		opts = &MCPChatOptions{
 			Temperature:  0.7,
-			MaxTokens:    1000,
+			MaxTokens:    30000,
 			ShowThinking: true,
 		}
 	}
@@ -200,7 +200,7 @@ func (c *Client) ChatWithMCP(message string, opts *MCPChatOptions) (*MCPChatResp
 	ctx := context.Background()
 
 	// Initialize LLM service
-	_, llmService, _, err := utils.InitializeProviders(ctx, c.config)
+	_, llmService, _, err := providers.InitializeProviders(ctx, c.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize LLM service: %w", err)
 	}

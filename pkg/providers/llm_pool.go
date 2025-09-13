@@ -316,6 +316,17 @@ func (p *LLMPool) ExtractMetadata(ctx context.Context, content string, model str
 	return metadata, err
 }
 
+// RecognizeIntent analyzes a user request to determine its intent using the pool
+func (p *LLMPool) RecognizeIntent(ctx context.Context, request string) (*domain.IntentResult, error) {
+	var result *domain.IntentResult
+	err := p.withRetry(ctx, func(provider *ProviderStatus) error {
+		var err error
+		result, err = provider.Provider.RecognizeIntent(ctx, request)
+		return err
+	})
+	return result, err
+}
+
 // GetProviderStatus returns the current status of all providers
 func (p *LLMPool) GetProviderStatus() map[string]bool {
 	p.mu.RLock()

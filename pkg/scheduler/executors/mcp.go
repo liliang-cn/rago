@@ -187,7 +187,7 @@ func (e *MCPExecutor) executeIntelligentMCP(ctx context.Context, parameters map[
 	showThinking := true
 	opts := &domain.GenerationOptions{
 		Temperature: 0.7,
-		MaxTokens:   1000,
+		MaxTokens:   30000,
 		Think:       &showThinking,
 	}
 

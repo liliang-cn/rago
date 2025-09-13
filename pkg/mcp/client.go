@@ -2,9 +2,11 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -284,4 +286,130 @@ func (m *Manager) Close() error {
 
 	m.clients = make(map[string]*Client)
 	return lastError
+}
+
+// ========================================
+// Agent Layer Helper Methods
+// ========================================
+
+// AgentToolInfo represents tool information for agent layer
+type AgentToolInfo struct {
+	Name        string                 // Full prefixed name (mcp_server_tool)
+	ServerName  string                 // Server that provides this tool
+	ActualName  string                 // Actual tool name on server (without prefix)
+	Description string                 // Tool description
+	Parameters  []string               // List of parameter names
+}
+
+// GetAvailableTools returns structured information about all available tools
+func (m *Manager) GetAvailableTools(ctx context.Context) []AgentToolInfo {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	var tools []AgentToolInfo
+	
+	for serverName, client := range m.clients {
+		if client == nil || !client.IsConnected() {
+			continue
+		}
+		
+		serverTools := client.GetTools()
+		for toolName, tool := range serverTools {
+			// Extract parameters from InputSchema
+			var params []string
+			if tool.InputSchema != nil {
+				// Convert InputSchema to map for easier access
+				if schemaBytes, err := json.Marshal(tool.InputSchema); err == nil {
+					var schemaMap map[string]interface{}
+					if err := json.Unmarshal(schemaBytes, &schemaMap); err == nil {
+						if props, ok := schemaMap["properties"].(map[string]interface{}); ok {
+							for paramName := range props {
+								params = append(params, paramName)
+							}
+						}
+					}
+				}
+			}
+			
+			tools = append(tools, AgentToolInfo{
+				Name:        fmt.Sprintf("mcp_%s_%s", serverName, toolName),
+				ServerName:  serverName,
+				ActualName:  toolName,
+				Description: tool.Description,
+				Parameters:  params,
+			})
+		}
+	}
+	
+	return tools
+}
+
+// GetToolsDescription returns a formatted string description of all available tools
+func (m *Manager) GetToolsDescription(ctx context.Context) string {
+	tools := m.GetAvailableTools(ctx)
+	
+	if len(tools) == 0 {
+		return "No MCP tools available"
+	}
+	
+	var descriptions []string
+	for _, tool := range tools {
+		desc := fmt.Sprintf("- %s: %s", tool.Name, tool.Description)
+		if len(tool.Parameters) > 0 {
+			desc += fmt.Sprintf(" | Parameters: %s", strings.Join(tool.Parameters, ", "))
+		}
+		descriptions = append(descriptions, desc)
+	}
+	
+	return strings.Join(descriptions, "\n")
+}
+
+// FindToolProvider finds which server provides a tool and returns the server info
+func (m *Manager) FindToolProvider(ctx context.Context, toolName string) (*AgentToolInfo, *Client, error) {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	
+	// Handle both formats: "mcp_server_tool" and "tool"
+	for serverName, client := range m.clients {
+		if client == nil || !client.IsConnected() {
+			continue
+		}
+		
+		tools := client.GetTools()
+		for actualToolName, tool := range tools {
+			// Check exact match
+			if actualToolName == toolName {
+				return &AgentToolInfo{
+					Name:        fmt.Sprintf("mcp_%s_%s", serverName, actualToolName),
+					ServerName:  serverName,
+					ActualName:  actualToolName,
+					Description: tool.Description,
+				}, client, nil
+			}
+			
+			// Check prefixed format match (mcp_server_tool)
+			prefixedName := fmt.Sprintf("mcp_%s_%s", serverName, actualToolName)
+			if prefixedName == toolName {
+				return &AgentToolInfo{
+					Name:        prefixedName,
+					ServerName:  serverName,
+					ActualName:  actualToolName,
+					Description: tool.Description,
+				}, client, nil
+			}
+		}
+	}
+	
+	return nil, nil, fmt.Errorf("tool %s not found in any connected MCP server", toolName)
+}
+
+// CallTool finds the appropriate server and calls the tool
+func (m *Manager) CallTool(ctx context.Context, toolName string, arguments map[string]interface{}) (*ToolResult, error) {
+	toolInfo, client, err := m.FindToolProvider(ctx, toolName)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Call the tool with its actual name (without prefix)
+	return client.CallTool(ctx, toolInfo.ActualName, arguments)
 }

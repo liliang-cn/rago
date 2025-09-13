@@ -102,7 +102,7 @@ func init() {
 
 	// Chat command flags
 	mcpChatCmd.Flags().Float64P("temperature", "T", 0.7, "Generation temperature")
-	mcpChatCmd.Flags().IntP("max-tokens", "m", 1000, "Maximum generation length")
+	mcpChatCmd.Flags().IntP("max-tokens", "m", 30000, "Maximum generation length")
 	mcpChatCmd.Flags().BoolP("show-thinking", "t", true, "Show AI thinking process")
 	mcpChatCmd.Flags().StringSliceP("allowed-tools", "a", []string{}, "Comma-separated list of allowed tools")
 }

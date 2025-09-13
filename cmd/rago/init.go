@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/rago/v2/pkg/rag/store"
 	"github.com/spf13/cobra"
 )
 
