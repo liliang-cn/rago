@@ -32,7 +32,9 @@ type Config struct {
 type AgentsConfig struct {
 	Enabled          bool   `mapstructure:"enabled"`
 	StorageType      string `mapstructure:"storage_type"`      // "memory" or "persistent"
-	StoragePath      string `mapstructure:"storage_path"`      // Path for persistent storage
+	StoragePath      string `mapstructure:"storage_path"`      // Path for persistent storage (deprecated, use DataPath)
+	DataPath         string `mapstructure:"data_path"`         // Path for database storage (e.g., .rago/data)
+	WorkspacePath    string `mapstructure:"workspace_path"`    // Path for agent workspace (e.g., .rago/workspace)
 	MaxConcurrent    int    `mapstructure:"max_concurrent"`    // Max concurrent agent executions
 	DefaultTimeout   int    `mapstructure:"default_timeout"`   // Default timeout in seconds
 	EnableGeneration bool   `mapstructure:"enable_generation"` // Enable agent/workflow generation from NL
@@ -261,6 +263,15 @@ func setDefaults() {
 
 	viper.SetDefault("ingest.metadata_extraction.enable", false)
 	// Note: llm_model will be auto-configured to use default LLM if not set
+
+	// Agent configuration defaults
+	viper.SetDefault("agents.enabled", true)
+	viper.SetDefault("agents.storage_type", "persistent")
+	viper.SetDefault("agents.data_path", ".rago/data")
+	viper.SetDefault("agents.workspace_path", ".rago/workspace")
+	viper.SetDefault("agents.max_concurrent", 5)
+	viper.SetDefault("agents.default_timeout", 300) // 5 minutes
+	viper.SetDefault("agents.enable_generation", true)
 
 	// Tools configuration defaults
 	toolConfig := tools.DefaultToolConfig()

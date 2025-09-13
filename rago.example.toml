@@ -1,211 +1,39 @@
-# RAGO Configuration Example
-# =========================
-# This file shows all available configuration options with explanations.
-# Copy this to rago.toml and uncomment only the settings you need to change.
-#
-# MINIMAL SETUP: You only need the [providers] section!
-# All other settings have sensible defaults and can be omitted.
-
-# =========================
-# ESSENTIAL CONFIGURATION (REQUIRED)
-# =========================
+# RAGO - Minimal Configuration (LM Studio)
+# Get started with just 3 lines!
 
 [providers]
-# Choose your default LLM and embedding providers
-# Options: "ollama", "openai", "lmstudio", or any custom provider name
 default_llm = "ollama"
-default_embedder = "ollama"
 
-# --- Option 1: Ollama (Local, Privacy-First) ---
 [providers.ollama]
 type = "ollama"
-base_url = "http://localhost:11434"   # Default Ollama server
-llm_model = "qwen3"                   # Change to your model (e.g., llama3, mistral)
-embedding_model = "nomic-embed-text"  # Change to your embedder
+base_url = "http://localhost:11434"
+llm_model = "qwen3:8b"
+embedding_model = "nomic-embed-text"
+timeout = "120s"
 
-# --- Option 2: OpenAI (Cloud-Based) ---
-# [providers.openai]
-# type = "openai"
-# api_key = "sk-..."                        # Your OpenAI API key
-# llm_model = "gpt-4o-mini"                # Cost-effective model
-# embedding_model = "text-embedding-3-small" # Cost-effective embedder
-# # Optional settings:
-# # base_url = "https://api.openai.com/v1"  # For OpenAI-compatible APIs
-# # organization = "org-..."                # Organization ID
-# # project = "proj-..."                    # Project ID
+[providers.lmstudio]
+type = "lmstudio"
+base_url = "http://localhost:1234"
+llm_model = "qwen/qwen3-4b-2507"
+embedding_model = "text-embedding-qwen3-embedding-4b"
+timeout = "120s"
 
-# --- Option 3: LM Studio (Local, GUI-Based) ---
-# [providers.lmstudio]
-# type = "lmstudio"
-# base_url = "http://localhost:1234"        # LM Studio server URL
-# llm_model = "model-name-in-lmstudio"      # As shown in LM Studio
-# embedding_model = "embedder-in-lmstudio"  # As shown in LM Studio
+[mcp]
+enabled = true                # Enable MCP servers
+servers = ["./mcpServers.json"]  # MCP server configuration files
+log_level = "info"           # Logging: "debug", "info", "warn", "error"
+default_timeout = "60s"      # Request timeout
+max_concurrent_requests = 10 # Parallel request limit
+health_check_interval = "60s" # Server health monitoring
 
-# --- Option 4: Custom OpenAI-Compatible Provider ---
-# [providers.custom_name]
-# type = "openai"                           # Use OpenAI protocol
-# base_url = "http://your-api.com/v1"       # Your API endpoint
-# api_key = "your-key"                      # If required
-# llm_model = "your-model"
-# embedding_model = "your-embedder"
+[agents]
+enabled = true                      # Enable agent functionality
+storage_type = "persistent"         # Use persistent database storage
+data_path = ".rago/data"           # Path for database files (plans.db, rag.db)
+workspace_path = ".rago/workspace" # Agent workspace for file operations
+max_concurrent = 5                 # Maximum concurrent executions
+default_timeout = 300              # Default timeout in seconds
+enable_generation = true           # Enable workflow generation from natural language
 
-# =========================
-# OPTIONAL CONFIGURATION
-# =========================
-# All settings below have sensible defaults.
-# Uncomment and modify only if you need different values.
-
-# --- Server Configuration ---
-# [server]
-# port = 7127                    # API server port
-# host = "0.0.0.0"              # "0.0.0.0" for LAN access, "127.0.0.1" for local only
-# enable_ui = true              # Enable web UI
-# cors_origins = ["*"]          # CORS settings for API access
-
-# --- RAG Storage Configuration ---
-# [sqvect]
-# db_path = "~/.rago/rag.db"    # Vector database location
-# top_k = 5                     # Number of similar chunks to retrieve
-# threshold = 0.0               # Similarity threshold (0.0 = no filtering)
-# # Advanced settings:
-# # max_conns = 10              # Database connection pool size
-# # batch_size = 100            # Batch processing size
-
-# [keyword]
-# index_path = "~/.rago/keyword.bleve"  # Full-text search index location
-
-# --- Document Processing ---
-# [chunker]
-# chunk_size = 500              # Characters per chunk
-# overlap = 50                  # Overlap between chunks
-# method = "sentence"           # Options: "sentence", "paragraph", "token"
-
-# [rrf]
-# k = 10                        # RRF constant for result fusion
-# relevance_threshold = 0.05    # Minimum relevance score
-
-# --- Metadata Extraction ---
-# [ingest]
-# [ingest.metadata_extraction]
-# enable = false                # Auto-extract metadata from documents
-# # llm_model = ""              # Uses default LLM if not specified
-
-# =========================
-# MCP (Model Context Protocol) CONFIGURATION
-# =========================
-# MCP provides standardized tool integration for file operations,
-# web search, database queries, and more.
-
-# [mcp]
-# enabled = true                # Enable MCP servers
-# servers = ["./mcpServers.json"]  # Array of MCP server config files
-#                               # Can specify multiple files:
-#                               # servers = ["./mcpServers.json", "/tmp/custom-mcp.json"]
-# log_level = "info"           # Logging: "debug", "info", "warn", "error"
-# default_timeout = "30s"      # Request timeout
-# max_concurrent_requests = 10 # Parallel request limit
-# health_check_interval = "60s" # Server health monitoring
-
-# MCP servers are configured via JSON files listed in the servers array.
-# Example mcpServers.json:
-# {
-#   "mcpServers": {
-#     "filesystem": {
-#       "command": "npx",
-#       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home", "/tmp"],
-#       "enabled": true
-#     },
-#     "git": {
-#       "command": "uvx",
-#       "args": ["mcp-server-git", "--repository", "."],
-#       "enabled": true
-#     }
-#   }
-# }
-
-# =========================
-# TOOLS CONFIGURATION
-# =========================
-# Tools are now provided via MCP servers (see above).
-# This section controls general tool behavior.
-
-# [tools]
-# enabled = true               # Enable tool functionality
-# max_concurrent_calls = 5    # Parallel tool execution limit
-# call_timeout = "30s"        # Individual tool timeout
-# security_level = "normal"   # Options: "strict", "normal", "permissive"
-# log_level = "info"          # Tool logging level
-
-# [tools.rate_limit]
-# calls_per_minute = 100      # Rate limiting (0 = unlimited)
-# calls_per_hour = 1000
-# burst_size = 10            # Burst allowance
-
-# =========================
-# CONFIGURATION SEARCH ORDER
-# =========================
-# RAGO searches for configuration in this order:
-# 1. ./rago.toml (current directory)
-# 2. ./.rago/rago.toml (current directory .rago folder)
-# 3. ~/.rago/rago.toml (user home directory)
-#
-# Use --config flag to specify a custom location:
-#   rago --config /path/to/config.toml serve
-
-# =========================
-# ENVIRONMENT VARIABLES
-# =========================
-# All settings can be overridden via environment variables:
-#   RAGO_SERVER_PORT=8080
-#   RAGO_PROVIDERS_DEFAULT_LLM=openai
-#   RAGO_PROVIDERS_OPENAI_API_KEY=sk-...
-#   RAGO_SQVECT_DB_PATH=/custom/path/rag.db
-#
-# Pattern: RAGO_<SECTION>_<KEY> (uppercase, underscores for nesting)
-
-# =========================
-# QUICK START EXAMPLES
-# =========================
-
-# Example 1: Minimal Ollama setup (save as rago.toml)
-# -----------------------------------------------------
-# [providers]
-# default_llm = "ollama"
-# default_embedder = "ollama"
-# 
-# [providers.ollama]
-# type = "ollama"
-# base_url = "http://localhost:11434"
-# llm_model = "qwen3"
-# embedding_model = "nomic-embed-text"
-
-# Example 2: OpenAI with MCP tools (save as rago.toml)
-# -----------------------------------------------------
-# [providers]
-# default_llm = "openai"
-# default_embedder = "openai"
-# 
-# [providers.openai]
-# type = "openai"
-# api_key = "sk-..."
-# llm_model = "gpt-4o-mini"
-# embedding_model = "text-embedding-3-small"
-# 
-# [mcp]
-# enabled = true
-
-# Example 3: Multi-provider setup (save as rago.toml)
-# -----------------------------------------------------
-# [providers]
-# default_llm = "ollama"          # Use Ollama for chat
-# default_embedder = "openai"     # Use OpenAI for embeddings
-# 
-# [providers.ollama]
-# type = "ollama"
-# base_url = "http://localhost:11434"
-# llm_model = "llama3"
-# 
-# [providers.openai]
-# type = "openai"
-# api_key = "sk-..."
-# embedding_model = "text-embedding-3-small"
+[sqvect]
+db_path = "./.rago/data/rag.db"

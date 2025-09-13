@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/liliang-cn/rago/v2/pkg/chunker"
+	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/processor"
-	"github.com/liliang-cn/rago/v2/pkg/store"
-	"github.com/liliang-cn/rago/v2/pkg/utils"
+	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
+	"github.com/liliang-cn/rago/v2/pkg/rag/store"
+	"github.com/liliang-cn/rago/v2/pkg/providers"
 )
 
 // Client represents the main rago client
@@ -46,7 +46,7 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 
 	// Initialize services using provider system
 	ctx := context.Background()
-	embedService, llmService, metadataExtractor, err := utils.InitializeProviders(ctx, cfg)
+	embedService, llmService, metadataExtractor, err := providers.InitializeProviders(ctx, cfg)
 	if err != nil {
 		if err := vectorStore.Close(); err != nil {
 			fmt.Printf("Warning: failed to close vector store during cleanup: %v\n", err)

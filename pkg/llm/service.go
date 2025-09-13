@@ -48,6 +48,11 @@ func (s *Service) ExtractMetadata(ctx context.Context, content string, model str
 	return s.provider.ExtractMetadata(ctx, content, model)
 }
 
+// RecognizeIntent analyzes a user request to determine its intent
+func (s *Service) RecognizeIntent(ctx context.Context, request string) (*domain.IntentResult, error) {
+	return s.provider.RecognizeIntent(ctx, request)
+}
+
 // Health checks the health of the underlying provider
 func (s *Service) Health(ctx context.Context) error {
 	return s.provider.Health(ctx)

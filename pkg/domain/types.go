@@ -85,6 +85,29 @@ type Embedder interface {
 	Embed(ctx context.Context, text string) ([]float64, error)
 }
 
+// IntentType represents different types of user intents
+type IntentType string
+
+const (
+	IntentQuestion    IntentType = "question"    // Asking for information
+	IntentAction      IntentType = "action"      // Performing an action
+	IntentAnalysis    IntentType = "analysis"    // Analyzing data
+	IntentSearch      IntentType = "search"      // Finding information
+	IntentCalculation IntentType = "calculation" // Mathematical computation
+	IntentStatus      IntentType = "status"      // Checking status
+	IntentUnknown     IntentType = "unknown"     // Unable to determine
+)
+
+// IntentResult represents the result of intent recognition
+type IntentResult struct {
+	Intent     IntentType `json:"intent"`
+	Confidence float64    `json:"confidence"`
+	KeyVerbs   []string   `json:"key_verbs,omitempty"`
+	Entities   []string   `json:"entities,omitempty"`
+	NeedsTools bool       `json:"needs_tools"`
+	Reasoning  string     `json:"reasoning,omitempty"`
+}
+
 // Message represents a conversation message, used for tool calling
 type Message struct {
 	Role       string     `json:"role"` // user, assistant, tool
@@ -99,6 +122,7 @@ type Generator interface {
 	GenerateWithTools(ctx context.Context, messages []Message, tools []ToolDefinition, opts *GenerationOptions) (*GenerationResult, error)
 	StreamWithTools(ctx context.Context, messages []Message, tools []ToolDefinition, opts *GenerationOptions, callback ToolCallCallback) error
 	GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *GenerationOptions) (*StructuredResult, error)
+	RecognizeIntent(ctx context.Context, request string) (*IntentResult, error)
 }
 
 type GenerationOptions struct {
