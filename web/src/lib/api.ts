@@ -8,6 +8,13 @@ export interface Document {
   metadata?: Record<string, any>
 }
 
+export interface DocumentInfo extends Document {
+  path?: string
+  source?: string
+  summary?: string
+  keywords?: string[]
+}
+
 export interface SearchResult extends Document {
   score: number
 }
@@ -61,6 +68,44 @@ export interface TaskItem {
   content: string
   status: 'pending' | 'in_progress' | 'completed'
   activeForm: string
+}
+
+export interface SearchRequest {
+  query: string
+  top_k?: number
+  score_threshold?: number
+  hybrid_search?: boolean
+  vector_weight?: number
+  filters?: Record<string, any>
+  include_content?: boolean
+}
+
+export interface LLMGenerateRequest {
+  prompt: string
+  temperature?: number
+  max_tokens?: number
+  stream?: boolean
+  system_prompt?: string
+}
+
+export interface LLMChatRequest {
+  messages: Array<{role: string; content: string}>
+  temperature?: number
+  max_tokens?: number
+  stream?: boolean
+  system_prompt?: string
+}
+
+export interface MCPChatRequest {
+  message: string
+  options?: {
+    temperature?: number
+    max_tokens?: number
+    show_thinking?: boolean
+    allowed_tools?: string[]
+    max_tool_calls?: number
+  }
+  context?: Record<string, any>
 }
 
 class APIClient {
@@ -130,8 +175,37 @@ class APIClient {
     })
   }
 
+  async semanticSearch(request: SearchRequest): Promise<APIResponse<{results: SearchResult[], count: number, query: string}>> {
+    return this.request('/rag/search/semantic', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    })
+  }
+
+  async hybridSearch(request: SearchRequest): Promise<APIResponse<{results: SearchResult[], count: number, query: string}>> {
+    return this.request('/rag/search/hybrid', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    })
+  }
+
+  async filteredSearch(request: SearchRequest): Promise<APIResponse<{results: SearchResult[], count: number, query: string, filters: Record<string, any>}>> {
+    return this.request('/rag/search/filtered', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    })
+  }
+
   async getDocuments(): Promise<APIResponse<Document[]>> {
     return this.request('/documents')
+  }
+
+  async getDocumentsWithInfo(): Promise<APIResponse<DocumentInfo[]>> {
+    return this.request('/rag/documents/info')
+  }
+
+  async getDocumentInfo(id: string): Promise<APIResponse<DocumentInfo>> {
+    return this.request(`/rag/documents/${id}`)
   }
 
   async deleteDocument(id: string) {
@@ -148,6 +222,65 @@ class APIClient {
 
   async health() {
     return this.request('/health')
+  }
+
+  // LLM API methods
+  async llmGenerate(request: LLMGenerateRequest): Promise<APIResponse<{content: string}>> {
+    return this.request('/llm/generate', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    })
+  }
+
+  async llmChat(request: LLMChatRequest): Promise<APIResponse<{response: string, messages: Array<{role: string; content: string}>}>> {
+    return this.request('/llm/chat', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    })
+  }
+
+  async llmStructured(prompt: string, schema: Record<string, any>, temperature = 0.3, max_tokens = 500): Promise<APIResponse<{data: any, valid: boolean, raw: string}>> {
+    return this.request('/llm/structured', {
+      method: 'POST',
+      body: JSON.stringify({ prompt, schema, temperature, max_tokens }),
+    })
+  }
+
+  async llmGenerateStream(request: LLMGenerateRequest, onChunk: (chunk: string) => void): Promise<void> {
+    const response = await fetch(`${this.baseURL}/llm/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ...request, stream: true }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || `HTTP ${response.status}`)
+    }
+
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data !== '[DONE]' && data !== '') {
+              onChunk(data)
+            }
+          }
+        }
+      }
+    }
   }
 
   // MCP API methods
@@ -197,6 +330,44 @@ class APIClient {
 
   async getMCPToolsByServer(serverName: string): Promise<APIResponse<{ server: string; tools: MCPTool[]; count: number }>> {
     return this.request(`/mcp/servers/${serverName}/tools`)
+  }
+
+  async mcpChat(request: MCPChatRequest): Promise<APIResponse<{
+    content: string
+    final_response?: string
+    tool_calls?: Array<{
+      tool_name: string
+      args: Record<string, any>
+      result: any
+      success: boolean
+      error?: string
+      duration?: string
+    }>
+    thinking?: string
+    has_thinking: boolean
+  }>> {
+    return this.request('/mcp/chat', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    })
+  }
+
+  async mcpQuery(query: string, options?: {
+    top_k?: number
+    temperature?: number
+    max_tokens?: number
+    enable_tools?: boolean
+    allowed_tools?: string[]
+    filters?: Record<string, any>
+  }): Promise<APIResponse<{
+    answer: string
+    sources: any[]
+    tool_calls: any[]
+  }>> {
+    return this.request('/mcp/query', {
+      method: 'POST',
+      body: JSON.stringify({ query, ...options }),
+    })
   }
 }
 
