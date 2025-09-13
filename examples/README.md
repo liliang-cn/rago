@@ -1,180 +1,198 @@
-# RAGO Library Usage Examples
+# RAGO Client Examples
 
-This directory contains examples showing how to use RAGO as a Go library in your own applications.
+This directory contains comprehensive examples demonstrating the capabilities of the RAGO client library after the recent refactoring that removed redundancy while preserving advanced features.
 
-## Prerequisites
+## Examples Overview
 
-Make sure you have:
-1. Go 1.21 or later installed
-2. RAGO configured with a valid `rago.toml` file
-3. Required AI services running (LMStudio, Ollama, or OpenAI)
-
-## Running Examples
-
-Each example is in its own directory and can be run independently:
+### 1. [Basic RAG Operations](./client_basic_rag/)
+Demonstrates fundamental RAG functionality:
+- Text and file ingestion
+- Simple queries
+- Queries with source documents
+- Document management
+- Metadata extraction
 
 ```bash
-# Navigate to any example directory
-cd basic_workflow
-
-# Run the example
+cd client_basic_rag
 go run main.go
 ```
 
-## Library Usage Examples
-
-### 1. [Basic Workflow](./basic_workflow/)
-**File**: `basic_workflow/main.go`
-
-Basic workflow execution example showing:
-- Loading configuration from rago.toml
-- Initializing providers (LLM, embedder)
-- Defining workflows programmatically
-- Executing workflows and processing results
+### 2. [MCP Tool Integration](./client_mcp_tools/)
+Shows how to leverage MCP (Model Context Protocol) tools:
+- Enabling MCP servers
+- Direct tool calls
+- Batch operations
+- MCP-enhanced chat
+- RAG + MCP integration
 
 ```bash
-go run examples/basic_workflow/main.go
+cd client_mcp_tools
+go run main.go
 ```
 
-### 2. [Natural Language to Workflow](./nl_to_workflow/)
-**File**: `nl_to_workflow/main.go`
-
-Natural language to workflow conversion:
-- Converting natural language requests to workflows
-- Using LLM to generate workflow JSON
-- Executing dynamically generated workflows
-- Processing complex user requests
+### 3. [Interactive Chat with History](./client_chat_history/)
+Advanced conversational AI features:
+- Conversation history management
+- Multi-turn conversations
+- RAG-enhanced chat
+- Interactive mode with commands
+- Streaming with context
 
 ```bash
-go run examples/nl_to_workflow/main.go
+cd client_chat_history
+go run main.go
 ```
 
-### 3. [Async Workflow](./async_workflow/)
-**File**: `async_workflow/main.go`
-
-Async workflow execution with parallel steps:
-- Parallel execution of independent steps
-- Dependency resolution for sequential steps
-- Performance optimization through parallelism
-- Complex workflow orchestration
+### 4. [Advanced Search and Filtering](./client_advanced_search/)
+Sophisticated search capabilities:
+- Semantic search
+- Hybrid search (vector + keyword)
+- Score thresholds
+- Metadata filtering
+- Performance comparisons
 
 ```bash
-go run examples/async_workflow/main.go
+cd client_advanced_search
+go run main.go
 ```
 
-### 4. [Agents Integration](./agents_integration/)
-**File**: `agents_integration/config_based_demo.go`
-
-Configuration-based provider usage:
-- Using different LLM providers (Ollama, LMStudio, OpenAI)
-- Provider configuration from rago.toml
-- Seamless provider switching
+### 5. [Complete LLM Operations](./client_llm_operations/)
+Direct LLM operations without RAG:
+- Simple generation
+- Multi-turn chat
+- Streaming responses
+- Structured JSON output
+- Temperature control
+- Code generation
 
 ```bash
-go run examples/agents_integration/config_based_demo.go
+cd client_llm_operations
+go run main.go
 ```
 
-### 5. [Other Examples](./)
+## Architecture Benefits
 
-Additional examples in this directory:
-- **basic_usage**: Simple client usage patterns
-- **document_ingestion**: Document ingestion and RAG
-- **mcp_integration**: MCP protocol integration
-- **streaming_chat**: Streaming responses
-- **task_scheduling**: Task management
+These examples showcase the refactored client architecture:
+
+1. **Thin Client Layer**: The client acts as a convenient orchestration layer
+2. **Service Delegation**: Basic operations delegate to specialized services:
+   - RAG operations → `pkg/rag/client`
+   - MCP operations → `pkg/mcp/service`
+   - Status checks → `pkg/providers/status`
+3. **Advanced Features**: Complex features remain in the client package:
+   - Chat history management
+   - Interactive modes
+   - Task scheduling
+   - Search coordination
 
 ## Quick Start
 
-1. **Ensure you have a valid `rago.toml` configuration:**
-```toml
-[providers]
-default_llm = "lmstudio"  # or "ollama", "openai"
-
-[providers.lmstudio]
-base_url = "http://localhost:1234/v1"
-llm_model = "qwen/qwen3-4b-2507"
-```
-
-2. **Install dependencies:**
+1. **Initialize RAGO** (if not already done):
 ```bash
-go mod tidy
+rago init
 ```
 
-3. **Run any example:**
+2. **Ensure providers are running**:
 ```bash
-# Basic workflow
-go run examples/basic_workflow/main.go
+# For Ollama
+ollama serve
+ollama pull qwen3:8b
+ollama pull nomic-embed-text
 
-# Natural language to workflow
-go run examples/nl_to_workflow/main.go
-
-# Async workflow
-go run examples/async_workflow/main.go
+# Check status
+rago status
 ```
 
-## Using RAGO in Your Project
-
-### Import the packages:
-```go
-import (
-    "github.com/liliang-cn/rago/v2/pkg/agents/execution"
-    "github.com/liliang-cn/rago/v2/pkg/agents/types"
-    "github.com/liliang-cn/rago/v2/pkg/config"
-    "github.com/liliang-cn/rago/v2/pkg/utils"
-)
+3. **Run any example**:
+```bash
+cd examples/client_basic_rag
+go run main.go
 ```
 
-### Basic workflow execution:
-```go
-// Load config
-cfg, err := config.Load("")
+## Common Patterns
 
-// Initialize providers
+### Creating a Client
+```go
+// Default configuration
+client, err := client.New("")
+
+// Custom configuration
+client, err := client.New("/path/to/config.toml")
+
+// Always close when done
+defer client.Close()
+```
+
+### Error Handling
+```go
+resp, err := client.Query("question")
+if err != nil {
+    log.Printf("Query failed: %v", err)
+    // Handle error appropriately
+}
+```
+
+### Context Usage
+```go
 ctx := context.Background()
-_, llmService, _, err := utils.InitializeProviders(ctx, cfg)
-
-// Create workflow
-workflow := &types.WorkflowSpec{
-    Steps: []types.WorkflowStep{
-        // Define your steps
-    },
-}
-
-// Execute
-executor := execution.NewWorkflowExecutor(cfg, llmService)
-result, err := executor.Execute(ctx, workflow)
+// Or with timeout
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
 ```
 
-## Available Tools
+## Configuration
 
-- **filesystem**: File operations (read, write, list, execute, move, copy, delete, mkdir)
-- **fetch**: HTTP/HTTPS requests for APIs and websites
-- **memory**: Temporary storage (store, retrieve, delete, append)
-- **time**: Date/time operations (now, format, parse)
-- **sequential-thinking**: LLM analysis and reasoning
-- **playwright**: Browser automation (if configured in mcpServers.json)
+Each example can be customized through:
 
-## Data Flow
+1. **Configuration file** (`~/.rago/rago.toml`)
+2. **Environment variables** (`RAGO_*`)
+3. **Programmatic options** (per-operation options)
 
-Use `{{variableName}}` syntax to pass data between workflow steps:
+## Prerequisites
 
-```go
-Steps: []types.WorkflowStep{
-    {
-        ID: "fetch_data",
-        Outputs: map[string]string{"data": "fetched_data"},
-    },
-    {
-        ID: "analyze",
-        Inputs: map[string]interface{}{
-            "data": "{{fetched_data}}", // Reference previous output
-        },
-    },
-}
+- Go 1.21 or later
+- RAGO initialized (`rago init`)
+- LLM provider running (Ollama, OpenAI, etc.)
+- For MCP examples: Node.js/Python for MCP servers
+
+## Troubleshooting
+
+### Provider Issues
+```bash
+# Check provider status
+rago status
+
+# Verify models are available
+ollama list
 ```
 
-## Learn More
+### MCP Issues
+```bash
+# Check MCP server status
+rago mcp status
 
-- [Main Documentation](../../README.md)
-- [Client Library Documentation](../../client/README.md)
-- [Configuration Guide](../../rago.example.toml)
+# Install MCP servers
+npm install -g @modelcontextprotocol/server-filesystem
+```
+
+### Database Issues
+```bash
+# Reset RAG database
+rago rag reset
+
+# Check database location
+ls ~/.rago/data/
+```
+
+## Contributing
+
+Feel free to add more examples! Follow these guidelines:
+1. Create a new directory under `examples/`
+2. Include a `main.go` with clear comments
+3. Add a `README.md` explaining the example
+4. Focus on demonstrating specific features
+5. Include error handling and cleanup
+
+## License
+
+These examples are part of the RAGO project and follow the same license.

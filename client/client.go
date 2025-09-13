@@ -4,22 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
-	"github.com/liliang-cn/rago/v2/pkg/rag/store"
+	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
+	"github.com/liliang-cn/rago/v2/pkg/rag"
 )
 
-// Client represents the main rago client
+// Client represents the main rago client with advanced features
 type Client struct {
-	config      *config.Config
-	processor   *processor.Service
-	vectorStore *store.SQLiteStore
-	embedder    domain.Embedder
-	llm         domain.Generator
-	mcpClient   *MCPClient  // MCP functionality
+	config        *config.Config
+	ragClient     *rag.Client         // RAG operations
+	mcpService    *mcp.Service        // MCP operations
+	statusChecker *providers.StatusChecker
+	llm           domain.Generator
+	embedder      domain.Embedder
+	
+	// Advanced features
+	mcpClient   *MCPClient  // Advanced MCP functionality
 	taskClient  *TaskClient // Task scheduling functionality
 }
 
@@ -35,43 +37,40 @@ func New(configPath string) (*Client, error) {
 
 // NewWithConfig creates a new rago client with the provided configuration
 func NewWithConfig(cfg *config.Config) (*Client, error) {
-	vectorStore, err := store.NewSQLiteStore(
-		cfg.Sqvect.DBPath,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create vector store: %w", err)
-	}
-
-	docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
-
-	// Initialize services using provider system
 	ctx := context.Background()
-	embedService, llmService, metadataExtractor, err := providers.InitializeProviders(ctx, cfg)
+
+	// Initialize providers using the centralized initialization
+	embedder, llm, metadataExtractor, err := providers.InitializeProviders(ctx, cfg)
 	if err != nil {
-		if err := vectorStore.Close(); err != nil {
-			fmt.Printf("Warning: failed to close vector store during cleanup: %v\n", err)
-		}
 		return nil, fmt.Errorf("failed to initialize providers: %w", err)
 	}
 
-	chunkerService := chunker.New()
+	// Create RAG client
+	ragClient, err := rag.NewClient(cfg, embedder, llm, metadataExtractor)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create RAG client: %w", err)
+	}
 
-	processor := processor.New(
-		embedService,
-		llmService,
-		chunkerService,
-		vectorStore,
-		docStore,
-		cfg,
-		metadataExtractor,
-	)
+	// Create MCP service
+	var mcpService *mcp.Service
+	if cfg.MCP.Enabled {
+		mcpService, err = mcp.NewService(&cfg.MCP, llm)
+		if err != nil {
+			// MCP is optional, so we can continue without it
+			fmt.Printf("Warning: MCP service not available: %v\n", err)
+		}
+	}
+
+	// Create status checker
+	statusChecker := providers.NewStatusChecker(cfg, embedder, llm)
 
 	return &Client{
-		config:      cfg,
-		processor:   processor,
-		vectorStore: vectorStore,
-		embedder:    embedService,
-		llm:         llmService,
+		config:        cfg,
+		ragClient:     ragClient,
+		mcpService:    mcpService,
+		statusChecker: statusChecker,
+		llm:           llm,
+		embedder:      embedder,
 	}, nil
 }
 
@@ -79,9 +78,24 @@ func NewWithConfig(cfg *config.Config) (*Client, error) {
 func (c *Client) Close() error {
 	var errs []error
 
-	if c.vectorStore != nil {
-		if err := c.vectorStore.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close vector store: %w", err))
+	// Close RAG client
+	if c.ragClient != nil {
+		if err := c.ragClient.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close RAG client: %w", err))
+		}
+	}
+
+	// Close MCP service
+	if c.mcpService != nil {
+		if err := c.mcpService.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close MCP service: %w", err))
+		}
+	}
+
+	// Close advanced MCP client if initialized
+	if c.mcpClient != nil && c.mcpClient.enabled {
+		if err := c.DisableMCP(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to disable MCP client: %w", err))
 		}
 	}
 

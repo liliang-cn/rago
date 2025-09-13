@@ -295,7 +295,7 @@ func (c *Client) ChatWithMCPHistory(ctx context.Context, message string, history
 	// Check if MCP is enabled and get tools
 	var tools []domain.ToolDefinition
 	if c.mcpClient != nil && c.mcpClient.IsInitialized() {
-		tools = c.mcpClient.GetToolDefinitions()
+		tools = c.mcpClient.GetToolDefinitions(ctx)
 	}
 
 	if len(tools) == 0 {
@@ -374,7 +374,7 @@ func (c *Client) StreamChatWithMCPHistory(ctx context.Context, message string, h
 	// Check if MCP is enabled and get tools
 	var tools []domain.ToolDefinition
 	if c.mcpClient != nil && c.mcpClient.IsInitialized() {
-		tools = c.mcpClient.GetToolDefinitions()
+		tools = c.mcpClient.GetToolDefinitions(ctx)
 	}
 
 	if len(tools) == 0 {
@@ -494,7 +494,7 @@ func (c *Client) ChatWithRAGAndMCPHistory(ctx context.Context, message string, h
 	// Check if MCP is enabled and get tools
 	var tools []domain.ToolDefinition
 	if c.mcpClient != nil && c.mcpClient.IsInitialized() {
-		tools = c.mcpClient.GetToolDefinitions()
+		tools = c.mcpClient.GetToolDefinitions(ctx)
 	}
 
 	// Add augmented message to history
@@ -599,7 +599,7 @@ func (c *Client) StreamChatWithRAGAndMCPHistory(ctx context.Context, message str
 	// Check if MCP is enabled and get tools
 	var tools []domain.ToolDefinition
 	if c.mcpClient != nil && c.mcpClient.IsInitialized() {
-		tools = c.mcpClient.GetToolDefinitions()
+		tools = c.mcpClient.GetToolDefinitions(ctx)
 	}
 
 	// Add augmented message to history
