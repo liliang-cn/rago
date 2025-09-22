@@ -26,6 +26,7 @@ type OllamaProviderConfig struct {
 	BaseURL            string `mapstructure:"base_url"`
 	EmbeddingModel     string `mapstructure:"embedding_model"`
 	LLMModel           string `mapstructure:"llm_model"`
+	HideBuiltinThinkTag bool   `mapstructure:"hide_builtin_think_tag"`
 }
 
 // OpenAIProviderConfig contains OpenAI-compatible provider configuration

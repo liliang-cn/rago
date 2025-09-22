@@ -61,7 +61,7 @@ type TaskResult struct {
 }
 
 // EnableTasks initializes the task scheduler
-func (c *Client) EnableTasks(ctx context.Context) error {
+func (c *BaseClient) EnableTasks(ctx context.Context) error {
 	if c.taskClient != nil && c.taskClient.enabled {
 		return nil // Already enabled
 	}
@@ -87,7 +87,7 @@ func (c *Client) EnableTasks(ctx context.Context) error {
 }
 
 // DisableTasks stops the task scheduler
-func (c *Client) DisableTasks() error {
+func (c *BaseClient) DisableTasks() error {
 	if c.taskClient == nil || !c.taskClient.enabled {
 		return nil
 	}
@@ -101,12 +101,12 @@ func (c *Client) DisableTasks() error {
 }
 
 // IsTasksEnabled returns whether task scheduling is enabled
-func (c *Client) IsTasksEnabled() bool {
+func (c *BaseClient) IsTasksEnabled() bool {
 	return c.taskClient != nil && c.taskClient.enabled
 }
 
 // CreateTask creates a new scheduled task
-func (c *Client) CreateTask(options TaskOptions) (string, error) {
+func (c *BaseClient) CreateTask(options TaskOptions) (string, error) {
 	if !c.IsTasksEnabled() {
 		return "", fmt.Errorf("task scheduler is not enabled")
 	}
@@ -124,7 +124,7 @@ func (c *Client) CreateTask(options TaskOptions) (string, error) {
 }
 
 // GetTask retrieves a task by ID
-func (c *Client) GetTask(taskID string) (*TaskInfo, error) {
+func (c *BaseClient) GetTask(taskID string) (*TaskInfo, error) {
 	if !c.IsTasksEnabled() {
 		return nil, fmt.Errorf("task scheduler is not enabled")
 	}
@@ -150,7 +150,7 @@ func (c *Client) GetTask(taskID string) (*TaskInfo, error) {
 }
 
 // ListTasks lists all tasks
-func (c *Client) ListTasks(includeDisabled bool) ([]*TaskInfo, error) {
+func (c *BaseClient) ListTasks(includeDisabled bool) ([]*TaskInfo, error) {
 	if !c.IsTasksEnabled() {
 		return nil, fmt.Errorf("task scheduler is not enabled")
 	}
@@ -180,8 +180,8 @@ func (c *Client) ListTasks(includeDisabled bool) ([]*TaskInfo, error) {
 	return taskInfos, nil
 }
 
-// RunTask executes a task immediately
-func (c *Client) RunTask(taskID string) (*TaskResult, error) {
+// RunScheduledTask executes a scheduled task immediately
+func (c *BaseClient) RunScheduledTask(taskID string) (*TaskResult, error) {
 	if !c.IsTasksEnabled() {
 		return nil, fmt.Errorf("task scheduler is not enabled")
 	}
@@ -200,7 +200,7 @@ func (c *Client) RunTask(taskID string) (*TaskResult, error) {
 }
 
 // UpdateTask updates an existing task
-func (c *Client) UpdateTask(taskID string, options TaskOptions) error {
+func (c *BaseClient) UpdateTask(taskID string, options TaskOptions) error {
 	if !c.IsTasksEnabled() {
 		return fmt.Errorf("task scheduler is not enabled")
 	}
@@ -222,7 +222,7 @@ func (c *Client) UpdateTask(taskID string, options TaskOptions) error {
 }
 
 // DeleteTask deletes a task
-func (c *Client) DeleteTask(taskID string) error {
+func (c *BaseClient) DeleteTask(taskID string) error {
 	if !c.IsTasksEnabled() {
 		return fmt.Errorf("task scheduler is not enabled")
 	}
@@ -231,7 +231,7 @@ func (c *Client) DeleteTask(taskID string) error {
 }
 
 // EnableTask enables a task
-func (c *Client) EnableTask(taskID string) error {
+func (c *BaseClient) EnableTask(taskID string) error {
 	if !c.IsTasksEnabled() {
 		return fmt.Errorf("task scheduler is not enabled")
 	}
@@ -240,7 +240,7 @@ func (c *Client) EnableTask(taskID string) error {
 }
 
 // DisableTask disables a task
-func (c *Client) DisableTask(taskID string) error {
+func (c *BaseClient) DisableTask(taskID string) error {
 	if !c.IsTasksEnabled() {
 		return fmt.Errorf("task scheduler is not enabled")
 	}
@@ -249,7 +249,7 @@ func (c *Client) DisableTask(taskID string) error {
 }
 
 // GetTaskExecutions retrieves execution history for a task
-func (c *Client) GetTaskExecutions(taskID string, limit int) ([]*TaskExecution, error) {
+func (c *BaseClient) GetTaskExecutions(taskID string, limit int) ([]*TaskExecution, error) {
 	if !c.IsTasksEnabled() {
 		return nil, fmt.Errorf("task scheduler is not enabled")
 	}
@@ -277,7 +277,7 @@ func (c *Client) GetTaskExecutions(taskID string, limit int) ([]*TaskExecution, 
 }
 
 // CreateQueryTask creates a RAG query task
-func (c *Client) CreateQueryTask(query string, schedule string, options map[string]string) (string, error) {
+func (c *BaseClient) CreateQueryTask(query string, schedule string, options map[string]string) (string, error) {
 	params := map[string]string{
 		"query": query,
 	}
@@ -297,7 +297,7 @@ func (c *Client) CreateQueryTask(query string, schedule string, options map[stri
 }
 
 // CreateScriptTask creates a script execution task
-func (c *Client) CreateScriptTask(script string, schedule string, options map[string]string) (string, error) {
+func (c *BaseClient) CreateScriptTask(script string, schedule string, options map[string]string) (string, error) {
 	params := map[string]string{
 		"script": script,
 	}
@@ -317,7 +317,7 @@ func (c *Client) CreateScriptTask(script string, schedule string, options map[st
 }
 
 // CreateIngestTask creates a document ingestion task
-func (c *Client) CreateIngestTask(path string, schedule string, options map[string]string) (string, error) {
+func (c *BaseClient) CreateIngestTask(path string, schedule string, options map[string]string) (string, error) {
 	params := map[string]string{
 		"path": path,
 	}
@@ -337,7 +337,7 @@ func (c *Client) CreateIngestTask(path string, schedule string, options map[stri
 }
 
 // CreateMCPTask creates an MCP tool execution task
-func (c *Client) CreateMCPTask(toolName string, arguments map[string]interface{}, schedule string) (string, error) {
+func (c *BaseClient) CreateMCPTask(toolName string, arguments map[string]interface{}, schedule string) (string, error) {
 	params := map[string]string{
 		"tool": toolName,
 	}

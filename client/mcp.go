@@ -54,8 +54,8 @@ func (m *MCPClient) CallTool(ctx context.Context, toolName string, args map[stri
 	return m.service.CallTool(ctx, toolName, args)
 }
 
-// EnableMCP enables MCP functionality for the rago client
-func (c *Client) EnableMCP(ctx context.Context) error {
+// EnableMCPFull enables MCP functionality for the rago client with full features
+func (c *BaseClient) EnableMCPFull(ctx context.Context) error {
 	if !c.config.MCP.Enabled {
 		return fmt.Errorf("MCP is disabled in configuration")
 	}
@@ -82,7 +82,7 @@ func (c *Client) EnableMCP(ctx context.Context) error {
 }
 
 // DisableMCP disables MCP functionality
-func (c *Client) DisableMCP() error {
+func (c *BaseClient) DisableMCP() error {
 	if c.mcpClient == nil || !c.mcpClient.enabled {
 		return nil
 	}
@@ -95,12 +95,12 @@ func (c *Client) DisableMCP() error {
 }
 
 // IsMCPEnabled returns whether MCP is enabled and ready
-func (c *Client) IsMCPEnabled() bool {
+func (c *BaseClient) IsMCPEnabled() bool {
 	return c.mcpClient != nil && c.mcpClient.enabled && c.config.MCP.Enabled
 }
 
 // ListMCPTools returns all available MCP tools
-func (c *Client) ListMCPTools() ([]mcp.ToolSummary, error) {
+func (c *BaseClient) ListMCPTools() ([]mcp.ToolSummary, error) {
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
@@ -114,7 +114,7 @@ func (c *Client) ListMCPTools() ([]mcp.ToolSummary, error) {
 }
 
 // GetMCPToolsForLLM returns MCP tools in LLM-compatible format
-func (c *Client) GetMCPToolsForLLM() ([]map[string]interface{}, error) {
+func (c *BaseClient) GetMCPToolsForLLM() ([]map[string]interface{}, error) {
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
@@ -136,7 +136,7 @@ func (c *Client) GetMCPToolsForLLM() ([]map[string]interface{}, error) {
 }
 
 // CallMCPTool calls an MCP tool with the specified arguments
-func (c *Client) CallMCPTool(ctx context.Context, toolName string, args map[string]interface{}) (*mcp.ToolResult, error) {
+func (c *BaseClient) CallMCPTool(ctx context.Context, toolName string, args map[string]interface{}) (*mcp.ToolResult, error) {
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
@@ -145,7 +145,7 @@ func (c *Client) CallMCPTool(ctx context.Context, toolName string, args map[stri
 }
 
 // CallMCPToolWithTimeout calls an MCP tool with a timeout
-func (c *Client) CallMCPToolWithTimeout(toolName string, args map[string]interface{}, timeout time.Duration) (*mcp.ToolResult, error) {
+func (c *BaseClient) CallMCPToolWithTimeout(toolName string, args map[string]interface{}, timeout time.Duration) (*mcp.ToolResult, error) {
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
@@ -156,7 +156,7 @@ func (c *Client) CallMCPToolWithTimeout(toolName string, args map[string]interfa
 }
 
 // GetMCPServerStatus returns the status of MCP servers
-func (c *Client) GetMCPServerStatus() (map[string]bool, error) {
+func (c *BaseClient) GetMCPServerStatus() (map[string]bool, error) {
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
@@ -170,7 +170,7 @@ func (c *Client) GetMCPServerStatus() (map[string]bool, error) {
 }
 
 // BatchCallMCPTools calls multiple MCP tools in parallel
-func (c *Client) BatchCallMCPTools(ctx context.Context, calls []ToolCall) ([]mcp.MCPToolResult, error) {
+func (c *BaseClient) BatchCallMCPTools(ctx context.Context, calls []ToolCall) ([]mcp.MCPToolResult, error) {
 	if !c.IsMCPEnabled() {
 		return nil, fmt.Errorf("MCP is not enabled")
 	}
@@ -221,7 +221,7 @@ type MCPChatOptions struct {
 }
 
 // ChatWithMCP performs a direct chat with MCP tools, bypassing RAG
-func (c *Client) ChatWithMCP(message string, opts *MCPChatOptions) (*MCPChatResponse, error) {
+func (c *BaseClient) ChatWithMCP(message string, opts *MCPChatOptions) (*MCPChatResponse, error) {
 	if opts == nil {
 		opts = &MCPChatOptions{
 			Temperature:  0.7,
