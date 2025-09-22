@@ -1063,6 +1063,10 @@
                         <i data-lucide="play"></i>
                         <span data-en="View Examples" data-cn="查看示例">View Examples</span>
                     </a>
+                    <a href="https://github.com/liliang-cn/rago/tree/main/examples" class="btn btn-outline">
+                        <i data-lucide="code"></i>
+                        <span data-en="Code Examples" data-cn="代码示例">Code Examples</span>
+                    </a>
                 </div>
             </div>
         </div>
@@ -2016,6 +2020,18 @@ curl http://localhost:7127/api/status</code></pre>
                         <div class="example-header" data-en="Go Library Usage" data-cn="Go 库使用">
                             Go Library Usage
                         </div>
+                        <div class="example-description" data-en="Simplified client API with wrappers for all features. See /examples for comprehensive demos:"
+                             data-cn="简化的客户端 API，为所有功能提供包装器。查看 /examples 获取完整演示：">
+                            Simplified client API with wrappers for all features. See /examples for comprehensive demos:
+                        </div>
+                        <ul style="list-style: none; padding: 0; margin: 10px 0; font-size: 14px; color: var(--text-secondary);">
+                            <li>📁 <code>01_basic_client</code> - Client initialization methods</li>
+                            <li>🤖 <code>02_llm_operations</code> - LLM generation, streaming, chat</li>
+                            <li>📚 <code>03_rag_operations</code> - Document ingestion, queries, search</li>
+                            <li>🛠️ <code>04_mcp_tools</code> - MCP tool integration</li>
+                            <li>⚡ <code>05_agent_automation</code> - Task scheduling & workflows</li>
+                            <li>🎯 <code>06_complete_platform</code> - Full integration demo</li>
+                        </ul>
                         <div class="code-block">
                             <button class="copy-button" onclick="copyCode(this)">Copy</button>
                             <pre><code>package main
@@ -2026,45 +2042,66 @@ import (
     "log"
     
     "github.com/liliang-cn/rago/v2/client"
-    "github.com/liliang-cn/rago/v2/pkg/config"
-    "github.com/liliang-cn/rago/v2/pkg/domain"
-    "github.com/liliang-cn/rago/v2/pkg/agents"
-    "github.com/liliang-cn/rago/v2/pkg/mcp"
 )
 
 func main() {
-    // Simple client approach
-    ragoClient, err := client.New("rago.toml")
+    ctx := context.Background()
+    
+    // Simplified client API - only 2 entry points!
+    c, err := client.New("rago.toml") // Or empty string for defaults
     if err != nil {
         log.Fatal(err)
     }
+    defer c.Close()
     
-    // RAG operations
-    err = ragoClient.IngestFile(context.Background(), "research.pdf")
-    if err != nil {
-        log.Fatal(err)
+    // LLM operations with wrapper
+    if c.LLM != nil {
+        response, _ := c.LLM.Generate("Write a haiku about coding")
+        fmt.Println(response)
+        
+        // Streaming
+        c.LLM.Stream(ctx, "Tell a story", func(chunk string) {
+            fmt.Print(chunk)
+        })
     }
     
-    response, err := ragoClient.Query(context.Background(), "What are the key findings?")
-    if err != nil {
-        log.Fatal(err)
+    // RAG operations with wrapper
+    if c.RAG != nil {
+        // Ingest documents
+        c.RAG.Ingest("Your document content here")
+        
+        // Query with sources
+        resp, _ := c.RAG.QueryWithOptions(ctx, "What are the key findings?",
+            &client.QueryOptions{TopK: 5, ShowSources: true})
+        fmt.Printf("Answer: %s\n", resp.Answer)
+        
+        for _, source := range resp.Sources {
+            fmt.Printf("Source: %s (score: %.2f)\n", source.Source, source.Score)
+        }
     }
-    fmt.Printf("Answer: %s\n", response.Answer)
     
-    // Advanced: Agent workflows
-    cfg, _ := config.Load("rago.toml")
-    agentManager := agents.NewManager(cfg)
+    // MCP tools with wrapper
+    if c.Tools != nil {
+        tools, _ := c.Tools.List()
+        fmt.Printf("Available tools: %d\n", len(tools))
+        
+        result, _ := c.Tools.Call(ctx, "filesystem_read",
+            map[string]interface{}{"path": "README.md"})
+        fmt.Printf("Tool result: %v\n", result)
+    }
     
-    // Create and execute agent
-    agent, _ := agentManager.Create("research-agent", "Automated research tasks")
-    result, _ := agentManager.Execute(context.Background(), agent.ID, "analyze recent papers")
+    // Agent automation with wrapper
+    if c.Agent != nil {
+        result, _ := c.Agent.Run("Summarize recent changes")
+        fmt.Printf("Agent result: %v\n", result)
+    }
     
-    // MCP tool integration
-    mcpService := mcp.NewService(cfg)
-    toolResult, _ := mcpService.CallTool(context.Background(), "filesystem", "read_file", 
-        map[string]interface{}{"path": "data.txt"})
-    
-    fmt.Printf("Tool result: %v\n", toolResult)
+    // Direct BaseClient methods also available
+    resp, _ := c.Query(ctx, client.QueryRequest{
+        Query: "test query",
+        TopK:  3,
+    })
+    fmt.Printf("Direct query: %s\n", resp.Answer)
 }</code></pre>
                         </div>
                     </div>
@@ -2097,7 +2134,7 @@ func main() {
                     <div class="code-block">
                         <button class="copy-button" onclick="copyCode(this)">Copy</button>
                         <pre><code># Install with go install (Go 1.21+)
-go install github.com/liliang-cn/rago/cmd/rago@latest
+go install github.com/liliang-cn/rago/v2/cmd/rago-cli@latest
 
 # Initialize configuration
 rago init
@@ -2123,7 +2160,7 @@ cd rago
 make build
 
 # Or build directly
-go build -o rago ./cmd/rago</code></pre>
+go build -o rago ./cmd/rago-cli</code></pre>
                     </div>
                 </div>
 

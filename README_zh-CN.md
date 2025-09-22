@@ -75,7 +75,7 @@ rago status  # 无需配置文件即可工作！
 # 克隆并构建
 git clone https://github.com/liliang-cn/rago.git
 cd rago
-go build -o rago ./cmd/rago
+go build -o rago ./cmd/rago-cli
 
 # 可选：创建配置（仅在需要自定义设置时）
 ./rago init  # 交互式 - 选择"跳过"以零配置
@@ -131,48 +131,65 @@ ollama pull nomic-embed-text   # 默认嵌入器
 ```go
 import "github.com/liliang-cn/rago/v2/client"
 
-// 使用默认配置创建客户端
-client, err := client.New("")
+// 创建客户端 - 现在只有两个入口点！
+client, err := client.New("path/to/config.toml")  // 或空字符串使用默认值
+// 或使用程序化配置
+cfg := &config.Config{...}
+client, err := client.NewWithConfig(cfg)
 defer client.Close()
 
-// 基本 RAG 操作
-err = client.IngestText("您的内容", "doc-id")
-err = client.IngestFile("document.pdf")
-
-response, err := client.Query("这是关于什么的？")
-fmt.Println(response.Answer)
-
-// 带来源的查询
-resp, err := client.QueryWithSources("告诉我更多", true)
-for _, source := range resp.Sources {
-    fmt.Printf("来源: %s (分数: %.2f)\n", source.ID, source.Score)
+// 使用包装器的 LLM 操作
+if client.LLM != nil {
+    response, err := client.LLM.Generate("写一首俳句")
+    
+    // 带选项
+    resp, err := client.LLM.GenerateWithOptions(ctx, "解释量子计算", 
+        &client.GenerateOptions{Temperature: 0.7, MaxTokens: 200})
+    
+    // 流式处理
+    err = client.LLM.Stream(ctx, "讲个故事", func(chunk string) {
+        fmt.Print(chunk)
+    })
 }
 
-// MCP 工具集成
-client.EnableMCP(ctx)
-result, err := client.CallMCPTool(ctx, "filesystem_read", map[string]interface{}{
-    "path": "README.md",
-})
+// 使用包装器的 RAG 操作
+if client.RAG != nil {
+    err = client.RAG.Ingest("您的文档内容")
+    answer, err := client.RAG.Query("这是关于什么的？")
+    
+    // 带来源
+    resp, err := client.RAG.QueryWithOptions(ctx, "告诉我更多",
+        &client.QueryOptions{TopK: 5, ShowSources: true})
+}
 
-// 带历史的聊天
-chatResp, err := client.ChatWithHistory(ctx, "你好", conversation)
+// 使用包装器的 MCP 工具
+if client.Tools != nil {
+    tools, err := client.Tools.List()
+    result, err := client.Tools.Call(ctx, "filesystem_read", 
+        map[string]interface{}{"path": "README.md"})
+}
 
-// LLM 操作
-llmResp, err := client.LLMGenerate(ctx, client.LLMGenerateRequest{
-    Prompt:      "写一首俳句",
-    Temperature: 0.9,
-})
+// 使用包装器的智能代理自动化
+if client.Agent != nil {
+    result, err := client.Agent.Run("总结最近的变化")
+    plan, err := client.Agent.PlanWithOptions(ctx, "构建 REST API", nil)
+}
+
+// 也可以直接使用 BaseClient 方法
+resp, err := client.Query(ctx, client.QueryRequest{Query: "测试"})
+resp, err := client.RunTask(ctx, client.TaskRequest{Task: "分析数据"})
 ```
 
 ### 高级用法示例
 
 展示所有客户端功能的综合示例：
 
-- **[基本 RAG 操作](./examples/client_basic_rag)** - 文档摄取、查询、元数据提取
-- **[MCP 工具集成](./examples/client_mcp_tools)** - 工具调用、批量操作、MCP 增强聊天
-- **[交互式聊天](./examples/client_chat_history)** - 对话历史、流式传输、交互模式
-- **[高级搜索](./examples/client_advanced_search)** - 语义/混合搜索、过滤、性能调优
-- **[LLM 操作](./examples/client_llm_operations)** - 生成、聊天、流式传输、结构化输出
+- **[基本客户端初始化](./examples/01_basic_client)** - 初始化客户端的不同方式
+- **[LLM 操作](./examples/02_llm_operations)** - 生成、流式传输、带历史的聊天
+- **[RAG 操作](./examples/03_rag_operations)** - 文档摄取、查询、语义搜索
+- **[MCP 工具集成](./examples/04_mcp_tools)** - 工具列表、执行、LLM 集成
+- **[代理与任务自动化](./examples/05_agent_automation)** - 任务调度、工作流、自动化
+- **[完整平台演示](./examples/06_complete_platform)** - 所有功能协同工作
 
 ### 直接包使用（高级）
 
@@ -308,12 +325,12 @@ servers_config_path = "mcpServers.json"
 
 ### 示例
 - [客户端使用示例](./examples/) - 全面的客户端库示例
-  - [基本 RAG](./examples/client_basic_rag) - RAG 操作入门
-  - [MCP 工具](./examples/client_mcp_tools) - 工具集成模式
-  - [聊天与历史](./examples/client_chat_history) - 交互式对话
-  - [高级搜索](./examples/client_advanced_search) - 搜索优化
-  - [LLM 操作](./examples/client_llm_operations) - 直接 LLM 使用
-- [代理示例](./examples/agent_usage/) - 代理自动化模式
+  - [基本客户端](./examples/01_basic_client) - 客户端初始化方法
+  - [LLM 操作](./examples/02_llm_operations) - 直接 LLM 使用
+  - [RAG 操作](./examples/03_rag_operations) - 文档摄取和查询
+  - [MCP 工具](./examples/04_mcp_tools) - 工具集成模式
+  - [代理自动化](./examples/05_agent_automation) - 任务调度和工作流
+  - [完整平台](./examples/06_complete_platform) - 完整集成示例
 
 ### 参考文档
 - [API 参考](./docs/api.md) - HTTP API 文档

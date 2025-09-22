@@ -4,16 +4,28 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/liliang-cn/ollama-go"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
+
 // OllamaLLMProvider wraps the existing Ollama LLM service as a provider
 type OllamaLLMProvider struct {
 	client *ollama.Client
 	config *domain.OllamaProviderConfig
+}
+
+var thinkTagRegex = regexp.MustCompile(`(?s)<think>.*?(?:</think>|$)`)
+
+// removeThinkTags removes content between <think></think> tags if configured
+func (p *OllamaLLMProvider) removeThinkTags(content string) string {
+	if p.config.HideBuiltinThinkTag {
+		return thinkTagRegex.ReplaceAllString(content, "")
+	}
+	return content
 }
 
 // NewOllamaLLMProvider creates a new Ollama LLM provider
@@ -107,7 +119,7 @@ func (p *OllamaLLMProvider) Generate(ctx context.Context, prompt string, opts *d
 		return "", fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
 	}
 
-	return resp.Response, nil
+	return p.removeThinkTags(resp.Response), nil
 }
 
 // Stream generates text with streaming using Ollama
@@ -143,14 +155,28 @@ func (p *OllamaLLMProvider) Stream(ctx context.Context, prompt string, opts *dom
 
 	respCh, errCh := ollama.GenerateStream(ctx, p.config.LLMModel, prompt, options...)
 
+	// Use buffering for think tag removal if enabled
+	var streamBuffer *StreamBuffer
+	actualCallback := callback
+	if p.config.HideBuiltinThinkTag {
+		streamBuffer = NewStreamBuffer(callback)
+		actualCallback = func(chunk string) {
+			streamBuffer.Process(chunk)
+		}
+	}
+
 	for {
 		select {
 		case resp, ok := <-respCh:
 			if !ok {
+				// Flush any remaining buffer when stream ends
+				if streamBuffer != nil {
+					streamBuffer.Flush()
+				}
 				return nil
 			}
 			if resp != nil && resp.Response != "" {
-				callback(resp.Response)
+				actualCallback(resp.Response)
 			}
 		case err := <-errCh:
 			if err != nil {
@@ -207,7 +233,7 @@ func (p *OllamaLLMProvider) GenerateWithTools(ctx context.Context, messages []do
 	}
 
 	result := &domain.GenerationResult{
-		Content:  resp.Message.Content,
+		Content:  p.removeThinkTags(resp.Message.Content),
 		Finished: true,
 	}
 
@@ -268,10 +294,32 @@ func (p *OllamaLLMProvider) StreamWithTools(ctx context.Context, messages []doma
 
 	respCh, errCh := ollama.ChatStream(ctx, p.config.LLMModel, ollamaMessages, chatOptions)
 
+	// Use buffering for think tag removal if enabled
+	var streamBuffer *StreamBuffer
+	actualCallback := callback
+	if p.config.HideBuiltinThinkTag {
+		streamBuffer = NewStreamBuffer(func(filtered string) {
+			callback(filtered, nil)
+		})
+		actualCallback = func(content string, toolCalls []domain.ToolCall) error {
+			if len(toolCalls) > 0 {
+				// If we have tool calls, emit them immediately
+				return callback("", toolCalls)
+			}
+			// Otherwise buffer the content for think tag filtering
+			streamBuffer.Process(content)
+			return nil
+		}
+	}
+
 	for {
 		select {
 		case resp, ok := <-respCh:
 			if !ok {
+				// Flush any remaining buffer when stream ends
+				if streamBuffer != nil {
+					streamBuffer.Flush()
+				}
 				return nil
 			}
 			if resp != nil {
@@ -289,7 +337,7 @@ func (p *OllamaLLMProvider) StreamWithTools(ctx context.Context, messages []doma
 						}
 					}
 				}
-				if err := callback(resp.Message.Content, toolCalls); err != nil {
+				if err := actualCallback(resp.Message.Content, toolCalls); err != nil {
 					return fmt.Errorf("callback error: %w", err)
 				}
 			}
@@ -373,7 +421,7 @@ func (p *OllamaLLMProvider) GenerateStructured(ctx context.Context, prompt strin
 		return nil, WrapStructuredOutputError(domain.ProviderOllama, err)
 	}
 
-	rawJSON := response.Message.Content
+	rawJSON := p.removeThinkTags(response.Message.Content)
 
 	// Try to parse the JSON into the provided schema
 	var isValid bool

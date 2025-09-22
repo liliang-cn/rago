@@ -4,7 +4,7 @@
 # Get the latest git tag (fallback to v0.0.0 if no tags)
 GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
 # Variable to hold the Go linker flags
-LDFLAGS := -ldflags="-X 'github.com/liliang-cn/rago/v2/cmd/rago.version=$(GIT_TAG)'"
+LDFLAGS := -ldflags="-X 'github.com/liliang-cn/rago/v2/cmd/rago-cli.version=$(GIT_TAG)'"
 
 # Default target - shows help
 all: help
@@ -39,12 +39,12 @@ help:
 # Build the application with embedded web assets
 build-full: build-web
 	@echo "Building rago version $(GIT_TAG) with embedded web assets..."
-	@go build $(LDFLAGS) -o rago main.go
+	@go build $(LDFLAGS) -o rago-cli ./cmd/rago-cli
 
 # Build just the Go binary (for development, uses existing web assets)
 build-dev:
 	@echo "Building rago version $(GIT_TAG) (development mode)..."
-	@go build $(LDFLAGS) -o rago main.go
+	@go build $(LDFLAGS) -o rago-cli ./cmd/rago-cli
 
 # Alias for backward compatibility
 build: build-full
@@ -76,7 +76,7 @@ test:
 # Clean up build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
-	@rm -f rago
+	@rm -f rago-cli
 	@rm -rf web/dist
 	@rm -rf web/node_modules
 
@@ -88,8 +88,8 @@ clean-web:
 
 # Install the application with embedded web assets
 install: build-full
-	@echo "Installing rago version $(GIT_TAG)..."
-	@go install $(LDFLAGS) ./...
+	@echo "Installing rago-cli version $(GIT_TAG)..."
+	@go install $(LDFLAGS) ./cmd/rago-cli
 
 # Run checks (lint, format check, tests)
 check:

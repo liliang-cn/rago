@@ -1,4 +1,4 @@
-package rago
+package main
 
 import (
 	"bufio"
@@ -160,7 +160,7 @@ func readMultilineInput() string {
 }
 
 // runInteractiveChat runs an interactive chat session with conversation history
-func runInteractiveChat(ctx context.Context, ragoClient *client.Client) error {
+func runInteractiveChat(ctx context.Context, ragoClient *client.BaseClient) error {
 	// Create conversation history
 	systemPrompt := "You are a helpful assistant."
 	if chatSystem != "" {
