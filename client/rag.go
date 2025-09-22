@@ -10,16 +10,16 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/rag"
 )
 
-// IngestOptions configures how content is ingested - kept for client compatibility
-type IngestOptions struct {
+// RAGIngestOptions configures how content is ingested - renamed to avoid conflicts
+type RAGIngestOptions struct {
 	ChunkSize          int                    // Size of text chunks
 	Overlap            int                    // Overlap between chunks
 	EnhancedExtraction bool                   // Enable enhanced metadata extraction
 	Metadata           map[string]interface{} // Additional metadata
 }
 
-// QueryOptions configures query parameters - kept for advanced features
-type QueryOptions struct {
+// RAGQueryOptions configures query parameters - renamed to avoid conflicts
+type RAGQueryOptions struct {
 	TopK         int                    // Number of top results to retrieve
 	Temperature  float64                // Generation temperature
 	MaxTokens    int                    // Maximum tokens in response
@@ -33,22 +33,29 @@ type QueryOptions struct {
 // ========================================
 
 // IngestFile ingests a file from the local filesystem
-func (c *Client) IngestFile(filePath string) error {
+func (c *BaseClient) IngestFile(filePath string) error {
 	ctx := context.Background()
 	_, err := c.ragClient.IngestFile(ctx, filePath, nil)
 	return err
 }
 
 // IngestFileWithOptions ingests a file with custom options
-func (c *Client) IngestFileWithOptions(filePath string, opts *IngestOptions) error {
+func (c *BaseClient) IngestFileWithOptions(filePath string, opts *IngestOptions) error {
 	ctx := context.Background()
 	var ragOpts *rag.IngestOptions
 	if opts != nil {
+		// Convert metadata from map[string]string to map[string]interface{}
+		metadata := make(map[string]interface{})
+		if opts.Metadata != nil {
+			for k, v := range opts.Metadata {
+				metadata[k] = v
+			}
+		}
+		
 		ragOpts = &rag.IngestOptions{
-			ChunkSize:          opts.ChunkSize,
-			Overlap:            opts.Overlap,
-			Metadata:           opts.Metadata,
-			EnhancedExtraction: opts.EnhancedExtraction,
+			ChunkSize: opts.ChunkSize,
+			Overlap:   opts.Overlap,
+			Metadata:  metadata,
 		}
 	}
 	_, err := c.ragClient.IngestFile(ctx, filePath, ragOpts)
@@ -56,14 +63,14 @@ func (c *Client) IngestFileWithOptions(filePath string, opts *IngestOptions) err
 }
 
 // IngestText ingests text content directly
-func (c *Client) IngestText(text, source string) error {
+func (c *BaseClient) IngestText(text, source string) error {
 	ctx := context.Background()
 	_, err := c.ragClient.IngestText(ctx, text, source, nil)
 	return err
 }
 
 // IngestTextWithMetadata ingests text content with additional metadata
-func (c *Client) IngestTextWithMetadata(text, source string, additionalMetadata map[string]interface{}) error {
+func (c *BaseClient) IngestTextWithMetadata(text, source string, additionalMetadata map[string]interface{}) error {
 	ctx := context.Background()
 	ragOpts := &rag.IngestOptions{
 		Metadata: additionalMetadata,
@@ -73,23 +80,30 @@ func (c *Client) IngestTextWithMetadata(text, source string, additionalMetadata 
 }
 
 // IngestTextWithOptions ingests text content with custom options
-func (c *Client) IngestTextWithOptions(text, source string, opts *IngestOptions) error {
+func (c *BaseClient) IngestTextWithOptions(text, source string, opts *IngestOptions) error {
 	ctx := context.Background()
 	var ragOpts *rag.IngestOptions
 	if opts != nil {
+		// Convert metadata from map[string]string to map[string]interface{}
+		metadata := make(map[string]interface{})
+		if opts.Metadata != nil {
+			for k, v := range opts.Metadata {
+				metadata[k] = v
+			}
+		}
+		
 		ragOpts = &rag.IngestOptions{
-			ChunkSize:          opts.ChunkSize,
-			Overlap:            opts.Overlap,
-			Metadata:           opts.Metadata,
-			EnhancedExtraction: opts.EnhancedExtraction,
+			ChunkSize: opts.ChunkSize,
+			Overlap:   opts.Overlap,
+			Metadata:  metadata,
 		}
 	}
 	_, err := c.ragClient.IngestText(ctx, text, source, ragOpts)
 	return err
 }
 
-// Query performs a simple query and returns the response
-func (c *Client) Query(query string) (domain.QueryResponse, error) {
+// QuerySimple performs a simple query and returns the response
+func (c *BaseClient) QuerySimple(query string) (domain.QueryResponse, error) {
 	ctx := context.Background()
 	resp, err := c.ragClient.Query(ctx, query, nil)
 	if err != nil {
@@ -99,7 +113,7 @@ func (c *Client) Query(query string) (domain.QueryResponse, error) {
 }
 
 // QueryWithSources performs a query with optional source information
-func (c *Client) QueryWithSources(query string, showSources bool) (domain.QueryResponse, error) {
+func (c *BaseClient) QueryWithSources(query string, showSources bool) (domain.QueryResponse, error) {
 	ctx := context.Background()
 	ragOpts := &rag.QueryOptions{
 		ShowSources: showSources,
@@ -112,7 +126,7 @@ func (c *Client) QueryWithSources(query string, showSources bool) (domain.QueryR
 }
 
 // QueryWithFilters performs a query with metadata filters
-func (c *Client) QueryWithFilters(query string, filters map[string]interface{}) (domain.QueryResponse, error) {
+func (c *BaseClient) QueryWithFilters(query string, filters map[string]interface{}) (domain.QueryResponse, error) {
 	ctx := context.Background()
 	// For now, filters need to be handled at the query level
 	// This would require an enhancement to the RAG client
@@ -124,7 +138,7 @@ func (c *Client) QueryWithFilters(query string, filters map[string]interface{}) 
 }
 
 // StreamQuery performs a streaming query
-func (c *Client) StreamQuery(query string, callback func(string)) error {
+func (c *BaseClient) StreamQuery(query string, callback func(string)) error {
 	ctx := context.Background()
 	// StreamQuery not yet implemented in RAG client
 	// Fall back to regular query and stream the response
@@ -141,7 +155,7 @@ func (c *Client) StreamQuery(query string, callback func(string)) error {
 }
 
 // StreamQueryWithSources performs a streaming query with optional source information
-func (c *Client) StreamQueryWithSources(query string, callback func(string), showSources bool) ([]domain.Chunk, error) {
+func (c *BaseClient) StreamQueryWithSources(query string, callback func(string), showSources bool) ([]domain.Chunk, error) {
 	ctx := context.Background()
 	ragOpts := &rag.QueryOptions{
 		ShowSources: showSources,
@@ -163,7 +177,7 @@ func (c *Client) StreamQueryWithSources(query string, callback func(string), sho
 }
 
 // StreamQueryWithFilters performs a streaming query with metadata filters
-func (c *Client) StreamQueryWithFilters(query string, filters map[string]interface{}, callback func(string)) error {
+func (c *BaseClient) StreamQueryWithFilters(query string, filters map[string]interface{}, callback func(string)) error {
 	ctx := context.Background()
 	// Filters not yet implemented in RAG client
 	// Fall back to regular query and stream the response
@@ -180,19 +194,19 @@ func (c *Client) StreamQueryWithFilters(query string, filters map[string]interfa
 }
 
 // ListDocuments returns all documents in the knowledge base
-func (c *Client) ListDocuments() ([]domain.Document, error) {
+func (c *BaseClient) ListDocuments() ([]domain.Document, error) {
 	ctx := context.Background()
 	return c.ragClient.ListDocuments(ctx)
 }
 
 // DeleteDocument deletes a document by ID
-func (c *Client) DeleteDocument(documentID string) error {
+func (c *BaseClient) DeleteDocument(documentID string) error {
 	ctx := context.Background()
 	return c.ragClient.DeleteDocument(ctx, documentID)
 }
 
 // Reset clears all documents from the knowledge base
-func (c *Client) Reset() error {
+func (c *BaseClient) Reset() error {
 	ctx := context.Background()
 	return c.ragClient.Reset(ctx)
 }
@@ -202,7 +216,7 @@ func (c *Client) Reset() error {
 // ========================================
 
 // QueryWithTools performs a query with tool calling enabled (advanced feature)
-func (c *Client) QueryWithTools(query string, allowedTools []string, maxToolCalls int) (domain.QueryResponse, error) {
+func (c *BaseClient) QueryWithTools(query string, allowedTools []string, maxToolCalls int) (domain.QueryResponse, error) {
 	ctx := context.Background()
 	
 	// Build tool options
@@ -272,7 +286,7 @@ func (c *Client) QueryWithTools(query string, allowedTools []string, maxToolCall
 }
 
 // QueryWithMCP performs a query with MCP tools enabled (advanced feature)
-func (c *Client) QueryWithMCP(query string) (domain.QueryResponse, error) {
+func (c *BaseClient) QueryWithMCP(query string) (domain.QueryResponse, error) {
 	return c.QueryWithTools(query, nil, 5) // Use all available tools, max 5 calls
 }
 
@@ -293,7 +307,7 @@ type DocumentInfo struct {
 }
 
 // ListDocumentsWithInfo returns documents with parsed metadata information (advanced feature)
-func (c *Client) ListDocumentsWithInfo() ([]DocumentInfo, error) {
+func (c *BaseClient) ListDocumentsWithInfo() ([]DocumentInfo, error) {
 	ctx := context.Background()
 	docs, err := c.ragClient.ListDocuments(ctx)
 	if err != nil {

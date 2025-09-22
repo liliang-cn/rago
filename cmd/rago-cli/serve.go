@@ -1,4 +1,4 @@
-package rago
+package main
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	chatHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/chat"
 	llmHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/llm"
 	mcpHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/mcp"
+	platformHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/platform"
 	ragHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/rag"
 	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/config"
@@ -144,6 +145,32 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 	api := router.Group("/api")
 	{
 		api.GET("/health", handlers.NewHealthHandler().Handle)
+
+		// Platform unified API endpoints (NEW)
+		platformGroup := api.Group("/platform")
+		{
+			platformHandler := platformHandlers.NewHandler(cfg)
+			
+			// Info
+			platformGroup.GET("/info", platformHandler.Info)
+			
+			// LLM endpoints
+			platformGroup.POST("/llm/generate", platformHandler.LLMGenerate)
+			platformGroup.POST("/llm/chat", platformHandler.LLMChat)
+			
+			// RAG endpoints
+			platformGroup.POST("/rag/ingest", platformHandler.RAGIngest)
+			platformGroup.POST("/rag/query", platformHandler.RAGQuery)
+			platformGroup.POST("/rag/search", platformHandler.RAGSearch)
+			
+			// Tools endpoints
+			platformGroup.GET("/tools", platformHandler.ToolsList)
+			platformGroup.POST("/tools/call", platformHandler.ToolCall)
+			
+			// Agent endpoints
+			platformGroup.POST("/agent/run", platformHandler.AgentRun)
+			platformGroup.POST("/agent/plan", platformHandler.AgentPlan)
+		}
 
 		// RAG endpoints
 		ragGroup := api.Group("/rag")

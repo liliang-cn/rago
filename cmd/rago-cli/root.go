@@ -1,11 +1,11 @@
-package rago
+package main
 
 import (
 	"fmt"
 
-	"github.com/liliang-cn/rago/v2/cmd/rago/agent"
-	"github.com/liliang-cn/rago/v2/cmd/rago/mcp"
-	"github.com/liliang-cn/rago/v2/cmd/rago/rag"
+	"github.com/liliang-cn/rago/v2/cmd/rago-cli/agent"
+	"github.com/liliang-cn/rago/v2/cmd/rago-cli/mcp"
+	"github.com/liliang-cn/rago/v2/cmd/rago-cli/rag"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/spf13/cobra"
 )
@@ -21,10 +21,18 @@ var (
 
 var RootCmd = &cobra.Command{
 	Use:   "rago",
-	Short: "RAGO - Local RAG System",
-	Long: `RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system written in Go,
-integrating SQLite vector database (sqvect) and local LLM client (ollama-go),
-supporting document ingestion, semantic search, and context-enhanced Q&A.`,
+	Short: "RAGO - AI Development Platform for Go",
+	Long: `RAGO is a comprehensive AI development platform for Go developers.
+It provides unified access to:
+  • LLM - Language model operations (generation, chat, streaming)
+  • RAG - Retrieval-augmented generation (ingestion, search, Q&A)
+  • Tools - External tool integration via MCP protocol
+  • Agent - Autonomous task execution with natural language
+
+Get started:
+  rago init              # Initialize configuration
+  rago platform demo     # Run platform demonstration
+  rago platform --help   # Show platform commands`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip config loading for commands that don't need existing config
 		if cmd.Name() == "init" || cmd.Name() == "version" {
@@ -97,4 +105,5 @@ func init() {
 	RootCmd.AddCommand(serveCmd)
 	RootCmd.AddCommand(llmCmd)
 	RootCmd.AddCommand(chatCmd)
+	RootCmd.AddCommand(statusCmd)
 }

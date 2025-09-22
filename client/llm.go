@@ -7,7 +7,120 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
+// LLMWrapper wraps the domain.Generator to provide additional methods
+type LLMWrapper struct {
+	generator domain.Generator
+}
+
+// NewLLMWrapper creates a new LLM wrapper
+func NewLLMWrapper(gen domain.Generator) *LLMWrapper {
+	return &LLMWrapper{generator: gen}
+}
+
+// Generate generates text from a prompt (simple convenience method)
+func (l *LLMWrapper) Generate(prompt string) (string, error) {
+	ctx := context.Background()
+	if l.generator == nil {
+		return "", fmt.Errorf("LLM not initialized")
+	}
+	return l.generator.Generate(ctx, prompt, nil)
+}
+
+// GenerateWithOptions generates text with specific options
+func (l *LLMWrapper) GenerateWithOptions(ctx context.Context, prompt string, opts *GenerateOptions) (string, error) {
+	if l.generator == nil {
+		return "", fmt.Errorf("LLM not initialized")
+	}
+	
+	genOpts := &domain.GenerationOptions{
+		Temperature: opts.Temperature,
+		MaxTokens:   opts.MaxTokens,
+	}
+	
+	return l.generator.Generate(ctx, prompt, genOpts)
+}
+
+// StreamWithOptions streams text generation with specific options
+func (l *LLMWrapper) StreamWithOptions(ctx context.Context, prompt string, callback func(string), opts *GenerateOptions) error {
+	if l.generator == nil {
+		return fmt.Errorf("LLM not initialized")
+	}
+	
+	genOpts := &domain.GenerationOptions{
+		Temperature: opts.Temperature,
+		MaxTokens:   opts.MaxTokens,
+	}
+	
+	return l.generator.Stream(ctx, prompt, genOpts, callback)
+}
+
+// ChatWithOptions performs chat completion with specific options
+func (l *LLMWrapper) ChatWithOptions(ctx context.Context, messages []ChatMessage, opts *GenerateOptions) (string, error) {
+	if l.generator == nil {
+		return "", fmt.Errorf("LLM not initialized")
+	}
+	
+	// Convert ChatMessage to domain.Message
+	domainMessages := make([]domain.Message, len(messages))
+	for i, msg := range messages {
+		domainMessages[i] = domain.Message{
+			Role:    msg.Role,
+			Content: msg.Content,
+		}
+	}
+	
+	genOpts := &domain.GenerationOptions{
+		Temperature: opts.Temperature,
+		MaxTokens:   opts.MaxTokens,
+	}
+	
+	// Use GenerateWithTools with nil tools for chat
+	result, err := l.generator.GenerateWithTools(ctx, domainMessages, nil, genOpts)
+	if err != nil {
+		return "", err
+	}
+	
+	return result.Content, nil
+}
+
+// ChatStreamWithOptions performs streaming chat completion with specific options
+func (l *LLMWrapper) ChatStreamWithOptions(ctx context.Context, messages []ChatMessage, callback func(string), opts *GenerateOptions) error {
+	if l.generator == nil {
+		return fmt.Errorf("LLM not initialized")
+	}
+	
+	// Convert ChatMessage to domain.Message
+	domainMessages := make([]domain.Message, len(messages))
+	for i, msg := range messages {
+		domainMessages[i] = domain.Message{
+			Role:    msg.Role,
+			Content: msg.Content,
+		}
+	}
+	
+	genOpts := &domain.GenerationOptions{
+		Temperature: opts.Temperature,
+		MaxTokens:   opts.MaxTokens,
+	}
+	
+	// Use StreamWithTools with nil tools for chat
+	return l.generator.StreamWithTools(ctx, domainMessages, nil, genOpts, func(chunk string, toolCalls []domain.ToolCall) error {
+		if chunk != "" {
+			callback(chunk)
+		}
+		return nil
+	})
+}
+
+// ChatMessage represents a message in a chat conversation
+type ChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 // LLMGenerateRequest defines the request for direct LLM generation
+// Note: If using Ollama provider with HideBuiltinThinkTag enabled,
+// think tags (<think>...</think>) will be automatically removed from responses
 type LLMGenerateRequest struct {
 	Prompt      string  // The prompt to generate from
 	Temperature float64 // Generation temperature (0.0-1.0)
@@ -20,7 +133,7 @@ type LLMGenerateResponse struct {
 }
 
 // LLMGenerate performs a direct generation using the configured LLM
-func (c *Client) LLMGenerate(ctx context.Context, req LLMGenerateRequest) (LLMGenerateResponse, error) {
+func (c *BaseClient) LLMGenerate(ctx context.Context, req LLMGenerateRequest) (LLMGenerateResponse, error) {
 	if c.llm == nil {
 		return LLMGenerateResponse{}, fmt.Errorf("LLM service not initialized")
 	}
@@ -39,7 +152,7 @@ func (c *Client) LLMGenerate(ctx context.Context, req LLMGenerateRequest) (LLMGe
 }
 
 // LLMGenerateStream performs a direct streaming generation using the configured LLM
-func (c *Client) LLMGenerateStream(ctx context.Context, req LLMGenerateRequest, callback func(string)) error {
+func (c *BaseClient) LLMGenerateStream(ctx context.Context, req LLMGenerateRequest, callback func(string)) error {
 	if c.llm == nil {
 		return fmt.Errorf("LLM service not initialized")
 	}
@@ -52,11 +165,6 @@ func (c *Client) LLMGenerateStream(ctx context.Context, req LLMGenerateRequest, 
 	return c.llm.Stream(ctx, req.Prompt, opts, callback)
 }
 
-// ChatMessage defines a single message in a chat conversation
-type ChatMessage struct {
-	Role    string `json:"role"` // "user" or "assistant"
-	Content string `json:"content"`
-}
 
 // LLMChatRequest defines the request for a direct LLM chat
 type LLMChatRequest struct {
@@ -66,7 +174,7 @@ type LLMChatRequest struct {
 }
 
 // LLMChat performs a direct multi-turn chat using the configured LLM
-func (c *Client) LLMChat(ctx context.Context, req LLMChatRequest) (LLMGenerateResponse, error) {
+func (c *BaseClient) LLMChat(ctx context.Context, req LLMChatRequest) (LLMGenerateResponse, error) {
 	if c.llm == nil {
 		return LLMGenerateResponse{}, fmt.Errorf("LLM service not initialized")
 	}
@@ -92,7 +200,7 @@ func (c *Client) LLMChat(ctx context.Context, req LLMChatRequest) (LLMGenerateRe
 }
 
 // LLMChatStream performs a direct streaming chat using the configured LLM
-func (c *Client) LLMChatStream(ctx context.Context, req LLMChatRequest, callback func(string)) error {
+func (c *BaseClient) LLMChatStream(ctx context.Context, req LLMChatRequest, callback func(string)) error {
 	if c.llm == nil {
 		return fmt.Errorf("LLM service not initialized")
 	}
@@ -131,7 +239,7 @@ type LLMStructuredResponse struct {
 }
 
 // LLMGenerateStructured performs structured JSON generation using the configured LLM
-func (c *Client) LLMGenerateStructured(ctx context.Context, req LLMStructuredRequest) (LLMStructuredResponse, error) {
+func (c *BaseClient) LLMGenerateStructured(ctx context.Context, req LLMStructuredRequest) (LLMStructuredResponse, error) {
 	if c.llm == nil {
 		return LLMStructuredResponse{}, fmt.Errorf("LLM service not initialized")
 	}

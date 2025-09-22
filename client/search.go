@@ -7,8 +7,8 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/rag"
 )
 
-// SearchOptions configures the search parameters
-type SearchOptions struct {
+// ClientSearchOptions configures the search parameters - renamed to avoid conflicts
+type ClientSearchOptions struct {
 	// Number of results to return
 	TopK int
 
@@ -26,8 +26,8 @@ type SearchOptions struct {
 }
 
 // DefaultSearchOptions returns default search options
-func DefaultSearchOptions() *SearchOptions {
-	return &SearchOptions{
+func DefaultSearchOptions() *ClientSearchOptions {
+	return &ClientSearchOptions{
 		TopK:            5,
 		ScoreThreshold:  0.0,
 		IncludeMetadata: true,
@@ -38,6 +38,7 @@ func DefaultSearchOptions() *SearchOptions {
 
 // SearchResult represents a search result
 type SearchResult struct {
+	ID       string  // Document or chunk ID
 	Content  string
 	Score    float64
 	Metadata map[string]interface{}
@@ -45,7 +46,7 @@ type SearchResult struct {
 }
 
 // Search performs a search on the knowledge base
-func (c *Client) Search(ctx context.Context, query string, opts *SearchOptions) ([]SearchResult, error) {
+func (c *BaseClient) Search(ctx context.Context, query string, opts *ClientSearchOptions) ([]SearchResult, error) {
 	if opts == nil {
 		opts = DefaultSearchOptions()
 	}
@@ -85,7 +86,7 @@ func (c *Client) Search(ctx context.Context, query string, opts *SearchOptions) 
 }
 
 // SearchWithContext performs a search and returns results with context
-func (c *Client) SearchWithContext(ctx context.Context, query string, opts *SearchOptions) (string, []SearchResult, error) {
+func (c *BaseClient) SearchWithContext(ctx context.Context, query string, opts *ClientSearchOptions) (string, []SearchResult, error) {
 	results, err := c.Search(ctx, query, opts)
 	if err != nil {
 		return "", nil, err

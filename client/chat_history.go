@@ -81,7 +81,7 @@ func (h *ConversationHistory) Clear() {
 }
 
 // ChatWithHistory performs a chat with conversation history
-func (c *Client) ChatWithHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions) (string, error) {
+func (c *BaseClient) ChatWithHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions) (string, error) {
 	if c.llm == nil {
 		return "", fmt.Errorf("LLM service not initialized")
 	}
@@ -116,7 +116,7 @@ func (c *Client) ChatWithHistory(ctx context.Context, message string, history *C
 }
 
 // StreamChatWithHistory performs streaming chat with conversation history
-func (c *Client) StreamChatWithHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions, callback func(string)) error {
+func (c *BaseClient) StreamChatWithHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions, callback func(string)) error {
 	if c.llm == nil {
 		return fmt.Errorf("LLM service not initialized")
 	}
@@ -156,7 +156,7 @@ func (c *Client) StreamChatWithHistory(ctx context.Context, message string, hist
 }
 
 // ChatWithRAGHistory performs a RAG-enhanced chat with conversation history
-func (c *Client) ChatWithRAGHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions) (string, []SearchResult, error) {
+func (c *BaseClient) ChatWithRAGHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions) (string, []SearchResult, error) {
 	if c.llm == nil {
 		return "", nil, fmt.Errorf("LLM service not initialized")
 	}
@@ -173,7 +173,7 @@ func (c *Client) ChatWithRAGHistory(ctx context.Context, message string, history
 	}
 
 	// Search knowledge base
-	searchOpts := &SearchOptions{
+	searchOpts := &ClientSearchOptions{
 		TopK:            5,
 		IncludeMetadata: true,
 	}
@@ -213,7 +213,7 @@ func (c *Client) ChatWithRAGHistory(ctx context.Context, message string, history
 }
 
 // StreamChatWithRAGHistory performs streaming RAG-enhanced chat with conversation history
-func (c *Client) StreamChatWithRAGHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions, callback func(string)) ([]SearchResult, error) {
+func (c *BaseClient) StreamChatWithRAGHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions, callback func(string)) ([]SearchResult, error) {
 	if c.llm == nil {
 		return nil, fmt.Errorf("LLM service not initialized")
 	}
@@ -230,7 +230,7 @@ func (c *Client) StreamChatWithRAGHistory(ctx context.Context, message string, h
 	}
 
 	// Search knowledge base
-	searchOpts := &SearchOptions{
+	searchOpts := &ClientSearchOptions{
 		TopK:            5,
 		IncludeMetadata: true,
 	}
@@ -275,7 +275,7 @@ func (c *Client) StreamChatWithRAGHistory(ctx context.Context, message string, h
 }
 
 // ChatWithMCPHistory performs a chat with MCP tools and conversation history
-func (c *Client) ChatWithMCPHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions) (string, []domain.ToolCall, error) {
+func (c *BaseClient) ChatWithMCPHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions) (string, []domain.ToolCall, error) {
 	if c.llm == nil {
 		return "", nil, fmt.Errorf("LLM service not initialized")
 	}
@@ -354,7 +354,7 @@ func (c *Client) ChatWithMCPHistory(ctx context.Context, message string, history
 }
 
 // StreamChatWithMCPHistory performs streaming chat with MCP tools and conversation history
-func (c *Client) StreamChatWithMCPHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions, callback func(string)) ([]domain.ToolCall, error) {
+func (c *BaseClient) StreamChatWithMCPHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions, callback func(string)) ([]domain.ToolCall, error) {
 	if c.llm == nil {
 		return nil, fmt.Errorf("LLM service not initialized")
 	}
@@ -452,7 +452,7 @@ func (c *Client) StreamChatWithMCPHistory(ctx context.Context, message string, h
 }
 
 // ChatWithRAGAndMCPHistory performs a RAG-enhanced chat with MCP tools and conversation history
-func (c *Client) ChatWithRAGAndMCPHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions) (string, []SearchResult, []domain.ToolCall, error) {
+func (c *BaseClient) ChatWithRAGAndMCPHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions) (string, []SearchResult, []domain.ToolCall, error) {
 	if c.llm == nil {
 		return "", nil, nil, fmt.Errorf("LLM service not initialized")
 	}
@@ -470,7 +470,7 @@ func (c *Client) ChatWithRAGAndMCPHistory(ctx context.Context, message string, h
 	}
 
 	// Search knowledge base first
-	searchOpts := &SearchOptions{
+	searchOpts := &ClientSearchOptions{
 		TopK:            5,
 		IncludeMetadata: true,
 	}
@@ -557,7 +557,7 @@ func (c *Client) ChatWithRAGAndMCPHistory(ctx context.Context, message string, h
 }
 
 // StreamChatWithRAGAndMCPHistory performs streaming RAG-enhanced chat with MCP tools and conversation history
-func (c *Client) StreamChatWithRAGAndMCPHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions, callback func(string)) ([]SearchResult, []domain.ToolCall, error) {
+func (c *BaseClient) StreamChatWithRAGAndMCPHistory(ctx context.Context, message string, history *ConversationHistory, opts *domain.GenerationOptions, callback func(string)) ([]SearchResult, []domain.ToolCall, error) {
 	if c.llm == nil {
 		return nil, nil, fmt.Errorf("LLM service not initialized")
 	}
@@ -575,7 +575,7 @@ func (c *Client) StreamChatWithRAGAndMCPHistory(ctx context.Context, message str
 	}
 
 	// Search knowledge base first
-	searchOpts := &SearchOptions{
+	searchOpts := &ClientSearchOptions{
 		TopK:            5,
 		IncludeMetadata: true,
 	}
