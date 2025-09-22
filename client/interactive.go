@@ -62,7 +62,7 @@ func DefaultInteractiveChatOptions() *InteractiveChatOptions {
 }
 
 // InteractiveChat starts an interactive chat session
-func (c *Client) InteractiveChat(ctx context.Context, opts *InteractiveChatOptions) error {
+func (c *BaseClient) InteractiveChat(ctx context.Context, opts *InteractiveChatOptions) error {
 	if opts == nil {
 		opts = DefaultInteractiveChatOptions()
 	}
@@ -250,7 +250,7 @@ func (c *Client) InteractiveChat(ctx context.Context, opts *InteractiveChatOptio
 }
 
 // InteractiveChatWithRAG starts an interactive chat session with RAG support
-func (c *Client) InteractiveChatWithRAG(ctx context.Context, opts *InteractiveChatOptions) error {
+func (c *BaseClient) InteractiveChatWithRAG(ctx context.Context, opts *InteractiveChatOptions) error {
 	if opts == nil {
 		opts = DefaultInteractiveChatOptions()
 	}
@@ -306,7 +306,7 @@ func (c *Client) InteractiveChatWithRAG(ctx context.Context, opts *InteractiveCh
 		}
 
 		// Search knowledge base
-		searchOpts := &SearchOptions{
+		searchOpts := &ClientSearchOptions{
 			TopK:           5,
 			ScoreThreshold: 0.7,
 		}

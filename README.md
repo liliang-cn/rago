@@ -75,7 +75,7 @@ That's it! No configuration needed. RAGO uses smart defaults.
 # Clone and build
 git clone https://github.com/liliang-cn/rago.git
 cd rago
-go build -o rago ./cmd/rago
+go build -o rago ./cmd/rago-cli
 
 # Optional: Create config (only if you need custom settings)
 ./rago init  # Interactive - choose "Skip" for zero-config
@@ -120,48 +120,65 @@ The new client package provides a streamlined interface for all RAGO features:
 ```go
 import "github.com/liliang-cn/rago/v2/client"
 
-// Create client with default config
-client, err := client.New("")
+// Create client - now only two entry points!
+client, err := client.New("path/to/config.toml")  // Or empty string for defaults
+// Or with programmatic config
+cfg := &config.Config{...}
+client, err := client.NewWithConfig(cfg)
 defer client.Close()
 
-// Basic RAG operations
-err = client.IngestText("Your content here", "doc-id")
-err = client.IngestFile("document.pdf")
-
-response, err := client.Query("What is this about?")
-fmt.Println(response.Answer)
-
-// Query with sources
-resp, err := client.QueryWithSources("Tell me more", true)
-for _, source := range resp.Sources {
-    fmt.Printf("Source: %s (score: %.2f)\n", source.ID, source.Score)
+// LLM operations with wrapper
+if client.LLM != nil {
+    response, err := client.LLM.Generate("Write a haiku")
+    
+    // With options
+    resp, err := client.LLM.GenerateWithOptions(ctx, "Explain quantum computing", 
+        &client.GenerateOptions{Temperature: 0.7, MaxTokens: 200})
+    
+    // Streaming
+    err = client.LLM.Stream(ctx, "Tell a story", func(chunk string) {
+        fmt.Print(chunk)
+    })
 }
 
-// MCP tools integration
-client.EnableMCP(ctx)
-result, err := client.CallMCPTool(ctx, "filesystem_read", map[string]interface{}{
-    "path": "README.md",
-})
+// RAG operations with wrapper  
+if client.RAG != nil {
+    err = client.RAG.Ingest("Your document content")
+    answer, err := client.RAG.Query("What is this about?")
+    
+    // With sources
+    resp, err := client.RAG.QueryWithOptions(ctx, "Tell me more",
+        &client.QueryOptions{TopK: 5, ShowSources: true})
+}
 
-// Chat with history
-chatResp, err := client.ChatWithHistory(ctx, "Hello", conversation)
+// MCP tools with wrapper
+if client.Tools != nil {
+    tools, err := client.Tools.List()
+    result, err := client.Tools.Call(ctx, "filesystem_read", 
+        map[string]interface{}{"path": "README.md"})
+}
 
-// LLM operations
-llmResp, err := client.LLMGenerate(ctx, client.LLMGenerateRequest{
-    Prompt:      "Write a haiku",
-    Temperature: 0.9,
-})
+// Agent automation with wrapper
+if client.Agent != nil {
+    result, err := client.Agent.Run("Summarize recent changes")
+    plan, err := client.Agent.PlanWithOptions(ctx, "Build a REST API", nil)
+}
+
+// Direct BaseClient methods also available
+resp, err := client.Query(ctx, client.QueryRequest{Query: "test"})
+resp, err := client.RunTask(ctx, client.TaskRequest{Task: "analyze data"})
 ```
 
 ### Advanced Usage Examples
 
 Comprehensive examples demonstrating all client features:
 
-- **[Basic RAG Operations](./examples/client_basic_rag)** - Document ingestion, queries, metadata extraction
-- **[MCP Tool Integration](./examples/client_mcp_tools)** - Tool calls, batch operations, MCP-enhanced chat
-- **[Interactive Chat](./examples/client_chat_history)** - Conversation history, streaming, interactive mode
-- **[Advanced Search](./examples/client_advanced_search)** - Semantic/hybrid search, filtering, performance tuning
-- **[LLM Operations](./examples/client_llm_operations)** - Generation, chat, streaming, structured output
+- **[Basic Client Initialization](./examples/01_basic_client)** - Different ways to initialize the client
+- **[LLM Operations](./examples/02_llm_operations)** - Generation, streaming, chat with history
+- **[RAG Operations](./examples/03_rag_operations)** - Document ingestion, queries, semantic search
+- **[MCP Tools Integration](./examples/04_mcp_tools)** - Tool listing, execution, LLM integration
+- **[Agent & Task Automation](./examples/05_agent_automation)** - Task scheduling, workflows, automation
+- **[Complete Platform Demo](./examples/06_complete_platform)** - All features working together
 
 ### Direct Package Usage (Advanced)
 
@@ -296,12 +313,12 @@ servers_config_path = "mcpServers.json"
 
 ### Examples
 - [Client Usage Examples](./examples/) - Comprehensive client library examples
-  - [Basic RAG](./examples/client_basic_rag) - Getting started with RAG operations
-  - [MCP Tools](./examples/client_mcp_tools) - Tool integration patterns
-  - [Chat & History](./examples/client_chat_history) - Interactive conversations
-  - [Advanced Search](./examples/client_advanced_search) - Search optimization
-  - [LLM Operations](./examples/client_llm_operations) - Direct LLM usage
-- [Agent Examples](./examples/agent_usage/) - Agent automation patterns
+  - [Basic Client](./examples/01_basic_client) - Client initialization methods
+  - [LLM Operations](./examples/02_llm_operations) - Direct LLM usage
+  - [RAG Operations](./examples/03_rag_operations) - Document ingestion and queries
+  - [MCP Tools](./examples/04_mcp_tools) - Tool integration patterns
+  - [Agent Automation](./examples/05_agent_automation) - Task scheduling and workflows
+  - [Complete Platform](./examples/06_complete_platform) - Full integration example
 
 ### References
 - [API Reference](./docs/api.md) - HTTP API documentation

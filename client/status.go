@@ -14,7 +14,7 @@ type StatusResult struct {
 }
 
 // CheckStatus checks the health and status of the rago client (delegated to status checker)
-func (c *Client) CheckStatus() StatusResult {
+func (c *BaseClient) CheckStatus() StatusResult {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
