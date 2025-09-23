@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: [1.21]
+        go-version: ["1.22"]
 
     steps:
       - name: Checkout code
@@ -50,7 +50,7 @@ jobs:
         run: make build-all
 
       - name: Upload coverage reports to Codecov
-        if: matrix.go-version == '1.21'
+        if: matrix.go-version == '1.22'
         uses: codecov/codecov-action@v3
         with:
           file: ./coverage.out

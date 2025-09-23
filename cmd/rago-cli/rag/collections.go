@@ -28,7 +28,7 @@ var collectionsCmd = &cobra.Command{
 		}()
 
 		ctx := context.Background()
-		
+
 		// Get all documents to extract unique collections
 		documents, err := vectorStore.List(ctx)
 		if err != nil {
@@ -83,7 +83,7 @@ var collectionsCmd = &cobra.Command{
 			if description == "" {
 				description = "LLM-classified documents"
 			}
-			
+
 			if _, err := fmt.Fprintf(w, "%s\t%d\t%s\n",
 				collection,
 				count,
@@ -101,4 +101,3 @@ var collectionsCmd = &cobra.Command{
 		return nil
 	},
 }
-

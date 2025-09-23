@@ -18,14 +18,14 @@ import (
 	mcpHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/mcp"
 	platformHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/platform"
 	ragHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/rag"
-	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
+	"github.com/liliang-cn/rago/v2/internal/web"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/llm"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
-	"github.com/liliang-cn/rago/v2/internal/web"
 	"github.com/spf13/cobra"
 )
 
@@ -150,23 +150,23 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 		platformGroup := api.Group("/platform")
 		{
 			platformHandler := platformHandlers.NewHandler(cfg)
-			
+
 			// Info
 			platformGroup.GET("/info", platformHandler.Info)
-			
+
 			// LLM endpoints
 			platformGroup.POST("/llm/generate", platformHandler.LLMGenerate)
 			platformGroup.POST("/llm/chat", platformHandler.LLMChat)
-			
+
 			// RAG endpoints
 			platformGroup.POST("/rag/ingest", platformHandler.RAGIngest)
 			platformGroup.POST("/rag/query", platformHandler.RAGQuery)
 			platformGroup.POST("/rag/search", platformHandler.RAGSearch)
-			
+
 			// Tools endpoints
 			platformGroup.GET("/tools", platformHandler.ToolsList)
 			platformGroup.POST("/tools/call", platformHandler.ToolCall)
-			
+
 			// Agent endpoints
 			platformGroup.POST("/agent/run", platformHandler.AgentRun)
 			platformGroup.POST("/agent/plan", platformHandler.AgentPlan)
@@ -188,7 +188,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 			ragGroup.GET("/documents/info", documentsHandler.ListWithInfo)
 			ragGroup.GET("/documents/:id", documentsHandler.GetDocumentInfo)
 			ragGroup.DELETE("/documents/:id", documentsHandler.Delete)
-			
+
 			// Advanced search endpoints
 			searchHandler := ragHandlers.NewSearchHandler(processor)
 			ragGroup.POST("/search/semantic", searchHandler.SemanticSearch)
@@ -230,7 +230,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 				chatGroup.POST("/complete", chatHandler.Complete)
 			}
 		}
-		
+
 		// LLM endpoints for direct operations
 		llmGroup := api.Group("/llm")
 		{
@@ -298,7 +298,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 					mcpGroup.GET("/tools/:name", mcpHandler.GetTool)
 					mcpGroup.POST("/tools/call", mcpHandler.CallTool)
 					mcpGroup.POST("/tools/batch", mcpHandler.BatchCallTools)
-					
+
 					// Enhanced MCP operations
 					mcpGroup.POST("/chat", mcpHandler.ChatWithMCP)
 					mcpGroup.POST("/query", mcpHandler.QueryWithMCP)

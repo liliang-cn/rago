@@ -7,9 +7,9 @@ import (
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/rag/embedder"
 	"github.com/liliang-cn/rago/v2/pkg/llm"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
+	"github.com/liliang-cn/rago/v2/pkg/rag/embedder"
 	"github.com/spf13/cobra"
 )
 
