@@ -91,6 +91,17 @@ func (c *Config) LoadServersFromJSON() error {
 	return nil
 }
 
+// GetLoadedServers returns a copy of loaded servers with thread-safe access
+func (c *Config) GetLoadedServers() []ServerConfig {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	
+	// Return a copy to prevent external modification
+	servers := make([]ServerConfig, len(c.LoadedServers))
+	copy(servers, c.LoadedServers)
+	return servers
+}
+
 // loadServerFile loads a single server configuration file
 func (c *Config) loadServerFile(serverFile string) error {
 	// Resolve path - check current directory first, then ~/.rago/

@@ -211,9 +211,11 @@ func (m *Manager) StartServer(ctx context.Context, serverName string) (*Client, 
 
 	// Find server config
 	var serverConfig *ServerConfig
-	for _, config := range m.config.LoadedServers {
+	loadedServers := m.config.GetLoadedServers()
+	for _, config := range loadedServers {
 		if config.Name == serverName {
-			serverConfig = &config
+			cfg := config // Create a copy to get a stable address
+			serverConfig = &cfg
 			break
 		}
 	}
