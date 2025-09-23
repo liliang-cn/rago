@@ -67,10 +67,7 @@ func NewWithConfig(cfg *config.Config) (*BaseClient, error) {
 	}
 
 	// Initialize metadata extractor (use LLM provider)
-	metadataExtractor, ok := llm.(domain.LLMProvider)
-	if !ok {
-		return nil, fmt.Errorf("LLM provider does not support metadata extraction")
-	}
+	metadataExtractor := llm
 
 	// Create RAG client
 	ragClient, err := rag.NewClient(cfg, embedder, metadataExtractor, metadataExtractor)
