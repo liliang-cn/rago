@@ -41,6 +41,11 @@ func (s *SettingsWrapper) ListProfiles() ([]*settings.UserProfile, error) {
 	return s.service.ListProfiles()
 }
 
+// GetProfile gets a profile by ID
+func (s *SettingsWrapper) GetProfile(profileID string) (*settings.UserProfile, error) {
+	return s.service.GetProfile(profileID)
+}
+
 // SwitchProfile switches to a different profile by ID
 func (s *SettingsWrapper) SwitchProfile(profileID string) error {
 	return s.service.SetActiveProfile(profileID)
