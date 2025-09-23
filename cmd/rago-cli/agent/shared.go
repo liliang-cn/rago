@@ -39,10 +39,10 @@ func Initialize(cfg *config.Config) {
 
 		// Add run command - the main agent functionality
 		AgentCmd.AddCommand(agentRunCmd)
-		
+
 		// Add exec command - execute saved plans
 		AgentCmd.AddCommand(agentExecCmd)
-		
+
 		// Add do command - intelligent RAG + planning + execution
 		AgentCmd.AddCommand(agentDoCmd)
 	}

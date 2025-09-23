@@ -29,7 +29,7 @@ func main() {
 	fmt.Println("=== Example 1: Simple Agent Task ===")
 	if c.Agent != nil {
 		task := "Summarize the benefits of using Go for backend development"
-		
+
 		result, err := c.Agent.Run(task)
 		if err != nil {
 			log.Printf("Task execution error: %v\n", err)
@@ -51,7 +51,7 @@ func main() {
 			Verbose: true,
 			Timeout: 30,
 		}
-		
+
 		task := "Create a simple data structure for a todo list in Go"
 		result, err := c.Agent.RunWithOptions(ctx, task, opts)
 		if err != nil {
@@ -68,7 +68,7 @@ func main() {
 	fmt.Println("\n=== Example 3: Task Planning ===")
 	if c.Agent != nil {
 		task := "Build a REST API for a blog system"
-		
+
 		plan, err := c.Agent.PlanWithOptions(ctx, task, nil)
 		if err != nil {
 			log.Printf("Planning error: %v\n", err)
@@ -87,7 +87,7 @@ func main() {
 		Task:    "Write a haiku about programming",
 		Verbose: false,
 	}
-	
+
 	resp, err := c.RunTask(ctx, req)
 	if err != nil {
 		log.Printf("Task error: %v\n", err)
@@ -100,14 +100,14 @@ func main() {
 
 	// Example 5: Task scheduling
 	fmt.Println("\n=== Example 5: Task Scheduling ===")
-	
+
 	// Enable task scheduler
 	err = c.EnableTasks(ctx)
 	if err != nil {
 		log.Printf("Failed to enable task scheduler: %v\n", err)
 	} else {
 		fmt.Println("✓ Task scheduler enabled")
-		
+
 		// Create a scheduled RAG query task
 		schedule := "*/5 * * * *" // Every 5 minutes
 		taskID, err := c.CreateQueryTask(
@@ -117,12 +117,12 @@ func main() {
 				"top_k": "5",
 			},
 		)
-		
+
 		if err != nil {
 			log.Printf("Failed to create scheduled task: %v\n", err)
 		} else {
 			fmt.Printf("✓ Created scheduled query task: %s\n", taskID)
-			
+
 			// Get task info
 			taskInfo, err := c.GetTask(taskID)
 			if err == nil {
@@ -130,7 +130,7 @@ func main() {
 				fmt.Printf("  Schedule: %s\n", taskInfo.Schedule)
 				fmt.Printf("  Enabled: %v\n", taskInfo.Enabled)
 			}
-			
+
 			// Run task immediately (for demo)
 			fmt.Println("\nRunning task immediately...")
 			result, err := c.RunScheduledTask(taskID)
@@ -142,7 +142,7 @@ func main() {
 					fmt.Printf("  Output: %s\n", result.Output)
 				}
 			}
-			
+
 			// Clean up - delete the task
 			if err := c.DeleteTask(taskID); err == nil {
 				fmt.Println("✓ Cleaned up scheduled task")
@@ -154,14 +154,14 @@ func main() {
 	fmt.Println("\n=== Example 6: Script Task ===")
 	if c.IsTasksEnabled() {
 		script := `echo "Hello from RAGO script task"`
-		
+
 		// Create a one-time script task (empty schedule)
 		taskID, err := c.CreateScriptTask(script, "", nil)
 		if err != nil {
 			log.Printf("Failed to create script task: %v\n", err)
 		} else {
 			fmt.Printf("✓ Created script task: %s\n", taskID)
-			
+
 			// Run it
 			result, err := c.RunScheduledTask(taskID)
 			if err != nil {
@@ -170,7 +170,7 @@ func main() {
 				fmt.Printf("  Success: %v\n", result.Success)
 				fmt.Printf("  Duration: %v\n", result.Duration)
 			}
-			
+
 			// Clean up
 			c.DeleteTask(taskID)
 		}
@@ -182,7 +182,7 @@ func main() {
 		// Create a few sample tasks
 		task1, _ := c.CreateQueryTask("Sample query 1", "0 0 * * *", nil)
 		task2, _ := c.CreateIngestTask("/path/to/doc.pdf", "0 */6 * * *", nil)
-		
+
 		// List all tasks
 		tasks, err := c.ListTasks(false)
 		if err != nil {
@@ -196,11 +196,11 @@ func main() {
 				}
 			}
 		}
-		
+
 		// Clean up
 		c.DeleteTask(task1)
 		c.DeleteTask(task2)
-		
+
 		// Disable task scheduler
 		if err := c.DisableTasks(); err == nil {
 			fmt.Println("✓ Task scheduler disabled")
@@ -209,10 +209,10 @@ func main() {
 
 	// Example 8: MCP tool task
 	fmt.Println("\n=== Example 8: MCP Tool Task ===")
-	
+
 	// Re-enable tasks for this example
 	c.EnableTasks(ctx)
-	
+
 	if c.IsTasksEnabled() && c.Tools != nil {
 		// Check if any tools are available
 		tools, _ := c.Tools.List()
@@ -222,13 +222,13 @@ func main() {
 			args := map[string]interface{}{
 				"test": "value",
 			}
-			
+
 			taskID, err := c.CreateMCPTask(toolName, args, "")
 			if err != nil {
 				log.Printf("Failed to create MCP task: %v\n", err)
 			} else {
 				fmt.Printf("✓ Created MCP tool task for '%s'\n", toolName)
-				
+
 				// Clean up
 				c.DeleteTask(taskID)
 			}
@@ -236,7 +236,7 @@ func main() {
 			fmt.Println("No MCP tools available")
 		}
 	}
-	
+
 	// Final cleanup
 	c.DisableTasks()
 

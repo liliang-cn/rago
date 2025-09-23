@@ -31,8 +31,8 @@ Examples:
   rago agent do "create a backup of all configuration files"
   rago agent do "explain how the MCP integration works"
   rago agent do "analyze the performance of the system"`,
-	Args:    cobra.MinimumNArgs(1),
-	RunE:    runAgentDo,
+	Args: cobra.MinimumNArgs(1),
+	RunE: runAgentDo,
 }
 
 func init() {
@@ -71,7 +71,7 @@ func runAgentDo(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize LLM service: %w", err)
 	}
-	
+
 	// Initialize embedder for RAG
 	embedderService, err := factory.CreateEmbedderProvider(ctx, providerConfig)
 	if err != nil && verbose {
@@ -80,29 +80,29 @@ func runAgentDo(cmd *cobra.Command, args []string) error {
 
 	// Create MCP manager
 	var mcpManager *mcp.Manager
-	
+
 	// Try to initialize with MCP if available
 	if Cfg.MCP.Servers != nil && len(Cfg.MCP.Servers) > 0 {
 		mcpManager = mcp.NewManager(&Cfg.MCP)
-		
+
 		if verbose {
 			fmt.Println("   🔧 Starting MCP servers...")
 		}
-		
+
 		// Start essential MCP servers
 		if _, err := mcpManager.StartServer(ctx, "filesystem"); err != nil && verbose {
 			fmt.Printf("   ⚠️  Warning: filesystem server failed to start: %v\n", err)
 		}
-		
+
 		if _, err := mcpManager.StartServer(ctx, "memory"); err != nil && verbose {
 			fmt.Printf("   ⚠️  Warning: memory server failed to start: %v\n", err)
 		}
-		
+
 		if verbose {
 			fmt.Println("   ✅ MCP servers ready")
 		}
 	}
-	
+
 	// Create the unified agent with embedder for RAG
 	agent := agents.NewAgentWithEmbedder(Cfg, llmService, embedderService, mcpManager)
 	agent.SetVerbose(verbose || !quiet)
@@ -111,7 +111,7 @@ func runAgentDo(cmd *cobra.Command, args []string) error {
 	// Execute the intelligent Do operation
 	fmt.Println("\n🧠 Processing your request intelligently...")
 	startTime := time.Now()
-	
+
 	result, err := agent.Do(ctx, request)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
@@ -121,27 +121,27 @@ func runAgentDo(cmd *cobra.Command, args []string) error {
 
 	// Display results based on what happened
 	fmt.Println("\n" + strings.Repeat("=", 50))
-	
+
 	// Show RAG context if requested
 	if showContext && result.RAGContext != "" {
 		fmt.Println("\n📚 Knowledge Base Context:")
 		fmt.Println(result.RAGContext)
 		fmt.Println("\n" + strings.Repeat("-", 40))
 	}
-	
+
 	// Show enhanced request if different
 	if result.EnhancedRequest != "" && result.EnhancedRequest != request {
 		fmt.Println("\n🔍 Enhanced Request:")
 		fmt.Println(result.EnhancedRequest)
 	}
-	
+
 	// Show approach decision
 	if result.NeedsTools {
 		fmt.Println("\n🔧 Approach: Tool execution required")
-		
+
 		if result.PlanID != "" {
 			fmt.Printf("📋 Plan ID: %s\n", result.PlanID)
-			
+
 			if showPlan {
 				// Optionally show the plan details
 				if plan, err := agent.GetPlan(result.PlanID); err == nil {
@@ -156,12 +156,12 @@ func runAgentDo(cmd *cobra.Command, args []string) error {
 	} else {
 		fmt.Println("\n💡 Approach: Direct answer from knowledge base")
 	}
-	
+
 	// Show the answer
 	fmt.Println("\n" + strings.Repeat("=", 50))
 	fmt.Println("📝 Answer:")
 	fmt.Println()
-	
+
 	if result.DirectAnswer != "" {
 		fmt.Println(result.DirectAnswer)
 	} else if result.FinalAnswer != "" {
@@ -175,7 +175,7 @@ func runAgentDo(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
-	
+
 	// Show timing and status
 	fmt.Println("\n" + strings.Repeat("=", 50))
 	if result.Success {
@@ -184,7 +184,7 @@ func runAgentDo(cmd *cobra.Command, args []string) error {
 		fmt.Println("⚠️  Request completed with warnings")
 	}
 	fmt.Printf("⏱️  Total time: %v\n", duration)
-	
+
 	// Show statistics
 	if result.RAGContext != "" {
 		fmt.Println("📊 Used knowledge base context")

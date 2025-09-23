@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
-	
+
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 )
 
@@ -28,9 +28,9 @@ func (t *ToolsWrapper) ListWithOptions(ctx context.Context) ([]ToolInfo, error) 
 	if t.service == nil {
 		return nil, fmt.Errorf("MCP service not initialized")
 	}
-	
+
 	tools := t.service.GetAvailableTools(ctx)
-	
+
 	// Convert to ToolInfo format
 	result := make([]ToolInfo, 0, len(tools))
 	for _, tool := range tools {
@@ -39,7 +39,7 @@ func (t *ToolsWrapper) ListWithOptions(ctx context.Context) ([]ToolInfo, error) 
 		for _, paramName := range tool.Parameters {
 			params[paramName] = map[string]string{"type": "string"}
 		}
-		
+
 		toolInfo := ToolInfo{
 			Name:        tool.Name,
 			Description: tool.Description,
@@ -47,7 +47,7 @@ func (t *ToolsWrapper) ListWithOptions(ctx context.Context) ([]ToolInfo, error) 
 		}
 		result = append(result, toolInfo)
 	}
-	
+
 	return result, nil
 }
 
@@ -56,12 +56,12 @@ func (t *ToolsWrapper) CallWithOptions(ctx context.Context, name string, args ma
 	if t.service == nil {
 		return nil, fmt.Errorf("MCP service not initialized")
 	}
-	
+
 	result, err := t.service.CallTool(ctx, name, args)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Return the result as a map
 	return map[string]interface{}{
 		"result": result,

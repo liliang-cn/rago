@@ -21,7 +21,7 @@ func main() {
 			DefaultLLM: "ollama", // Change to your provider
 		},
 	}
-	
+
 	c, err := client.NewWithConfig(cfg)
 	if err != nil {
 		// Try with config file
@@ -55,7 +55,7 @@ func main() {
 			Temperature: 0.9,
 			MaxTokens:   100,
 		}
-		
+
 		response, err := c.LLM.GenerateWithOptions(
 			ctx,
 			"Explain quantum computing in one sentence",
@@ -76,7 +76,7 @@ func main() {
 			Temperature: 0.7,
 			MaxTokens:   150,
 		}
-		
+
 		err := c.LLM.StreamWithOptions(
 			ctx,
 			"Tell me a very short story about a robot",
@@ -86,7 +86,7 @@ func main() {
 			opts,
 		)
 		fmt.Println() // New line after streaming
-		
+
 		if err != nil {
 			log.Printf("Streaming error: %v\n", err)
 		}
@@ -101,12 +101,12 @@ func main() {
 			{Role: "assistant", Content: "The capital of France is Paris."},
 			{Role: "user", Content: "What is its population?"},
 		}
-		
+
 		opts := &client.GenerateOptions{
 			Temperature: 0.5,
 			MaxTokens:   100,
 		}
-		
+
 		response, err := c.LLM.ChatWithOptions(ctx, messages, opts)
 		if err != nil {
 			log.Printf("Chat error: %v\n", err)
@@ -121,7 +121,7 @@ func main() {
 		messages := []client.ChatMessage{
 			{Role: "user", Content: "Count from 1 to 5 slowly"},
 		}
-		
+
 		fmt.Print("Response: ")
 		err := c.LLM.ChatStreamWithOptions(
 			ctx,
@@ -132,7 +132,7 @@ func main() {
 			&client.GenerateOptions{Temperature: 0.3},
 		)
 		fmt.Println()
-		
+
 		if err != nil {
 			log.Printf("Streaming chat error: %v\n", err)
 		}
@@ -145,7 +145,7 @@ func main() {
 		Temperature: 0.1,
 		MaxTokens:   50,
 	}
-	
+
 	resp, err := c.LLMGenerate(ctx, req)
 	if err != nil {
 		log.Printf("Direct generation error: %v\n", err)
@@ -156,7 +156,7 @@ func main() {
 	// Example 7: Chat with History
 	fmt.Println("\n=== Example 7: Chat with History ===")
 	history := client.NewConversationHistory("You are a math tutor", 10)
-	
+
 	// First message
 	response, err := c.ChatWithHistory(ctx, "What is calculus?", history, nil)
 	if err != nil {
@@ -164,7 +164,7 @@ func main() {
 	} else {
 		fmt.Printf("Q: What is calculus?\nA: %s\n", response)
 	}
-	
+
 	// Follow-up question (history is maintained)
 	response, err = c.ChatWithHistory(ctx, "Can you give an example?", history, nil)
 	if err != nil {

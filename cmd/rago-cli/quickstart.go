@@ -66,7 +66,7 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 	// Step 4: Show capabilities
 	fmt.Println("\n=== Platform Capabilities ===")
 	fmt.Println()
-	
+
 	capabilities := []struct {
 		name    string
 		command string
@@ -103,14 +103,14 @@ func runQuickstart(cmd *cobra.Command, args []string) error {
 	// Step 5: Interactive demo
 	fmt.Println("=== Try It Now ===")
 	fmt.Println("Would you like to try a simple example? (y/n)")
-	
+
 	var input string
 	fmt.Scanln(&input)
-	
+
 	if strings.ToLower(input) == "y" {
 		fmt.Println("\nLet's generate a simple haiku about coding:")
 		fmt.Println("----------------------------------------")
-		
+
 		haiku, err := rago.LLM.GenerateWithOptions(
 			context.Background(),
 			"Write a haiku about programming in Go",

@@ -27,14 +27,14 @@ func main() {
 
 	// Example 1: Create sample documents
 	fmt.Println("=== Example 1: Preparing Sample Documents ===")
-	
+
 	// Create a temporary directory for test documents
 	tempDir, err := ioutil.TempDir("", "rago-example")
 	if err != nil {
 		log.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tempDir)
-	
+
 	// Create sample documents
 	doc1 := filepath.Join(tempDir, "doc1.txt")
 	content1 := `RAGO Platform Overview
@@ -85,14 +85,14 @@ Basic Usage:
 				"source": "doc1.txt",
 			},
 		}
-		
+
 		resp1, err := c.Ingest(ctx, req1)
 		if err != nil {
 			log.Printf("Failed to ingest doc1: %v\n", err)
 		} else {
 			fmt.Printf("✓ Ingested doc1: %v\n", resp1)
 		}
-		
+
 		// Ingest second document
 		req2 := client.IngestRequest{
 			Path:      doc2,
@@ -103,14 +103,14 @@ Basic Usage:
 				"source": "doc2.txt",
 			},
 		}
-		
+
 		resp2, err := c.Ingest(ctx, req2)
 		if err != nil {
 			log.Printf("Failed to ingest doc2: %v\n", err)
 		} else {
 			fmt.Printf("✓ Ingested doc2: %v\n", resp2)
 		}
-		
+
 		// Simple text ingestion
 		err = c.RAG.Ingest("RAGO supports multiple embedding models including OpenAI and Ollama.")
 		if err != nil {
@@ -130,10 +130,10 @@ Basic Usage:
 			"How do I install RAGO?",
 			"What are the key features?",
 		}
-		
+
 		for _, query := range queries {
 			fmt.Printf("\nQ: %s\n", query)
-			
+
 			// Simple query
 			answer, err := c.RAG.Query(query)
 			if err != nil {
@@ -153,14 +153,14 @@ Basic Usage:
 		MaxTokens:   200,
 		ShowSources: true,
 	}
-	
+
 	queryResp, err := c.Query(ctx, queryReq)
 	if err != nil {
 		log.Printf("Query error: %v\n", err)
 	} else {
 		fmt.Printf("Q: %s\n", queryReq.Query)
 		fmt.Printf("A: %s\n\n", queryResp.Answer)
-		
+
 		if len(queryResp.Sources) > 0 {
 			fmt.Println("Sources:")
 			for i, source := range queryResp.Sources {
@@ -177,7 +177,7 @@ Basic Usage:
 	fmt.Println("\n=== Example 5: Semantic Search ===")
 	searchOpts := client.DefaultSearchOptions()
 	searchOpts.TopK = 5
-	
+
 	results, err := c.Search(ctx, "installation steps", searchOpts)
 	if err != nil {
 		log.Printf("Search error: %v\n", err)
@@ -201,7 +201,7 @@ Basic Usage:
 				"type": "tutorial", // Filter by metadata
 			},
 		}
-		
+
 		resp, err := c.RAG.QueryWithOptions(ctx, "How to use RAGO?", queryOpts)
 		if err != nil {
 			log.Printf("Query error: %v\n", err)

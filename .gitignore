@@ -73,3 +73,5 @@ web/node_modules/
 rago.toml
 
 .rago/
+
+rago-cli
