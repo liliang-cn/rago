@@ -88,27 +88,27 @@ func runNaturalLanguageAgent(cmd *cobra.Command, args []string) error {
 
 	// Create MCP manager
 	var mcpManager *mcp.Manager
-	
+
 	// Try to initialize with MCP if available
 	if Cfg.MCP.Servers != nil && len(Cfg.MCP.Servers) > 0 {
 		// Use the actual MCP config from loaded configuration
 		mcpManager = mcp.NewManager(&Cfg.MCP)
-		
+
 		// Start essential MCP servers for agent execution
 		if !quiet {
 			fmt.Println("   🔧 Starting MCP servers for planning...")
 		}
-		
+
 		// Start filesystem server (essential for file operations)
 		if _, err := mcpManager.StartServer(ctx, "filesystem"); err != nil {
 			fmt.Printf("   ⚠️  Warning: filesystem server failed to start: %v\n", err)
 		}
-		
+
 		// Start memory server (useful for data storage)
 		if _, err := mcpManager.StartServer(ctx, "memory"); err != nil {
 			fmt.Printf("   ⚠️  Warning: memory server failed to start: %v\n", err)
 		}
-		
+
 		if !quiet {
 			fmt.Println("   ✅ MCP servers ready")
 		}
@@ -126,25 +126,25 @@ func runNaturalLanguageAgent(cmd *cobra.Command, args []string) error {
 	if planOnly {
 		fmt.Println("\n📝 Creating execution plan...")
 		startTime := time.Now()
-		
+
 		planID, err := agent.PlanOnly(ctx, request)
 		if err != nil {
 			return fmt.Errorf("planning failed: %w", err)
 		}
-		
+
 		duration := time.Since(startTime)
-		
+
 		fmt.Println("\n✅ Plan created successfully!")
 		fmt.Printf("💾 Plan ID: %s\n", planID)
 		fmt.Printf("⏱️  Planning time: %v\n", duration)
-		
+
 		return nil
 	}
-	
+
 	// Plan and execute the request
 	fmt.Println("\n⚡ Planning and executing your request...")
 	startTime := time.Now()
-	
+
 	result, err := agent.PlanAndExecute(ctx, request)
 	if err != nil {
 		return fmt.Errorf("execution failed: %w", err)
@@ -186,4 +186,3 @@ func runNaturalLanguageAgent(cmd *cobra.Command, args []string) error {
 
 	return nil
 }
-

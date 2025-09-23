@@ -25,7 +25,7 @@ func main() {
 		} else {
 			fmt.Println("✓ Client initialized with default config")
 			defer c1.Close()
-			
+
 			// Get config info
 			cfg := c1.GetConfig()
 			fmt.Printf("  Default LLM: %s\n", cfg.Providers.DefaultLLM)
@@ -58,32 +58,32 @@ func main() {
 			DefaultEmbedder: "ollama",
 		},
 	}
-	
+
 	c3, err := client.NewWithConfig(cfg)
 	if err != nil {
 		log.Printf("Error with programmatic config: %v\n", err)
 	} else {
 		fmt.Println("✓ Client initialized with programmatic config")
 		defer c3.Close()
-		
+
 		// Test basic operations
 		fmt.Println("\n  Testing client capabilities:")
-		
+
 		// Check if LLM is available
 		if c3.LLM != nil {
 			fmt.Println("  ✓ LLM wrapper available")
 		}
-		
+
 		// Check if RAG is available
 		if c3.RAG != nil {
 			fmt.Println("  ✓ RAG wrapper available")
 		}
-		
+
 		// Check if Tools are available
 		if c3.Tools != nil {
 			fmt.Println("  ✓ Tools wrapper available")
 		}
-		
+
 		// Check if Agent is available
 		if c3.Agent != nil {
 			fmt.Println("  ✓ Agent wrapper available")
@@ -105,7 +105,7 @@ func main() {
 			Task:    "Hello World",
 			Verbose: false,
 		}
-		
+
 		resp, err := c3.RunTask(ctx, req)
 		if err != nil {
 			log.Printf("Task error: %v\n", err)

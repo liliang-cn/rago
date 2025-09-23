@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
-	
+
 	"github.com/liliang-cn/rago/v2/pkg/rag"
 )
 
@@ -42,7 +42,7 @@ func (r *RAGWrapper) QueryWithOptions(ctx context.Context, query string, opts *Q
 	if r.client == nil {
 		return nil, fmt.Errorf("RAG client not initialized")
 	}
-	
+
 	// Prepare options
 	ragOpts := &rag.QueryOptions{
 		TopK:        opts.TopK,
@@ -50,18 +50,18 @@ func (r *RAGWrapper) QueryWithOptions(ctx context.Context, query string, opts *Q
 		MaxTokens:   opts.MaxTokens,
 		ShowSources: opts.ShowSources,
 	}
-	
+
 	// Perform query
 	result, err := r.client.Query(ctx, query, ragOpts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert to response
 	resp := &QueryResponse{
 		Answer: result.Answer,
 	}
-	
+
 	if opts.ShowSources && result.Sources != nil {
 		for _, src := range result.Sources {
 			resp.Sources = append(resp.Sources, SearchResult{
@@ -71,7 +71,7 @@ func (r *RAGWrapper) QueryWithOptions(ctx context.Context, query string, opts *Q
 			})
 		}
 	}
-	
+
 	return resp, nil
 }
 
@@ -80,21 +80,21 @@ func (r *RAGWrapper) IngestWithOptions(ctx context.Context, path string, opts *I
 	if r.client == nil {
 		return fmt.Errorf("RAG client not initialized")
 	}
-	
+
 	// Delegate to RAG client
 	ragOpts := &rag.IngestOptions{
 		ChunkSize: opts.ChunkSize,
 		Overlap:   opts.Overlap,
 		Metadata:  make(map[string]interface{}),
 	}
-	
+
 	// Convert metadata if provided
 	if opts.Metadata != nil {
 		for k, v := range opts.Metadata {
 			ragOpts.Metadata[k] = v
 		}
 	}
-	
+
 	_, err := r.client.IngestFile(ctx, path, ragOpts)
 	return err
 }
@@ -104,18 +104,18 @@ func (r *RAGWrapper) SearchWithOptions(ctx context.Context, query string, opts *
 	if r.client == nil {
 		return nil, fmt.Errorf("RAG client not initialized")
 	}
-	
+
 	// Use QueryWithOptions internally
 	queryOpts := &QueryOptions{
 		TopK:        opts.TopK,
 		ShowSources: true,
 		Filters:     opts.Filters,
 	}
-	
+
 	resp, err := r.QueryWithOptions(ctx, query, queryOpts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return resp.Sources, nil
 }

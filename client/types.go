@@ -16,7 +16,6 @@ type QueryOptions struct {
 	Filters     map[string]string `json:"filters,omitempty"`
 }
 
-
 // IngestOptions represents options for document ingestion
 type IngestOptions struct {
 	ChunkSize       int               // Size of text chunks
@@ -40,10 +39,10 @@ type IngestRequest struct {
 
 // IngestResponse represents the response from document ingestion
 type IngestResponse struct {
-	Success         bool   `json:"success"`
-	DocumentsCount  int    `json:"documents_count"`
-	ChunksCount     int    `json:"chunks_count"`
-	Message         string `json:"message"`
+	Success        bool   `json:"success"`
+	DocumentsCount int    `json:"documents_count"`
+	ChunksCount    int    `json:"chunks_count"`
+	Message        string `json:"message"`
 }
 
 // QueryRequest represents a RAG query request

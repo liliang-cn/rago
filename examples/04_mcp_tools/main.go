@@ -50,7 +50,7 @@ func main() {
 				}
 			}
 		}
-		
+
 		// If no tools found, provide guidance
 		if len(tools) == 0 {
 			fmt.Println("\nNo tools available. To add tools:")
@@ -71,19 +71,19 @@ func main() {
 		args := map[string]interface{}{
 			"path": "README.md",
 		}
-		
+
 		fmt.Printf("Attempting to call tool: %s\n", toolName)
 		result, err := c.Tools.CallWithOptions(ctx, toolName, args)
 		if err != nil {
 			fmt.Printf("Tool call failed (this is normal if the tool is not configured): %v\n", err)
-			
+
 			// Try a simpler tool that might be available
 			fmt.Println("\nTrying to call a different tool...")
 			toolName = "mcp_brave_search_web_search" // Brave search example
 			args = map[string]interface{}{
 				"query": "RAGO AI platform",
 			}
-			
+
 			result, err = c.Tools.CallWithOptions(ctx, toolName, args)
 			if err != nil {
 				fmt.Printf("Alternative tool also not available: %v\n", err)
@@ -100,7 +100,7 @@ func main() {
 	mcpClient := c.GetMCPClient()
 	if mcpClient != nil {
 		fmt.Println("✓ MCP client is available")
-		
+
 		// Note: The MCP client provides low-level access to MCP servers
 		// For most use cases, the Tools wrapper is more convenient
 		fmt.Println("  MCP client can be used for advanced server management")
@@ -114,12 +114,12 @@ func main() {
 	if c.Tools != nil && c.LLM != nil {
 		// This simulates how an LLM might use tools
 		fmt.Println("Demonstrating tool-augmented generation:")
-		
+
 		// First, get available tools
 		tools, err := c.Tools.ListWithOptions(ctx)
 		if err == nil && len(tools) > 0 {
 			fmt.Printf("LLM has access to %d tools\n", len(tools))
-			
+
 			// Generate a response that might use tools
 			prompt := "What files are in the current directory? (use tools if available)"
 			response, err := c.LLM.Generate(prompt)

@@ -31,12 +31,12 @@ func (l *LLMWrapper) GenerateWithOptions(ctx context.Context, prompt string, opt
 	if l.generator == nil {
 		return "", fmt.Errorf("LLM not initialized")
 	}
-	
+
 	genOpts := &domain.GenerationOptions{
 		Temperature: opts.Temperature,
 		MaxTokens:   opts.MaxTokens,
 	}
-	
+
 	return l.generator.Generate(ctx, prompt, genOpts)
 }
 
@@ -45,12 +45,12 @@ func (l *LLMWrapper) StreamWithOptions(ctx context.Context, prompt string, callb
 	if l.generator == nil {
 		return fmt.Errorf("LLM not initialized")
 	}
-	
+
 	genOpts := &domain.GenerationOptions{
 		Temperature: opts.Temperature,
 		MaxTokens:   opts.MaxTokens,
 	}
-	
+
 	return l.generator.Stream(ctx, prompt, genOpts, callback)
 }
 
@@ -59,7 +59,7 @@ func (l *LLMWrapper) ChatWithOptions(ctx context.Context, messages []ChatMessage
 	if l.generator == nil {
 		return "", fmt.Errorf("LLM not initialized")
 	}
-	
+
 	// Convert ChatMessage to domain.Message
 	domainMessages := make([]domain.Message, len(messages))
 	for i, msg := range messages {
@@ -68,18 +68,18 @@ func (l *LLMWrapper) ChatWithOptions(ctx context.Context, messages []ChatMessage
 			Content: msg.Content,
 		}
 	}
-	
+
 	genOpts := &domain.GenerationOptions{
 		Temperature: opts.Temperature,
 		MaxTokens:   opts.MaxTokens,
 	}
-	
+
 	// Use GenerateWithTools with nil tools for chat
 	result, err := l.generator.GenerateWithTools(ctx, domainMessages, nil, genOpts)
 	if err != nil {
 		return "", err
 	}
-	
+
 	return result.Content, nil
 }
 
@@ -88,7 +88,7 @@ func (l *LLMWrapper) ChatStreamWithOptions(ctx context.Context, messages []ChatM
 	if l.generator == nil {
 		return fmt.Errorf("LLM not initialized")
 	}
-	
+
 	// Convert ChatMessage to domain.Message
 	domainMessages := make([]domain.Message, len(messages))
 	for i, msg := range messages {
@@ -97,12 +97,12 @@ func (l *LLMWrapper) ChatStreamWithOptions(ctx context.Context, messages []ChatM
 			Content: msg.Content,
 		}
 	}
-	
+
 	genOpts := &domain.GenerationOptions{
 		Temperature: opts.Temperature,
 		MaxTokens:   opts.MaxTokens,
 	}
-	
+
 	// Use StreamWithTools with nil tools for chat
 	return l.generator.StreamWithTools(ctx, domainMessages, nil, genOpts, func(chunk string, toolCalls []domain.ToolCall) error {
 		if chunk != "" {
@@ -164,7 +164,6 @@ func (c *BaseClient) LLMGenerateStream(ctx context.Context, req LLMGenerateReque
 
 	return c.llm.Stream(ctx, req.Prompt, opts, callback)
 }
-
 
 // LLMChatRequest defines the request for a direct LLM chat
 type LLMChatRequest struct {
