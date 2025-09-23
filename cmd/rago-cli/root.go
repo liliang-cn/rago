@@ -5,6 +5,7 @@ import (
 
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/agent"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/mcp"
+	"github.com/liliang-cn/rago/v2/cmd/rago-cli/profile"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/rag"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/spf13/cobra"
@@ -53,6 +54,7 @@ Get started:
 		rag.SetSharedVariables(cfg, verbose, quiet, version)
 		mcp.SetSharedVariables(cfg, verbose, quiet)
 		agent.SetSharedVariables(cfg, verbose, quiet)
+		profile.SetSharedVariables(cfg, verbose, quiet)
 
 		return nil
 	},
@@ -101,6 +103,9 @@ func init() {
 	if agent.AgentCmd != nil {
 		RootCmd.AddCommand(agent.AgentCmd)
 	}
+
+	// Add Profile command
+	RootCmd.AddCommand(profile.ProfileCmd)
 
 	RootCmd.AddCommand(serveCmd)
 	RootCmd.AddCommand(llmCmd)
