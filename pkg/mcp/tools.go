@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -119,6 +120,7 @@ func (w *MCPToolWrapper) Call(ctx context.Context, args map[string]interface{}) 
 type MCPToolManager struct {
 	manager *Manager
 	tools   map[string]*MCPToolWrapper
+	mu      sync.RWMutex // Protects tools map
 }
 
 // NewMCPToolManager creates a new MCP tool manager
@@ -141,7 +143,8 @@ func (tm *MCPToolManager) Start(ctx context.Context) error {
 	}
 
 	// Start auto-start servers
-	for _, serverConfig := range tm.manager.config.LoadedServers {
+	loadedServers := tm.manager.config.GetLoadedServers()
+	for _, serverConfig := range loadedServers {
 		if serverConfig.AutoStart {
 			if err := tm.StartServer(ctx, serverConfig.Name); err != nil {
 				return fmt.Errorf("failed to start server %s: %w", serverConfig.Name, err)
@@ -161,10 +164,12 @@ func (tm *MCPToolManager) StartServer(ctx context.Context, serverName string) er
 
 	// Load tools from the server
 	tools := client.GetTools()
+	tm.mu.Lock()
 	for _, tool := range tools {
 		wrapper := NewMCPToolWrapper(client, serverName, tool)
 		tm.tools[wrapper.Name()] = wrapper
 	}
+	tm.mu.Unlock()
 
 	return nil
 }
@@ -192,7 +197,8 @@ func (tm *MCPToolManager) StartWithFailuresDetailed(ctx context.Context) ([]stri
 	}
 
 	// Start auto-start servers
-	for _, serverConfig := range tm.manager.config.LoadedServers {
+	loadedServers := tm.manager.config.GetLoadedServers()
+	for _, serverConfig := range loadedServers {
 		if serverConfig.AutoStart {
 			if err := tm.StartServer(ctx, serverConfig.Name); err != nil {
 				failed = append(failed, serverConfig.Name)
@@ -220,33 +226,41 @@ func (tm *MCPToolManager) StopServer(serverName string) error {
 
 // GetTool returns a specific MCP tool by name
 func (tm *MCPToolManager) GetTool(name string) (*MCPToolWrapper, bool) {
+	tm.mu.RLock()
 	tool, exists := tm.tools[name]
+	tm.mu.RUnlock()
 	return tool, exists
 }
 
 // ListTools returns all available MCP tools
 func (tm *MCPToolManager) ListTools() map[string]*MCPToolWrapper {
+	tm.mu.RLock()
 	tools := make(map[string]*MCPToolWrapper)
 	for name, tool := range tm.tools {
 		tools[name] = tool
 	}
+	tm.mu.RUnlock()
 	return tools
 }
 
 // ListToolsByServer returns tools from a specific server
 func (tm *MCPToolManager) ListToolsByServer(serverName string) map[string]*MCPToolWrapper {
+	tm.mu.RLock()
 	tools := make(map[string]*MCPToolWrapper)
 	for name, tool := range tm.tools {
 		if tool.ServerName() == serverName {
 			tools[name] = tool
 		}
 	}
+	tm.mu.RUnlock()
 	return tools
 }
 
 // CallTool calls an MCP tool by name
 func (tm *MCPToolManager) CallTool(ctx context.Context, toolName string, args map[string]interface{}) (*MCPToolResult, error) {
+	tm.mu.RLock()
 	tool, exists := tm.tools[toolName]
+	tm.mu.RUnlock()
 	if !exists {
 		return nil, fmt.Errorf("MCP tool '%s' not found", toolName)
 	}
@@ -258,6 +272,7 @@ func (tm *MCPToolManager) CallTool(ctx context.Context, toolName string, args ma
 func (tm *MCPToolManager) GetToolsForLLM() []map[string]interface{} {
 	llmTools := make([]map[string]interface{}, 0)
 
+	tm.mu.RLock()
 	for _, tool := range tm.tools {
 		llmTool := map[string]interface{}{
 			"type": "function",
@@ -269,6 +284,7 @@ func (tm *MCPToolManager) GetToolsForLLM() []map[string]interface{} {
 		}
 		llmTools = append(llmTools, llmTool)
 	}
+	tm.mu.RUnlock()
 
 	return llmTools
 }
@@ -283,7 +299,8 @@ func (tm *MCPToolManager) GetServerStatus() map[string]bool {
 	}
 
 	// Also check configured servers that might not be running
-	for _, serverConfig := range tm.manager.config.LoadedServers {
+	loadedServers := tm.manager.config.GetLoadedServers()
+	for _, serverConfig := range loadedServers {
 		if _, exists := status[serverConfig.Name]; !exists {
 			status[serverConfig.Name] = false
 		}
@@ -294,7 +311,9 @@ func (tm *MCPToolManager) GetServerStatus() map[string]bool {
 
 // Close stops all MCP servers and cleans up
 func (tm *MCPToolManager) Close() error {
+	tm.mu.Lock()
 	tm.tools = make(map[string]*MCPToolWrapper)
+	tm.mu.Unlock()
 	return tm.manager.Close()
 }
 
