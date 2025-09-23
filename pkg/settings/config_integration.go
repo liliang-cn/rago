@@ -52,14 +52,14 @@ func (cws *ConfigWithSettings) CreateLLMProvider(ctx context.Context, providerNa
 
 	switch providerName {
 	case "ollama":
-		config, err = providers.GetLLMProviderConfig(&cws.Config.Providers.ProviderConfigs, providerName)
+		config, err = providers.GetLLMProviderConfig(&cws.Providers.ProviderConfigs, providerName)
 	case "openai":
-		config, err = providers.GetLLMProviderConfig(&cws.Config.Providers.ProviderConfigs, providerName)
+		config, err = providers.GetLLMProviderConfig(&cws.Providers.ProviderConfigs, providerName)
 	case "lmstudio":
-		config, err = providers.GetLLMProviderConfig(&cws.Config.Providers.ProviderConfigs, providerName)
+		config, err = providers.GetLLMProviderConfig(&cws.Providers.ProviderConfigs, providerName)
 	default:
 		// Try dynamic providers
-		config, err = providers.GetProviderConfigByName(cws.Config.Providers.Providers, providerName)
+		config, err = providers.GetProviderConfigByName(cws.Providers.Providers, providerName)
 	}
 
 	if err != nil {
@@ -79,14 +79,14 @@ func (cws *ConfigWithSettings) CreateEmbedderProvider(ctx context.Context, provi
 
 	switch providerName {
 	case "ollama":
-		config, err = providers.GetEmbedderProviderConfig(&cws.Config.Providers.ProviderConfigs, providerName)
+		config, err = providers.GetEmbedderProviderConfig(&cws.Providers.ProviderConfigs, providerName)
 	case "openai":
-		config, err = providers.GetEmbedderProviderConfig(&cws.Config.Providers.ProviderConfigs, providerName)
+		config, err = providers.GetEmbedderProviderConfig(&cws.Providers.ProviderConfigs, providerName)
 	case "lmstudio":
-		config, err = providers.GetEmbedderProviderConfig(&cws.Config.Providers.ProviderConfigs, providerName)
+		config, err = providers.GetEmbedderProviderConfig(&cws.Providers.ProviderConfigs, providerName)
 	default:
 		// Try dynamic providers
-		config, err = providers.GetProviderConfigByName(cws.Config.Providers.Providers, providerName)
+		config, err = providers.GetProviderConfigByName(cws.Providers.Providers, providerName)
 	}
 
 	if err != nil {
@@ -98,14 +98,14 @@ func (cws *ConfigWithSettings) CreateEmbedderProvider(ctx context.Context, provi
 
 // CreateDefaultLLMProvider creates the default LLM provider with settings
 func (cws *ConfigWithSettings) CreateDefaultLLMProvider(ctx context.Context) (domain.LLMProvider, error) {
-	return cws.CreateLLMProvider(ctx, cws.Config.Providers.DefaultLLM)
+	return cws.CreateLLMProvider(ctx, cws.Providers.DefaultLLM)
 }
 
 // CreateDefaultEmbedderProvider creates the default embedder provider
 func (cws *ConfigWithSettings) CreateDefaultEmbedderProvider(ctx context.Context) (domain.EmbedderProvider, error) {
-	embedderProvider := cws.Config.Providers.DefaultEmbedder
+	embedderProvider := cws.Providers.DefaultEmbedder
 	if embedderProvider == "" {
-		embedderProvider = cws.Config.Providers.DefaultLLM
+		embedderProvider = cws.Providers.DefaultLLM
 	}
 	return cws.CreateEmbedderProvider(ctx, embedderProvider)
 }
@@ -118,18 +118,18 @@ func (cws *ConfigWithSettings) CreateProviderClient(ctx context.Context) (*Provi
 	providerNames := []string{}
 
 	// Add static providers
-	if cws.Config.Providers.ProviderConfigs.Ollama != nil {
+	if cws.Providers.ProviderConfigs.Ollama != nil {
 		providerNames = append(providerNames, "ollama")
 	}
-	if cws.Config.Providers.ProviderConfigs.OpenAI != nil {
+	if cws.Providers.ProviderConfigs.OpenAI != nil {
 		providerNames = append(providerNames, "openai")
 	}
-	if cws.Config.Providers.ProviderConfigs.LMStudio != nil {
+	if cws.Providers.ProviderConfigs.LMStudio != nil {
 		providerNames = append(providerNames, "lmstudio")
 	}
 
 	// Add dynamic providers
-	for name := range cws.Config.Providers.Providers {
+	for name := range cws.Providers.Providers {
 		providerNames = append(providerNames, name)
 	}
 
@@ -141,13 +141,13 @@ func (cws *ConfigWithSettings) CreateProviderClient(ctx context.Context) (*Provi
 
 		switch name {
 		case "ollama":
-			config, err = providers.GetLLMProviderConfig(&cws.Config.Providers.ProviderConfigs, name)
+			config, err = providers.GetLLMProviderConfig(&cws.Providers.ProviderConfigs, name)
 		case "openai":
-			config, err = providers.GetLLMProviderConfig(&cws.Config.Providers.ProviderConfigs, name)
+			config, err = providers.GetLLMProviderConfig(&cws.Providers.ProviderConfigs, name)
 		case "lmstudio":
-			config, err = providers.GetLLMProviderConfig(&cws.Config.Providers.ProviderConfigs, name)
+			config, err = providers.GetLLMProviderConfig(&cws.Providers.ProviderConfigs, name)
 		default:
-			config, err = providers.GetProviderConfigByName(cws.Config.Providers.Providers, name)
+			config, err = providers.GetProviderConfigByName(cws.Providers.Providers, name)
 		}
 
 		if err != nil {

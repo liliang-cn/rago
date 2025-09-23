@@ -57,9 +57,19 @@ func NewSQLiteStorage(dbPath string) (*SQLiteStorage, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	// Enable foreign key constraints
+	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, fmt.Errorf("failed to enable foreign keys: %w (also failed to close db: %v)", err, closeErr)
+		}
+		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
+	}
+
 	storage := &SQLiteStorage{db: db}
 	if err := storage.initTables(); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, fmt.Errorf("failed to initialize tables: %w (also failed to close db: %v)", err, closeErr)
+		}
 		return nil, fmt.Errorf("failed to initialize tables: %w", err)
 	}
 
@@ -182,7 +192,13 @@ func (s *SQLiteStorage) ListProfiles() ([]*UserProfile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query profiles: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			// Log error but don't override the main error
+			// In a production system, you might want to log this error
+			_ = closeErr
+		}
+	}()
 
 	var profiles []*UserProfile
 	for rows.Next() {
@@ -262,7 +278,13 @@ func (s *SQLiteStorage) SetActiveProfile(id string) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			// Log error but don't override the main error
+			// In a production system, you might want to log this error
+			_ = rollbackErr
+		}
+	}()
 
 	// First, deactivate all profiles
 	_, err = tx.Exec("UPDATE user_profiles SET is_active = FALSE")
@@ -334,7 +356,13 @@ func (s *SQLiteStorage) GetAllLLMSettings(profileID string) ([]*LLMSettings, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to query LLM settings: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			// Log error but don't override the main error
+			// In a production system, you might want to log this error
+			_ = closeErr
+		}
+	}()
 
 	var settings []*LLMSettings
 	for rows.Next() {
