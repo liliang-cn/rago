@@ -126,3 +126,27 @@ type PlanResponse struct {
 	Task  string     `json:"task"`
 	Steps []PlanStep `json:"steps"`
 }
+
+// Settings-related types
+
+// ProfileInfo represents basic profile information
+type ProfileInfo struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	IsActive    bool   `json:"is_active"`
+}
+
+// LLMSettingsInfo represents LLM settings information
+type LLMSettingsInfo struct {
+	ProviderName string   `json:"provider_name"`
+	SystemPrompt string   `json:"system_prompt,omitempty"`
+	Temperature  *float64 `json:"temperature,omitempty"`
+	MaxTokens    *int     `json:"max_tokens,omitempty"`
+}
+
+// ProfileSettingsInfo represents profile with its settings
+type ProfileSettingsInfo struct {
+	Profile  ProfileInfo       `json:"profile"`
+	Settings []LLMSettingsInfo `json:"settings"`
+}
