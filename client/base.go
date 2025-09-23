@@ -9,26 +9,29 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
 	"github.com/liliang-cn/rago/v2/pkg/rag"
+	"github.com/liliang-cn/rago/v2/pkg/settings"
 )
 
 // BaseClient represents the main rago client with advanced features
 type BaseClient struct {
-	config        *config.Config
-	ragClient     *rag.Client  // RAG operations
-	mcpService    *mcp.Service // MCP operations
-	statusChecker *providers.StatusChecker
-	llm           domain.Generator
-	embedder      domain.Embedder
+	config         *config.Config
+	configWithSettings *settings.ConfigWithSettings // Settings-aware configuration
+	ragClient      *rag.Client                      // RAG operations
+	mcpService     *mcp.Service                     // MCP operations
+	statusChecker  *providers.StatusChecker
+	llm            domain.Generator
+	embedder       domain.Embedder
 
 	// Advanced features
 	mcpClient  *MCPClient  // Advanced MCP functionality
 	taskClient *TaskClient // Task scheduling functionality
 
 	// Public properties for backward compatibility
-	LLM   *LLMWrapper
-	RAG   *RAGWrapper
-	Tools *ToolsWrapper
-	Agent *AgentWrapper
+	LLM      *LLMWrapper
+	RAG      *RAGWrapper
+	Tools    *ToolsWrapper
+	Agent    *AgentWrapper
+	Settings *SettingsWrapper // New settings wrapper
 }
 
 // New creates a new rago client with the specified config file path
@@ -45,14 +48,32 @@ func New(configPath string) (*BaseClient, error) {
 func NewWithConfig(cfg *config.Config) (*BaseClient, error) {
 	ctx := context.Background()
 
-	// Initialize providers using the centralized initialization
-	embedder, llm, metadataExtractor, err := providers.InitializeProviders(ctx, cfg)
+	// Initialize settings-aware configuration
+	configWithSettings, err := settings.NewConfigWithSettings(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize providers: %w", err)
+		return nil, fmt.Errorf("failed to initialize settings: %w", err)
+	}
+
+	// Initialize LLM provider with settings integration
+	llm, err := configWithSettings.CreateDefaultLLMProvider(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize LLM provider: %w", err)
+	}
+
+	// Initialize embedder provider (no settings integration needed for embedders)
+	embedder, err := configWithSettings.CreateDefaultEmbedderProvider(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize embedder provider: %w", err)
+	}
+
+	// Initialize metadata extractor (use LLM provider)
+	metadataExtractor, ok := llm.(domain.LLMProvider)
+	if !ok {
+		return nil, fmt.Errorf("LLM provider does not support metadata extraction")
 	}
 
 	// Create RAG client
-	ragClient, err := rag.NewClient(cfg, embedder, llm, metadataExtractor)
+	ragClient, err := rag.NewClient(cfg, embedder, metadataExtractor, metadataExtractor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create RAG client: %w", err)
 	}
@@ -71,15 +92,17 @@ func NewWithConfig(cfg *config.Config) (*BaseClient, error) {
 	statusChecker := providers.NewStatusChecker(cfg, embedder, llm)
 
 	client := &BaseClient{
-		config:        cfg,
-		ragClient:     ragClient,
-		mcpService:    mcpService,
-		statusChecker: statusChecker,
-		llm:           llm,
-		embedder:      embedder,
-		LLM:           NewLLMWrapper(llm), // Public property for backward compatibility
-		RAG:           NewRAGWrapper(ragClient),
-		Tools:         nil, // Will be set if MCP is available
+		config:             cfg,
+		configWithSettings: configWithSettings,
+		ragClient:          ragClient,
+		mcpService:         mcpService,
+		statusChecker:      statusChecker,
+		llm:                llm,
+		embedder:           embedder,
+		LLM:                NewLLMWrapper(llm), // Public property for backward compatibility
+		RAG:                NewRAGWrapper(ragClient),
+		Tools:              nil, // Will be set if MCP is available
+		Settings:           NewSettingsWrapper(configWithSettings.SettingsService),
 	}
 
 	// Set Tools wrapper if MCP service is available
@@ -96,6 +119,13 @@ func NewWithConfig(cfg *config.Config) (*BaseClient, error) {
 // Close closes the client and releases resources
 func (c *BaseClient) Close() error {
 	var errs []error
+
+	// Close settings service
+	if c.configWithSettings != nil {
+		if err := c.configWithSettings.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close settings service: %w", err))
+		}
+	}
 
 	// Close RAG client
 	if c.ragClient != nil {
