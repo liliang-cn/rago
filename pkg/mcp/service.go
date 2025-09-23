@@ -36,7 +36,8 @@ func NewService(mcpConfig *Config, llm domain.Generator) (*Service, error) {
 func (s *Service) StartServers(ctx context.Context, serverNames []string) error {
 	if len(serverNames) == 0 {
 		// Start all configured servers
-		for _, server := range s.mcpConfig.LoadedServers {
+		loadedServers := s.mcpConfig.GetLoadedServers()
+		for _, server := range loadedServers {
 			if server.AutoStart {
 				serverNames = append(serverNames, server.Name)
 			}
@@ -61,7 +62,8 @@ func (s *Service) StopServer(serverName string) error {
 func (s *Service) ListServers() []ServerStatus {
 	var servers []ServerStatus
 	
-	for _, config := range s.mcpConfig.LoadedServers {
+	loadedServers := s.mcpConfig.GetLoadedServers()
+	for _, config := range loadedServers {
 		client, exists := s.manager.GetClient(config.Name)
 		
 		status := ServerStatus{
