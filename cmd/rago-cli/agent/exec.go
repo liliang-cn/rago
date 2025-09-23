@@ -23,8 +23,8 @@ using the 'agent run --plan-only' command.
 Examples:
   rago agent exec abc123-def456-789012
   rago agent exec 1b95bd5d-7455-4290-9765-5a5455cf8879`,
-	Args:    cobra.ExactArgs(1),
-	RunE:    runAgentExec,
+	Args: cobra.ExactArgs(1),
+	RunE: runAgentExec,
 }
 
 func init() {
@@ -64,29 +64,29 @@ func runAgentExec(cmd *cobra.Command, args []string) error {
 
 	// Create MCP manager
 	var mcpManager *mcp.Manager
-	
+
 	// Try to initialize with MCP if available
 	if Cfg.MCP.Servers != nil && len(Cfg.MCP.Servers) > 0 {
 		// Use the actual MCP config from loaded configuration
 		mcpManager = mcp.NewManager(&Cfg.MCP)
-		
+
 		// Start essential MCP servers for execution
 		if !quiet {
 			fmt.Println("   🔧 Starting MCP servers for execution...")
 		}
-		
+
 		// Start filesystem server (essential for file operations)
 		if _, err := mcpManager.StartServer(ctx, "filesystem"); err != nil {
 			fmt.Printf("   ⚠️  Warning: filesystem server failed to start: %v\n", err)
 		}
-		
+
 		// Start memory server (useful for data storage)
 		if _, err := mcpManager.StartServer(ctx, "memory"); err != nil {
 			fmt.Printf("   ⚠️  Warning: memory server failed to start: %v\n", err)
 		}
-		
+
 		// No need to start other servers - they'll be started on demand
-		
+
 		if !quiet {
 			fmt.Println("   ✅ MCP servers ready")
 		}
@@ -95,7 +95,7 @@ func runAgentExec(cmd *cobra.Command, args []string) error {
 			fmt.Println("   🔧 MCP not configured - limited functionality")
 		}
 	}
-	
+
 	// Create agent
 	agent := agents.NewAgent(Cfg, llmService, mcpManager)
 	agent.SetVerbose(verbose || !quiet)
@@ -103,7 +103,7 @@ func runAgentExec(cmd *cobra.Command, args []string) error {
 	// Execute the plan
 	fmt.Println("\n⚡ Executing plan...")
 	startTime := time.Now()
-	
+
 	results, err := agent.ExecuteOnly(ctx, planID)
 	if err != nil {
 		return fmt.Errorf("execution failed: %w", err)
@@ -125,7 +125,7 @@ func runAgentExec(cmd *cobra.Command, args []string) error {
 			if strings.HasPrefix(key, "step_") || key == "last_result" {
 				continue
 			}
-			
+
 			fmt.Printf("\n--- %s ---\n", key)
 			if str, ok := value.(string); ok {
 				if len(str) > 500 {

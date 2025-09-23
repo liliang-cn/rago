@@ -147,7 +147,7 @@ func (h *LLMHandler) Chat(c *gin.Context) {
 	for _, msg := range req.Messages {
 		prompt += fmt.Sprintf("%s: %s\n", msg.Role, msg.Content)
 	}
-	
+
 	resp, err := h.llmService.Generate(c.Request.Context(), prompt, opts)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -302,7 +302,7 @@ func (h *LLMHandler) handleStreamChat(c *gin.Context, req ChatRequest) {
 	for _, msg := range req.Messages {
 		prompt += fmt.Sprintf("%s: %s\n", msg.Role, msg.Content)
 	}
-	
+
 	resp, err := h.llmService.Generate(ctx, prompt, opts)
 	if err == nil {
 		// Send the full response as a single chunk

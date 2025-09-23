@@ -29,18 +29,18 @@ func (a *AgentWrapper) RunWithOptions(ctx context.Context, task string, opts *Ag
 	if a.client == nil {
 		return nil, fmt.Errorf("client not initialized")
 	}
-	
+
 	// Use the RunTask method from BaseClient
 	req := TaskRequest{
 		Task:    task,
 		Verbose: opts != nil && opts.Verbose,
 		Timeout: 0,
 	}
-	
+
 	if opts != nil && opts.Timeout > 0 {
 		req.Timeout = opts.Timeout
 	}
-	
+
 	return a.client.RunTask(ctx, req)
 }
 
@@ -49,7 +49,7 @@ func (a *AgentWrapper) PlanWithOptions(ctx context.Context, task string, opts *A
 	if a.client == nil {
 		return nil, fmt.Errorf("client not initialized")
 	}
-	
+
 	// For now, return a simple plan
 	// This would be replaced with actual planning logic
 	plan := &PlanResponse{
@@ -60,6 +60,6 @@ func (a *AgentWrapper) PlanWithOptions(ctx context.Context, task string, opts *A
 			{Name: "Return", Description: "Return results"},
 		},
 	}
-	
+
 	return plan, nil
 }

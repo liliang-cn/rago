@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
 	"github.com/spf13/cobra"

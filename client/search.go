@@ -38,7 +38,7 @@ func DefaultSearchOptions() *ClientSearchOptions {
 
 // SearchResult represents a search result
 type SearchResult struct {
-	ID       string  // Document or chunk ID
+	ID       string // Document or chunk ID
 	Content  string
 	Score    float64
 	Metadata map[string]interface{}

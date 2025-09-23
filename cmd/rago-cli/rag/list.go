@@ -50,7 +50,7 @@ var listCmd = &cobra.Command{
 				if i > 0 {
 					fmt.Println(strings.Repeat("-", 80))
 				}
-				
+
 				fmt.Printf("ID: %s\n", doc.ID)
 				if doc.Path != "" {
 					fmt.Printf("Path: %s\n", doc.Path)
@@ -59,15 +59,15 @@ var listCmd = &cobra.Command{
 					fmt.Printf("URL: %s\n", doc.URL)
 				}
 				fmt.Printf("Created: %s\n", doc.Created.Format("2006-01-02 15:04:05"))
-				
+
 				if doc.Metadata != nil && len(doc.Metadata) > 0 {
 					fmt.Println("Metadata:")
-					
+
 					// Show summary if present
 					if summary, ok := doc.Metadata["summary"].(string); ok && summary != "" {
 						fmt.Printf("  Summary: %s\n", summary)
 					}
-					
+
 					// Show keywords if present
 					if keywords, ok := doc.Metadata["keywords"].([]interface{}); ok && len(keywords) > 0 {
 						keywordStrs := make([]string, 0, len(keywords))
@@ -91,12 +91,12 @@ var listCmd = &cobra.Command{
 							}
 						}
 					}
-					
+
 					// Show document type if present
 					if docType, ok := doc.Metadata["document_type"].(string); ok && docType != "" {
 						fmt.Printf("  Type: %s\n", docType)
 					}
-					
+
 					// Show temporal references if present
 					if temporalRefs, ok := doc.Metadata["temporal_refs"].(map[string]interface{}); ok && len(temporalRefs) > 0 {
 						fmt.Println("  Temporal References:")
@@ -104,7 +104,7 @@ var listCmd = &cobra.Command{
 							fmt.Printf("    %s: %v\n", term, date)
 						}
 					}
-					
+
 					// Show entities if present
 					if entities, ok := doc.Metadata["entities"].(map[string]interface{}); ok && len(entities) > 0 {
 						fmt.Println("  Entities:")
@@ -122,7 +122,7 @@ var listCmd = &cobra.Command{
 							}
 						}
 					}
-					
+
 					// Show events if present
 					if events, ok := doc.Metadata["events"].([]interface{}); ok && len(events) > 0 {
 						eventStrs := make([]string, 0, len(events))
@@ -135,16 +135,16 @@ var listCmd = &cobra.Command{
 							fmt.Printf("  Events: %s\n", strings.Join(eventStrs, ", "))
 						}
 					}
-					
+
 					// Show other metadata
 					for k, v := range doc.Metadata {
-						if k != "summary" && k != "keywords" && k != "document_type" && 
-						   k != "temporal_refs" && k != "entities" && k != "events" && 
-						   k != "chunk_index" {
+						if k != "summary" && k != "keywords" && k != "document_type" &&
+							k != "temporal_refs" && k != "entities" && k != "events" &&
+							k != "chunk_index" {
 							fmt.Printf("  %s: %v\n", k, v)
 						}
 					}
-					
+
 					// Debug: show all metadata keys
 					if Verbose {
 						fmt.Println("  [Debug] All metadata keys and values:")
@@ -157,7 +157,7 @@ var listCmd = &cobra.Command{
 		} else {
 			// Compact table view
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			
+
 			// Adjust headers based on whether to show compact view
 			if showCompact {
 				if _, err := fmt.Fprintf(w, "ID\tSOURCE\tKEYWORDS\tCREATED\n"); err != nil {
@@ -180,7 +180,7 @@ var listCmd = &cobra.Command{
 					// Show source and keywords in compact view
 					source := "-"
 					keywords := "-"
-					
+
 					if doc.Path != "" {
 						source = doc.Path
 					} else if doc.URL != "" {
@@ -188,7 +188,7 @@ var listCmd = &cobra.Command{
 					} else if sourceVal, ok := doc.Metadata["source"].(string); ok {
 						source = sourceVal
 					}
-					
+
 					// Extract keywords from metadata
 					if keywordList, ok := doc.Metadata["keywords"].([]interface{}); ok && len(keywordList) > 0 {
 						keywordStrs := make([]string, 0, len(keywordList))
@@ -212,7 +212,7 @@ var listCmd = &cobra.Command{
 							}
 						}
 					}
-					
+
 					if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 						truncateText(doc.ID, 36),
 						truncateText(source, 30),

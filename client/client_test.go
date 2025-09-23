@@ -35,7 +35,7 @@ default_embedder = "test"
 	if err == nil && c != nil {
 		defer c.Close()
 	}
-	
+
 	// Test New with invalid path
 	_, err = client.New("/invalid/path.toml")
 	if err == nil {
@@ -149,7 +149,7 @@ func TestBaseClient_EnableMCP(t *testing.T) {
 	defer c.Close()
 
 	ctx := context.Background()
-	
+
 	// Should fail since MCP service is not initialized
 	err := c.EnableMCP(ctx)
 	if err == nil {

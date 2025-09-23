@@ -51,7 +51,7 @@ func (c *BaseClient) IngestFileWithOptions(filePath string, opts *IngestOptions)
 				metadata[k] = v
 			}
 		}
-		
+
 		ragOpts = &rag.IngestOptions{
 			ChunkSize: opts.ChunkSize,
 			Overlap:   opts.Overlap,
@@ -91,7 +91,7 @@ func (c *BaseClient) IngestTextWithOptions(text, source string, opts *IngestOpti
 				metadata[k] = v
 			}
 		}
-		
+
 		ragOpts = &rag.IngestOptions{
 			ChunkSize: opts.ChunkSize,
 			Overlap:   opts.Overlap,
@@ -218,23 +218,23 @@ func (c *BaseClient) Reset() error {
 // QueryWithTools performs a query with tool calling enabled (advanced feature)
 func (c *BaseClient) QueryWithTools(query string, allowedTools []string, maxToolCalls int) (domain.QueryResponse, error) {
 	ctx := context.Background()
-	
+
 	// Build tool options
 	ragOpts := &rag.QueryOptions{
 		ShowSources: true,
 	}
-	
+
 	// First get RAG context
 	resp, err := c.ragClient.Query(ctx, query, ragOpts)
 	if err != nil {
 		return domain.QueryResponse{}, err
 	}
-	
+
 	// If MCP is enabled, use tools
 	if c.mcpService != nil && len(allowedTools) > 0 {
 		// Get available tools
 		tools := c.mcpService.GetAvailableTools(ctx)
-		
+
 		// Filter by allowed tools
 		var filteredTools []domain.ToolDefinition
 		for _, tool := range tools {
@@ -252,18 +252,18 @@ func (c *BaseClient) QueryWithTools(query string, allowedTools []string, maxTool
 				}
 			}
 		}
-		
+
 		// Enhance response with tool results
 		if len(filteredTools) > 0 {
 			messages := []domain.Message{
 				{Role: "user", Content: query},
 			}
-			
+
 			genOpts := &domain.GenerationOptions{
 				Temperature: 0.7,
 				MaxTokens:   4000,
 			}
-			
+
 			result, err := c.llm.GenerateWithTools(ctx, messages, filteredTools, genOpts)
 			if err == nil && result != nil {
 				resp.Answer = result.Content
@@ -281,7 +281,7 @@ func (c *BaseClient) QueryWithTools(query string, allowedTools []string, maxTool
 			}
 		}
 	}
-	
+
 	return *resp, nil
 }
 

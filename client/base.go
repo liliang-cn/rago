@@ -14,16 +14,16 @@ import (
 // BaseClient represents the main rago client with advanced features
 type BaseClient struct {
 	config        *config.Config
-	ragClient     *rag.Client         // RAG operations
-	mcpService    *mcp.Service        // MCP operations
+	ragClient     *rag.Client  // RAG operations
+	mcpService    *mcp.Service // MCP operations
 	statusChecker *providers.StatusChecker
 	llm           domain.Generator
 	embedder      domain.Embedder
-	
+
 	// Advanced features
-	mcpClient   *MCPClient  // Advanced MCP functionality
-	taskClient  *TaskClient // Task scheduling functionality
-	
+	mcpClient  *MCPClient  // Advanced MCP functionality
+	taskClient *TaskClient // Task scheduling functionality
+
 	// Public properties for backward compatibility
 	LLM   *LLMWrapper
 	RAG   *RAGWrapper
@@ -77,19 +77,19 @@ func NewWithConfig(cfg *config.Config) (*BaseClient, error) {
 		statusChecker: statusChecker,
 		llm:           llm,
 		embedder:      embedder,
-		LLM:           NewLLMWrapper(llm),  // Public property for backward compatibility
+		LLM:           NewLLMWrapper(llm), // Public property for backward compatibility
 		RAG:           NewRAGWrapper(ragClient),
 		Tools:         nil, // Will be set if MCP is available
 	}
-	
+
 	// Set Tools wrapper if MCP service is available
 	if mcpService != nil {
 		client.Tools = NewToolsWrapper(mcpService)
 	}
-	
+
 	// Set Agent wrapper
 	client.Agent = NewAgentWrapper(client)
-	
+
 	return client, nil
 }
 
@@ -135,26 +135,26 @@ func (c *BaseClient) Ingest(ctx context.Context, req IngestRequest) (*IngestResp
 	if c.ragClient == nil {
 		return nil, fmt.Errorf("RAG client not initialized")
 	}
-	
+
 	// Delegate to RAG client
 	opts := &rag.IngestOptions{
 		ChunkSize: req.ChunkSize,
 		Overlap:   req.Overlap,
 		Metadata:  make(map[string]interface{}),
 	}
-	
+
 	// Convert metadata if provided
 	if req.Metadata != nil {
 		for k, v := range req.Metadata {
 			opts.Metadata[k] = v
 		}
 	}
-	
+
 	_, err := c.ragClient.IngestFile(ctx, req.Path, opts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &IngestResponse{
 		Success: true,
 		Message: "Documents ingested successfully",
@@ -166,7 +166,7 @@ func (c *BaseClient) Query(ctx context.Context, req QueryRequest) (*QueryRespons
 	if c.ragClient == nil {
 		return nil, fmt.Errorf("RAG client not initialized")
 	}
-	
+
 	// Prepare options
 	opts := &rag.QueryOptions{
 		TopK:        req.TopK,
@@ -174,18 +174,18 @@ func (c *BaseClient) Query(ctx context.Context, req QueryRequest) (*QueryRespons
 		MaxTokens:   req.MaxTokens,
 		ShowSources: req.ShowSources,
 	}
-	
+
 	// Perform query
 	result, err := c.ragClient.Query(ctx, req.Query, opts)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert to response
 	resp := &QueryResponse{
 		Answer: result.Answer,
 	}
-	
+
 	if req.ShowSources && result.Sources != nil {
 		for _, src := range result.Sources {
 			resp.Sources = append(resp.Sources, SearchResult{
@@ -195,7 +195,7 @@ func (c *BaseClient) Query(ctx context.Context, req QueryRequest) (*QueryRespons
 			})
 		}
 	}
-	
+
 	return resp, nil
 }
 
@@ -209,7 +209,7 @@ func (c *BaseClient) EnableMCP(ctx context.Context) error {
 	if c.mcpClient != nil && c.mcpClient.enabled {
 		return nil // Already enabled
 	}
-	
+
 	// Initialize MCP client
 	if c.mcpService != nil {
 		c.mcpClient = &MCPClient{
@@ -218,7 +218,7 @@ func (c *BaseClient) EnableMCP(ctx context.Context) error {
 		}
 		return nil
 	}
-	
+
 	return fmt.Errorf("MCP service not available")
 }
 

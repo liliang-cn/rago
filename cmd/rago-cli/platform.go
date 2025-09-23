@@ -36,7 +36,7 @@ var llmGenerateCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		prompt := strings.Join(args, " ")
-		
+
 		// Initialize RAGO platform
 		rago, err := client.New(cfgFile)
 		if err != nil {
@@ -90,7 +90,7 @@ var ragQueryCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		query := strings.Join(args, " ")
-		
+
 		// Initialize RAGO platform
 		rago, err := client.New(cfgFile)
 		if err != nil {
@@ -114,11 +114,11 @@ var ragQueryCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Answer: %s\n", response.Answer)
-		
+
 		if verbose && len(response.Sources) > 0 {
 			fmt.Println("\nSources:")
 			for i, source := range response.Sources {
-				fmt.Printf("  [%d] %s (score: %.2f)\n", 
+				fmt.Printf("  [%d] %s (score: %.2f)\n",
 					i+1, source.ID, source.Score)
 			}
 		}
@@ -173,7 +173,7 @@ var agentRunCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		task := strings.Join(args, " ")
-		
+
 		// Initialize RAGO platform
 		rago, err := client.New(cfgFile)
 		if err != nil {
@@ -240,7 +240,8 @@ var demoCmd = &cobra.Command{
 		defer rago.Close()
 
 		fmt.Println("=== RAGO Platform Demo ===")
-		fmt.Println("Demonstrating unified AI capabilities\n")
+		fmt.Println("Demonstrating unified AI capabilities")
+		fmt.Println()
 
 		// 1. LLM Demo
 		fmt.Println("1. LLM Generation")
@@ -255,7 +256,7 @@ var demoCmd = &cobra.Command{
 		// 2. RAG Demo (if documents exist)
 		fmt.Println("2. RAG Knowledge")
 		fmt.Println("----------------")
-		
+
 		// Try to ingest README if it exists
 		if _, err := os.Stat("README.md"); err == nil {
 			err = rago.RAG.Ingest("README.md")
@@ -270,13 +271,14 @@ var demoCmd = &cobra.Command{
 				}
 			}
 		} else {
-			fmt.Println("No documents to ingest\n")
+			fmt.Println("No documents to ingest")
+			fmt.Println()
 		}
 
 		// 3. Tools Demo
 		fmt.Println("3. MCP Tools")
 		fmt.Println("------------")
-		
+
 		// Enable MCP
 		if err := rago.EnableMCP(context.Background()); err != nil {
 			fmt.Printf("MCP not available: %v\n\n", err)
@@ -300,10 +302,10 @@ var demoCmd = &cobra.Command{
 		// 4. Agent Demo
 		fmt.Println("4. Agent Automation")
 		fmt.Println("-------------------")
-		
+
 		task := "List files in the current directory"
 		fmt.Printf("Task: %s\n", task)
-		
+
 		result, err := rago.Agent.Run(task)
 		if err != nil {
 			fmt.Printf("Agent error: %v\n", err)
