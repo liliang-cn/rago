@@ -1,0 +1,395 @@
+syntax = "proto3";
+
+package rago.v1;
+
+option go_package = "github.com/liliang-cn/rago/v2/proto/rago";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+// RAGService provides gRPC interface for RAG operations
+service RAGService {
+  // Ingest a document into the RAG system
+  rpc IngestDocument(IngestDocumentRequest) returns (IngestDocumentResponse);
+  
+  // Ingest documents in batch
+  rpc BatchIngestDocuments(BatchIngestDocumentsRequest) returns (BatchIngestDocumentsResponse);
+  
+  // Query the RAG system
+  rpc Query(QueryRequest) returns (QueryResponse);
+  
+  // Stream query results for real-time responses
+  rpc StreamQuery(QueryRequest) returns (stream StreamQueryResponse);
+  
+  // Get document by ID
+  rpc GetDocument(GetDocumentRequest) returns (GetDocumentResponse);
+  
+  // List documents
+  rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
+  
+  // Delete document
+  rpc DeleteDocument(DeleteDocumentRequest) returns (DeleteDocumentResponse);
+  
+  // Get system statistics
+  rpc GetStatistics(GetStatisticsRequest) returns (GetStatisticsResponse);
+  
+  // Health check
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// LLMService provides gRPC interface for LLM operations
+service LLMService {
+  // Generate text using LLM
+  rpc Generate(GenerateRequest) returns (GenerateResponse);
+  
+  // Stream generation for real-time text generation
+  rpc StreamGenerate(GenerateRequest) returns (stream StreamGenerateResponse);
+  
+  // Generate with tools
+  rpc GenerateWithTools(GenerateWithToolsRequest) returns (GenerateWithToolsResponse);
+  
+  // Extract metadata from content
+  rpc ExtractMetadata(ExtractMetadataRequest) returns (ExtractMetadataResponse);
+  
+  // Get available models
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+}
+
+// EmbeddingService provides gRPC interface for embedding operations
+service EmbeddingService {
+  // Generate embeddings for text
+  rpc GenerateEmbedding(GenerateEmbeddingRequest) returns (GenerateEmbeddingResponse);
+  
+  // Batch generate embeddings
+  rpc BatchGenerateEmbeddings(BatchGenerateEmbeddingsRequest) returns (BatchGenerateEmbeddingsResponse);
+  
+  // Compute similarity between two texts
+  rpc ComputeSimilarity(ComputeSimilarityRequest) returns (ComputeSimilarityResponse);
+}
+
+// Common message types
+
+message Document {
+  string id = 1;
+  string content = 2;
+  string file_path = 3;
+  string collection = 4;
+  map<string, string> metadata = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  repeated Chunk chunks = 8;
+}
+
+message Chunk {
+  string id = 1;
+  string document_id = 2;
+  string content = 3;
+  int32 chunk_index = 4;
+  repeated float embedding = 5;
+  map<string, string> metadata = 6;
+}
+
+message SearchResult {
+  string document_id = 1;
+  string chunk_id = 2;
+  string content = 3;
+  double score = 4;
+  string source = 5;
+  map<string, string> metadata = 6;
+}
+
+// RAG Service Messages
+
+message IngestDocumentRequest {
+  string content = 1;
+  string file_path = 2;
+  string collection = 3;
+  map<string, string> metadata = 4;
+  ChunkOptions chunk_options = 5;
+}
+
+message ChunkOptions {
+  string method = 1; // sentence, paragraph, token, adaptive
+  int32 size = 2;
+  int32 overlap = 3;
+}
+
+message IngestDocumentResponse {
+  string document_id = 1;
+  int32 chunk_count = 2;
+  string message = 3;
+  bool success = 4;
+  string error = 5;
+}
+
+message BatchIngestDocumentsRequest {
+  repeated IngestDocumentRequest documents = 1;
+  bool parallel = 2;
+}
+
+message BatchIngestDocumentsResponse {
+  repeated IngestDocumentResponse results = 1;
+  int32 total_processed = 2;
+  int32 successful = 3;
+  int32 failed = 4;
+}
+
+message QueryRequest {
+  string query = 1;
+  string collection = 2;
+  int32 top_k = 3;
+  double min_score = 4;
+  bool include_metadata = 5;
+  bool stream = 6;
+  QueryOptions options = 7;
+}
+
+message QueryOptions {
+  bool hybrid_search = 1;
+  double alpha = 2; // weight for vector vs keyword search
+  bool use_cache = 3;
+  string reranker_model = 4;
+  bool include_sources = 5;
+}
+
+message QueryResponse {
+  string answer = 1;
+  repeated SearchResult results = 2;
+  map<string, string> metadata = 3;
+  int64 processing_time_ms = 4;
+  bool from_cache = 5;
+}
+
+message StreamQueryResponse {
+  oneof content {
+    string text_chunk = 1;
+    SearchResult result = 2;
+    QueryMetadata metadata = 3;
+    string error = 4;
+  }
+}
+
+message QueryMetadata {
+  int64 processing_time_ms = 1;
+  bool from_cache = 2;
+  string model_used = 3;
+}
+
+message GetDocumentRequest {
+  string document_id = 1;
+  bool include_chunks = 2;
+}
+
+message GetDocumentResponse {
+  Document document = 1;
+  bool found = 2;
+}
+
+message ListDocumentsRequest {
+  string collection = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  string order_by = 4; // created_at, updated_at, id
+  bool descending = 5;
+}
+
+message ListDocumentsResponse {
+  repeated Document documents = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message DeleteDocumentRequest {
+  string document_id = 1;
+}
+
+message DeleteDocumentResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message GetStatisticsRequest {
+  string collection = 1;
+}
+
+message GetStatisticsResponse {
+  int64 total_documents = 1;
+  int64 total_chunks = 2;
+  int64 total_embeddings = 3;
+  map<string, int64> documents_by_collection = 4;
+  double average_chunks_per_document = 5;
+  int64 storage_size_bytes = 6;
+  google.protobuf.Timestamp last_ingestion = 7;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  map<string, ComponentHealth> components = 2;
+  string version = 3;
+}
+
+message ComponentHealth {
+  bool healthy = 1;
+  string status = 2;
+  string error = 3;
+  google.protobuf.Timestamp last_check = 4;
+}
+
+// LLM Service Messages
+
+message GenerateRequest {
+  string prompt = 1;
+  GenerationOptions options = 2;
+  string model = 3;
+}
+
+message GenerationOptions {
+  int32 max_tokens = 1;
+  double temperature = 2;
+  double top_p = 3;
+  double top_k = 4;
+  repeated string stop_sequences = 5;
+  double frequency_penalty = 6;
+  double presence_penalty = 7;
+}
+
+message GenerateResponse {
+  string text = 1;
+  int32 tokens_used = 2;
+  string model = 3;
+  int64 generation_time_ms = 4;
+}
+
+message StreamGenerateResponse {
+  oneof content {
+    string text_chunk = 1;
+    GenerationMetadata metadata = 2;
+    string error = 3;
+  }
+}
+
+message GenerationMetadata {
+  int32 tokens_used = 1;
+  int64 generation_time_ms = 2;
+  string finish_reason = 3;
+}
+
+message GenerateWithToolsRequest {
+  repeated Message messages = 1;
+  repeated ToolDefinition tools = 2;
+  GenerationOptions options = 3;
+  string model = 4;
+}
+
+message Message {
+  string role = 1; // user, assistant, system, tool
+  string content = 2;
+  repeated ToolCall tool_calls = 3;
+  string tool_call_id = 4;
+}
+
+message ToolDefinition {
+  string type = 1; // function
+  FunctionDefinition function = 2;
+}
+
+message FunctionDefinition {
+  string name = 1;
+  string description = 2;
+  google.protobuf.Struct parameters = 3;
+}
+
+message ToolCall {
+  string id = 1;
+  string type = 2; // function
+  FunctionCall function = 3;
+}
+
+message FunctionCall {
+  string name = 1;
+  string arguments = 2; // JSON string
+}
+
+message GenerateWithToolsResponse {
+  string content = 1;
+  repeated ToolCall tool_calls = 2;
+  string finish_reason = 3;
+  int32 tokens_used = 4;
+  string model = 5;
+}
+
+message ExtractMetadataRequest {
+  string content = 1;
+  string document_type = 2;
+  string model = 3;
+}
+
+message ExtractMetadataResponse {
+  string summary = 1;
+  repeated string keywords = 2;
+  string document_type = 3;
+  map<string, google.protobuf.ListValue> entities = 4;
+  repeated string topics = 5;
+  map<string, google.protobuf.Value> custom_metadata = 6;
+  string sentiment = 7;
+  string language = 8;
+}
+
+message ListModelsRequest {
+  string provider = 1;
+}
+
+message ListModelsResponse {
+  repeated ModelInfo models = 1;
+}
+
+message ModelInfo {
+  string id = 1;
+  string name = 2;
+  string provider = 3;
+  string type = 4; // llm, embedding
+  map<string, string> capabilities = 5;
+  bool available = 6;
+}
+
+// Embedding Service Messages
+
+message GenerateEmbeddingRequest {
+  string text = 1;
+  string model = 2;
+}
+
+message GenerateEmbeddingResponse {
+  repeated float embedding = 1;
+  int32 dimensions = 2;
+  string model = 3;
+}
+
+message BatchGenerateEmbeddingsRequest {
+  repeated string texts = 1;
+  string model = 2;
+}
+
+message BatchGenerateEmbeddingsResponse {
+  repeated EmbeddingResult results = 1;
+}
+
+message EmbeddingResult {
+  repeated float embedding = 1;
+  int32 index = 2;
+  string error = 3;
+}
+
+message ComputeSimilarityRequest {
+  string text1 = 1;
+  string text2 = 2;
+  string model = 3;
+  string metric = 4; // cosine, euclidean, dot_product
+}
+
+message ComputeSimilarityResponse {
+  double similarity = 1;
+  string metric = 2;
+}
