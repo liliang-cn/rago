@@ -1,5 +1,5 @@
 
-.PHONY: help build build-web build-dev run test clean install check build-all build-full
+.PHONY: help build build-web build-dev run test clean install check build-all build-full proto
 
 # Get the latest git tag (fallback to v0.0.0 if no tags)
 GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
@@ -100,4 +100,12 @@ check:
 
 # Build all platforms with embedded web assets (used by CI)
 build-all: build-full
+
+# Generate protobuf files
+proto:
+	@echo "Generating protobuf files..."
+	@mkdir -p proto/rago
+	@protoc --go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		proto/rago/rago.proto
 
