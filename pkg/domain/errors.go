@@ -12,4 +12,6 @@ var (
 	ErrDocumentStoreFailed = errors.New("document store operation failed")
 	ErrConfigurationError  = errors.New("configuration error")
 	ErrServiceUnavailable  = errors.New("service unavailable")
+	ErrNoHealthyProviders  = errors.New("no healthy providers available")
+	ErrProviderNotFound    = errors.New("provider not found")
 )
