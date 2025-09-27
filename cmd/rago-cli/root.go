@@ -108,6 +108,7 @@ func init() {
 	RootCmd.AddCommand(profile.ProfileCmd)
 
 	RootCmd.AddCommand(serveCmd)
+	RootCmd.AddCommand(grpcCmd)
 	RootCmd.AddCommand(llmCmd)
 	RootCmd.AddCommand(chatCmd)
 	RootCmd.AddCommand(statusCmd)
