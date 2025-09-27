@@ -67,7 +67,7 @@ func (w *MCPToolWrapper) ServerName() string {
 func (w *MCPToolWrapper) Schema() map[string]interface{} {
 	// Try to convert the actual InputSchema to our format
 	if w.tool.InputSchema != nil {
-		// Use JSON marshaling/unmarshaling to convert jsonschema.Schema to map[string]interface{}
+		// Use JSON marshaling/unmarshaling to convert any to map[string]interface{}
 		schemaBytes, err := json.Marshal(w.tool.InputSchema)
 		if err == nil {
 			var schemaMap map[string]interface{}
