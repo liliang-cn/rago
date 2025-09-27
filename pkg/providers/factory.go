@@ -28,6 +28,10 @@ func (f *Factory) CreateLLMProvider(ctx context.Context, config interface{}) (do
 		return NewOpenAILLMProvider(cfg)
 	case *domain.LMStudioProviderConfig:
 		return NewLMStudioLLMProvider(cfg)
+	case *domain.ClaudeProviderConfig:
+		return NewClaudeProvider(cfg)
+	case *domain.GeminiProviderConfig:
+		return NewGeminiProvider(cfg)
 	case map[string]interface{}:
 		// Handle dynamic configuration with type field
 		return f.CreateLLMProviderFromMap(ctx, cfg)
@@ -65,6 +69,20 @@ func (f *Factory) CreateLLMProviderFromMap(ctx context.Context, configMap map[st
 		}
 		cfg.Type = domain.ProviderLMStudio
 		return NewLMStudioLLMProvider(cfg)
+	case domain.ProviderClaude:
+		cfg := &domain.ClaudeProviderConfig{}
+		if err := mapToStruct(configMap, cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse claude config: %w", err)
+		}
+		cfg.Type = domain.ProviderClaude
+		return NewClaudeProvider(cfg)
+	case domain.ProviderGemini:
+		cfg := &domain.GeminiProviderConfig{}
+		if err := mapToStruct(configMap, cfg); err != nil {
+			return nil, fmt.Errorf("failed to parse gemini config: %w", err)
+		}
+		cfg.Type = domain.ProviderGemini
+		return NewGeminiProvider(cfg)
 	default:
 		return nil, fmt.Errorf("unsupported provider type: %s", providerType)
 	}
@@ -254,6 +272,10 @@ func DetectProviderType(config interface{}) (domain.ProviderType, error) {
 		return domain.ProviderOpenAI, nil
 	case "lmstudio":
 		return domain.ProviderLMStudio, nil
+	case "claude":
+		return domain.ProviderClaude, nil
+	case "gemini":
+		return domain.ProviderGemini, nil
 	default:
 		return "", fmt.Errorf("unsupported provider type: %s", typeString)
 	}
