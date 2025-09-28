@@ -1,5 +1,5 @@
 
-.PHONY: help build build-web build-dev run test clean install check build-all build-full proto
+.PHONY: help dev build test clean deps frontend backend frontend-dev
 
 # Get the latest git tag (fallback to v0.0.0 if no tags)
 GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
@@ -11,101 +11,75 @@ all: help
 
 # Help target - shows all available commands
 help:
-	@echo "RAGO Build System"
-	@echo "================="
+	@echo "RAGO - Simple Commands"
+	@echo "====================="
 	@echo ""
-	@echo "Production Build:"
-	@echo "  make build-full  - Build complete binary with embedded web assets"
-	@echo "  make build       - Alias for build-full (backward compatibility)"
-	@echo "  make install     - Build and install rago to GOPATH/bin"
-	@echo ""
-	@echo "Development:"
-	@echo "  make build-dev   - Build binary only (uses existing web assets)"
-	@echo "  make build-web   - Build web assets only"
-	@echo "  make dev         - Run backend in development mode"
-	@echo "  make run-web     - Run frontend development server"
-	@echo "  make run         - Run rago directly with go run"
-	@echo ""
-	@echo "Testing & Quality:"
-	@echo "  make test        - Run all tests"
-	@echo "  make check       - Run format, vet, and race tests"
-	@echo ""
-	@echo "Maintenance:"
-	@echo "  make clean       - Remove all build artifacts"
-	@echo "  make clean-web   - Remove web build artifacts only"
+	@echo "  dev         - Start development server (builds web + runs backend)"
+	@echo "  frontend-dev - Start frontend dev server with hot reload (port 5555)"
+	@echo "  build       - Build complete application with web UI"
+	@echo "  frontend    - Build only the web UI"
+	@echo "  backend     - Build only the Go binary (without rebuilding frontend)"
+	@echo "  test        - Run all tests"
+	@echo "  clean       - Clean build artifacts and databases"
+	@echo "  deps        - Download and install all dependencies"
 	@echo ""
 	@echo "Current version: $(GIT_TAG)"
 
-# Build the application with embedded web assets
-build-full: build-web
-	@echo "Building rago version $(GIT_TAG) with embedded web assets..."
-	@go build $(LDFLAGS) -o rago-cli ./cmd/rago-cli
-
-# Build just the Go binary (for development, uses existing web assets)
-build-dev:
-	@echo "Building rago version $(GIT_TAG) (development mode)..."
-	@go build $(LDFLAGS) -o rago-cli ./cmd/rago-cli
-
-# Alias for backward compatibility
-build: build-full
-
-# Build the web application
-build-web:
-	@echo "Building web assets..."
-	@cd web && npm install && npm run build
-
-# Run the application (development mode)
-run:
-	@go run $(LDFLAGS) main.go
-
-# Run web development server
-run-web:
-	@echo "Starting web development server..."
-	@cd web && npm run dev
-
-# Run both backend and frontend in development mode (requires two terminals)
+# Start development server (builds web + runs backend)
 dev:
 	@echo "Starting development mode..."
-	@echo "Run 'make run' in one terminal and 'make run-web' in another"
-	@go run $(LDFLAGS) main.go serve --port 7127
+	@echo "Building web assets..."
+	@cd web && npm install && npm run build
+	@echo "Starting RAGO server on port 7127..."
+	@go run $(LDFLAGS) ./cmd/rago-cli serve --ui --port 7127 --host 0.0.0.0
 
-# Run tests
+# Build complete application with web UI
+build: frontend backend
+	@echo "✅ Build complete! Run with: ./rago-cli serve --ui --port 7127"
+
+# Build only the frontend
+frontend:
+	@echo "Building web assets..."
+	@cd web && npm install && npm run build
+	@echo "✅ Frontend built to internal/web/dist/"
+
+# Start frontend development server with hot reload
+frontend-dev:
+	@echo "Starting frontend development server with hot reload..."
+	@echo "📦 Installing dependencies..."
+	@cd web && npm install
+	@echo "🚀 Starting dev server on http://localhost:5555"
+	@echo "✨ Hot reload enabled - changes will auto-refresh!"
+	@cd web && npm run dev -- --port 5555 --host 0.0.0.0
+
+# Build only the backend (Go binary)
+backend:
+	@echo "Building rago version $(GIT_TAG) with embedded web assets..."
+	@go build $(LDFLAGS) -o rago-cli ./cmd/rago-cli
+	@echo "✅ Backend binary built: rago-cli"
+
+# Run all tests
 test:
-	@go test ./...
+	@echo "Running Go tests..."
+	@go test ./... -v
+	@echo "Running web tests..."
+	@cd web && npm test
 
-# Clean up build artifacts
+# Clean build artifacts and databases
 clean:
 	@echo "Cleaning build artifacts..."
 	@rm -f rago-cli
 	@rm -rf web/dist
 	@rm -rf web/node_modules
+	@echo "Cleaning databases..."
+	@rm -rf .rago/data/*.db
 
-# Clean only web artifacts
-clean-web:
-	@echo "Cleaning web artifacts..."
-	@rm -rf web/dist
-	@rm -rf web/node_modules
-
-# Install the application with embedded web assets
-install: build-full
-	@echo "Installing rago-cli version $(GIT_TAG)..."
-	@go install $(LDFLAGS) ./cmd/rago-cli
-
-# Run checks (lint, format check, tests)
-check:
-	@echo "Running checks..."
-	@go fmt ./...
-	@go vet ./...
-	@go test -race -coverprofile=coverage.out ./...
-
-# Build all platforms with embedded web assets (used by CI)
-build-all: build-full
-
-# Generate protobuf files
-proto:
-	@echo "Generating protobuf files..."
-	@mkdir -p proto/rago
-	@protoc --go_out=. --go_opt=paths=source_relative \
-		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		proto/rago/rago.proto
+# Download and install all dependencies
+deps:
+	@echo "Installing Go dependencies..."
+	@go mod download
+	@go mod tidy
+	@echo "Installing web dependencies..."
+	@cd web && npm install
+	@echo "✅ All dependencies installed!"
 

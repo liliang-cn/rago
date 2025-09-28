@@ -159,8 +159,8 @@ export function LLMTab() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>LLM Operations</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-left">LLM Operations</CardTitle>
+          <CardDescription className="text-left">
             Direct LLM operations without RAG context
           </CardDescription>
         </CardHeader>
@@ -195,12 +195,12 @@ export function LLMTab() {
         <TabsContent value="generate" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Text Generation</CardTitle>
-              <CardDescription>Generate text from a prompt</CardDescription>
+              <CardTitle className="text-left">Text Generation</CardTitle>
+              <CardDescription className="text-left">Generate text from a prompt</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="prompt">Prompt</Label>
+                <Label htmlFor="prompt" className="text-left">Prompt</Label>
                 <Textarea
                   id="prompt"
                   value={generateRequest.prompt}
@@ -212,7 +212,7 @@ export function LLMTab() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="temperature">
+                  <Label htmlFor="temperature" className="text-left">
                     Temperature: {generateRequest.temperature?.toFixed(2)}
                   </Label>
                   <Slider
@@ -226,7 +226,7 @@ export function LLMTab() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="max_tokens">
+                  <Label htmlFor="max_tokens" className="text-left">
                     Max Tokens: {generateRequest.max_tokens}
                   </Label>
                   <Slider
@@ -251,7 +251,7 @@ export function LLMTab() {
               {responses.generate && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-sm">Response</CardTitle>
+                    <CardTitle className="text-sm text-left">Response</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm whitespace-pre-wrap">{responses.generate}</p>
@@ -265,8 +265,8 @@ export function LLMTab() {
         <TabsContent value="chat" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Chat with History</CardTitle>
-              <CardDescription>Multi-turn conversation with context</CardDescription>
+              <CardTitle className="text-left">Chat with History</CardTitle>
+              <CardDescription className="text-left">Multi-turn conversation with context</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <ScrollArea className="h-[300px] border rounded p-4">
@@ -318,7 +318,7 @@ export function LLMTab() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Temperature: {chatSettings.temperature.toFixed(2)}</Label>
+                  <Label className="text-left">Temperature: {chatSettings.temperature.toFixed(2)}</Label>
                   <Slider
                     min={0}
                     max={1}
@@ -328,7 +328,7 @@ export function LLMTab() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Max Tokens: {chatSettings.max_tokens}</Label>
+                  <Label className="text-left">Max Tokens: {chatSettings.max_tokens}</Label>
                   <Slider
                     min={50}
                     max={2000}
@@ -345,12 +345,12 @@ export function LLMTab() {
         <TabsContent value="structured" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Structured Generation</CardTitle>
-              <CardDescription>Generate JSON matching a schema</CardDescription>
+              <CardTitle className="text-left">Structured Generation</CardTitle>
+              <CardDescription className="text-left">Generate JSON matching a schema</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="structured-prompt">Prompt</Label>
+                <Label htmlFor="structured-prompt" className="text-left">Prompt</Label>
                 <Textarea
                   id="structured-prompt"
                   value={structuredPrompt}
@@ -361,7 +361,7 @@ export function LLMTab() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="schema">JSON Schema</Label>
+                <Label htmlFor="schema" className="text-left">JSON Schema</Label>
                 <Textarea
                   id="schema"
                   value={structuredSchema}
@@ -383,7 +383,7 @@ export function LLMTab() {
               {responses.structured && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-sm">
+                    <CardTitle className="text-sm text-left">
                       Structured Response {responses.structured.valid && '✓ Valid'}
                     </CardTitle>
                   </CardHeader>
@@ -401,12 +401,12 @@ export function LLMTab() {
         <TabsContent value="streaming" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Streaming Generation</CardTitle>
-              <CardDescription>Real-time token streaming</CardDescription>
+              <CardTitle className="text-left">Streaming Generation</CardTitle>
+              <CardDescription className="text-left">Real-time token streaming</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="stream-prompt">Prompt</Label>
+                <Label htmlFor="stream-prompt" className="text-left">Prompt</Label>
                 <Textarea
                   id="stream-prompt"
                   value={generateRequest.prompt}
@@ -427,7 +427,7 @@ export function LLMTab() {
               {(responses.streaming || loading.streaming) && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-sm">
+                    <CardTitle className="text-sm text-left">
                       Streaming Response {loading.streaming && '(in progress...)'}
                     </CardTitle>
                   </CardHeader>

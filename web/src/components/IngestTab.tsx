@@ -1,18 +1,17 @@
 import { useState, useRef } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Upload, FileText, Loader2 } from 'lucide-react'
+import { Card, Button, Input, Tabs, Space, Typography, message } from 'antd'
+import { FileTextOutlined, UploadOutlined, LoadingOutlined } from '@ant-design/icons'
 import { apiClient } from '@/lib/api'
+
+const { TextArea } = Input
+const { Text } = Typography
+const { TabPane } = Tabs
 
 export function IngestTab() {
   const [textContent, setTextContent] = useState('')
   const [textTitle, setTextTitle] = useState('')
   const [textMetadata, setTextMetadata] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleTextSubmit = async (e: React.FormEvent) => {
@@ -20,7 +19,6 @@ export function IngestTab() {
     if (!textContent.trim()) return
 
     setIsLoading(true)
-    setMessage(null)
 
     try {
       let metadata: Record<string, any> | undefined
@@ -28,7 +26,7 @@ export function IngestTab() {
         try {
           metadata = JSON.parse(textMetadata)
         } catch (e) {
-          setMessage({ type: 'error', text: 'Invalid JSON in metadata field' })
+          message.error('Invalid JSON in metadata field')
           setIsLoading(false)
           return
         }
@@ -36,15 +34,15 @@ export function IngestTab() {
 
       const response = await apiClient.ingestText(textContent, textTitle || undefined, metadata)
       if (response.error) {
-        setMessage({ type: 'error', text: response.error })
+        message.error(response.error)
       } else {
-        setMessage({ type: 'success', text: 'Text ingested successfully!' })
+        message.success('Text ingested successfully!')
         setTextContent('')
         setTextTitle('')
         setTextMetadata('')
       }
     } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unknown error' })
+      message.error(error instanceof Error ? error.message : 'Unknown error')
     } finally {
       setIsLoading(false)
     }
@@ -55,7 +53,6 @@ export function IngestTab() {
     if (!file) return
 
     setIsLoading(true)
-    setMessage(null)
 
     try {
       let metadata: Record<string, any> | undefined
@@ -63,7 +60,7 @@ export function IngestTab() {
         try {
           metadata = JSON.parse(textMetadata)
         } catch (e) {
-          setMessage({ type: 'error', text: 'Invalid JSON in metadata field' })
+          message.error('Invalid JSON in metadata field')
           setIsLoading(false)
           return
         }
@@ -71,13 +68,13 @@ export function IngestTab() {
 
       const response = await apiClient.ingestFile(file, metadata)
       if (response.error) {
-        setMessage({ type: 'error', text: response.error })
+        message.error(response.error)
       } else {
-        setMessage({ type: 'success', text: `File "${file.name}" ingested successfully!` })
+        message.success(`File "${file.name}" ingested successfully!`)
         setTextMetadata('')
       }
     } catch (error) {
-      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unknown error' })
+      message.error(error instanceof Error ? error.message : 'Unknown error')
     } finally {
       setIsLoading(false)
       if (fileInputRef.current) {
@@ -87,132 +84,130 @@ export function IngestTab() {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-left">
-            <FileText className="h-5 w-5" />
-            Ingest Content
-          </CardTitle>
-          <CardDescription className="text-left">
-            Add documents to your knowledge base by uploading files or entering text directly.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="text" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="text">Text Input</TabsTrigger>
-              <TabsTrigger value="file">File Upload</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="text" className="space-y-4">
-              <form onSubmit={handleTextSubmit} className="space-y-4">
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Card
+        title={
+          <div style={{ textAlign: 'left' }}>
+            <Space>
+              <FileTextOutlined />
+              <span>Ingest Content</span>
+            </Space>
+          </div>
+        }
+        style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+        bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+      >
+        <Text type="secondary" style={{ marginBottom: 16, textAlign: 'left', display: 'block' }}>
+          Add documents to your knowledge base by uploading files or entering text directly.
+        </Text>
+
+        <Tabs defaultActiveKey="text" style={{ flex: 1 }}>
+          <TabPane tab="Text Input" key="text">
+            <form onSubmit={handleTextSubmit}>
+              <Space direction="vertical" style={{ width: '100%' }} size="middle">
                 <div>
-                  <label htmlFor="title" className="text-sm font-medium">
-                    Title (optional)
-                  </label>
+                  <Text strong style={{ textAlign: 'left', display: 'block' }}>Title (optional)</Text>
                   <Input
-                    id="title"
                     value={textTitle}
                     onChange={(e) => setTextTitle(e.target.value)}
                     placeholder="Document title..."
                     disabled={isLoading}
+                    style={{ marginTop: 8 }}
                   />
                 </div>
                 <div>
-                  <label htmlFor="content" className="text-sm font-medium">
-                    Content *
-                  </label>
-                  <Textarea
-                    id="content"
+                  <Text strong style={{ textAlign: 'left', display: 'block' }}>Content *</Text>
+                  <TextArea
                     value={textContent}
                     onChange={(e) => setTextContent(e.target.value)}
                     placeholder="Enter your text content here..."
-                    className="min-h-[200px]"
+                    rows={8}
                     disabled={isLoading}
-                    required
+                    style={{ marginTop: 8 }}
                   />
                 </div>
                 <div>
-                  <label htmlFor="metadata" className="text-sm font-medium">
-                    Metadata (optional, JSON format)
-                  </label>
-                  <Textarea
-                    id="metadata"
+                  <Text strong style={{ textAlign: 'left', display: 'block' }}>Metadata (optional, JSON format)</Text>
+                  <TextArea
                     value={textMetadata}
                     onChange={(e) => setTextMetadata(e.target.value)}
                     placeholder='{"author": "John Doe", "category": "technical", "tags": ["ai", "rag"]}'
-                    className="min-h-[80px]"
+                    rows={3}
                     disabled={isLoading}
+                    style={{ marginTop: 8 }}
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <Text type="secondary" style={{ fontSize: 12, textAlign: 'left', display: 'block' }}>
                     Enter valid JSON for document metadata (e.g., author, category, tags)
-                  </p>
+                  </Text>
                 </div>
-                <Button type="submit" disabled={isLoading || !textContent.trim()}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Button 
+                  type="primary" 
+                  htmlType="submit" 
+                  disabled={isLoading || !textContent.trim()}
+                  loading={isLoading}
+                  icon={isLoading ? <LoadingOutlined /> : <FileTextOutlined />}
+                >
                   Ingest Text
                 </Button>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="file" className="space-y-4">
+              </Space>
+            </form>
+          </TabPane>
+          
+          <TabPane tab="File Upload" key="file">
+            <Space direction="vertical" style={{ width: '100%' }} size="middle">
               <div>
-                <label htmlFor="file-metadata" className="text-sm font-medium">
-                  Metadata (optional, JSON format)
-                </label>
-                <Textarea
-                  id="file-metadata"
+                <Text strong>Metadata (optional, JSON format)</Text>
+                <TextArea
                   value={textMetadata}
                   onChange={(e) => setTextMetadata(e.target.value)}
                   placeholder='{"author": "John Doe", "category": "technical", "tags": ["ai", "rag"]}'
-                  className="min-h-[80px]"
+                  rows={3}
                   disabled={isLoading}
+                  style={{ marginTop: 8 }}
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <Text type="secondary" style={{ fontSize: 12 }}>
                   Enter valid JSON for document metadata (e.g., author, category, tags)
-                </p>
+                </Text>
               </div>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Upload a file</p>
-                  <p className="text-xs text-gray-500">
+              
+              <div style={{ 
+                border: '2px dashed #d9d9d9', 
+                borderRadius: 8, 
+                padding: 48, 
+                textAlign: 'center',
+                backgroundColor: '#fafafa'
+              }}>
+                <UploadOutlined style={{ fontSize: 48, color: '#bfbfbf', marginBottom: 16 }} />
+                <div>
+                  <Text strong style={{ textAlign: 'left', display: 'block' }}>Upload a file</Text>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: 12, textAlign: 'left', display: 'block' }}>
                     Supports: PDF, TXT, DOC, DOCX, MD and more
-                  </p>
+                  </Text>
                 </div>
                 <input
                   ref={fileInputRef}
                   type="file"
                   onChange={handleFileUpload}
-                  className="hidden"
+                  style={{ display: 'none' }}
                   accept=".pdf,.txt,.doc,.docx,.md,.html,.rtf"
                   disabled={isLoading}
                 />
+                <br />
                 <Button
-                  type="button"
-                  variant="outline"
+                  type="default"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isLoading}
-                  className="mt-4"
+                  loading={isLoading}
+                  icon={isLoading ? <LoadingOutlined /> : <UploadOutlined />}
+                  style={{ marginTop: 16 }}
                 >
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Choose File
                 </Button>
               </div>
-            </TabsContent>
-          </Tabs>
-
-          {message && (
-            <div className={`mt-4 p-3 rounded-md text-sm ${
-              message.type === 'success' 
-                ? 'bg-green-50 text-green-700 border border-green-200' 
-                : 'bg-red-50 text-red-700 border border-red-200'
-            }`}>
-              {message.text}
-            </div>
-          )}
-        </CardContent>
+            </Space>
+          </TabPane>
+        </Tabs>
       </Card>
     </div>
   )
