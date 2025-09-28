@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { apiClient, MCPTool, MCPToolResult } from '@/lib/api'
+import { Card, Button, Tabs, Input, Space, Typography, Spin, Empty, Tag, Alert } from 'antd'
 import { 
-  Wrench, 
-  Server, 
-  Play, 
-  Square, 
-  RefreshCw, 
-  AlertCircle, 
-  CheckCircle2,
-  Clock,
-  Database,
-  Activity
-} from 'lucide-react'
+  ToolOutlined, 
+  CloudServerOutlined, 
+  PlayCircleOutlined, 
+  StopOutlined, 
+  ReloadOutlined, 
+  ExclamationCircleOutlined, 
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  DatabaseOutlined,
+  ThunderboltOutlined
+} from '@ant-design/icons'
+import { apiClient, MCPTool, MCPToolResult } from '@/lib/api'
+
+const { TextArea } = Input
+const { Title, Text, Paragraph } = Typography
+const { TabPane } = Tabs
 
 interface ServerStatus {
   name: string
@@ -111,222 +112,260 @@ export function MCPTab() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">MCP Integration</h2>
-          <p className="text-gray-600">Manage Model Context Protocol servers and tools</p>
-        </div>
-        <Button onClick={loadMCPData} disabled={isLoadingTools}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingTools ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Card
+        title={
+          <div style={{ textAlign: 'left' }}>
+            <Space>
+              <ToolOutlined />
+              <span>MCP Integration</span>
+            </Space>
+          </div>
+        }
+        extra={
+          <Button
+            icon={<ReloadOutlined spin={isLoadingTools} />}
+            onClick={loadMCPData}
+            loading={isLoadingTools}
+          >
+            Refresh
+          </Button>
+        }
+        style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+        bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+      >
+        <Text type="secondary" style={{ marginBottom: 16, textAlign: 'left', display: 'block' }}>
+          Manage Model Context Protocol servers and tools
+        </Text>
 
-      {error && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 text-red-800">
-              <AlertCircle className="h-4 w-4" />
-              <span>{error}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        {error && (
+          <Alert
+            message={error}
+            type="error"
+            icon={<ExclamationCircleOutlined />}
+            style={{ marginBottom: 16 }}
+            closable
+            onClose={() => setError('')}
+          />
+        )}
 
-      <Tabs defaultValue="tools" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="tools">
-            <Wrench className="h-4 w-4 mr-2" />
-            Tools ({tools.length})
-          </TabsTrigger>
-          <TabsTrigger value="servers">
-            <Server className="h-4 w-4 mr-2" />
-            Servers ({servers.length})
-          </TabsTrigger>
-          <TabsTrigger value="execute">
-            <Play className="h-4 w-4 mr-2" />
-            Execute
-          </TabsTrigger>
-        </TabsList>
+        <Tabs defaultActiveKey="tools" style={{ flex: 1 }}>
 
-        <TabsContent value="tools" className="space-y-4">
-          {isLoadingTools ? (
-            <div className="flex items-center justify-center h-32">
-              <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-              <span>Loading tools...</span>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {tools.map((tool) => (
-                <Card key={tool.name} className="cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => setSelectedTool(tool)}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-medium truncate">
+          <TabPane 
+            tab={
+              <Space>
+                <ToolOutlined />
+                Tools ({tools?.length || 0})
+              </Space>
+            } 
+            key="tools"
+          >
+            {isLoadingTools ? (
+              <div style={{ textAlign: 'center', padding: '64px 0' }}>
+                <Spin size="large" />
+                <div style={{ marginTop: 16 }}>
+                  <Text type="secondary">Loading tools...</Text>
+                </div>
+              </div>
+            ) : (
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
+                gap: '16px' 
+              }}>
+                {tools?.map((tool) => (
+                  <Card 
+                    key={tool.name} 
+                    size="small"
+                    hoverable
+                    onClick={() => setSelectedTool(tool)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                      <Title level={5} style={{ margin: 0, fontSize: 14, textAlign: 'left' }}>
                         {tool.name.replace('mcp_', '').replace(/_/g, ' ')}
-                      </CardTitle>
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <Database className="h-3 w-3" />
+                      </Title>
+                      <Tag icon={<DatabaseOutlined />} color="blue" style={{ fontSize: 10 }}>
                         {tool.server_name}
-                      </div>
+                      </Tag>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <CardDescription className="text-xs line-clamp-2">
+                    <Paragraph
+                      style={{ margin: 0, fontSize: 12, color: '#666' }}
+                      ellipsis={{ rows: 2 }}
+                    >
                       {tool.description}
-                    </CardDescription>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
+                    </Paragraph>
+                  </Card>
+                )) || []}
+              </div>
+            )}
+          </TabPane>
 
-        <TabsContent value="servers" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            {servers.map((server) => (
-              <Card key={server.name}>
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
-                  <div className="flex items-center gap-2">
-                    <Server className="h-5 w-5" />
-                    <CardTitle className="text-lg">{server.name}</CardTitle>
+          <TabPane 
+            tab={
+              <Space>
+                <CloudServerOutlined />
+                Servers ({servers?.length || 0})
+              </Space>
+            } 
+            key="servers"
+          >
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', 
+              gap: '16px' 
+            }}>
+              {servers?.map((server) => (
+                <Card key={server.name} size="small">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <Space>
+                      <CloudServerOutlined />
+                      <Title level={5} style={{ margin: 0, textAlign: 'left' }}>{server.name}</Title>
+                    </Space>
+                    <Space>
+                      {server.status ? (
+                        <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                      ) : (
+                        <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />
+                      )}
+                      <Text strong style={{ color: server.status ? '#52c41a' : '#ff4d4f' }}>
+                        {server.status ? 'Connected' : 'Disconnected'}
+                      </Text>
+                    </Space>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {server.status ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <AlertCircle className="h-4 w-4 text-red-600" />
-                    )}
-                    <span className={`text-sm font-medium ${
-                      server.status ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {server.status ? 'Connected' : 'Disconnected'}
-                    </span>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex gap-2">
+                  <Space>
                     <Button
-                      size="sm"
-                      variant={server.status ? "secondary" : "default"}
+                      size="small"
+                      type={server.status ? "default" : "primary"}
+                      icon={<PlayCircleOutlined />}
                       onClick={() => startServer(server.name)}
                       disabled={server.status}
                     >
-                      <Play className="h-3 w-3 mr-1" />
                       Start
                     </Button>
                     <Button
-                      size="sm"
-                      variant={server.status ? "destructive" : "secondary"}
+                      size="small"
+                      danger={server.status}
+                      icon={<StopOutlined />}
                       onClick={() => stopServer(server.name)}
                       disabled={!server.status}
                     >
-                      <Square className="h-3 w-3 mr-1" />
                       Stop
                     </Button>
+                  </Space>
+                </Card>
+              )) || []}
+            </div>
+          </TabPane>
+
+          <TabPane 
+            tab={
+              <Space>
+                <PlayCircleOutlined />
+                Execute
+              </Space>
+            } 
+            key="execute"
+          >
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr', 
+              gap: '24px'
+            }}>
+              <Card title={<div style={{ textAlign: 'left' }}>Execute Tool</div>} size="small">
+                <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                  <div>
+                    <Text strong style={{ textAlign: 'left', display: 'block' }}>Selected Tool:</Text>
+                    <div style={{ 
+                      marginTop: 8, 
+                      padding: 8, 
+                      backgroundColor: '#f5f5f5', 
+                      borderRadius: 4, 
+                      border: '1px solid #d9d9d9',
+                      fontSize: 12
+                    }}>
+                      {selectedTool ? selectedTool.name : 'No tool selected'}
+                    </div>
                   </div>
-                </CardContent>
+
+                  <div>
+                    <Text strong style={{ textAlign: 'left', display: 'block' }}>Arguments (JSON):</Text>
+                    <TextArea
+                      placeholder='{"query": "SELECT * FROM table", "limit": 10}'
+                      value={toolArgs}
+                      onChange={(e) => setToolArgs(e.target.value)}
+                      style={{ marginTop: 8 }}
+                      rows={4}
+                    />
+                  </div>
+
+                  <Button 
+                    type="primary"
+                    icon={isLoading ? <ReloadOutlined spin /> : <PlayCircleOutlined />}
+                    onClick={executeTool} 
+                    disabled={!selectedTool || isLoading}
+                    block
+                    loading={isLoading}
+                  >
+                    {isLoading ? 'Executing...' : 'Execute Tool'}
+                  </Button>
+                </Space>
               </Card>
-            ))}
-          </div>
-        </TabsContent>
 
-        <TabsContent value="execute" className="space-y-4">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Execute Tool</CardTitle>
-                <CardDescription>
-                  Select a tool and provide arguments to execute
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Selected Tool:</label>
-                  <div className="mt-1 p-2 bg-gray-50 rounded border text-sm">
-                    {selectedTool ? selectedTool.name : 'No tool selected'}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium">Arguments (JSON):</label>
-                  <Textarea
-                    placeholder='{"query": "SELECT * FROM table", "limit": 10}'
-                    value={toolArgs}
-                    onChange={(e) => setToolArgs(e.target.value)}
-                    className="mt-1"
-                    rows={4}
-                  />
-                </div>
-
-                <Button 
-                  onClick={executeTool} 
-                  disabled={!selectedTool || isLoading}
-                  className="w-full"
-                >
-                  {isLoading ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Executing...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-4 w-4 mr-2" />
-                      Execute Tool
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Result</CardTitle>
-                <CardDescription>
-                  Tool execution result will appear here
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+              <Card title={<div style={{ textAlign: 'left' }}>Result</div>} size="small">
                 {toolResult ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      {toolResult.success ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <AlertCircle className="h-4 w-4 text-red-600" />
-                      )}
-                      <span className={`text-sm font-medium ${
-                        toolResult.success ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {toolResult.success ? 'Success' : 'Failed'}
-                      </span>
-                      <div className="flex items-center gap-1 text-xs text-gray-500 ml-auto">
-                        <Clock className="h-3 w-3" />
-                        {toolResult.duration}ms
-                      </div>
+                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Space>
+                        {toolResult.success ? (
+                          <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                        ) : (
+                          <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />
+                        )}
+                        <Text strong style={{ color: toolResult.success ? '#52c41a' : '#ff4d4f' }}>
+                          {toolResult.success ? 'Success' : 'Failed'}
+                        </Text>
+                      </Space>
+                      <Space>
+                        <ClockCircleOutlined style={{ fontSize: 12, color: '#666' }} />
+                        <Text style={{ fontSize: 12, color: '#666' }}>
+                          {toolResult.duration}ms
+                        </Text>
+                      </Space>
                     </div>
                     
-                    <div className="bg-gray-50 p-3 rounded border">
-                      <pre className="text-xs overflow-auto whitespace-pre-wrap">
+                    <div style={{ 
+                      backgroundColor: '#f5f5f5', 
+                      padding: 12, 
+                      borderRadius: 4, 
+                      border: '1px solid #d9d9d9',
+                      maxHeight: 300,
+                      overflow: 'auto'
+                    }}>
+                      <pre style={{ 
+                        fontSize: 11, 
+                        margin: 0, 
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word'
+                      }}>
                         {toolResult.success 
                           ? JSON.stringify(toolResult.data, null, 2)
                           : toolResult.error
                         }
                       </pre>
                     </div>
-                  </div>
+                  </Space>
                 ) : (
-                  <div className="text-center text-gray-500 py-8">
-                    <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No execution result yet</p>
-                  </div>
+                  <Empty
+                    image={<ThunderboltOutlined style={{ fontSize: 48, color: '#bfbfbf' }} />}
+                    description="No execution result yet"
+                  />
                 )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+              </Card>
+            </div>
+          </TabPane>
+        </Tabs>
+      </Card>
     </div>
   )
 }

@@ -1,215 +1,446 @@
-import { useState, useRef, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { useRAGChat } from '@/lib/api'
-import { Send, MessageSquare, User, Bot, ExternalLink, Settings, Zap } from 'lucide-react'
+import { useState, useRef, useEffect } from "react";
+import {
+  Card,
+  Input,
+  Button,
+  Space,
+  Switch,
+  Avatar,
+  Typography,
+  Tooltip,
+  Tag,
+  Empty,
+  Spin,
+  message,
+  Collapse,
+} from "antd";
+import {
+  SendOutlined,
+  MessageOutlined,
+  UserOutlined,
+  RobotOutlined,
+  SettingOutlined,
+  ThunderboltOutlined,
+  ClearOutlined,
+  FileTextOutlined,
+} from "@ant-design/icons";
+import { useRAGChat, conversationApi, ConversationMessage } from "@/lib/api";
+
+const { TextArea } = Input;
+const { Text, Paragraph } = Typography;
+const { Panel } = Collapse;
 
 export function ChatTab() {
-  const { messages, isLoading, sendMessage, sendMessageStream, clearMessages } = useRAGChat()
-  const [input, setInput] = useState('')
-  const [filters, setFilters] = useState('')
-  const [useStreaming, setUseStreaming] = useState(true)
-  const [showThinking, setShowThinking] = useState(false)
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { messages, isLoading, sendMessage, sendMessageStream, clearMessages } =
+    useRAGChat();
+  const [input, setInput] = useState("");
+  const [filters, setFilters] = useState("");
+  const [useStreaming, setUseStreaming] = useState(true);
+  const [showThinking, setShowThinking] = useState(false);
+  const [conversationId, setConversationId] = useState<string>("");
+  const [isSaving, setIsSaving] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    scrollToBottom();
+  }, [messages]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || isLoading) return
+  // Initialize conversation ID on mount
+  useEffect(() => {
+    const initConversation = async () => {
+      try {
+        const { id } = await conversationApi.createNew();
+        setConversationId(id);
+      } catch (error) {
+        console.error("Failed to create conversation:", error);
+      }
+    };
+    initConversation();
+  }, []);
 
-    const message = input.trim()
-    setInput('')
+  // Save conversation after each message exchange
+  useEffect(() => {
+    if (messages.length > 0 && conversationId && !isLoading) {
+      const saveConversation = async () => {
+        setIsSaving(true);
+        try {
+          const conversationMessages: ConversationMessage[] = messages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            sources: msg.sources,
+            thinking: (msg as any).thinking,
+            timestamp: Date.now()
+          }));
+          
+          await conversationApi.save({
+            id: conversationId,
+            messages: conversationMessages,
+          });
+        } catch (error) {
+          console.error("Failed to save conversation:", error);
+        } finally {
+          setIsSaving(false);
+        }
+      };
+      saveConversation();
+    }
+  }, [messages, conversationId, isLoading]);
+
+  const handleSubmit = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const messageContent = input.trim();
+    setInput("");
 
     // Parse filters if provided
-    let parsedFilters: Record<string, any> | undefined
+    let parsedFilters: Record<string, any> | undefined;
     if (filters.trim()) {
       try {
-        parsedFilters = JSON.parse(filters)
+        parsedFilters = JSON.parse(filters);
       } catch (error) {
-        // If filters are invalid, show error but continue without filters
-        console.warn('Invalid filter JSON:', error)
+        message.warning("Invalid filter JSON format");
+        console.warn("Invalid filter JSON:", error);
       }
     }
 
-    if (useStreaming) {
-      await sendMessageStream(message, parsedFilters, undefined, showThinking)
-    } else {
-      await sendMessage(message, parsedFilters, showThinking)
+    try {
+      if (useStreaming) {
+        await sendMessageStream(
+          messageContent,
+          parsedFilters,
+          undefined,
+          showThinking
+        );
+      } else {
+        await sendMessage(messageContent, parsedFilters, showThinking);
+      }
+    } catch (error) {
+      message.error("Failed to send message. Please try again.");
+      console.error("Error sending message:", error);
     }
-  }
+  };
+
+  const handleClearMessages = async () => {
+    clearMessages();
+    // Create new conversation ID after clearing
+    try {
+      const { id } = await conversationApi.createNew();
+      setConversationId(id);
+      message.success("Conversation cleared and new session started");
+    } catch (error) {
+      message.error("Failed to create new conversation");
+    }
+  };
 
   return (
-    <div className="flex flex-col h-[600px]">
-      <Card className="flex-1 flex flex-col">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-left">
-            <MessageSquare className="h-5 w-5" />
-            Chat with your Documents
-          </CardTitle>
-          <CardDescription className="text-left">
-            Ask questions about your ingested documents and get AI-powered answers with sources.
-          </CardDescription>
-        </CardHeader>
-        
-        <CardContent className="flex-1 flex flex-col">
-          <div className="flex-1 overflow-y-auto space-y-4 mb-4 p-4 border rounded-lg bg-gray-50">
-            {messages.length === 0 ? (
-              <div className="text-center text-gray-500 py-8">
-                <MessageSquare className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                <p>Start a conversation by asking a question about your documents.</p>
-              </div>
-            ) : (
-              messages.map((message, index) => (
-                <div key={index} className="space-y-2">
-                  <div className={`flex items-start gap-3 ${
-                    message.role === 'user' ? 'justify-end' : 'justify-start'
-                  }`}>
-                    <div className={`flex gap-2 max-w-[80%] ${
-                      message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
-                    }`}>
-                      <div className={`w-8 h-8 min-w-[2rem] min-h-[2rem] flex-shrink-0 rounded-full flex items-center justify-center text-white text-sm shadow-md border-2 ${
-                        message.role === 'user' 
-                          ? 'bg-blue-500 border-blue-600' 
-                          : 'bg-gradient-to-br from-purple-500 to-blue-600 border-purple-400'
-                      }`}>
-                        {message.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                      </div>
-                      <div className={`rounded-lg p-3 ${
-                        message.role === 'user' 
-                          ? 'bg-blue-500 text-white text-right' 
-                          : 'bg-white border shadow-sm text-left'
-                      }`}>
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                        
-                        {message.sources && message.sources.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-gray-200">
-                            <p className="text-xs font-semibold text-gray-600 mb-2">Sources:</p>
-                            <div className="space-y-1">
-                              {message.sources.map((source, idx) => (
-                                <div key={idx} className="text-xs bg-gray-50 p-2 rounded border">
-                                  <div className="flex items-center gap-1 font-medium">
-                                    <ExternalLink className="h-3 w-3" />
-                                    {source.title || `Document ${source.id}`}
-                                    <span className="text-gray-500">({(source.score * 100).toFixed(1)}%)</span>
-                                  </div>
-                                  <p className="text-gray-600 mt-1 line-clamp-2">
-                                    {source.content.substring(0, 150)}...
-                                  </p>
-                                  {source.metadata && (
-                                    <div className="mt-1 text-xs text-gray-500">
-                                      {Object.entries(source.metadata).map(([key, value]) => (
-                                        <span key={key} className="mr-2">
-                                          {key}: {JSON.stringify(value)}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-            <div ref={messagesEndRef} />
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <Card
+        title={
+          <div style={{ textAlign: "left" }}>
+            <Space>
+              <MessageOutlined />
+              <span>Chat with your Documents</span>
+            </Space>
           </div>
-
-          {/* Advanced Options */}
-          <div className="mb-4">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-xs"
-            >
-              <Settings className="h-3 w-3 mr-1" />
-              Advanced Options
-            </Button>
-            
-            {showAdvanced && (
-              <div className="mt-2 space-y-3 p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="streaming"
-                    checked={useStreaming}
-                    onChange={(e) => setUseStreaming(e.target.checked)}
-                    className="rounded"
-                  />
-                  <label htmlFor="streaming" className="text-sm flex items-center gap-1">
-                    <Zap className="h-3 w-3" />
-                    Enable Streaming
-                  </label>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="thinking"
-                    checked={showThinking}
-                    onChange={(e) => setShowThinking(e.target.checked)}
-                    className="rounded"
-                  />
-                  <label htmlFor="thinking" className="text-sm flex items-center gap-1">
-                    <Bot className="h-3 w-3" />
-                    Show AI Thinking Process
-                  </label>
-                </div>
-                
-                <div>
-                  <label htmlFor="filters" className="text-xs font-medium text-gray-700 block mb-1">
-                    Filters (JSON format)
-                  </label>
-                  <Textarea
-                    id="filters"
-                    value={filters}
-                    onChange={(e) => setFilters(e.target.value)}
-                    placeholder='{"author": "John Doe", "category": "technical"}'
-                    className="text-xs h-16"
-                    disabled={isLoading}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Filter documents by metadata (e.g., author, category, tags)
-                  </p>
-                </div>
-              </div>
+        }
+        extra={
+          <Space>
+            {conversationId && (
+              <Tooltip title="Conversation ID">
+                <Tag color="blue">ID: {conversationId.slice(0, 8)}</Tag>
+              </Tooltip>
             )}
-          </div>
-
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask a question about your documents..."
-              disabled={isLoading}
-              className="flex-1"
-            />
-            <Button type="submit" disabled={isLoading || !input.trim()}>
-              <Send className="h-4 w-4" />
-            </Button>
-            {messages.length > 0 && (
-              <Button type="button" variant="outline" onClick={clearMessages}>
+            {isSaving && (
+              <Tag icon={<Spin size="small" />} color="processing">
+                Saving...
+              </Tag>
+            )}
+            <Tooltip title="Clear conversation">
+              <Button
+                icon={<ClearOutlined />}
+                onClick={handleClearMessages}
+                disabled={messages?.length === 0}
+              >
                 Clear
               </Button>
-            )}
-          </form>
-        </CardContent>
+            </Tooltip>
+          </Space>
+        }
+        style={{ flex: 1, display: "flex", flexDirection: "column" }}
+      >
+        <Text
+          type="secondary"
+          style={{ marginBottom: 16, textAlign: "left", display: "block" }}
+        >
+          Ask questions about your ingested documents and get AI-powered answers
+          with sources.
+        </Text>
+
+        {/* Messages Area */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: 16,
+            background: "#f5f5f5",
+            borderRadius: 8,
+            marginBottom: 16,
+          }}
+        >
+          {messages?.length === 0 ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                <div
+                  style={{
+                    textAlign: "left",
+                    width: "100%",
+                    maxWidth: "600px",
+                    margin: "0 auto",
+                  }}
+                >
+                  Start a conversation by asking a question about your documents
+                </div>
+              }
+            />
+          ) : (
+            <Space direction="vertical" style={{ width: "100%" }} size="middle">
+              {messages?.map((msg, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: "flex",
+                    justifyContent:
+                      msg.role === "user" ? "flex-end" : "flex-start",
+                  }}
+                >
+                  <Space
+                    align="start"
+                    style={{
+                      maxWidth: "80%",
+                      flexDirection:
+                        msg.role === "user" ? "row-reverse" : "row",
+                    }}
+                  >
+                    <Avatar
+                      icon={
+                        msg.role === "user" ? (
+                          <UserOutlined />
+                        ) : (
+                          <RobotOutlined />
+                        )
+                      }
+                      style={{
+                        backgroundColor:
+                          msg.role === "user" ? "#1890ff" : "#52c41a",
+                      }}
+                    />
+                    <Card
+                      size="small"
+                      style={{
+                        backgroundColor:
+                          msg.role === "user" ? "#e6f7ff" : "#ffffff",
+                        border:
+                          msg.role === "user"
+                            ? "1px solid #91d5ff"
+                            : "1px solid #e8e8e8",
+                      }}
+                    >
+                      <Paragraph
+                        style={{
+                          margin: 0,
+                          whiteSpace: "pre-wrap",
+                          textAlign: "left",
+                        }}
+                      >
+                        {msg.content}
+                      </Paragraph>
+
+                      {/* Sources */}
+                      {msg.sources && msg.sources.length > 0 && (
+                        <div
+                          style={{
+                            marginTop: 12,
+                            paddingTop: 12,
+                            borderTop: "1px solid #f0f0f0",
+                          }}
+                        >
+                          <Text
+                            type="secondary"
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 500,
+                              textAlign: "left",
+                            }}
+                          >
+                            Sources:
+                          </Text>
+                          <Space
+                            direction="vertical"
+                            size="small"
+                            style={{ width: "100%", marginTop: 8 }}
+                          >
+                            {msg.sources?.map((source: any, idx: number) => (
+                              <Card
+                                key={idx}
+                                size="small"
+                                style={{ backgroundColor: "#f9f9f9" }}
+                                bodyStyle={{ padding: 8 }}
+                              >
+                                <Space>
+                                  <FileTextOutlined />
+                                  <Text style={{ fontSize: 12 }}>
+                                    {source.source || source.id}
+                                  </Text>
+                                  <Tag color="blue" style={{ fontSize: 10 }}>
+                                    Score: {(source.score * 100).toFixed(1)}%
+                                  </Tag>
+                                </Space>
+                                {source.content && (
+                                  <Paragraph
+                                    style={{
+                                      fontSize: 11,
+                                      marginTop: 4,
+                                      marginBottom: 0,
+                                      color: "#666",
+                                      textAlign: "left",
+                                    }}
+                                    ellipsis={{ rows: 2, expandable: true }}
+                                  >
+                                    {source.content}
+                                  </Paragraph>
+                                )}
+                              </Card>
+                            ))}
+                          </Space>
+                        </div>
+                      )}
+
+                      {/* Thinking */}
+                      {(msg as any).thinking && (
+                        <div
+                          style={{
+                            marginTop: 12,
+                            paddingTop: 12,
+                            borderTop: "1px solid #f0f0f0",
+                          }}
+                        >
+                          <Collapse ghost size="small">
+                            <Panel header="Show thinking process" key="1">
+                              <Paragraph
+                                style={{
+                                  fontSize: 11,
+                                  color: "#666",
+                                  margin: 0,
+                                  textAlign: "left",
+                                }}
+                              >
+                                {(msg as any).thinking}
+                              </Paragraph>
+                            </Panel>
+                          </Collapse>
+                        </div>
+                      )}
+                    </Card>
+                  </Space>
+                </div>
+              ))}
+              {isLoading && (
+                <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <Space align="start">
+                    <Avatar
+                      icon={<RobotOutlined />}
+                      style={{ backgroundColor: "#52c41a" }}
+                    />
+                    <Card size="small">
+                      <Spin size="small" />
+                      <Text style={{ marginLeft: 8 }}>Thinking...</Text>
+                    </Card>
+                  </Space>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </Space>
+          )}
+        </div>
+
+        {/* Input Area */}
+        <Space direction="vertical" style={{ width: "100%" }} size="middle">
+          {/* Advanced Options */}
+          <Collapse ghost>
+            <Panel
+              header={
+                <Space style={{ textAlign: "left" }}>
+                  <SettingOutlined />
+                  <Text style={{ textAlign: "left" }}>Advanced Options</Text>
+                </Space>
+              }
+              key="1"
+            >
+              <Space direction="vertical" style={{ width: "100%" }}>
+                <Space>
+                  <Text style={{ textAlign: "left" }}>Streaming Mode:</Text>
+                  <Switch
+                    checked={useStreaming}
+                    onChange={setUseStreaming}
+                    checkedChildren={<ThunderboltOutlined />}
+                    unCheckedChildren="Off"
+                  />
+                </Space>
+                <Space>
+                  <Text style={{ textAlign: "left" }}>Show Thinking:</Text>
+                  <Switch
+                    checked={showThinking}
+                    onChange={setShowThinking}
+                    checkedChildren="On"
+                    unCheckedChildren="Off"
+                  />
+                </Space>
+                <div>
+                  <Text style={{ textAlign: "left" }}>Filters (JSON):</Text>
+                  <Input
+                    placeholder='{"category": "medical", "date": "2024"}'
+                    value={filters}
+                    onChange={(e) => setFilters(e.target.value)}
+                    style={{ marginTop: 8 }}
+                  />
+                </div>
+              </Space>
+            </Panel>
+          </Collapse>
+
+          {/* Message Input */}
+          <Space.Compact style={{ width: "100%" }}>
+            <TextArea
+              placeholder="Ask a question about your documents..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onPressEnter={(e) => {
+                if (!e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+              autoSize={{ minRows: 2, maxRows: 6 }}
+              style={{ flex: 1 }}
+              disabled={isLoading}
+            />
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              onClick={handleSubmit}
+              loading={isLoading}
+              style={{ height: "auto" }}
+            >
+              Send
+            </Button>
+          </Space.Compact>
+        </Space>
       </Card>
     </div>
-  )
+  );
 }

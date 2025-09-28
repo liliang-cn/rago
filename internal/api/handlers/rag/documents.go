@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/liliang-cn/rago/v2/internal/api/handlers"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 )
@@ -20,6 +21,7 @@ func (h *DocumentsHandler) List(c *gin.Context) {
 	documents, err := h.processor.ListDocuments(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
 			"error": "Failed to list documents: " + err.Error(),
 		})
 		return
@@ -30,7 +32,8 @@ func (h *DocumentsHandler) List(c *gin.Context) {
 		documents = []domain.Document{}
 	}
 
-	c.JSON(http.StatusOK, documents)
+	// 使用标准的列表响应格式
+	handlers.SendListResponse(c, documents, len(documents))
 }
 
 func (h *DocumentsHandler) Delete(c *gin.Context) {
