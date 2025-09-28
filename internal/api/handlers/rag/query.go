@@ -5,18 +5,28 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
+	"github.com/liliang-cn/rago/v2/pkg/usage"
 )
 
 type QueryHandler struct {
-	processor *processor.Service
+	processor    *processor.Service
+	usageService *usage.Service
 }
 
 func NewQueryHandler(p *processor.Service) *QueryHandler {
 	return &QueryHandler{processor: p}
+}
+
+func NewQueryHandlerWithUsage(p *processor.Service, u *usage.Service) *QueryHandler {
+	return &QueryHandler{
+		processor:    p,
+		usageService: u,
+	}
 }
 
 func (h *QueryHandler) Handle(c *gin.Context) {
@@ -156,23 +166,66 @@ func (h *QueryHandler) handleStream(c *gin.Context, req domain.QueryRequest) {
 		return
 	}
 
+	// Handle conversation tracking if usage service is available
+	var conversationID string
+	
+	// Extract conversation ID from request if available
+	if req.ConversationID != "" {
+		conversationID = req.ConversationID
+	}
+
+	// Store the user message if usage service is available
+	if h.usageService != nil {
+		// If no conversation ID provided, start a new conversation
+		if conversationID == "" {
+			conversation, err := h.usageService.StartConversation(ctx, "Chat about documents")
+			if err != nil {
+				log.Printf("Warning: failed to start conversation: %v", err)
+			} else {
+				conversationID = conversation.ID
+			}
+		} else {
+			// Set the current conversation
+			if err := h.usageService.SetCurrentConversation(ctx, conversationID); err != nil {
+				log.Printf("Warning: failed to set current conversation: %v", err)
+			}
+		}
+
+		// Store the user's message
+		if conversationID != "" {
+			_, err := h.usageService.AddMessage(ctx, "user", req.Query)
+			if err != nil {
+				log.Printf("Warning: failed to store user message: %v", err)
+			}
+		}
+	}
+
+	// Collect the response for storage
+	var responseContent strings.Builder
+
 	// Use StreamQueryWithTools if tools are enabled and requested
 	var err error
 	if req.ToolsEnabled {
 		err = h.processor.StreamQueryWithTools(ctx, req, func(token string) {
+			// Write token to client
 			if _, writeErr := fmt.Fprint(c.Writer, token); writeErr != nil {
-				// Log the error but continue streaming
 				log.Printf("Error writing token: %v", writeErr)
 			}
 			flusher.Flush()
+			
+			// Collect token for storage
+			responseContent.WriteString(token)
 		})
 	} else {
 		err = h.processor.StreamQuery(ctx, req, func(token string) {
+			// Write token to client
 			if _, writeErr := fmt.Fprint(c.Writer, token); writeErr != nil {
-				// Log the error but continue streaming
 				log.Printf("Error writing token: %v", writeErr)
 			}
 			flusher.Flush()
+			
+			// Collect token for storage
+			responseContent.WriteString(token)
 		})
 	}
 
@@ -181,5 +234,16 @@ func (h *QueryHandler) handleStream(c *gin.Context, req domain.QueryRequest) {
 			log.Printf("Error writing error message: %v", writeErr)
 		}
 		flusher.Flush()
+		
+		// Add error to response content
+		responseContent.WriteString(fmt.Sprintf("\n\nError: %v", err))
+	}
+
+	// Store the assistant's response if usage service is available
+	if h.usageService != nil && conversationID != "" && responseContent.Len() > 0 {
+		_, err := h.usageService.AddMessage(ctx, "assistant", responseContent.String())
+		if err != nil {
+			log.Printf("Warning: failed to store assistant message: %v", err)
+		}
 	}
 }

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, Button, Input, Space, Typography, Spin, Empty, Tooltip, Tag } from 'antd'
+import { FileTextOutlined, DeleteOutlined, ExclamationCircleOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons'
 import { apiClient, Document } from '@/lib/api'
-import { FileText, Trash2, AlertTriangle, Loader2, Search } from 'lucide-react'
-import { Input } from '@/components/ui/input'
+
+const { Title, Text, Paragraph } = Typography
 
 export function DocumentsTab() {
   const [documents, setDocuments] = useState<Document[]>([])
@@ -16,9 +16,13 @@ export function DocumentsTab() {
     setIsLoading(true)
     try {
       const response = await apiClient.getDocuments()
-      if (response.data) {
-        setDocuments(response.data)
-        setFilteredDocuments(response.data)
+      if (response.success && response.data) {
+        const docs = Array.isArray(response.data) ? response.data : []
+        setDocuments(docs)
+        setFilteredDocuments(docs)
+      } else {
+        setDocuments([])
+        setFilteredDocuments([])
       }
     } catch (error) {
       console.error('Failed to load documents:', error)
@@ -92,102 +96,116 @@ export function DocumentsTab() {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-left">
-            <FileText className="h-5 w-5" />
-            Document Management
-          </CardTitle>
-          <CardDescription className="text-left">
-            View, search, and manage your ingested documents.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-4 mb-6">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search documents..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Button onClick={loadDocuments} disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Card
+        title={
+          <div style={{ textAlign: 'left' }}>
+            <Space>
+              <FileTextOutlined />
+              <span>Document Management</span>
+            </Space>
+          </div>
+        }
+        style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+        bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+      >
+        <Text type="secondary" style={{ marginBottom: 16, textAlign: 'left', display: 'block' }}>
+          View, search, and manage your ingested documents.
+        </Text>
+
+        <Space direction="vertical" style={{ width: '100%', flex: 1 }} size="middle">
+          <Space style={{ width: '100%' }}>
+            <Input
+              placeholder="Search documents..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              prefix={<SearchOutlined />}
+              style={{ flex: 1, width: 300 }}
+            />
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={loadDocuments}
+              loading={isLoading}
+            >
               Refresh
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              danger
+              icon={<ExclamationCircleOutlined />}
               onClick={handleReset}
-              disabled={isLoading || documents.length === 0}
+              disabled={isLoading || documents?.length === 0}
             >
-              <AlertTriangle className="mr-2 h-4 w-4" />
               Reset All
             </Button>
-          </div>
+          </Space>
 
           {isLoading ? (
-            <div className="text-center py-8">
-              <Loader2 className="mx-auto h-8 w-8 animate-spin text-gray-400" />
-              <p className="mt-2 text-gray-500">Loading documents...</p>
+            <div style={{ textAlign: 'center', padding: '64px 0' }}>
+              <Spin size="large" />
+              <div style={{ marginTop: 16 }}>
+                <Text type="secondary">Loading documents...</Text>
+              </div>
             </div>
-          ) : filteredDocuments.length === 0 ? (
-            <div className="text-center py-8">
-              <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <p className="text-gray-500">
-                {documents.length === 0 ? 'No documents found. Start by ingesting some content.' : 'No documents match your search.'}
-              </p>
-            </div>
+          ) : filteredDocuments?.length === 0 ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description={
+                documents?.length === 0
+                  ? 'No documents found. Start by ingesting some content.'
+                  : 'No documents match your search.'
+              }
+            />
           ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Showing {filteredDocuments.length} of {documents.length} documents
-              </p>
-              {filteredDocuments.map((doc) => (
-                <Card key={doc.id} className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0 text-left">
-                      <h3 className="font-medium text-gray-900 truncate text-left">
-                        {doc.title || `Document ${doc.id}`}
-                      </h3>
-                      <p className="text-sm text-gray-500 mt-1 text-left">
-                        Created: {formatDate(doc.created)}
-                      </p>
-                      <p className="text-sm text-gray-700 mt-2 line-clamp-3 text-left">
-                        {doc.content.substring(0, 200)}
-                        {doc.content.length > 200 && '...'}
-                      </p>
-                      {doc.metadata && Object.keys(doc.metadata).length > 0 && (
-                        <div className="mt-2 text-xs text-gray-500 text-left">
-                          <span className="font-medium">Metadata: </span>
-                          {Object.entries(doc.metadata).map(([key, value]) => (
-                            <span key={key} className="mr-2 bg-gray-100 px-1 py-0.5 rounded">
-                              {key}: {JSON.stringify(value)}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                <Text type="secondary">
+                  Showing {filteredDocuments?.length || 0} of {documents?.length || 0} documents
+                </Text>
+                {filteredDocuments?.map((doc) => (
+                  <Card key={doc.id} size="small" style={{ width: '100%' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1, textAlign: 'left' }}>
+                        <Title level={5} style={{ margin: 0, textAlign: 'left' }}>
+                          {doc.title || `Document ${doc.id}`}
+                        </Title>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          Created: {formatDate(doc.created)}
+                        </Text>
+                        <Paragraph
+                          style={{ marginTop: 8, marginBottom: 8, textAlign: 'left' }}
+                          ellipsis={{ rows: 3, expandable: true }}
+                        >
+                          {doc.content}
+                        </Paragraph>
+                        {doc.metadata && Object.keys(doc.metadata)?.length > 0 && (
+                          <div style={{ textAlign: 'left' }}>
+                            <Text strong style={{ fontSize: 11 }}>Metadata: </Text>
+                            <Space wrap>
+                              {Object.entries(doc.metadata)?.map(([key, value]) => (
+                                <Tag key={key} color="blue" style={{ fontSize: 10 }}>
+                                  {key}: {JSON.stringify(value)}
+                                </Tag>
+                              ))}
+                            </Space>
+                          </div>
+                        )}
+                      </div>
+                      <Tooltip title="Delete document">
+                        <Button
+                          danger
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleDelete(doc.id)}
+                          loading={deleteLoading === doc.id}
+                        />
+                      </Tooltip>
                     </div>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(doc.id)}
-                      disabled={deleteLoading === doc.id}
-                    >
-                      {deleteLoading === doc.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                ))}
+              </Space>
             </div>
           )}
-        </CardContent>
+        </Space>
       </Card>
     </div>
   )

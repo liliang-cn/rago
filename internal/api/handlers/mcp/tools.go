@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/liliang-cn/rago/v2/internal/api/handlers"
 	"github.com/liliang-cn/rago/v2/pkg/tools"
 )
 
@@ -34,10 +35,12 @@ func (h *ToolsHandler) ListTools(c *gin.Context) {
 		toolInfos = h.registry.ListEnabled()
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"tools": toolInfos,
-		"count": len(toolInfos),
-	})
+	// Ensure toolInfos is never nil
+	if toolInfos == nil {
+		toolInfos = []tools.ToolInfo{}
+	}
+
+	handlers.SendListResponse(c, toolInfos, len(toolInfos))
 }
 
 // GetTool returns information about a specific tool
@@ -117,7 +120,6 @@ func (h *ToolsHandler) ExecuteTool(c *gin.Context) {
 	// Create execution context
 	execCtx := &tools.ExecutionContext{
 		RequestID: c.GetHeader("X-Request-ID"),
-		UserID:    c.GetHeader("X-User-ID"),
 		SessionID: c.GetHeader("X-Session-ID"),
 	}
 
@@ -161,15 +163,17 @@ func (h *ToolsHandler) ListExecutions(c *gin.Context) {
 
 	executions := h.executor.ListExecutions()
 
+	// Ensure executions is never nil
+	if executions == nil {
+		executions = []*tools.ExecutionInfo{}
+	}
+
 	// Apply limit
 	if len(executions) > limit {
 		executions = executions[:limit]
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"executions": executions,
-		"count":      len(executions),
-	})
+	handlers.SendListResponse(c, executions, len(executions))
 }
 
 // GetExecution returns information about a specific execution

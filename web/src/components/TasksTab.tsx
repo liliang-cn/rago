@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { TaskItem } from '@/lib/api'
+import { Card, Button, Input, Space, Typography, Statistic, Row, Col, Empty } from 'antd'
 import { 
-  CheckCircle2, 
-  Clock, 
-  Play, 
-  Plus, 
-  Trash2, 
-  Edit3,
-  ListTodo,
-  Activity
-} from 'lucide-react'
+  CheckCircleOutlined, 
+  ClockCircleOutlined, 
+  PlayCircleOutlined, 
+  PlusOutlined, 
+  DeleteOutlined, 
+  EditOutlined,
+  UnorderedListOutlined,
+  DashboardOutlined
+} from '@ant-design/icons'
+import { TaskItem } from '@/lib/api'
+
+const { Title, Text } = Typography
 
 interface TaskWithId extends TaskItem {
   id: string
@@ -85,22 +85,22 @@ export function TasksTab() {
   const getStatusIcon = (status: TaskItem['status']) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle2 className="h-4 w-4 text-green-600" />
+        return <CheckCircleOutlined style={{ color: '#52c41a' }} />
       case 'in_progress':
-        return <Activity className="h-4 w-4 text-blue-600 animate-pulse" />
+        return <DashboardOutlined style={{ color: '#1890ff' }} />
       case 'pending':
-        return <Clock className="h-4 w-4 text-gray-400" />
+        return <ClockCircleOutlined style={{ color: '#bfbfbf' }} />
     }
   }
 
   const getStatusColor = (status: TaskItem['status']) => {
     switch (status) {
       case 'completed':
-        return 'border-green-200 bg-green-50'
+        return { borderColor: '#52c41a', backgroundColor: '#f6ffed' }
       case 'in_progress':
-        return 'border-blue-200 bg-blue-50'
+        return { borderColor: '#1890ff', backgroundColor: '#f0f9ff' }
       case 'pending':
-        return 'border-gray-200 bg-gray-50'
+        return { borderColor: '#d9d9d9', backgroundColor: '#fafafa' }
     }
   }
 
@@ -120,204 +120,207 @@ export function TasksTab() {
   const completedTasks = tasks.filter(task => task.status === 'completed')
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Task Management</h2>
-          <p className="text-gray-600">Organize and track your work progress</p>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Space direction="vertical" style={{ width: '100%' }} size="large">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <Title level={2} style={{ margin: 0 }}>Task Management</Title>
+            <Text type="secondary">Organize and track your work progress</Text>
+          </div>
+          <Space>
+            <UnorderedListOutlined />
+            <Text type="secondary">{tasks.length} total tasks</Text>
+          </Space>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <ListTodo className="h-4 w-4" />
-          <span>{tasks.length} total tasks</span>
-        </div>
-      </div>
 
-      {/* Add New Task */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Add New Task</CardTitle>
-          <CardDescription>
+        <Card
+          title={
+            <Space>
+              <PlusOutlined />
+              <span>Add New Task</span>
+            </Space>
+          }
+        >
+          <Text type="secondary" style={{ marginBottom: 16, display: 'block' }}>
             Create a new task to track your work progress
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="text-sm font-medium">Task Description</label>
-            <Input
-              placeholder="e.g., Implement user authentication"
-              value={newTaskContent}
-              onChange={(e) => setNewTaskContent(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Active Form (optional)</label>
-            <Input
-              placeholder="e.g., Implementing user authentication"
-              value={newTaskActiveForm}
-              onChange={(e) => setNewTaskActiveForm(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <Button onClick={addTask} disabled={!newTaskContent.trim()}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Task
-          </Button>
-        </CardContent>
-      </Card>
+          </Text>
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <div>
+              <Text strong style={{ marginBottom: 8, display: 'block' }}>Task Description</Text>
+              <Input
+                placeholder="e.g., Implement user authentication"
+                value={newTaskContent}
+                onChange={(e) => setNewTaskContent(e.target.value)}
+              />
+            </div>
+            <div>
+              <Text strong style={{ marginBottom: 8, display: 'block' }}>Active Form (optional)</Text>
+              <Input
+                placeholder="e.g., Implementing user authentication"
+                value={newTaskActiveForm}
+                onChange={(e) => setNewTaskActiveForm(e.target.value)}
+              />
+            </div>
+            <Button 
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={addTask} 
+              disabled={!newTaskContent.trim()}
+            >
+              Add Task
+            </Button>
+          </Space>
+        </Card>
 
-      {/* Task Statistics */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-gray-200 bg-gray-50">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-gray-400" />
-              <div>
-                <div className="text-2xl font-bold">{pendingTasks.length}</div>
-                <div className="text-sm text-gray-600">Pending</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-blue-600" />
-              <div>
-                <div className="text-2xl font-bold">{inProgressTasks.length}</div>
-                <div className="text-sm text-gray-600">In Progress</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <div>
-                <div className="text-2xl font-bold">{completedTasks.length}</div>
-                <div className="text-sm text-gray-600">Completed</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={8}>
+            <Card size="small" style={{ borderColor: '#d9d9d9', backgroundColor: '#fafafa' }}>
+              <Statistic
+                title="Pending"
+                value={pendingTasks.length}
+                prefix={<ClockCircleOutlined style={{ color: '#bfbfbf' }} />}
+                valueStyle={{ color: '#8c8c8c' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={8}>
+            <Card size="small" style={{ borderColor: '#1890ff', backgroundColor: '#f0f9ff' }}>
+              <Statistic
+                title="In Progress"
+                value={inProgressTasks.length}
+                prefix={<DashboardOutlined style={{ color: '#1890ff' }} />}
+                valueStyle={{ color: '#1890ff' }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={8}>
+            <Card size="small" style={{ borderColor: '#52c41a', backgroundColor: '#f6ffed' }}>
+              <Statistic
+                title="Completed"
+                value={completedTasks.length}
+                prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
+                valueStyle={{ color: '#52c41a' }}
+              />
+            </Card>
+          </Col>
+        </Row>
 
-      {/* Tasks List */}
-      <div className="space-y-4">
-        {tasks.length === 0 ? (
-          <Card className="text-center py-8">
-            <CardContent>
-              <ListTodo className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No tasks yet</h3>
-              <p className="text-gray-600">Add your first task to get started with tracking your progress.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          tasks
-            .sort((a, b) => {
-              // Sort by status (in_progress, pending, completed), then by creation date
-              const statusOrder = { 'in_progress': 0, 'pending': 1, 'completed': 2 }
-              if (statusOrder[a.status] !== statusOrder[b.status]) {
-                return statusOrder[a.status] - statusOrder[b.status]
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          {tasks.length === 0 ? (
+            <Empty
+              image={<UnorderedListOutlined style={{ fontSize: 48, color: '#bfbfbf' }} />}
+              description={
+                <div style={{ textAlign: 'center' }}>
+                  <Title level={4} style={{ color: '#8c8c8c' }}>No tasks yet</Title>
+                  <Text type="secondary">Add your first task to get started with tracking your progress.</Text>
+                </div>
               }
-              return b.createdAt.getTime() - a.createdAt.getTime()
-            })
-            .map((task) => (
-              <Card key={task.id} className={`transition-all ${getStatusColor(task.status)}`}>
-                <CardContent className="pt-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
+            />
+          ) : (
+            tasks
+              .sort((a, b) => {
+                // Sort by status (in_progress, pending, completed), then by creation date
+                const statusOrder = { 'in_progress': 0, 'pending': 1, 'completed': 2 }
+                if (statusOrder[a.status] !== statusOrder[b.status]) {
+                  return statusOrder[a.status] - statusOrder[b.status]
+                }
+                return b.createdAt.getTime() - a.createdAt.getTime()
+              })
+              .map((task) => (
+                <Card 
+                  key={task.id} 
+                  style={getStatusColor(task.status)}
+                  size="small"
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                    <div style={{ flex: 1 }}>
+                      <Space style={{ marginBottom: 8 }}>
                         {getStatusIcon(task.status)}
-                        <span className="text-sm font-medium text-gray-600">
+                        <Text strong style={{ fontSize: 12 }}>
                           {getStatusText(task.status)}
-                        </span>
-                        <span className="text-xs text-gray-400">
+                        </Text>
+                        <Text type="secondary" style={{ fontSize: 10 }}>
                           {task.createdAt.toLocaleString()}
-                        </span>
-                      </div>
+                        </Text>
+                      </Space>
                       
                       {editingTask === task.id ? (
-                        <div className="space-y-2">
+                        <Space direction="vertical" style={{ width: '100%' }} size="small">
                           <Input
                             defaultValue={task.content}
                             onBlur={(e) => updateTask(task.id, { content: e.target.value })}
-                            className="text-sm"
+                            size="small"
                           />
                           <Input
                             defaultValue={task.activeForm}
                             onBlur={(e) => updateTask(task.id, { activeForm: e.target.value })}
                             placeholder="Active form"
-                            className="text-xs"
+                            size="small"
                           />
-                        </div>
+                        </Space>
                       ) : (
                         <div>
-                          <p className="font-medium">{task.content}</p>
-                          <p className="text-sm text-gray-600 italic">{task.activeForm}</p>
+                          <Text strong style={{ display: 'block' }}>{task.content}</Text>
+                          <Text type="secondary" style={{ fontSize: 12, fontStyle: 'italic' }}>{task.activeForm}</Text>
                         </div>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <Space>
                       <Button
-                        size="sm"
-                        variant="ghost"
+                        size="small"
+                        type="text"
+                        icon={<EditOutlined />}
                         onClick={() => setEditingTask(editingTask === task.id ? null : task.id)}
-                      >
-                        <Edit3 className="h-3 w-3" />
-                      </Button>
+                      />
 
                       {task.status === 'pending' && (
                         <Button
-                          size="sm"
+                          size="small"
+                          type="primary"
+                          icon={<PlayCircleOutlined />}
                           onClick={() => updateTaskStatus(task.id, 'in_progress')}
                         >
-                          <Play className="h-3 w-3 mr-1" />
                           Start
                         </Button>
                       )}
 
                       {task.status === 'in_progress' && (
                         <Button
-                          size="sm"
+                          size="small"
+                          type="primary"
+                          style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+                          icon={<CheckCircleOutlined />}
                           onClick={() => updateTaskStatus(task.id, 'completed')}
-                          className="bg-green-600 hover:bg-green-700"
                         >
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
                           Complete
                         </Button>
                       )}
 
                       {task.status === 'completed' && (
                         <Button
-                          size="sm"
-                          variant="secondary"
+                          size="small"
+                          icon={<ClockCircleOutlined />}
                           onClick={() => updateTaskStatus(task.id, 'pending')}
                         >
-                          <Clock className="h-3 w-3 mr-1" />
                           Reopen
                         </Button>
                       )}
 
                       <Button
-                        size="sm"
-                        variant="ghost"
+                        size="small"
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
                         onClick={() => deleteTask(task.id)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
+                      />
+                    </Space>
                   </div>
-                </CardContent>
-              </Card>
-            ))
-        )}
-      </div>
+                </Card>
+              ))
+          )}
+        </Space>
+      </Space>
     </div>
   )
 }

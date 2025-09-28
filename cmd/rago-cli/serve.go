@@ -8,16 +8,19 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/liliang-cn/rago/v2/internal/api/handlers"
 	chatHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/chat"
+	conversationHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/conversation"
 	llmHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/llm"
 	mcpHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/mcp"
 	platformHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/platform"
 	ragHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/rag"
+	v1Handlers "github.com/liliang-cn/rago/v2/internal/api/handlers/v1"
 	"github.com/liliang-cn/rago/v2/internal/web"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
@@ -26,7 +29,12 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
+	pkgStore "github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/rago/v2/pkg/usage"
 	"github.com/spf13/cobra"
+	"database/sql"
+	"os/user"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -87,7 +95,36 @@ var serveCmd = &cobra.Command{
 		// 设置Gin为release模式
 		gin.SetMode(gin.ReleaseMode)
 
-		router, err := setupRouter(processorService, cfg, embedService, llmService)
+		// Initialize usage service with expanded home directory path
+		usr, err := user.Current()
+		if err != nil {
+			return fmt.Errorf("failed to get current user: %w", err)
+		}
+		usageDataDir := filepath.Join(usr.HomeDir, ".rago")
+		usageService, err := usage.NewServiceWithDataDir(cfg, usageDataDir)
+		if err != nil {
+			return fmt.Errorf("failed to initialize usage service: %w", err)
+		}
+		defer func() {
+			if err := usageService.Close(); err != nil {
+				fmt.Printf("Warning: failed to close usage service: %v\n", err)
+			}
+		}()
+
+		// Initialize conversation store
+		dbPath := filepath.Join(usr.HomeDir, ".rago", "conversations.db")
+		db, err := sql.Open("sqlite3", dbPath)
+		if err != nil {
+			return fmt.Errorf("failed to open conversation database: %w", err)
+		}
+		defer db.Close()
+		
+		conversationStore, err := pkgStore.NewConversationStore(db)
+		if err != nil {
+			return fmt.Errorf("failed to initialize conversation store: %w", err)
+		}
+
+		router, err := setupRouter(processorService, cfg, embedService, llmService, usageService, conversationStore)
 		if err != nil {
 			return fmt.Errorf("failed to setup router: %w", err)
 		}
@@ -123,7 +160,7 @@ var serveCmd = &cobra.Command{
 	},
 }
 
-func setupRouter(processor *processor.Service, cfg *config.Config, embedService domain.Embedder, llmService domain.Generator) (*gin.Engine, error) {
+func setupRouter(processor *processor.Service, cfg *config.Config, embedService domain.Embedder, llmService domain.Generator, usageService *usage.Service, conversationStore *pkgStore.ConversationStore) (*gin.Engine, error) {
 	router := gin.New()
 
 	router.Use(gin.Logger())
@@ -178,7 +215,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 			ingestHandler := ragHandlers.NewIngestHandler(processor)
 			ragGroup.POST("/ingest", ingestHandler.Handle)
 
-			queryHandler := ragHandlers.NewQueryHandler(processor)
+			queryHandler := ragHandlers.NewQueryHandlerWithUsage(processor, usageService)
 			ragGroup.POST("/query", queryHandler.Handle)
 			ragGroup.POST("/query-stream", queryHandler.HandleStream)
 			ragGroup.POST("/search", queryHandler.SearchOnly)
@@ -203,7 +240,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 		ingestHandler := ragHandlers.NewIngestHandler(processor)
 		api.POST("/ingest", ingestHandler.Handle)
 
-		queryHandler := ragHandlers.NewQueryHandler(processor)
+		queryHandler := ragHandlers.NewQueryHandlerWithUsage(processor, usageService)
 		api.POST("/query", queryHandler.Handle)
 		api.POST("/query-stream", queryHandler.HandleStream)
 		api.POST("/search", queryHandler.SearchOnly)
@@ -225,10 +262,22 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 
 			// Type assert to get the llm.Service
 			if llmServiceTyped, ok := llmSvc.(*llm.Service); ok {
-				chatHandler := chatHandlers.NewChatHandler(processor, llmServiceTyped)
+				chatHandler := chatHandlers.NewChatHandler(processor, llmServiceTyped, usageService)
 				chatGroup.POST("/", chatHandler.Handle)
 				chatGroup.POST("/complete", chatHandler.Complete)
 			}
+		}
+		
+		// Conversation endpoints
+		conversationGroup := api.Group("/conversations")
+		{
+			convHandler := conversationHandlers.NewHandler(conversationStore)
+			conversationGroup.POST("/new", convHandler.CreateNewConversation)
+			conversationGroup.POST("/save", convHandler.SaveConversation)
+			conversationGroup.GET("", convHandler.ListConversations)
+			conversationGroup.GET("/:id", convHandler.GetConversation)
+			conversationGroup.DELETE("/:id", convHandler.DeleteConversation)
+			conversationGroup.GET("/search", convHandler.SearchConversations)
 		}
 
 		// LLM endpoints for direct operations
@@ -326,6 +375,44 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 
 		// Agent functionality is available via CLI: rago agent run
 		// Web API for agents has been simplified and moved to CLI-only
+
+		// V1 API endpoints for backward compatibility and analytics
+		v1Group := api.Group("/v1")
+		{
+			// Analytics handlers
+			analyticsHandler := v1Handlers.NewAnalyticsHandler(usageService)
+			
+			// Tool calls analytics
+			v1Group.GET("/tool-calls/stats", analyticsHandler.GetToolCallStats)
+			v1Group.GET("/tool-calls", analyticsHandler.GetToolCalls)
+			v1Group.GET("/tool-calls/analytics", analyticsHandler.GetToolCallAnalytics)
+			
+			// RAG analytics
+			v1Group.GET("/rag/performance", analyticsHandler.GetRAGPerformance)
+			v1Group.GET("/rag/queries", analyticsHandler.GetRAGQueries)
+			v1Group.GET("/rag/analytics", analyticsHandler.GetRAGAnalytics)
+			
+			// Usage handlers with middleware to inject usage service
+			usageHandler := v1Handlers.NewUsageHandler(usageService)
+			
+			// Middleware to inject usage service into context
+			v1Group.Use(func(c *gin.Context) {
+				c.Set("usageService", usageService)
+				c.Next()
+			})
+			
+			// Conversations
+			v1Group.GET("/conversations", usageHandler.GetConversations)
+			v1Group.GET("/conversations/:id", usageHandler.GetConversation)
+			
+			// Usage statistics
+			v1Group.GET("/usage/stats", usageHandler.GetUsageStats)
+			v1Group.GET("/usage/stats/type", usageHandler.GetUsageStatsByType)
+			v1Group.GET("/usage/stats/provider", usageHandler.GetUsageStatsByProvider)
+			v1Group.GET("/usage/stats/models", usageHandler.GetUsageStatsByModel)
+			v1Group.GET("/usage/stats/daily", usageHandler.GetDailyUsageStats)
+			v1Group.GET("/usage/stats/cost", usageHandler.GetUsageCost)
+		}
 	}
 
 	if enableUI {

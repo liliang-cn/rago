@@ -56,7 +56,6 @@ type ToolInfo struct {
 // ExecutionContext provides context information for tool execution
 type ExecutionContext struct {
 	RequestID   string            `json:"request_id"`
-	UserID      string            `json:"user_id,omitempty"`
 	SessionID   string            `json:"session_id,omitempty"`
 	Permissions []string          `json:"permissions,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
