@@ -9,6 +9,8 @@ import (
 	pb "github.com/liliang-cn/rago/v2/proto/rago"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
+	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/rago/v2/pkg/usage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -47,11 +49,13 @@ func DefaultConfig() Config {
 
 // Server represents the gRPC server
 type Server struct {
-	config           Config
-	grpcServer       *grpc.Server
-	ragService       *SimpleRAGServiceServer
-	llmService       *LLMServiceServer
-	embeddingService *EmbeddingServiceServer
+	config               Config
+	grpcServer           *grpc.Server
+	ragService           *SimpleRAGServiceServer
+	llmService           *LLMServiceServer
+	embeddingService     *EmbeddingServiceServer
+	conversationService  *ConversationService
+	usageService         *UsageService
 }
 
 // NewServer creates a new gRPC server
@@ -60,6 +64,8 @@ func NewServer(
 	processor *processor.Service,
 	llmProvider domain.LLMProvider,
 	embedder domain.EmbedderProvider,
+	convStore *store.ConversationStore,
+	usageTracker *usage.Tracker,
 ) (*Server, error) {
 	// Create server options
 	opts := []grpc.ServerOption{
@@ -105,11 +111,15 @@ func NewServer(
 	ragService := NewSimpleRAGServiceServer(processor)
 	llmService := NewLLMServiceServer(llmProvider)
 	embeddingService := NewEmbeddingServiceServer(embedder)
+	conversationService := NewConversationService(convStore)
+	usageService := NewUsageService(usageTracker)
 
 	// Register services
 	pb.RegisterRAGServiceServer(grpcServer, ragService)
 	pb.RegisterLLMServiceServer(grpcServer, llmService)
 	pb.RegisterEmbeddingServiceServer(grpcServer, embeddingService)
+	pb.RegisterConversationServiceServer(grpcServer, conversationService)
+	pb.RegisterUsageServiceServer(grpcServer, usageService)
 
 	// Enable reflection for debugging
 	if config.EnableReflection {
@@ -117,11 +127,13 @@ func NewServer(
 	}
 
 	return &Server{
-		config:           config,
-		grpcServer:       grpcServer,
-		ragService:       ragService,
-		llmService:       llmService,
-		embeddingService: embeddingService,
+		config:              config,
+		grpcServer:          grpcServer,
+		ragService:          ragService,
+		llmService:          llmService,
+		embeddingService:    embeddingService,
+		conversationService: conversationService,
+		usageService:        usageService,
 	}, nil
 }
 
