@@ -1,17 +1,3 @@
 {
-  "mcpServers": {
-    "websearch": {
-      "command": "mcp-websearch-server",
-      "autoStart": false
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "./", "/tmp"],
-      "description": "File system operations with sandboxed directory access",
-      "env": {
-        "NODE_OPTIONS": "--max-old-space-size=4096"
-      },
-      "autoStart": false
-    }
-  }
+  "mcpServers": {}
 }

@@ -1,23 +1,24 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { apiClient } from '@/lib/api'
+import { Card, Button, Tabs, Space, Typography, Alert, Statistic, Row, Col, Tag } from 'antd'
 import { 
-  Activity, 
-  Server, 
-  Database, 
-  Cpu, 
-  RefreshCw,
-  CheckCircle2,
-  AlertCircle,
-  Clock,
-  TrendingUp,
-  Zap,
-  HardDrive,
-  Globe,
-  Settings
-} from 'lucide-react'
+  DashboardOutlined, 
+  CloudServerOutlined, 
+  DatabaseOutlined, 
+  AppstoreOutlined, 
+  ReloadOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  ClockCircleOutlined,
+  LineChartOutlined,
+  ThunderboltOutlined,
+  HddOutlined,
+  GlobalOutlined,
+  SettingOutlined
+} from '@ant-design/icons'
+import { apiClient } from '@/lib/api'
+
+const { Title, Text } = Typography
+const { TabPane } = Tabs
 
 interface SystemHealth {
   service: string
@@ -97,28 +98,28 @@ export function StatusTab() {
   const getMethodColor = (method: string) => {
     switch (method.toUpperCase()) {
       case 'GET':
-        return 'bg-blue-100 text-blue-800'
+        return 'blue'
       case 'POST':
-        return 'bg-green-100 text-green-800'
+        return 'green'
       case 'PUT':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'orange'
       case 'DELETE':
-        return 'bg-red-100 text-red-800'
+        return 'red'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'default'
     }
   }
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'RAG':
-        return <Database className="h-4 w-4" />
+        return <DatabaseOutlined />
       case 'MCP':
-        return <Zap className="h-4 w-4" />
+        return <ThunderboltOutlined />
       case 'System':
-        return <Settings className="h-4 w-4" />
+        return <SettingOutlined />
       default:
-        return <Globe className="h-4 w-4" />
+        return <GlobalOutlined />
     }
   }
 
@@ -131,238 +132,251 @@ export function StatusTab() {
   }, {} as Record<string, APIEndpoint[]>)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">System Status</h2>
-          <p className="text-gray-600">Monitor API health and available endpoints</p>
-        </div>
-        <Button onClick={checkHealth} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
-
-      {error && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-2 text-red-800">
-              <AlertCircle className="h-4 w-4" />
-              <span>{error}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">
-            <Activity className="h-4 w-4 mr-2" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="endpoints">
-            <Globe className="h-4 w-4 mr-2" />
-            API Endpoints
-          </TabsTrigger>
-          <TabsTrigger value="monitoring">
-            <TrendingUp className="h-4 w-4 mr-2" />
-            Monitoring
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
-          {/* System Health */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Server className="h-5 w-5" />
-                System Health
-              </CardTitle>
-              <CardDescription>
-                Current system status and basic information
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {health ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-100 rounded">
-                      <CheckCircle2 className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium">Status</div>
-                      <div className="text-sm text-green-600 capitalize">{health.status}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 rounded">
-                      <Activity className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium">Service</div>
-                      <div className="text-sm text-gray-600">{health.service}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-100 rounded">
-                      <Cpu className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium">Version</div>
-                      <div className="text-sm text-gray-600">{health.version}</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-100 rounded">
-                      <Clock className="h-5 w-5 text-gray-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium">Last Check</div>
-                      <div className="text-sm text-gray-600">
-                        {lastRefresh.toLocaleTimeString()}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <AlertCircle className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                  <p className="text-gray-500">Unable to fetch system health</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Quick Stats */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Database className="h-5 w-5 text-blue-600" />
-                  <div>
-                    <div className="text-2xl font-bold">{groupedEndpoints['RAG']?.length || 0}</div>
-                    <div className="text-sm text-gray-600">RAG Endpoints</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-green-600" />
-                  <div>
-                    <div className="text-2xl font-bold">{groupedEndpoints['MCP']?.length || 0}</div>
-                    <div className="text-sm text-gray-600">MCP Endpoints</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Globe className="h-5 w-5 text-purple-600" />
-                  <div>
-                    <div className="text-2xl font-bold">{apiEndpoints.length}</div>
-                    <div className="text-sm text-gray-600">Total Endpoints</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Space direction="vertical" style={{ width: '100%' }} size="large">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <Title level={2} style={{ margin: 0, textAlign: 'left' }}>System Status</Title>
+            <Text type="secondary" style={{ textAlign: 'left' }}>Monitor API health and available endpoints</Text>
           </div>
-        </TabsContent>
+          <Button 
+            icon={<ReloadOutlined spin={isLoading} />}
+            onClick={checkHealth} 
+            disabled={isLoading}
+            type="primary"
+          >
+            Refresh
+          </Button>
+        </div>
 
-        <TabsContent value="endpoints" className="space-y-4">
-          {Object.entries(groupedEndpoints).map(([category, endpoints]) => (
-            <Card key={category}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  {getCategoryIcon(category)}
-                  {category} API
-                </CardTitle>
-                <CardDescription>
-                  Available {category.toLowerCase()} endpoints and operations
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {endpoints.map((endpoint, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded border">
-                      <div className="flex items-center gap-3">
-                        <span className={`px-2 py-1 rounded text-xs font-mono font-medium ${getMethodColor(endpoint.method)}`}>
-                          {endpoint.method}
-                        </span>
-                        <code className="text-sm font-mono">{endpoint.path}</code>
+        {error && (
+          <Alert
+            message={error}
+            type="error"
+            showIcon
+            icon={<ExclamationCircleOutlined />}
+            closable
+            onClose={() => setError('')}
+          />
+        )}
+
+        <Tabs defaultActiveKey="overview" type="card" style={{ flex: 1 }}>
+          <TabPane 
+            tab={
+              <Space>
+                <DashboardOutlined />
+                Overview
+              </Space>
+            } 
+            key="overview"
+          >
+
+            <Space direction="vertical" style={{ width: '100%' }} size="large">
+              <Card
+                title={
+                  <div style={{ textAlign: 'left' }}>
+                    <Space>
+                      <CloudServerOutlined />
+                      <span>System Health</span>
+                    </Space>
+                  </div>
+                }
+              >
+                <Text type="secondary" style={{ marginBottom: 16, display: 'block', textAlign: 'left' }}>
+                  Current system status and basic information
+                </Text>
+                {health ? (
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} sm={12} lg={6}>
+                      <Statistic
+                        title="Status"
+                        value={health.status}
+                        prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
+                        valueStyle={{ color: '#52c41a', textTransform: 'capitalize' }}
+                      />
+                    </Col>
+                    <Col xs={24} sm={12} lg={6}>
+                      <Statistic
+                        title="Service"
+                        value={health.service}
+                        prefix={<DashboardOutlined style={{ color: '#1890ff' }} />}
+                      />
+                    </Col>
+                    <Col xs={24} sm={12} lg={6}>
+                      <Statistic
+                        title="Version"
+                        value={health.version}
+                        prefix={<AppstoreOutlined style={{ color: '#722ed1' }} />}
+                      />
+                    </Col>
+                    <Col xs={24} sm={12} lg={6}>
+                      <Statistic
+                        title="Last Check"
+                        value={lastRefresh.toLocaleTimeString()}
+                        prefix={<ClockCircleOutlined style={{ color: '#8c8c8c' }} />}
+                      />
+                    </Col>
+                  </Row>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                    <ExclamationCircleOutlined style={{ fontSize: 32, color: '#bfbfbf', marginBottom: 8 }} />
+                    <Text type="secondary" style={{ textAlign: 'left' }}>Unable to fetch system health</Text>
+                  </div>
+                )}
+              </Card>
+
+              <Row gutter={[16, 16]}>
+                <Col xs={24} sm={8}>
+                  <Card size="small">
+                    <Statistic
+                      title="RAG Endpoints"
+                      value={groupedEndpoints['RAG']?.length || 0}
+                      prefix={<DatabaseOutlined style={{ color: '#1890ff' }} />}
+                      valueStyle={{ color: '#1890ff' }}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={8}>
+                  <Card size="small">
+                    <Statistic
+                      title="MCP Endpoints"
+                      value={groupedEndpoints['MCP']?.length || 0}
+                      prefix={<ThunderboltOutlined style={{ color: '#52c41a' }} />}
+                      valueStyle={{ color: '#52c41a' }}
+                    />
+                  </Card>
+                </Col>
+                <Col xs={24} sm={8}>
+                  <Card size="small">
+                    <Statistic
+                      title="Total Endpoints"
+                      value={apiEndpoints.length}
+                      prefix={<GlobalOutlined style={{ color: '#722ed1' }} />}
+                      valueStyle={{ color: '#722ed1' }}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+            </Space>
+          </TabPane>
+
+          <TabPane 
+            tab={
+              <Space>
+                <GlobalOutlined />
+                API Endpoints
+              </Space>
+            } 
+            key="endpoints"
+          >
+            <Space direction="vertical" style={{ width: '100%' }} size="large">
+              {Object.entries(groupedEndpoints).map(([category, endpoints]) => (
+                <Card 
+                  key={category}
+                  title={
+                    <div style={{ textAlign: 'left' }}>
+                      <Space>
+                        {getCategoryIcon(category)}
+                        <span>{category} API</span>
+                      </Space>
+                    </div>
+                  }
+                >
+                  <Text type="secondary" style={{ marginBottom: 16, display: 'block', textAlign: 'left' }}>
+                    Available {category.toLowerCase()} endpoints and operations
+                  </Text>
+                  <Space direction="vertical" style={{ width: '100%' }} size="small">
+                    {endpoints?.map((endpoint, index) => (
+                      <div key={index} style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between', 
+                        padding: 12, 
+                        backgroundColor: '#fafafa', 
+                        borderRadius: 6, 
+                        border: '1px solid #f0f0f0' 
+                      }}>
+                        <Space>
+                          <Tag color={getMethodColor(endpoint.method)} style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
+                            {endpoint.method}
+                          </Tag>
+                          <Text code style={{ fontSize: 12 }}>{endpoint.path}</Text>
+                        </Space>
+                        <Text type="secondary" style={{ fontSize: 12 }}>{endpoint.description}</Text>
                       </div>
-                      <span className="text-sm text-gray-600">{endpoint.description}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
+                    ))}
+                  </Space>
+                </Card>
+              ))}
+            </Space>
+          </TabPane>
 
-        <TabsContent value="monitoring" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Real-time Monitoring</CardTitle>
-              <CardDescription>
+          <TabPane 
+            tab={
+              <Space>
+                <LineChartOutlined />
+                Monitoring
+              </Space>
+            } 
+            key="monitoring"
+          >
+            <Card
+              title={<div style={{ textAlign: 'left' }}>Real-time Monitoring</div>}
+            >
+              <Text type="secondary" style={{ marginBottom: 16, display: 'block', textAlign: 'left' }}>
                 System metrics and performance indicators
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-4">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <Activity className="h-4 w-4" />
-                    API Response Times
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Health Check</span>
-                      <span className="text-green-600">~50ms</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Document Query</span>
-                      <span className="text-blue-600">~200ms</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>MCP Tool Call</span>
-                      <span className="text-purple-600">~150ms</span>
-                    </div>
-                  </div>
-                </div>
+              </Text>
+              <Row gutter={[24, 24]}>
+                <Col xs={24} md={12}>
+                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    <Space>
+                      <DashboardOutlined />
+                      <Text strong style={{ textAlign: 'left' }}>API Response Times</Text>
+                    </Space>
+                    <Space direction="vertical" style={{ width: '100%' }} size="small">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <Text>Health Check</Text>
+                        <Text style={{ color: '#52c41a' }}>~50ms</Text>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <Text>Document Query</Text>
+                        <Text style={{ color: '#1890ff' }}>~200ms</Text>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <Text>MCP Tool Call</Text>
+                        <Text style={{ color: '#722ed1' }}>~150ms</Text>
+                      </div>
+                    </Space>
+                  </Space>
+                </Col>
 
-                <div className="space-y-4">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <HardDrive className="h-4 w-4" />
-                    System Resources
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Memory Usage</span>
-                      <span className="text-gray-600">~45MB</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Active Connections</span>
-                      <span className="text-gray-600">1</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Uptime</span>
-                      <span className="text-gray-600">{Math.floor(Date.now() / 1000 / 60)}min</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                <Col xs={24} md={12}>
+                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    <Space>
+                      <HddOutlined />
+                      <Text strong style={{ textAlign: 'left' }}>System Resources</Text>
+                    </Space>
+                    <Space direction="vertical" style={{ width: '100%' }} size="small">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <Text>Memory Usage</Text>
+                        <Text type="secondary">~45MB</Text>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <Text>Active Connections</Text>
+                        <Text type="secondary">1</Text>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                        <Text>Uptime</Text>
+                        <Text type="secondary">{Math.floor(Date.now() / 1000 / 60)}min</Text>
+                      </div>
+                    </Space>
+                  </Space>
+                </Col>
+              </Row>
+            </Card>
+          </TabPane>
+        </Tabs>
+      </Space>
     </div>
   )
 }

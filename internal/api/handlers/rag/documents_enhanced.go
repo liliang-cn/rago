@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/liliang-cn/rago/v2/internal/api/handlers"
 )
 
 // DocumentInfo represents enhanced document information with metadata
@@ -64,7 +65,7 @@ func (h *DocumentsHandler) ListWithInfo(c *gin.Context) {
 		docsWithInfo = []DocumentInfo{}
 	}
 
-	c.JSON(http.StatusOK, docsWithInfo)
+	handlers.SendListResponse(c, docsWithInfo, len(docsWithInfo))
 }
 
 // GetDocumentInfo retrieves detailed information about a specific document

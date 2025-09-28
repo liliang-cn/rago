@@ -24,17 +24,18 @@ type Chunk struct {
 }
 
 type QueryRequest struct {
-	Query        string                 `json:"query"`
-	TopK         int                    `json:"top_k"`
-	Temperature  float64                `json:"temperature"`
-	MaxTokens    int                    `json:"max_tokens"`
-	Stream       bool                   `json:"stream"`
-	ShowThinking bool                   `json:"show_thinking"`
-	ShowSources  bool                   `json:"show_sources"`
-	Filters      map[string]interface{} `json:"filters,omitempty"`
-	ToolsEnabled bool                   `json:"tools_enabled"`
-	AllowedTools []string               `json:"allowed_tools,omitempty"`
-	MaxToolCalls int                    `json:"max_tool_calls"`
+	Query          string                 `json:"query"`
+	TopK           int                    `json:"top_k"`
+	Temperature    float64                `json:"temperature"`
+	MaxTokens      int                    `json:"max_tokens"`
+	Stream         bool                   `json:"stream"`
+	ShowThinking   bool                   `json:"show_thinking"`
+	ShowSources    bool                   `json:"show_sources"`
+	Filters        map[string]interface{} `json:"filters,omitempty"`
+	ToolsEnabled   bool                   `json:"tools_enabled"`
+	AllowedTools   []string               `json:"allowed_tools,omitempty"`
+	MaxToolCalls   int                    `json:"max_tool_calls"`
+	ConversationID string                 `json:"conversation_id,omitempty"`
 }
 
 type QueryResponse struct {
@@ -215,4 +216,18 @@ type DocumentStore interface {
 type Processor interface {
 	Ingest(ctx context.Context, req IngestRequest) (IngestResponse, error)
 	Query(ctx context.Context, req QueryRequest) (QueryResponse, error)
+}
+
+// RAGProcessor is the interface for RAG processing services
+type RAGProcessor interface {
+	Processor
+	QueryWithTools(ctx context.Context, req QueryRequest) (QueryResponse, error)
+	StreamQuery(ctx context.Context, req QueryRequest, callback func(string)) error
+	StreamQueryWithTools(ctx context.Context, req QueryRequest, callback func(string)) error
+	ListDocuments(ctx context.Context) ([]Document, error)
+	DeleteDocument(ctx context.Context, documentID string) error
+	Reset(ctx context.Context) error
+	GetToolRegistry() interface{}
+	GetToolExecutor() interface{}
+	RegisterMCPTools(mcpService interface{}) error
 }

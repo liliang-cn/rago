@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/liliang-cn/rago/v2/internal/api/handlers"
 	mcppkg "github.com/liliang-cn/rago/v2/pkg/mcp"
 )
 
@@ -38,13 +39,12 @@ func NewMCPHandler(config *mcppkg.Config) (*MCPHandler, error) {
 func (h *MCPHandler) ListTools(c *gin.Context) {
 	tools := h.mcpAPI.ListTools()
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"tools": tools,
-			"count": len(tools),
-		},
-	})
+	// Ensure tools is never nil
+	if tools == nil {
+		tools = []mcppkg.ToolSummary{}
+	}
+
+	handlers.SendListResponse(c, tools, len(tools))
 }
 
 // GetTool returns details of a specific tool
@@ -161,13 +161,15 @@ func (h *MCPHandler) BatchCallTools(c *gin.Context) {
 func (h *MCPHandler) GetServerStatus(c *gin.Context) {
 	statuses := h.mcpService.GetServerStatus()
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"servers": statuses,
-			"enabled": h.mcpService.IsEnabled(),
-		},
-	})
+	// Ensure statuses is never nil
+	if statuses == nil {
+		statuses = make(map[string]bool)
+	}
+
+	handlers.SendListResponse(c, gin.H{
+		"servers": statuses,
+		"enabled": h.mcpService.IsEnabled(),
+	}, len(statuses))
 }
 
 // StartServerRequest represents a server start request
@@ -237,13 +239,12 @@ func (h *MCPHandler) StopServer(c *gin.Context) {
 func (h *MCPHandler) GetToolsForLLM(c *gin.Context) {
 	tools := h.mcpAPI.GetToolsForLLMIntegration()
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"tools": tools,
-			"count": len(tools),
-		},
-	})
+	// Ensure tools is never nil
+	if tools == nil {
+		tools = []map[string]interface{}{}
+	}
+
+	handlers.SendListResponse(c, tools, len(tools))
 }
 
 // GetToolsByServer returns tools from a specific server
@@ -251,14 +252,7 @@ func (h *MCPHandler) GetToolsByServer(c *gin.Context) {
 	serverName := c.Param("server")
 
 	tools := h.mcpService.GetToolsByServer(serverName)
-	if len(tools) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"error":   "Server not found or no tools available",
-		})
-		return
-	}
-
+	
 	// Convert to simplified format
 	toolList := make([]map[string]interface{}, 0, len(tools))
 	for _, tool := range tools {
@@ -269,14 +263,11 @@ func (h *MCPHandler) GetToolsByServer(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"server": serverName,
-			"tools":  toolList,
-			"count":  len(toolList),
-		},
-	})
+	// Return empty list instead of 404 for consistency
+	handlers.SendListResponse(c, gin.H{
+		"server": serverName,
+		"tools":  toolList,
+	}, len(toolList))
 }
 
 // Close shuts down the MCP handler

@@ -1,16 +1,10 @@
 import { useState } from 'react'
-import { Search, Filter, Zap } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
-import { Slider } from './ui/slider'
-import { Switch } from './ui/switch'
-import { Badge } from './ui/badge'
-import { ScrollArea } from './ui/scroll-area'
+import { Card, Button, Input, Tabs, Space, Typography, Tag, Alert, Slider, Switch, Empty } from 'antd'
+import { SearchOutlined, FilterOutlined, ThunderboltOutlined, PlusOutlined } from '@ant-design/icons'
 import { apiClient, SearchRequest, SearchResult } from '../lib/api'
-import { Alert, AlertDescription } from './ui/alert'
+
+const { Text, Title } = Typography
+const { TabPane } = Tabs
 
 export function SearchTab() {
   const [searchRequest, setSearchRequest] = useState<SearchRequest>({
@@ -115,286 +109,344 @@ export function SearchTab() {
   const renderSearchResults = (results: SearchResult[]) => {
     if (results.length === 0) {
       return (
-        <div className="text-center text-muted-foreground py-8">
-          No results found. Try adjusting your search parameters.
-        </div>
+        <Empty
+          description="No results found. Try adjusting your search parameters."
+          style={{ padding: '32px 0' }}
+        />
       )
     }
 
     return (
-      <ScrollArea className="h-[400px] pr-4">
-        <div className="space-y-4">
-          {results.map((result, index) => (
-            <Card key={result.id || index} className="border-l-4 border-l-primary/50">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-sm font-medium">
-                    Document: {result.id}
-                  </CardTitle>
-                  <Badge variant="secondary">
-                    Score: {result.score.toFixed(3)}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {searchRequest.include_content && (
-                  <p className="text-sm text-muted-foreground line-clamp-3">
-                    {result.content}
-                  </p>
-                )}
-                {result.metadata && Object.keys(result.metadata).length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {Object.entries(result.metadata).map(([key, value]) => (
-                      <Badge key={key} variant="outline" className="text-xs">
-                        {key}: {String(value)}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
+      <div style={{ maxHeight: 400, overflowY: 'auto', paddingRight: 16 }}>
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          {results?.map((result, index) => (
+            <Card 
+              key={result.id || index} 
+              size="small" 
+              style={{ borderLeft: '4px solid #1890ff' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <Title level={5} style={{ margin: 0, fontSize: 14, textAlign: 'left' }}>
+                  Document: {result.id}
+                </Title>
+                <Tag color="blue">
+                  Score: {result.score?.toFixed(3)}
+                </Tag>
+              </div>
+              
+              {searchRequest.include_content && (
+                <Text 
+                  type="secondary" 
+                  style={{ 
+                    fontSize: 12, 
+                    marginBottom: 8,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical'
+                  }}
+                >
+                  {result.content}
+                </Text>
+              )}
+              
+              {result.metadata && Object.keys(result.metadata)?.length > 0 && (
+                <Space wrap>
+                  {Object.entries(result.metadata)?.map(([key, value]) => (
+                    <Tag key={key} color="default" style={{ fontSize: 10 }}>
+                      {key}: {String(value)}
+                    </Tag>
+                  ))}
+                </Space>
+              )}
             </Card>
           ))}
-        </div>
-      </ScrollArea>
+        </Space>
+      </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Advanced Search</CardTitle>
-          <CardDescription>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Space direction="vertical" style={{ width: '100%' }} size="large">
+        <Card
+          title={
+            <div style={{ textAlign: 'left' }}>
+              <Space>
+                <SearchOutlined />
+                <span>Advanced Search</span>
+              </Space>
+            </div>
+          }
+        >
+          <Text type="secondary" style={{ marginBottom: 16, display: 'block', textAlign: 'left' }}>
             Explore different search strategies with fine-tuned parameters
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Search Query Input */}
-          <div className="space-y-2">
-            <Label htmlFor="query">Search Query</Label>
-            <div className="flex gap-2">
+          </Text>
+          
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <div>
+              <Text strong style={{ marginBottom: 8, display: 'block', textAlign: 'left' }}>Search Query</Text>
               <Input
-                id="query"
                 value={searchRequest.query}
                 onChange={(e) => setSearchRequest(prev => ({ ...prev, query: e.target.value }))}
                 placeholder="Enter your search query..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    if (activeTab === 'semantic') handleSemanticSearch()
-                    else if (activeTab === 'hybrid') handleHybridSearch()
-                    else if (activeTab === 'filtered') handleFilteredSearch()
-                  }
+                prefix={<SearchOutlined />}
+                onPressEnter={() => {
+                  if (activeTab === 'semantic') handleSemanticSearch()
+                  else if (activeTab === 'hybrid') handleHybridSearch()
+                  else if (activeTab === 'filtered') handleFilteredSearch()
                 }}
               />
             </div>
-          </div>
 
-          {/* Search Parameters */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="top_k">Top K Results: {searchRequest.top_k}</Label>
-              <Slider
-                id="top_k"
-                min={1}
-                max={50}
-                step={1}
-                value={[searchRequest.top_k || 10]}
-                onValueChange={(value: number[]) => setSearchRequest(prev => ({ ...prev, top_k: value[0] }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="score_threshold">
-                Score Threshold: {searchRequest.score_threshold?.toFixed(2) || '0.00'}
-              </Label>
-              <Slider
-                id="score_threshold"
-                min={0}
-                max={1}
-                step={0.05}
-                value={[searchRequest.score_threshold || 0]}
-                onValueChange={(value: number[]) => setSearchRequest(prev => ({ ...prev, score_threshold: value[0] }))}
-              />
-            </div>
-          </div>
-
-          {/* Hybrid Search Settings */}
-          <div className="space-y-2 p-4 border rounded-lg">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="hybrid">Enable Hybrid Search</Label>
-              <Switch
-                id="hybrid"
-                checked={searchRequest.hybrid_search}
-                onCheckedChange={(checked: boolean) => setSearchRequest(prev => ({ ...prev, hybrid_search: checked }))}
-              />
-            </div>
-            
-            {searchRequest.hybrid_search && (
-              <div className="space-y-2 mt-4">
-                <Label htmlFor="vector_weight">
-                  Vector Weight: {((searchRequest.vector_weight || 0.7) * 100).toFixed(0)}%
-                </Label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+              <div>
+                <Text strong style={{ marginBottom: 8, display: 'block', textAlign: 'left' }}>
+                  Top K Results: {searchRequest.top_k}
+                </Text>
                 <Slider
-                  id="vector_weight"
+                  min={1}
+                  max={50}
+                  step={1}
+                  value={searchRequest.top_k || 10}
+                  onChange={(value: number) => setSearchRequest(prev => ({ ...prev, top_k: value }))}
+                />
+              </div>
+
+              <div>
+                <Text strong style={{ marginBottom: 8, display: 'block', textAlign: 'left' }}>
+                  Score Threshold: {searchRequest.score_threshold?.toFixed(2) || '0.00'}
+                </Text>
+                <Slider
                   min={0}
                   max={1}
                   step={0.05}
-                  value={[searchRequest.vector_weight || 0.7]}
-                  onValueChange={(value: number[]) => setSearchRequest(prev => ({ ...prev, vector_weight: value[0] }))}
+                  value={searchRequest.score_threshold || 0}
+                  onChange={(value: number) => setSearchRequest(prev => ({ ...prev, score_threshold: value }))}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Keyword Weight: {((1 - (searchRequest.vector_weight || 0.7)) * 100).toFixed(0)}%
-                </p>
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Include Content Toggle */}
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <Label htmlFor="include_content">Include Full Content in Results</Label>
-            <Switch
-              id="include_content"
-              checked={searchRequest.include_content}
-              onCheckedChange={(checked: boolean) => setSearchRequest(prev => ({ ...prev, include_content: checked }))}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Search Results Tabs */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Search Results</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="semantic" className="flex items-center gap-2">
-                <Search className="h-4 w-4" />
-                Semantic
-              </TabsTrigger>
-              <TabsTrigger value="hybrid" className="flex items-center gap-2">
-                <Zap className="h-4 w-4" />
-                Hybrid
-              </TabsTrigger>
-              <TabsTrigger value="filtered" className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                Filtered
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="semantic" className="space-y-4">
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-muted-foreground">
-                  Pure vector similarity search
-                </p>
-                <Button
-                  onClick={handleSemanticSearch}
-                  disabled={loading || !searchRequest.query}
-                  size="sm"
-                >
-                  <Search className="h-4 w-4 mr-2" />
-                  Search
-                </Button>
+            <Card size="small" style={{ backgroundColor: '#fafafa' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Text strong style={{ textAlign: 'left' }}>Enable Hybrid Search</Text>
+                <Switch
+                  checked={searchRequest.hybrid_search}
+                  onChange={(checked: boolean) => setSearchRequest(prev => ({ ...prev, hybrid_search: checked }))}
+                />
               </div>
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
+              
+              {searchRequest.hybrid_search && (
+                <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                  <div>
+                    <Text strong style={{ marginBottom: 8, display: 'block', textAlign: 'left' }}>
+                      Vector Weight: {((searchRequest.vector_weight || 0.7) * 100).toFixed(0)}%
+                    </Text>
+                    <Slider
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={searchRequest.vector_weight || 0.7}
+                      onChange={(value: number) => setSearchRequest(prev => ({ ...prev, vector_weight: value }))}
+                    />
+                    <Text type="secondary" style={{ fontSize: 12, textAlign: 'left', display: 'block' }}>
+                      Keyword Weight: {((1 - (searchRequest.vector_weight || 0.7)) * 100).toFixed(0)}%
+                    </Text>
+                  </div>
+                </Space>
               )}
-              {renderSearchResults(searchResults.semantic)}
-            </TabsContent>
+            </Card>
 
-            <TabsContent value="hybrid" className="space-y-4">
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-muted-foreground">
-                  Combined vector and keyword search
-                </p>
-                <Button
-                  onClick={handleHybridSearch}
-                  disabled={loading || !searchRequest.query}
-                  size="sm"
-                >
-                  <Zap className="h-4 w-4 mr-2" />
-                  Search
-                </Button>
+            <Card size="small" style={{ backgroundColor: '#fafafa' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text strong style={{ textAlign: 'left' }}>Include Full Content in Results</Text>
+                <Switch
+                  checked={searchRequest.include_content}
+                  onChange={(checked: boolean) => setSearchRequest(prev => ({ ...prev, include_content: checked }))}
+                />
               </div>
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              {renderSearchResults(searchResults.hybrid)}
-            </TabsContent>
+            </Card>
+          </Space>
+        </Card>
 
-            <TabsContent value="filtered" className="space-y-4">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Metadata Filters</Label>
-                  <div className="flex gap-2">
+        <Card
+          title={
+            <div style={{ textAlign: 'left' }}>
+              <Space>
+                <SearchOutlined />
+                <span>Search Results</span>
+              </Space>
+            </div>
+          }
+          style={{ flex: 1 }}
+        >
+          <Tabs activeKey={activeTab} onChange={setActiveTab} type="card">
+            <TabPane 
+              tab={
+                <Space>
+                  <SearchOutlined />
+                  Semantic
+                </Space>
+              } 
+              key="semantic"
+            >
+
+              <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text type="secondary" style={{ textAlign: 'left' }}>
+                    Pure vector similarity search
+                  </Text>
+                  <Button
+                    type="primary"
+                    onClick={handleSemanticSearch}
+                    disabled={loading || !searchRequest.query}
+                    loading={loading}
+                    icon={<SearchOutlined />}
+                  >
+                    Search
+                  </Button>
+                </div>
+                {error && (
+                  <Alert
+                    message={error}
+                    type="error"
+                    showIcon
+                    closable
+                    onClose={() => setError(null)}
+                  />
+                )}
+                {renderSearchResults(searchResults.semantic)}
+              </Space>
+            </TabPane>
+
+            <TabPane 
+              tab={
+                <Space>
+                  <ThunderboltOutlined />
+                  Hybrid
+                </Space>
+              } 
+              key="hybrid"
+            >
+              <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text type="secondary" style={{ textAlign: 'left' }}>
+                    Combined vector and keyword search
+                  </Text>
+                  <Button
+                    type="primary"
+                    onClick={handleHybridSearch}
+                    disabled={loading || !searchRequest.query}
+                    loading={loading}
+                    icon={<ThunderboltOutlined />}
+                  >
+                    Search
+                  </Button>
+                </div>
+                {error && (
+                  <Alert
+                    message={error}
+                    type="error"
+                    showIcon
+                    closable
+                    onClose={() => setError(null)}
+                  />
+                )}
+                {renderSearchResults(searchResults.hybrid)}
+              </Space>
+            </TabPane>
+
+            <TabPane 
+              tab={
+                <Space>
+                  <FilterOutlined />
+                  Filtered
+                </Space>
+              } 
+              key="filtered"
+            >
+              <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                <div>
+                  <Text strong style={{ marginBottom: 8, display: 'block', textAlign: 'left' }}>Metadata Filters</Text>
+                  <Space.Compact style={{ width: '100%' }}>
                     <Input
                       placeholder="Key"
                       id="filter-key"
+                      style={{ width: '30%' }}
                     />
                     <Input
                       placeholder="Value"
                       id="filter-value"
+                      style={{ width: '50%' }}
                     />
                     <Button
-                      size="sm"
+                      type="primary"
+                      icon={<PlusOutlined />}
                       onClick={() => {
                         const key = (document.getElementById('filter-key') as HTMLInputElement)?.value
                         const value = (document.getElementById('filter-value') as HTMLInputElement)?.value
                         if (key && value) {
-                          setFilters(prev => ({ ...prev, [key]: value }))
+                          setFilters(prev => ({ ...prev, [key]: value }));
+                          (document.getElementById('filter-key') as HTMLInputElement).value = '';
+                          (document.getElementById('filter-value') as HTMLInputElement).value = ''
                         }
                       }}
+                      style={{ width: '20%' }}
                     >
-                      Add Filter
+                      Add
                     </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {Object.entries(filters).map(([key, value]) => (
-                      <Badge
-                        key={key}
-                        variant="secondary"
-                        className="cursor-pointer"
-                        onClick={() => setFilters(prev => {
-                          const newFilters = { ...prev }
-                          delete newFilters[key]
-                          return newFilters
-                        })}
-                      >
-                        {key}: {value} ✕
-                      </Badge>
-                    ))}
+                  </Space.Compact>
+                  <div style={{ marginTop: 8 }}>
+                    <Space wrap>
+                      {Object.entries(filters)?.map(([key, value]) => (
+                        <Tag
+                          key={key}
+                          closable
+                          onClose={() => setFilters(prev => {
+                            const newFilters = { ...prev }
+                            delete newFilters[key]
+                            return newFilters
+                          })}
+                          color="blue"
+                        >
+                          {key}: {value}
+                        </Tag>
+                      ))}
+                    </Space>
                   </div>
                 </div>
                 
-                <div className="flex justify-between items-center">
-                  <p className="text-sm text-muted-foreground">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text type="secondary" style={{ textAlign: 'left' }}>
                     Search with metadata filtering
-                  </p>
+                  </Text>
                   <Button
+                    type="primary"
                     onClick={handleFilteredSearch}
                     disabled={loading || !searchRequest.query}
-                    size="sm"
+                    loading={loading}
+                    icon={<FilterOutlined />}
                   >
-                    <Filter className="h-4 w-4 mr-2" />
                     Search
                   </Button>
                 </div>
-              </div>
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              {renderSearchResults(searchResults.filtered)}
-            </TabsContent>
+                
+                {error && (
+                  <Alert
+                    message={error}
+                    type="error"
+                    showIcon
+                    closable
+                    onClose={() => setError(null)}
+                  />
+                )}
+                {renderSearchResults(searchResults.filtered)}
+              </Space>
+            </TabPane>
           </Tabs>
-        </CardContent>
-      </Card>
+        </Card>
+      </Space>
     </div>
   )
 }
