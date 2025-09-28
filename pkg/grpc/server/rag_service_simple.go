@@ -72,7 +72,8 @@ func (s *SimpleRAGServiceServer) Query(ctx context.Context, req *pb.QueryRequest
 
 	// Use the processor's Query method
 	queryReq := domain.QueryRequest{
-		Query: req.Query,
+		Query:          req.Query,
+		ConversationID: req.ConversationId,
 		// Note: Collection field not supported in current interface
 	}
 

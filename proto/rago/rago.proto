@@ -67,6 +67,33 @@ service EmbeddingService {
   rpc ComputeSimilarity(ComputeSimilarityRequest) returns (ComputeSimilarityResponse);
 }
 
+// ConversationService provides gRPC interface for conversation operations
+service ConversationService {
+  // Save or update a conversation
+  rpc SaveConversation(SaveConversationRequest) returns (SaveConversationResponse);
+  
+  // Get conversation by ID
+  rpc GetConversation(GetConversationRequest) returns (GetConversationResponse);
+  
+  // List conversations
+  rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse);
+  
+  // Delete conversation
+  rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
+}
+
+// UsageService provides gRPC interface for usage tracking operations
+service UsageService {
+  // Record usage metrics
+  rpc RecordUsage(RecordUsageRequest) returns (RecordUsageResponse);
+  
+  // Get usage statistics
+  rpc GetUsageStats(GetUsageStatsRequest) returns (GetUsageStatsResponse);
+  
+  // Get usage history
+  rpc GetUsageHistory(GetUsageHistoryRequest) returns (GetUsageHistoryResponse);
+}
+
 // Common message types
 
 message Document {
@@ -142,6 +169,7 @@ message QueryRequest {
   bool include_metadata = 5;
   bool stream = 6;
   QueryOptions options = 7;
+  string conversation_id = 8; // UUID for conversation tracking
 }
 
 message QueryOptions {
@@ -243,6 +271,7 @@ message GenerateRequest {
   string prompt = 1;
   GenerationOptions options = 2;
   string model = 3;
+  string conversation_id = 4; // UUID for conversation tracking
 }
 
 message GenerationOptions {
@@ -281,6 +310,7 @@ message GenerateWithToolsRequest {
   repeated ToolDefinition tools = 2;
   GenerationOptions options = 3;
   string model = 4;
+  string conversation_id = 5; // UUID for conversation tracking
 }
 
 message Message {
@@ -392,4 +422,152 @@ message ComputeSimilarityRequest {
 message ComputeSimilarityResponse {
   double similarity = 1;
   string metric = 2;
+}
+
+// Conversation Service Messages
+
+message ConversationMessage {
+  string role = 1;
+  string content = 2;
+  int64 timestamp = 3;
+  map<string, string> metadata = 4;
+}
+
+message SaveConversationRequest {
+  string id = 1; // UUID, if empty a new one will be generated
+  string title = 2;
+  repeated ConversationMessage messages = 3;
+  map<string, google.protobuf.Value> metadata = 4;
+}
+
+message SaveConversationResponse {
+  string id = 1; // UUID of the saved conversation
+  bool success = 2;
+  string error = 3;
+}
+
+message GetConversationRequest {
+  string id = 1; // UUID of the conversation
+}
+
+message GetConversationResponse {
+  string id = 1;
+  string title = 2;
+  repeated ConversationMessage messages = 3;
+  map<string, google.protobuf.Value> metadata = 4;
+  int64 created_at = 5; // Unix timestamp
+  int64 updated_at = 6; // Unix timestamp
+}
+
+message ListConversationsRequest {
+  int32 page_size = 1;
+  int32 page = 2;
+  string order_by = 3; // created_at, updated_at
+  bool descending = 4;
+}
+
+message ListConversationsResponse {
+  repeated ConversationSummary conversations = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message ConversationSummary {
+  string id = 1;
+  string title = 2;
+  int32 message_count = 3;
+  int64 created_at = 4; // Unix timestamp
+  int64 updated_at = 5; // Unix timestamp
+}
+
+message DeleteConversationRequest {
+  string id = 1; // UUID of the conversation
+}
+
+message DeleteConversationResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Usage Service Messages
+
+message UsageMetrics {
+  int32 prompt_tokens = 1;
+  int32 completion_tokens = 2;
+  int32 total_tokens = 3;
+  double cost = 4;
+  int64 latency_ms = 5;
+}
+
+message RecordUsageRequest {
+  string conversation_id = 1; // UUID
+  string provider = 2;
+  string model = 3;
+  string operation = 4; // query, generate, embed, tool_call
+  UsageMetrics metrics = 5;
+  int64 timestamp = 6; // Unix timestamp
+  map<string, string> metadata = 7;
+}
+
+message RecordUsageResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message GetUsageStatsRequest {
+  string conversation_id = 1; // UUID, if empty returns global stats
+  int64 start_time = 2; // Unix timestamp
+  int64 end_time = 3; // Unix timestamp
+  string provider = 4;
+  string model = 5;
+}
+
+message GetUsageStatsResponse {
+  int64 total_requests = 1;
+  int64 total_tokens = 2;
+  double total_cost = 3;
+  double average_latency_ms = 4;
+  map<string, UsageByModel> usage_by_model = 5;
+  map<string, UsageByProvider> usage_by_provider = 6;
+}
+
+message UsageByModel {
+  string model = 1;
+  int64 request_count = 2;
+  int64 total_tokens = 3;
+  double total_cost = 4;
+}
+
+message UsageByProvider {
+  string provider = 1;
+  int64 request_count = 2;
+  int64 total_tokens = 3;
+  double total_cost = 4;
+}
+
+message GetUsageHistoryRequest {
+  string conversation_id = 1; // UUID, if empty returns all
+  int64 start_time = 2; // Unix timestamp
+  int64 end_time = 3; // Unix timestamp
+  int32 page_size = 4;
+  int32 page = 5;
+}
+
+message GetUsageHistoryResponse {
+  repeated UsageRecord records = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message UsageRecord {
+  string id = 1;
+  string conversation_id = 2; // UUID
+  string provider = 3;
+  string model = 4;
+  string operation = 5;
+  UsageMetrics metrics = 6;
+  int64 timestamp = 7; // Unix timestamp
+  map<string, string> metadata = 8;
 }

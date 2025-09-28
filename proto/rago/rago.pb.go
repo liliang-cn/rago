@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.9
 // 	protoc        v5.29.3
-// source: proto/rago/rago.proto
+// source: rago.proto
 
 package rago
 
@@ -39,7 +39,7 @@ type Document struct {
 
 func (x *Document) Reset() {
 	*x = Document{}
-	mi := &file_proto_rago_rago_proto_msgTypes[0]
+	mi := &file_rago_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -51,7 +51,7 @@ func (x *Document) String() string {
 func (*Document) ProtoMessage() {}
 
 func (x *Document) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[0]
+	mi := &file_rago_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64,7 +64,7 @@ func (x *Document) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Document.ProtoReflect.Descriptor instead.
 func (*Document) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{0}
+	return file_rago_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Document) GetId() string {
@@ -137,7 +137,7 @@ type Chunk struct {
 
 func (x *Chunk) Reset() {
 	*x = Chunk{}
-	mi := &file_proto_rago_rago_proto_msgTypes[1]
+	mi := &file_rago_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -149,7 +149,7 @@ func (x *Chunk) String() string {
 func (*Chunk) ProtoMessage() {}
 
 func (x *Chunk) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[1]
+	mi := &file_rago_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -162,7 +162,7 @@ func (x *Chunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Chunk.ProtoReflect.Descriptor instead.
 func (*Chunk) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{1}
+	return file_rago_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Chunk) GetId() string {
@@ -221,7 +221,7 @@ type SearchResult struct {
 
 func (x *SearchResult) Reset() {
 	*x = SearchResult{}
-	mi := &file_proto_rago_rago_proto_msgTypes[2]
+	mi := &file_rago_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -233,7 +233,7 @@ func (x *SearchResult) String() string {
 func (*SearchResult) ProtoMessage() {}
 
 func (x *SearchResult) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[2]
+	mi := &file_rago_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -246,7 +246,7 @@ func (x *SearchResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchResult.ProtoReflect.Descriptor instead.
 func (*SearchResult) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{2}
+	return file_rago_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SearchResult) GetDocumentId() string {
@@ -304,7 +304,7 @@ type IngestDocumentRequest struct {
 
 func (x *IngestDocumentRequest) Reset() {
 	*x = IngestDocumentRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[3]
+	mi := &file_rago_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -316,7 +316,7 @@ func (x *IngestDocumentRequest) String() string {
 func (*IngestDocumentRequest) ProtoMessage() {}
 
 func (x *IngestDocumentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[3]
+	mi := &file_rago_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -329,7 +329,7 @@ func (x *IngestDocumentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IngestDocumentRequest.ProtoReflect.Descriptor instead.
 func (*IngestDocumentRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{3}
+	return file_rago_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *IngestDocumentRequest) GetContent() string {
@@ -378,7 +378,7 @@ type ChunkOptions struct {
 
 func (x *ChunkOptions) Reset() {
 	*x = ChunkOptions{}
-	mi := &file_proto_rago_rago_proto_msgTypes[4]
+	mi := &file_rago_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -390,7 +390,7 @@ func (x *ChunkOptions) String() string {
 func (*ChunkOptions) ProtoMessage() {}
 
 func (x *ChunkOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[4]
+	mi := &file_rago_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -403,7 +403,7 @@ func (x *ChunkOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChunkOptions.ProtoReflect.Descriptor instead.
 func (*ChunkOptions) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{4}
+	return file_rago_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ChunkOptions) GetMethod() string {
@@ -440,7 +440,7 @@ type IngestDocumentResponse struct {
 
 func (x *IngestDocumentResponse) Reset() {
 	*x = IngestDocumentResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[5]
+	mi := &file_rago_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -452,7 +452,7 @@ func (x *IngestDocumentResponse) String() string {
 func (*IngestDocumentResponse) ProtoMessage() {}
 
 func (x *IngestDocumentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[5]
+	mi := &file_rago_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -465,7 +465,7 @@ func (x *IngestDocumentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IngestDocumentResponse.ProtoReflect.Descriptor instead.
 func (*IngestDocumentResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{5}
+	return file_rago_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *IngestDocumentResponse) GetDocumentId() string {
@@ -513,7 +513,7 @@ type BatchIngestDocumentsRequest struct {
 
 func (x *BatchIngestDocumentsRequest) Reset() {
 	*x = BatchIngestDocumentsRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[6]
+	mi := &file_rago_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -525,7 +525,7 @@ func (x *BatchIngestDocumentsRequest) String() string {
 func (*BatchIngestDocumentsRequest) ProtoMessage() {}
 
 func (x *BatchIngestDocumentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[6]
+	mi := &file_rago_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -538,7 +538,7 @@ func (x *BatchIngestDocumentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchIngestDocumentsRequest.ProtoReflect.Descriptor instead.
 func (*BatchIngestDocumentsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{6}
+	return file_rago_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *BatchIngestDocumentsRequest) GetDocuments() []*IngestDocumentRequest {
@@ -567,7 +567,7 @@ type BatchIngestDocumentsResponse struct {
 
 func (x *BatchIngestDocumentsResponse) Reset() {
 	*x = BatchIngestDocumentsResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[7]
+	mi := &file_rago_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -579,7 +579,7 @@ func (x *BatchIngestDocumentsResponse) String() string {
 func (*BatchIngestDocumentsResponse) ProtoMessage() {}
 
 func (x *BatchIngestDocumentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[7]
+	mi := &file_rago_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -592,7 +592,7 @@ func (x *BatchIngestDocumentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchIngestDocumentsResponse.ProtoReflect.Descriptor instead.
 func (*BatchIngestDocumentsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{7}
+	return file_rago_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *BatchIngestDocumentsResponse) GetResults() []*IngestDocumentResponse {
@@ -632,13 +632,14 @@ type QueryRequest struct {
 	IncludeMetadata bool                   `protobuf:"varint,5,opt,name=include_metadata,json=includeMetadata,proto3" json:"include_metadata,omitempty"`
 	Stream          bool                   `protobuf:"varint,6,opt,name=stream,proto3" json:"stream,omitempty"`
 	Options         *QueryOptions          `protobuf:"bytes,7,opt,name=options,proto3" json:"options,omitempty"`
+	ConversationId  string                 `protobuf:"bytes,8,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"` // UUID for conversation tracking
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *QueryRequest) Reset() {
 	*x = QueryRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[8]
+	mi := &file_rago_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -650,7 +651,7 @@ func (x *QueryRequest) String() string {
 func (*QueryRequest) ProtoMessage() {}
 
 func (x *QueryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[8]
+	mi := &file_rago_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -663,7 +664,7 @@ func (x *QueryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryRequest.ProtoReflect.Descriptor instead.
 func (*QueryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{8}
+	return file_rago_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *QueryRequest) GetQuery() string {
@@ -715,6 +716,13 @@ func (x *QueryRequest) GetOptions() *QueryOptions {
 	return nil
 }
 
+func (x *QueryRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
 type QueryOptions struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	HybridSearch   bool                   `protobuf:"varint,1,opt,name=hybrid_search,json=hybridSearch,proto3" json:"hybrid_search,omitempty"`
@@ -728,7 +736,7 @@ type QueryOptions struct {
 
 func (x *QueryOptions) Reset() {
 	*x = QueryOptions{}
-	mi := &file_proto_rago_rago_proto_msgTypes[9]
+	mi := &file_rago_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -740,7 +748,7 @@ func (x *QueryOptions) String() string {
 func (*QueryOptions) ProtoMessage() {}
 
 func (x *QueryOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[9]
+	mi := &file_rago_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -753,7 +761,7 @@ func (x *QueryOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryOptions.ProtoReflect.Descriptor instead.
 func (*QueryOptions) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{9}
+	return file_rago_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *QueryOptions) GetHybridSearch() bool {
@@ -804,7 +812,7 @@ type QueryResponse struct {
 
 func (x *QueryResponse) Reset() {
 	*x = QueryResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[10]
+	mi := &file_rago_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -816,7 +824,7 @@ func (x *QueryResponse) String() string {
 func (*QueryResponse) ProtoMessage() {}
 
 func (x *QueryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[10]
+	mi := &file_rago_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -829,7 +837,7 @@ func (x *QueryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryResponse.ProtoReflect.Descriptor instead.
 func (*QueryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{10}
+	return file_rago_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *QueryResponse) GetAnswer() string {
@@ -882,7 +890,7 @@ type StreamQueryResponse struct {
 
 func (x *StreamQueryResponse) Reset() {
 	*x = StreamQueryResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[11]
+	mi := &file_rago_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -894,7 +902,7 @@ func (x *StreamQueryResponse) String() string {
 func (*StreamQueryResponse) ProtoMessage() {}
 
 func (x *StreamQueryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[11]
+	mi := &file_rago_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -907,7 +915,7 @@ func (x *StreamQueryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamQueryResponse.ProtoReflect.Descriptor instead.
 func (*StreamQueryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{11}
+	return file_rago_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *StreamQueryResponse) GetContent() isStreamQueryResponse_Content {
@@ -992,7 +1000,7 @@ type QueryMetadata struct {
 
 func (x *QueryMetadata) Reset() {
 	*x = QueryMetadata{}
-	mi := &file_proto_rago_rago_proto_msgTypes[12]
+	mi := &file_rago_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1004,7 +1012,7 @@ func (x *QueryMetadata) String() string {
 func (*QueryMetadata) ProtoMessage() {}
 
 func (x *QueryMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[12]
+	mi := &file_rago_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1017,7 +1025,7 @@ func (x *QueryMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryMetadata.ProtoReflect.Descriptor instead.
 func (*QueryMetadata) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{12}
+	return file_rago_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *QueryMetadata) GetProcessingTimeMs() int64 {
@@ -1051,7 +1059,7 @@ type GetDocumentRequest struct {
 
 func (x *GetDocumentRequest) Reset() {
 	*x = GetDocumentRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[13]
+	mi := &file_rago_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1063,7 +1071,7 @@ func (x *GetDocumentRequest) String() string {
 func (*GetDocumentRequest) ProtoMessage() {}
 
 func (x *GetDocumentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[13]
+	mi := &file_rago_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1076,7 +1084,7 @@ func (x *GetDocumentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDocumentRequest.ProtoReflect.Descriptor instead.
 func (*GetDocumentRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{13}
+	return file_rago_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetDocumentRequest) GetDocumentId() string {
@@ -1103,7 +1111,7 @@ type GetDocumentResponse struct {
 
 func (x *GetDocumentResponse) Reset() {
 	*x = GetDocumentResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[14]
+	mi := &file_rago_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1115,7 +1123,7 @@ func (x *GetDocumentResponse) String() string {
 func (*GetDocumentResponse) ProtoMessage() {}
 
 func (x *GetDocumentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[14]
+	mi := &file_rago_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1128,7 +1136,7 @@ func (x *GetDocumentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDocumentResponse.ProtoReflect.Descriptor instead.
 func (*GetDocumentResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{14}
+	return file_rago_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetDocumentResponse) GetDocument() *Document {
@@ -1158,7 +1166,7 @@ type ListDocumentsRequest struct {
 
 func (x *ListDocumentsRequest) Reset() {
 	*x = ListDocumentsRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[15]
+	mi := &file_rago_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1170,7 +1178,7 @@ func (x *ListDocumentsRequest) String() string {
 func (*ListDocumentsRequest) ProtoMessage() {}
 
 func (x *ListDocumentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[15]
+	mi := &file_rago_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1183,7 +1191,7 @@ func (x *ListDocumentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDocumentsRequest.ProtoReflect.Descriptor instead.
 func (*ListDocumentsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{15}
+	return file_rago_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListDocumentsRequest) GetCollection() string {
@@ -1232,7 +1240,7 @@ type ListDocumentsResponse struct {
 
 func (x *ListDocumentsResponse) Reset() {
 	*x = ListDocumentsResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[16]
+	mi := &file_rago_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1244,7 +1252,7 @@ func (x *ListDocumentsResponse) String() string {
 func (*ListDocumentsResponse) ProtoMessage() {}
 
 func (x *ListDocumentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[16]
+	mi := &file_rago_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1257,7 +1265,7 @@ func (x *ListDocumentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDocumentsResponse.ProtoReflect.Descriptor instead.
 func (*ListDocumentsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{16}
+	return file_rago_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListDocumentsResponse) GetDocuments() []*Document {
@@ -1290,7 +1298,7 @@ type DeleteDocumentRequest struct {
 
 func (x *DeleteDocumentRequest) Reset() {
 	*x = DeleteDocumentRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[17]
+	mi := &file_rago_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1302,7 +1310,7 @@ func (x *DeleteDocumentRequest) String() string {
 func (*DeleteDocumentRequest) ProtoMessage() {}
 
 func (x *DeleteDocumentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[17]
+	mi := &file_rago_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1315,7 +1323,7 @@ func (x *DeleteDocumentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDocumentRequest.ProtoReflect.Descriptor instead.
 func (*DeleteDocumentRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{17}
+	return file_rago_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *DeleteDocumentRequest) GetDocumentId() string {
@@ -1335,7 +1343,7 @@ type DeleteDocumentResponse struct {
 
 func (x *DeleteDocumentResponse) Reset() {
 	*x = DeleteDocumentResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[18]
+	mi := &file_rago_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1347,7 +1355,7 @@ func (x *DeleteDocumentResponse) String() string {
 func (*DeleteDocumentResponse) ProtoMessage() {}
 
 func (x *DeleteDocumentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[18]
+	mi := &file_rago_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1360,7 +1368,7 @@ func (x *DeleteDocumentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteDocumentResponse.ProtoReflect.Descriptor instead.
 func (*DeleteDocumentResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{18}
+	return file_rago_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DeleteDocumentResponse) GetSuccess() bool {
@@ -1386,7 +1394,7 @@ type GetStatisticsRequest struct {
 
 func (x *GetStatisticsRequest) Reset() {
 	*x = GetStatisticsRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[19]
+	mi := &file_rago_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1398,7 +1406,7 @@ func (x *GetStatisticsRequest) String() string {
 func (*GetStatisticsRequest) ProtoMessage() {}
 
 func (x *GetStatisticsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[19]
+	mi := &file_rago_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1411,7 +1419,7 @@ func (x *GetStatisticsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatisticsRequest.ProtoReflect.Descriptor instead.
 func (*GetStatisticsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{19}
+	return file_rago_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetStatisticsRequest) GetCollection() string {
@@ -1436,7 +1444,7 @@ type GetStatisticsResponse struct {
 
 func (x *GetStatisticsResponse) Reset() {
 	*x = GetStatisticsResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[20]
+	mi := &file_rago_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1448,7 +1456,7 @@ func (x *GetStatisticsResponse) String() string {
 func (*GetStatisticsResponse) ProtoMessage() {}
 
 func (x *GetStatisticsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[20]
+	mi := &file_rago_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1461,7 +1469,7 @@ func (x *GetStatisticsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatisticsResponse.ProtoReflect.Descriptor instead.
 func (*GetStatisticsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{20}
+	return file_rago_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetStatisticsResponse) GetTotalDocuments() int64 {
@@ -1521,7 +1529,7 @@ type HealthCheckRequest struct {
 
 func (x *HealthCheckRequest) Reset() {
 	*x = HealthCheckRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[21]
+	mi := &file_rago_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1533,7 +1541,7 @@ func (x *HealthCheckRequest) String() string {
 func (*HealthCheckRequest) ProtoMessage() {}
 
 func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[21]
+	mi := &file_rago_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1546,7 +1554,7 @@ func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckRequest.ProtoReflect.Descriptor instead.
 func (*HealthCheckRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{21}
+	return file_rago_proto_rawDescGZIP(), []int{21}
 }
 
 type HealthCheckResponse struct {
@@ -1560,7 +1568,7 @@ type HealthCheckResponse struct {
 
 func (x *HealthCheckResponse) Reset() {
 	*x = HealthCheckResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[22]
+	mi := &file_rago_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1572,7 +1580,7 @@ func (x *HealthCheckResponse) String() string {
 func (*HealthCheckResponse) ProtoMessage() {}
 
 func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[22]
+	mi := &file_rago_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1585,7 +1593,7 @@ func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*HealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{22}
+	return file_rago_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *HealthCheckResponse) GetHealthy() bool {
@@ -1621,7 +1629,7 @@ type ComponentHealth struct {
 
 func (x *ComponentHealth) Reset() {
 	*x = ComponentHealth{}
-	mi := &file_proto_rago_rago_proto_msgTypes[23]
+	mi := &file_rago_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1633,7 +1641,7 @@ func (x *ComponentHealth) String() string {
 func (*ComponentHealth) ProtoMessage() {}
 
 func (x *ComponentHealth) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[23]
+	mi := &file_rago_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1646,7 +1654,7 @@ func (x *ComponentHealth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComponentHealth.ProtoReflect.Descriptor instead.
 func (*ComponentHealth) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{23}
+	return file_rago_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ComponentHealth) GetHealthy() bool {
@@ -1678,17 +1686,18 @@ func (x *ComponentHealth) GetLastCheck() *timestamppb.Timestamp {
 }
 
 type GenerateRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Prompt        string                 `protobuf:"bytes,1,opt,name=prompt,proto3" json:"prompt,omitempty"`
-	Options       *GenerationOptions     `protobuf:"bytes,2,opt,name=options,proto3" json:"options,omitempty"`
-	Model         string                 `protobuf:"bytes,3,opt,name=model,proto3" json:"model,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Prompt         string                 `protobuf:"bytes,1,opt,name=prompt,proto3" json:"prompt,omitempty"`
+	Options        *GenerationOptions     `protobuf:"bytes,2,opt,name=options,proto3" json:"options,omitempty"`
+	Model          string                 `protobuf:"bytes,3,opt,name=model,proto3" json:"model,omitempty"`
+	ConversationId string                 `protobuf:"bytes,4,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"` // UUID for conversation tracking
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GenerateRequest) Reset() {
 	*x = GenerateRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[24]
+	mi := &file_rago_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1700,7 +1709,7 @@ func (x *GenerateRequest) String() string {
 func (*GenerateRequest) ProtoMessage() {}
 
 func (x *GenerateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[24]
+	mi := &file_rago_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1713,7 +1722,7 @@ func (x *GenerateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateRequest.ProtoReflect.Descriptor instead.
 func (*GenerateRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{24}
+	return file_rago_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *GenerateRequest) GetPrompt() string {
@@ -1737,6 +1746,13 @@ func (x *GenerateRequest) GetModel() string {
 	return ""
 }
 
+func (x *GenerateRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
 type GenerationOptions struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	MaxTokens        int32                  `protobuf:"varint,1,opt,name=max_tokens,json=maxTokens,proto3" json:"max_tokens,omitempty"`
@@ -1752,7 +1768,7 @@ type GenerationOptions struct {
 
 func (x *GenerationOptions) Reset() {
 	*x = GenerationOptions{}
-	mi := &file_proto_rago_rago_proto_msgTypes[25]
+	mi := &file_rago_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1764,7 +1780,7 @@ func (x *GenerationOptions) String() string {
 func (*GenerationOptions) ProtoMessage() {}
 
 func (x *GenerationOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[25]
+	mi := &file_rago_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1777,7 +1793,7 @@ func (x *GenerationOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerationOptions.ProtoReflect.Descriptor instead.
 func (*GenerationOptions) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{25}
+	return file_rago_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GenerationOptions) GetMaxTokens() int32 {
@@ -1841,7 +1857,7 @@ type GenerateResponse struct {
 
 func (x *GenerateResponse) Reset() {
 	*x = GenerateResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[26]
+	mi := &file_rago_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1853,7 +1869,7 @@ func (x *GenerateResponse) String() string {
 func (*GenerateResponse) ProtoMessage() {}
 
 func (x *GenerateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[26]
+	mi := &file_rago_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1866,7 +1882,7 @@ func (x *GenerateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateResponse.ProtoReflect.Descriptor instead.
 func (*GenerateResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{26}
+	return file_rago_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GenerateResponse) GetText() string {
@@ -1911,7 +1927,7 @@ type StreamGenerateResponse struct {
 
 func (x *StreamGenerateResponse) Reset() {
 	*x = StreamGenerateResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[27]
+	mi := &file_rago_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1923,7 +1939,7 @@ func (x *StreamGenerateResponse) String() string {
 func (*StreamGenerateResponse) ProtoMessage() {}
 
 func (x *StreamGenerateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[27]
+	mi := &file_rago_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1936,7 +1952,7 @@ func (x *StreamGenerateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamGenerateResponse.ProtoReflect.Descriptor instead.
 func (*StreamGenerateResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{27}
+	return file_rago_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *StreamGenerateResponse) GetContent() isStreamGenerateResponse_Content {
@@ -2006,7 +2022,7 @@ type GenerationMetadata struct {
 
 func (x *GenerationMetadata) Reset() {
 	*x = GenerationMetadata{}
-	mi := &file_proto_rago_rago_proto_msgTypes[28]
+	mi := &file_rago_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2018,7 +2034,7 @@ func (x *GenerationMetadata) String() string {
 func (*GenerationMetadata) ProtoMessage() {}
 
 func (x *GenerationMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[28]
+	mi := &file_rago_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2031,7 +2047,7 @@ func (x *GenerationMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerationMetadata.ProtoReflect.Descriptor instead.
 func (*GenerationMetadata) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{28}
+	return file_rago_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *GenerationMetadata) GetTokensUsed() int32 {
@@ -2056,18 +2072,19 @@ func (x *GenerationMetadata) GetFinishReason() string {
 }
 
 type GenerateWithToolsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Messages      []*Message             `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
-	Tools         []*ToolDefinition      `protobuf:"bytes,2,rep,name=tools,proto3" json:"tools,omitempty"`
-	Options       *GenerationOptions     `protobuf:"bytes,3,opt,name=options,proto3" json:"options,omitempty"`
-	Model         string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Messages       []*Message             `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
+	Tools          []*ToolDefinition      `protobuf:"bytes,2,rep,name=tools,proto3" json:"tools,omitempty"`
+	Options        *GenerationOptions     `protobuf:"bytes,3,opt,name=options,proto3" json:"options,omitempty"`
+	Model          string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
+	ConversationId string                 `protobuf:"bytes,5,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"` // UUID for conversation tracking
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GenerateWithToolsRequest) Reset() {
 	*x = GenerateWithToolsRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[29]
+	mi := &file_rago_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2079,7 +2096,7 @@ func (x *GenerateWithToolsRequest) String() string {
 func (*GenerateWithToolsRequest) ProtoMessage() {}
 
 func (x *GenerateWithToolsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[29]
+	mi := &file_rago_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2092,7 +2109,7 @@ func (x *GenerateWithToolsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateWithToolsRequest.ProtoReflect.Descriptor instead.
 func (*GenerateWithToolsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{29}
+	return file_rago_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *GenerateWithToolsRequest) GetMessages() []*Message {
@@ -2123,6 +2140,13 @@ func (x *GenerateWithToolsRequest) GetModel() string {
 	return ""
 }
 
+func (x *GenerateWithToolsRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
 type Message struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Role          string                 `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"` // user, assistant, system, tool
@@ -2135,7 +2159,7 @@ type Message struct {
 
 func (x *Message) Reset() {
 	*x = Message{}
-	mi := &file_proto_rago_rago_proto_msgTypes[30]
+	mi := &file_rago_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2147,7 +2171,7 @@ func (x *Message) String() string {
 func (*Message) ProtoMessage() {}
 
 func (x *Message) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[30]
+	mi := &file_rago_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2160,7 +2184,7 @@ func (x *Message) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Message.ProtoReflect.Descriptor instead.
 func (*Message) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{30}
+	return file_rago_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *Message) GetRole() string {
@@ -2201,7 +2225,7 @@ type ToolDefinition struct {
 
 func (x *ToolDefinition) Reset() {
 	*x = ToolDefinition{}
-	mi := &file_proto_rago_rago_proto_msgTypes[31]
+	mi := &file_rago_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2213,7 +2237,7 @@ func (x *ToolDefinition) String() string {
 func (*ToolDefinition) ProtoMessage() {}
 
 func (x *ToolDefinition) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[31]
+	mi := &file_rago_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2226,7 +2250,7 @@ func (x *ToolDefinition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolDefinition.ProtoReflect.Descriptor instead.
 func (*ToolDefinition) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{31}
+	return file_rago_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ToolDefinition) GetType() string {
@@ -2254,7 +2278,7 @@ type FunctionDefinition struct {
 
 func (x *FunctionDefinition) Reset() {
 	*x = FunctionDefinition{}
-	mi := &file_proto_rago_rago_proto_msgTypes[32]
+	mi := &file_rago_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2266,7 +2290,7 @@ func (x *FunctionDefinition) String() string {
 func (*FunctionDefinition) ProtoMessage() {}
 
 func (x *FunctionDefinition) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[32]
+	mi := &file_rago_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2279,7 +2303,7 @@ func (x *FunctionDefinition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FunctionDefinition.ProtoReflect.Descriptor instead.
 func (*FunctionDefinition) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{32}
+	return file_rago_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *FunctionDefinition) GetName() string {
@@ -2314,7 +2338,7 @@ type ToolCall struct {
 
 func (x *ToolCall) Reset() {
 	*x = ToolCall{}
-	mi := &file_proto_rago_rago_proto_msgTypes[33]
+	mi := &file_rago_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2326,7 +2350,7 @@ func (x *ToolCall) String() string {
 func (*ToolCall) ProtoMessage() {}
 
 func (x *ToolCall) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[33]
+	mi := &file_rago_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2339,7 +2363,7 @@ func (x *ToolCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolCall.ProtoReflect.Descriptor instead.
 func (*ToolCall) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{33}
+	return file_rago_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ToolCall) GetId() string {
@@ -2373,7 +2397,7 @@ type FunctionCall struct {
 
 func (x *FunctionCall) Reset() {
 	*x = FunctionCall{}
-	mi := &file_proto_rago_rago_proto_msgTypes[34]
+	mi := &file_rago_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2385,7 +2409,7 @@ func (x *FunctionCall) String() string {
 func (*FunctionCall) ProtoMessage() {}
 
 func (x *FunctionCall) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[34]
+	mi := &file_rago_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2398,7 +2422,7 @@ func (x *FunctionCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FunctionCall.ProtoReflect.Descriptor instead.
 func (*FunctionCall) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{34}
+	return file_rago_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *FunctionCall) GetName() string {
@@ -2428,7 +2452,7 @@ type GenerateWithToolsResponse struct {
 
 func (x *GenerateWithToolsResponse) Reset() {
 	*x = GenerateWithToolsResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[35]
+	mi := &file_rago_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2440,7 +2464,7 @@ func (x *GenerateWithToolsResponse) String() string {
 func (*GenerateWithToolsResponse) ProtoMessage() {}
 
 func (x *GenerateWithToolsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[35]
+	mi := &file_rago_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2453,7 +2477,7 @@ func (x *GenerateWithToolsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateWithToolsResponse.ProtoReflect.Descriptor instead.
 func (*GenerateWithToolsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{35}
+	return file_rago_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *GenerateWithToolsResponse) GetContent() string {
@@ -2502,7 +2526,7 @@ type ExtractMetadataRequest struct {
 
 func (x *ExtractMetadataRequest) Reset() {
 	*x = ExtractMetadataRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[36]
+	mi := &file_rago_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2514,7 +2538,7 @@ func (x *ExtractMetadataRequest) String() string {
 func (*ExtractMetadataRequest) ProtoMessage() {}
 
 func (x *ExtractMetadataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[36]
+	mi := &file_rago_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2527,7 +2551,7 @@ func (x *ExtractMetadataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtractMetadataRequest.ProtoReflect.Descriptor instead.
 func (*ExtractMetadataRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{36}
+	return file_rago_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ExtractMetadataRequest) GetContent() string {
@@ -2567,7 +2591,7 @@ type ExtractMetadataResponse struct {
 
 func (x *ExtractMetadataResponse) Reset() {
 	*x = ExtractMetadataResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[37]
+	mi := &file_rago_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2579,7 +2603,7 @@ func (x *ExtractMetadataResponse) String() string {
 func (*ExtractMetadataResponse) ProtoMessage() {}
 
 func (x *ExtractMetadataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[37]
+	mi := &file_rago_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2592,7 +2616,7 @@ func (x *ExtractMetadataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtractMetadataResponse.ProtoReflect.Descriptor instead.
 func (*ExtractMetadataResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{37}
+	return file_rago_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ExtractMetadataResponse) GetSummary() string {
@@ -2660,7 +2684,7 @@ type ListModelsRequest struct {
 
 func (x *ListModelsRequest) Reset() {
 	*x = ListModelsRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[38]
+	mi := &file_rago_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2672,7 +2696,7 @@ func (x *ListModelsRequest) String() string {
 func (*ListModelsRequest) ProtoMessage() {}
 
 func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[38]
+	mi := &file_rago_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2685,7 +2709,7 @@ func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsRequest.ProtoReflect.Descriptor instead.
 func (*ListModelsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{38}
+	return file_rago_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ListModelsRequest) GetProvider() string {
@@ -2704,7 +2728,7 @@ type ListModelsResponse struct {
 
 func (x *ListModelsResponse) Reset() {
 	*x = ListModelsResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[39]
+	mi := &file_rago_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2716,7 +2740,7 @@ func (x *ListModelsResponse) String() string {
 func (*ListModelsResponse) ProtoMessage() {}
 
 func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[39]
+	mi := &file_rago_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2729,7 +2753,7 @@ func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsResponse.ProtoReflect.Descriptor instead.
 func (*ListModelsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{39}
+	return file_rago_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ListModelsResponse) GetModels() []*ModelInfo {
@@ -2753,7 +2777,7 @@ type ModelInfo struct {
 
 func (x *ModelInfo) Reset() {
 	*x = ModelInfo{}
-	mi := &file_proto_rago_rago_proto_msgTypes[40]
+	mi := &file_rago_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2765,7 +2789,7 @@ func (x *ModelInfo) String() string {
 func (*ModelInfo) ProtoMessage() {}
 
 func (x *ModelInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[40]
+	mi := &file_rago_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2778,7 +2802,7 @@ func (x *ModelInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelInfo.ProtoReflect.Descriptor instead.
 func (*ModelInfo) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{40}
+	return file_rago_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *ModelInfo) GetId() string {
@@ -2833,7 +2857,7 @@ type GenerateEmbeddingRequest struct {
 
 func (x *GenerateEmbeddingRequest) Reset() {
 	*x = GenerateEmbeddingRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[41]
+	mi := &file_rago_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2845,7 +2869,7 @@ func (x *GenerateEmbeddingRequest) String() string {
 func (*GenerateEmbeddingRequest) ProtoMessage() {}
 
 func (x *GenerateEmbeddingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[41]
+	mi := &file_rago_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2858,7 +2882,7 @@ func (x *GenerateEmbeddingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateEmbeddingRequest.ProtoReflect.Descriptor instead.
 func (*GenerateEmbeddingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{41}
+	return file_rago_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *GenerateEmbeddingRequest) GetText() string {
@@ -2886,7 +2910,7 @@ type GenerateEmbeddingResponse struct {
 
 func (x *GenerateEmbeddingResponse) Reset() {
 	*x = GenerateEmbeddingResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[42]
+	mi := &file_rago_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2898,7 +2922,7 @@ func (x *GenerateEmbeddingResponse) String() string {
 func (*GenerateEmbeddingResponse) ProtoMessage() {}
 
 func (x *GenerateEmbeddingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[42]
+	mi := &file_rago_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2911,7 +2935,7 @@ func (x *GenerateEmbeddingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateEmbeddingResponse.ProtoReflect.Descriptor instead.
 func (*GenerateEmbeddingResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{42}
+	return file_rago_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *GenerateEmbeddingResponse) GetEmbedding() []float32 {
@@ -2945,7 +2969,7 @@ type BatchGenerateEmbeddingsRequest struct {
 
 func (x *BatchGenerateEmbeddingsRequest) Reset() {
 	*x = BatchGenerateEmbeddingsRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[43]
+	mi := &file_rago_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2957,7 +2981,7 @@ func (x *BatchGenerateEmbeddingsRequest) String() string {
 func (*BatchGenerateEmbeddingsRequest) ProtoMessage() {}
 
 func (x *BatchGenerateEmbeddingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[43]
+	mi := &file_rago_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2970,7 +2994,7 @@ func (x *BatchGenerateEmbeddingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchGenerateEmbeddingsRequest.ProtoReflect.Descriptor instead.
 func (*BatchGenerateEmbeddingsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{43}
+	return file_rago_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *BatchGenerateEmbeddingsRequest) GetTexts() []string {
@@ -2996,7 +3020,7 @@ type BatchGenerateEmbeddingsResponse struct {
 
 func (x *BatchGenerateEmbeddingsResponse) Reset() {
 	*x = BatchGenerateEmbeddingsResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[44]
+	mi := &file_rago_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3008,7 +3032,7 @@ func (x *BatchGenerateEmbeddingsResponse) String() string {
 func (*BatchGenerateEmbeddingsResponse) ProtoMessage() {}
 
 func (x *BatchGenerateEmbeddingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[44]
+	mi := &file_rago_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3021,7 +3045,7 @@ func (x *BatchGenerateEmbeddingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BatchGenerateEmbeddingsResponse.ProtoReflect.Descriptor instead.
 func (*BatchGenerateEmbeddingsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{44}
+	return file_rago_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *BatchGenerateEmbeddingsResponse) GetResults() []*EmbeddingResult {
@@ -3042,7 +3066,7 @@ type EmbeddingResult struct {
 
 func (x *EmbeddingResult) Reset() {
 	*x = EmbeddingResult{}
-	mi := &file_proto_rago_rago_proto_msgTypes[45]
+	mi := &file_rago_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3054,7 +3078,7 @@ func (x *EmbeddingResult) String() string {
 func (*EmbeddingResult) ProtoMessage() {}
 
 func (x *EmbeddingResult) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[45]
+	mi := &file_rago_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3067,7 +3091,7 @@ func (x *EmbeddingResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmbeddingResult.ProtoReflect.Descriptor instead.
 func (*EmbeddingResult) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{45}
+	return file_rago_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *EmbeddingResult) GetEmbedding() []float32 {
@@ -3103,7 +3127,7 @@ type ComputeSimilarityRequest struct {
 
 func (x *ComputeSimilarityRequest) Reset() {
 	*x = ComputeSimilarityRequest{}
-	mi := &file_proto_rago_rago_proto_msgTypes[46]
+	mi := &file_rago_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3115,7 +3139,7 @@ func (x *ComputeSimilarityRequest) String() string {
 func (*ComputeSimilarityRequest) ProtoMessage() {}
 
 func (x *ComputeSimilarityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[46]
+	mi := &file_rago_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3128,7 +3152,7 @@ func (x *ComputeSimilarityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComputeSimilarityRequest.ProtoReflect.Descriptor instead.
 func (*ComputeSimilarityRequest) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{46}
+	return file_rago_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ComputeSimilarityRequest) GetText1() string {
@@ -3169,7 +3193,7 @@ type ComputeSimilarityResponse struct {
 
 func (x *ComputeSimilarityResponse) Reset() {
 	*x = ComputeSimilarityResponse{}
-	mi := &file_proto_rago_rago_proto_msgTypes[47]
+	mi := &file_rago_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3181,7 +3205,7 @@ func (x *ComputeSimilarityResponse) String() string {
 func (*ComputeSimilarityResponse) ProtoMessage() {}
 
 func (x *ComputeSimilarityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_rago_rago_proto_msgTypes[47]
+	mi := &file_rago_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3194,7 +3218,7 @@ func (x *ComputeSimilarityResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComputeSimilarityResponse.ProtoReflect.Descriptor instead.
 func (*ComputeSimilarityResponse) Descriptor() ([]byte, []int) {
-	return file_proto_rago_rago_proto_rawDescGZIP(), []int{47}
+	return file_rago_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *ComputeSimilarityResponse) GetSimilarity() float64 {
@@ -3211,11 +3235,1404 @@ func (x *ComputeSimilarityResponse) GetMetric() string {
 	return ""
 }
 
-var File_proto_rago_rago_proto protoreflect.FileDescriptor
+type ConversationMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Role          string                 `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
+	Content       string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	Timestamp     int64                  `protobuf:"varint,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Metadata      map[string]string      `protobuf:"bytes,4,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_proto_rago_rago_proto_rawDesc = "" +
+func (x *ConversationMessage) Reset() {
+	*x = ConversationMessage{}
+	mi := &file_rago_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConversationMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConversationMessage) ProtoMessage() {}
+
+func (x *ConversationMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConversationMessage.ProtoReflect.Descriptor instead.
+func (*ConversationMessage) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *ConversationMessage) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *ConversationMessage) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *ConversationMessage) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+func (x *ConversationMessage) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type SaveConversationRequest struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Id            string                     `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // UUID, if empty a new one will be generated
+	Title         string                     `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Messages      []*ConversationMessage     `protobuf:"bytes,3,rep,name=messages,proto3" json:"messages,omitempty"`
+	Metadata      map[string]*structpb.Value `protobuf:"bytes,4,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveConversationRequest) Reset() {
+	*x = SaveConversationRequest{}
+	mi := &file_rago_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveConversationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveConversationRequest) ProtoMessage() {}
+
+func (x *SaveConversationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveConversationRequest.ProtoReflect.Descriptor instead.
+func (*SaveConversationRequest) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *SaveConversationRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SaveConversationRequest) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *SaveConversationRequest) GetMessages() []*ConversationMessage {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+func (x *SaveConversationRequest) GetMetadata() map[string]*structpb.Value {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type SaveConversationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // UUID of the saved conversation
+	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveConversationResponse) Reset() {
+	*x = SaveConversationResponse{}
+	mi := &file_rago_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveConversationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveConversationResponse) ProtoMessage() {}
+
+func (x *SaveConversationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveConversationResponse.ProtoReflect.Descriptor instead.
+func (*SaveConversationResponse) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *SaveConversationResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SaveConversationResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *SaveConversationResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type GetConversationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // UUID of the conversation
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetConversationRequest) Reset() {
+	*x = GetConversationRequest{}
+	mi := &file_rago_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetConversationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetConversationRequest) ProtoMessage() {}
+
+func (x *GetConversationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetConversationRequest.ProtoReflect.Descriptor instead.
+func (*GetConversationRequest) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *GetConversationRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type GetConversationResponse struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Id            string                     `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Title         string                     `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Messages      []*ConversationMessage     `protobuf:"bytes,3,rep,name=messages,proto3" json:"messages,omitempty"`
+	Metadata      map[string]*structpb.Value `protobuf:"bytes,4,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	CreatedAt     int64                      `protobuf:"varint,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // Unix timestamp
+	UpdatedAt     int64                      `protobuf:"varint,6,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // Unix timestamp
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetConversationResponse) Reset() {
+	*x = GetConversationResponse{}
+	mi := &file_rago_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetConversationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetConversationResponse) ProtoMessage() {}
+
+func (x *GetConversationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetConversationResponse.ProtoReflect.Descriptor instead.
+func (*GetConversationResponse) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *GetConversationResponse) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *GetConversationResponse) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *GetConversationResponse) GetMessages() []*ConversationMessage {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+func (x *GetConversationResponse) GetMetadata() map[string]*structpb.Value {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *GetConversationResponse) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *GetConversationResponse) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
+type ListConversationsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	OrderBy       string                 `protobuf:"bytes,3,opt,name=order_by,json=orderBy,proto3" json:"order_by,omitempty"` // created_at, updated_at
+	Descending    bool                   `protobuf:"varint,4,opt,name=descending,proto3" json:"descending,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListConversationsRequest) Reset() {
+	*x = ListConversationsRequest{}
+	mi := &file_rago_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListConversationsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListConversationsRequest) ProtoMessage() {}
+
+func (x *ListConversationsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListConversationsRequest.ProtoReflect.Descriptor instead.
+func (*ListConversationsRequest) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *ListConversationsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListConversationsRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListConversationsRequest) GetOrderBy() string {
+	if x != nil {
+		return x.OrderBy
+	}
+	return ""
+}
+
+func (x *ListConversationsRequest) GetDescending() bool {
+	if x != nil {
+		return x.Descending
+	}
+	return false
+}
+
+type ListConversationsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Conversations []*ConversationSummary `protobuf:"bytes,1,rep,name=conversations,proto3" json:"conversations,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListConversationsResponse) Reset() {
+	*x = ListConversationsResponse{}
+	mi := &file_rago_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListConversationsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListConversationsResponse) ProtoMessage() {}
+
+func (x *ListConversationsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListConversationsResponse.ProtoReflect.Descriptor instead.
+func (*ListConversationsResponse) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *ListConversationsResponse) GetConversations() []*ConversationSummary {
+	if x != nil {
+		return x.Conversations
+	}
+	return nil
+}
+
+func (x *ListConversationsResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListConversationsResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListConversationsResponse) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type ConversationSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	MessageCount  int32                  `protobuf:"varint,3,opt,name=message_count,json=messageCount,proto3" json:"message_count,omitempty"`
+	CreatedAt     int64                  `protobuf:"varint,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // Unix timestamp
+	UpdatedAt     int64                  `protobuf:"varint,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"` // Unix timestamp
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConversationSummary) Reset() {
+	*x = ConversationSummary{}
+	mi := &file_rago_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConversationSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConversationSummary) ProtoMessage() {}
+
+func (x *ConversationSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConversationSummary.ProtoReflect.Descriptor instead.
+func (*ConversationSummary) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *ConversationSummary) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ConversationSummary) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *ConversationSummary) GetMessageCount() int32 {
+	if x != nil {
+		return x.MessageCount
+	}
+	return 0
+}
+
+func (x *ConversationSummary) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+func (x *ConversationSummary) GetUpdatedAt() int64 {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return 0
+}
+
+type DeleteConversationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"` // UUID of the conversation
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteConversationRequest) Reset() {
+	*x = DeleteConversationRequest{}
+	mi := &file_rago_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteConversationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteConversationRequest) ProtoMessage() {}
+
+func (x *DeleteConversationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteConversationRequest.ProtoReflect.Descriptor instead.
+func (*DeleteConversationRequest) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *DeleteConversationRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type DeleteConversationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteConversationResponse) Reset() {
+	*x = DeleteConversationResponse{}
+	mi := &file_rago_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteConversationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteConversationResponse) ProtoMessage() {}
+
+func (x *DeleteConversationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteConversationResponse.ProtoReflect.Descriptor instead.
+func (*DeleteConversationResponse) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *DeleteConversationResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *DeleteConversationResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type UsageMetrics struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	PromptTokens     int32                  `protobuf:"varint,1,opt,name=prompt_tokens,json=promptTokens,proto3" json:"prompt_tokens,omitempty"`
+	CompletionTokens int32                  `protobuf:"varint,2,opt,name=completion_tokens,json=completionTokens,proto3" json:"completion_tokens,omitempty"`
+	TotalTokens      int32                  `protobuf:"varint,3,opt,name=total_tokens,json=totalTokens,proto3" json:"total_tokens,omitempty"`
+	Cost             float64                `protobuf:"fixed64,4,opt,name=cost,proto3" json:"cost,omitempty"`
+	LatencyMs        int64                  `protobuf:"varint,5,opt,name=latency_ms,json=latencyMs,proto3" json:"latency_ms,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *UsageMetrics) Reset() {
+	*x = UsageMetrics{}
+	mi := &file_rago_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UsageMetrics) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UsageMetrics) ProtoMessage() {}
+
+func (x *UsageMetrics) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UsageMetrics.ProtoReflect.Descriptor instead.
+func (*UsageMetrics) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *UsageMetrics) GetPromptTokens() int32 {
+	if x != nil {
+		return x.PromptTokens
+	}
+	return 0
+}
+
+func (x *UsageMetrics) GetCompletionTokens() int32 {
+	if x != nil {
+		return x.CompletionTokens
+	}
+	return 0
+}
+
+func (x *UsageMetrics) GetTotalTokens() int32 {
+	if x != nil {
+		return x.TotalTokens
+	}
+	return 0
+}
+
+func (x *UsageMetrics) GetCost() float64 {
+	if x != nil {
+		return x.Cost
+	}
+	return 0
+}
+
+func (x *UsageMetrics) GetLatencyMs() int64 {
+	if x != nil {
+		return x.LatencyMs
+	}
+	return 0
+}
+
+type RecordUsageRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ConversationId string                 `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"` // UUID
+	Provider       string                 `protobuf:"bytes,2,opt,name=provider,proto3" json:"provider,omitempty"`
+	Model          string                 `protobuf:"bytes,3,opt,name=model,proto3" json:"model,omitempty"`
+	Operation      string                 `protobuf:"bytes,4,opt,name=operation,proto3" json:"operation,omitempty"` // query, generate, embed, tool_call
+	Metrics        *UsageMetrics          `protobuf:"bytes,5,opt,name=metrics,proto3" json:"metrics,omitempty"`
+	Timestamp      int64                  `protobuf:"varint,6,opt,name=timestamp,proto3" json:"timestamp,omitempty"` // Unix timestamp
+	Metadata       map[string]string      `protobuf:"bytes,7,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *RecordUsageRequest) Reset() {
+	*x = RecordUsageRequest{}
+	mi := &file_rago_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordUsageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordUsageRequest) ProtoMessage() {}
+
+func (x *RecordUsageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordUsageRequest.ProtoReflect.Descriptor instead.
+func (*RecordUsageRequest) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *RecordUsageRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *RecordUsageRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *RecordUsageRequest) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *RecordUsageRequest) GetOperation() string {
+	if x != nil {
+		return x.Operation
+	}
+	return ""
+}
+
+func (x *RecordUsageRequest) GetMetrics() *UsageMetrics {
+	if x != nil {
+		return x.Metrics
+	}
+	return nil
+}
+
+func (x *RecordUsageRequest) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+func (x *RecordUsageRequest) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type RecordUsageResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordUsageResponse) Reset() {
+	*x = RecordUsageResponse{}
+	mi := &file_rago_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordUsageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordUsageResponse) ProtoMessage() {}
+
+func (x *RecordUsageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordUsageResponse.ProtoReflect.Descriptor instead.
+func (*RecordUsageResponse) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *RecordUsageResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *RecordUsageResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type GetUsageStatsRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ConversationId string                 `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"` // UUID, if empty returns global stats
+	StartTime      int64                  `protobuf:"varint,2,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`               // Unix timestamp
+	EndTime        int64                  `protobuf:"varint,3,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`                     // Unix timestamp
+	Provider       string                 `protobuf:"bytes,4,opt,name=provider,proto3" json:"provider,omitempty"`
+	Model          string                 `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetUsageStatsRequest) Reset() {
+	*x = GetUsageStatsRequest{}
+	mi := &file_rago_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUsageStatsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUsageStatsRequest) ProtoMessage() {}
+
+func (x *GetUsageStatsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUsageStatsRequest.ProtoReflect.Descriptor instead.
+func (*GetUsageStatsRequest) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *GetUsageStatsRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *GetUsageStatsRequest) GetStartTime() int64 {
+	if x != nil {
+		return x.StartTime
+	}
+	return 0
+}
+
+func (x *GetUsageStatsRequest) GetEndTime() int64 {
+	if x != nil {
+		return x.EndTime
+	}
+	return 0
+}
+
+func (x *GetUsageStatsRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *GetUsageStatsRequest) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+type GetUsageStatsResponse struct {
+	state            protoimpl.MessageState      `protogen:"open.v1"`
+	TotalRequests    int64                       `protobuf:"varint,1,opt,name=total_requests,json=totalRequests,proto3" json:"total_requests,omitempty"`
+	TotalTokens      int64                       `protobuf:"varint,2,opt,name=total_tokens,json=totalTokens,proto3" json:"total_tokens,omitempty"`
+	TotalCost        float64                     `protobuf:"fixed64,3,opt,name=total_cost,json=totalCost,proto3" json:"total_cost,omitempty"`
+	AverageLatencyMs float64                     `protobuf:"fixed64,4,opt,name=average_latency_ms,json=averageLatencyMs,proto3" json:"average_latency_ms,omitempty"`
+	UsageByModel     map[string]*UsageByModel    `protobuf:"bytes,5,rep,name=usage_by_model,json=usageByModel,proto3" json:"usage_by_model,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	UsageByProvider  map[string]*UsageByProvider `protobuf:"bytes,6,rep,name=usage_by_provider,json=usageByProvider,proto3" json:"usage_by_provider,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GetUsageStatsResponse) Reset() {
+	*x = GetUsageStatsResponse{}
+	mi := &file_rago_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUsageStatsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUsageStatsResponse) ProtoMessage() {}
+
+func (x *GetUsageStatsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUsageStatsResponse.ProtoReflect.Descriptor instead.
+func (*GetUsageStatsResponse) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *GetUsageStatsResponse) GetTotalRequests() int64 {
+	if x != nil {
+		return x.TotalRequests
+	}
+	return 0
+}
+
+func (x *GetUsageStatsResponse) GetTotalTokens() int64 {
+	if x != nil {
+		return x.TotalTokens
+	}
+	return 0
+}
+
+func (x *GetUsageStatsResponse) GetTotalCost() float64 {
+	if x != nil {
+		return x.TotalCost
+	}
+	return 0
+}
+
+func (x *GetUsageStatsResponse) GetAverageLatencyMs() float64 {
+	if x != nil {
+		return x.AverageLatencyMs
+	}
+	return 0
+}
+
+func (x *GetUsageStatsResponse) GetUsageByModel() map[string]*UsageByModel {
+	if x != nil {
+		return x.UsageByModel
+	}
+	return nil
+}
+
+func (x *GetUsageStatsResponse) GetUsageByProvider() map[string]*UsageByProvider {
+	if x != nil {
+		return x.UsageByProvider
+	}
+	return nil
+}
+
+type UsageByModel struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Model         string                 `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	RequestCount  int64                  `protobuf:"varint,2,opt,name=request_count,json=requestCount,proto3" json:"request_count,omitempty"`
+	TotalTokens   int64                  `protobuf:"varint,3,opt,name=total_tokens,json=totalTokens,proto3" json:"total_tokens,omitempty"`
+	TotalCost     float64                `protobuf:"fixed64,4,opt,name=total_cost,json=totalCost,proto3" json:"total_cost,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UsageByModel) Reset() {
+	*x = UsageByModel{}
+	mi := &file_rago_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UsageByModel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UsageByModel) ProtoMessage() {}
+
+func (x *UsageByModel) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UsageByModel.ProtoReflect.Descriptor instead.
+func (*UsageByModel) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *UsageByModel) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *UsageByModel) GetRequestCount() int64 {
+	if x != nil {
+		return x.RequestCount
+	}
+	return 0
+}
+
+func (x *UsageByModel) GetTotalTokens() int64 {
+	if x != nil {
+		return x.TotalTokens
+	}
+	return 0
+}
+
+func (x *UsageByModel) GetTotalCost() float64 {
+	if x != nil {
+		return x.TotalCost
+	}
+	return 0
+}
+
+type UsageByProvider struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	RequestCount  int64                  `protobuf:"varint,2,opt,name=request_count,json=requestCount,proto3" json:"request_count,omitempty"`
+	TotalTokens   int64                  `protobuf:"varint,3,opt,name=total_tokens,json=totalTokens,proto3" json:"total_tokens,omitempty"`
+	TotalCost     float64                `protobuf:"fixed64,4,opt,name=total_cost,json=totalCost,proto3" json:"total_cost,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UsageByProvider) Reset() {
+	*x = UsageByProvider{}
+	mi := &file_rago_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UsageByProvider) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UsageByProvider) ProtoMessage() {}
+
+func (x *UsageByProvider) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UsageByProvider.ProtoReflect.Descriptor instead.
+func (*UsageByProvider) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *UsageByProvider) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *UsageByProvider) GetRequestCount() int64 {
+	if x != nil {
+		return x.RequestCount
+	}
+	return 0
+}
+
+func (x *UsageByProvider) GetTotalTokens() int64 {
+	if x != nil {
+		return x.TotalTokens
+	}
+	return 0
+}
+
+func (x *UsageByProvider) GetTotalCost() float64 {
+	if x != nil {
+		return x.TotalCost
+	}
+	return 0
+}
+
+type GetUsageHistoryRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ConversationId string                 `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"` // UUID, if empty returns all
+	StartTime      int64                  `protobuf:"varint,2,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`               // Unix timestamp
+	EndTime        int64                  `protobuf:"varint,3,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`                     // Unix timestamp
+	PageSize       int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	Page           int32                  `protobuf:"varint,5,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetUsageHistoryRequest) Reset() {
+	*x = GetUsageHistoryRequest{}
+	mi := &file_rago_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUsageHistoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUsageHistoryRequest) ProtoMessage() {}
+
+func (x *GetUsageHistoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUsageHistoryRequest.ProtoReflect.Descriptor instead.
+func (*GetUsageHistoryRequest) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *GetUsageHistoryRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *GetUsageHistoryRequest) GetStartTime() int64 {
+	if x != nil {
+		return x.StartTime
+	}
+	return 0
+}
+
+func (x *GetUsageHistoryRequest) GetEndTime() int64 {
+	if x != nil {
+		return x.EndTime
+	}
+	return 0
+}
+
+func (x *GetUsageHistoryRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *GetUsageHistoryRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+type GetUsageHistoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Records       []*UsageRecord         `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"`
+	Page          int32                  `protobuf:"varint,3,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUsageHistoryResponse) Reset() {
+	*x = GetUsageHistoryResponse{}
+	mi := &file_rago_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUsageHistoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUsageHistoryResponse) ProtoMessage() {}
+
+func (x *GetUsageHistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUsageHistoryResponse.ProtoReflect.Descriptor instead.
+func (*GetUsageHistoryResponse) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *GetUsageHistoryResponse) GetRecords() []*UsageRecord {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
+func (x *GetUsageHistoryResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *GetUsageHistoryResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetUsageHistoryResponse) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type UsageRecord struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"` // UUID
+	Provider       string                 `protobuf:"bytes,3,opt,name=provider,proto3" json:"provider,omitempty"`
+	Model          string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
+	Operation      string                 `protobuf:"bytes,5,opt,name=operation,proto3" json:"operation,omitempty"`
+	Metrics        *UsageMetrics          `protobuf:"bytes,6,opt,name=metrics,proto3" json:"metrics,omitempty"`
+	Timestamp      int64                  `protobuf:"varint,7,opt,name=timestamp,proto3" json:"timestamp,omitempty"` // Unix timestamp
+	Metadata       map[string]string      `protobuf:"bytes,8,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *UsageRecord) Reset() {
+	*x = UsageRecord{}
+	mi := &file_rago_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UsageRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UsageRecord) ProtoMessage() {}
+
+func (x *UsageRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_rago_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UsageRecord.ProtoReflect.Descriptor instead.
+func (*UsageRecord) Descriptor() ([]byte, []int) {
+	return file_rago_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *UsageRecord) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *UsageRecord) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *UsageRecord) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *UsageRecord) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *UsageRecord) GetOperation() string {
+	if x != nil {
+		return x.Operation
+	}
+	return ""
+}
+
+func (x *UsageRecord) GetMetrics() *UsageMetrics {
+	if x != nil {
+		return x.Metrics
+	}
+	return nil
+}
+
+func (x *UsageRecord) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+func (x *UsageRecord) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+var File_rago_proto protoreflect.FileDescriptor
+
+const file_rago_proto_rawDesc = "" +
 	"\n" +
-	"\x15proto/rago/rago.proto\x12\arago.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x89\x03\n" +
+	"\n" +
+	"rago.proto\x12\arago.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x89\x03\n" +
 	"\bDocument\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\x12\x1b\n" +
@@ -3287,7 +4704,7 @@ const file_proto_rago_rago_proto_rawDesc = "" +
 	"\n" +
 	"successful\x18\x03 \x01(\x05R\n" +
 	"successful\x12\x16\n" +
-	"\x06failed\x18\x04 \x01(\x05R\x06failed\"\xea\x01\n" +
+	"\x06failed\x18\x04 \x01(\x05R\x06failed\"\x93\x02\n" +
 	"\fQueryRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x1e\n" +
 	"\n" +
@@ -3297,7 +4714,8 @@ const file_proto_rago_rago_proto_rawDesc = "" +
 	"\tmin_score\x18\x04 \x01(\x01R\bminScore\x12)\n" +
 	"\x10include_metadata\x18\x05 \x01(\bR\x0fincludeMetadata\x12\x16\n" +
 	"\x06stream\x18\x06 \x01(\bR\x06stream\x12/\n" +
-	"\aoptions\x18\a \x01(\v2\x15.rago.v1.QueryOptionsR\aoptions\"\xb6\x01\n" +
+	"\aoptions\x18\a \x01(\v2\x15.rago.v1.QueryOptionsR\aoptions\x12'\n" +
+	"\x0fconversation_id\x18\b \x01(\tR\x0econversationId\"\xb6\x01\n" +
 	"\fQueryOptions\x12#\n" +
 	"\rhybrid_search\x18\x01 \x01(\bR\fhybridSearch\x12\x14\n" +
 	"\x05alpha\x18\x02 \x01(\x01R\x05alpha\x12\x1b\n" +
@@ -3386,11 +4804,12 @@ const file_proto_rago_rago_proto_rawDesc = "" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12\x14\n" +
 	"\x05error\x18\x03 \x01(\tR\x05error\x129\n" +
 	"\n" +
-	"last_check\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tlastCheck\"u\n" +
+	"last_check\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tlastCheck\"\x9e\x01\n" +
 	"\x0fGenerateRequest\x12\x16\n" +
 	"\x06prompt\x18\x01 \x01(\tR\x06prompt\x124\n" +
 	"\aoptions\x18\x02 \x01(\v2\x1a.rago.v1.GenerationOptionsR\aoptions\x12\x14\n" +
-	"\x05model\x18\x03 \x01(\tR\x05model\"\xfd\x01\n" +
+	"\x05model\x18\x03 \x01(\tR\x05model\x12'\n" +
+	"\x0fconversation_id\x18\x04 \x01(\tR\x0econversationId\"\xfd\x01\n" +
 	"\x11GenerationOptions\x12\x1d\n" +
 	"\n" +
 	"max_tokens\x18\x01 \x01(\x05R\tmaxTokens\x12 \n" +
@@ -3416,12 +4835,13 @@ const file_proto_rago_rago_proto_rawDesc = "" +
 	"\vtokens_used\x18\x01 \x01(\x05R\n" +
 	"tokensUsed\x12,\n" +
 	"\x12generation_time_ms\x18\x02 \x01(\x03R\x10generationTimeMs\x12#\n" +
-	"\rfinish_reason\x18\x03 \x01(\tR\ffinishReason\"\xc3\x01\n" +
+	"\rfinish_reason\x18\x03 \x01(\tR\ffinishReason\"\xec\x01\n" +
 	"\x18GenerateWithToolsRequest\x12,\n" +
 	"\bmessages\x18\x01 \x03(\v2\x10.rago.v1.MessageR\bmessages\x12-\n" +
 	"\x05tools\x18\x02 \x03(\v2\x17.rago.v1.ToolDefinitionR\x05tools\x124\n" +
 	"\aoptions\x18\x03 \x01(\v2\x1a.rago.v1.GenerationOptionsR\aoptions\x12\x14\n" +
-	"\x05model\x18\x04 \x01(\tR\x05model\"\x8b\x01\n" +
+	"\x05model\x18\x04 \x01(\tR\x05model\x12'\n" +
+	"\x0fconversation_id\x18\x05 \x01(\tR\x0econversationId\"\x8b\x01\n" +
 	"\aMessage\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\x120\n" +
@@ -3513,7 +4933,144 @@ const file_proto_rago_rago_proto_rawDesc = "" +
 	"\n" +
 	"similarity\x18\x01 \x01(\x01R\n" +
 	"similarity\x12\x16\n" +
-	"\x06metric\x18\x02 \x01(\tR\x06metric2\xc9\x05\n" +
+	"\x06metric\x18\x02 \x01(\tR\x06metric\"\xe6\x01\n" +
+	"\x13ConversationMessage\x12\x12\n" +
+	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tR\acontent\x12\x1c\n" +
+	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp\x12F\n" +
+	"\bmetadata\x18\x04 \x03(\v2*.rago.v1.ConversationMessage.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x9a\x02\n" +
+	"\x17SaveConversationRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x128\n" +
+	"\bmessages\x18\x03 \x03(\v2\x1c.rago.v1.ConversationMessageR\bmessages\x12J\n" +
+	"\bmetadata\x18\x04 \x03(\v2..rago.v1.SaveConversationRequest.MetadataEntryR\bmetadata\x1aS\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12,\n" +
+	"\x05value\x18\x02 \x01(\v2\x16.google.protobuf.ValueR\x05value:\x028\x01\"Z\n" +
+	"\x18SaveConversationResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\"(\n" +
+	"\x16GetConversationRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\xd8\x02\n" +
+	"\x17GetConversationResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x128\n" +
+	"\bmessages\x18\x03 \x03(\v2\x1c.rago.v1.ConversationMessageR\bmessages\x12J\n" +
+	"\bmetadata\x18\x04 \x03(\v2..rago.v1.GetConversationResponse.MetadataEntryR\bmetadata\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x05 \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x06 \x01(\x03R\tupdatedAt\x1aS\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12,\n" +
+	"\x05value\x18\x02 \x01(\v2\x16.google.protobuf.ValueR\x05value:\x028\x01\"\x86\x01\n" +
+	"\x18ListConversationsRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x19\n" +
+	"\border_by\x18\x03 \x01(\tR\aorderBy\x12\x1e\n" +
+	"\n" +
+	"descending\x18\x04 \x01(\bR\n" +
+	"descending\"\xa6\x01\n" +
+	"\x19ListConversationsResponse\x12B\n" +
+	"\rconversations\x18\x01 \x03(\v2\x1c.rago.v1.ConversationSummaryR\rconversations\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\"\x9e\x01\n" +
+	"\x13ConversationSummary\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12#\n" +
+	"\rmessage_count\x18\x03 \x01(\x05R\fmessageCount\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x04 \x01(\x03R\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\x05 \x01(\x03R\tupdatedAt\"+\n" +
+	"\x19DeleteConversationRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"P\n" +
+	"\x1aDeleteConversationResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xb6\x01\n" +
+	"\fUsageMetrics\x12#\n" +
+	"\rprompt_tokens\x18\x01 \x01(\x05R\fpromptTokens\x12+\n" +
+	"\x11completion_tokens\x18\x02 \x01(\x05R\x10completionTokens\x12!\n" +
+	"\ftotal_tokens\x18\x03 \x01(\x05R\vtotalTokens\x12\x12\n" +
+	"\x04cost\x18\x04 \x01(\x01R\x04cost\x12\x1d\n" +
+	"\n" +
+	"latency_ms\x18\x05 \x01(\x03R\tlatencyMs\"\xe0\x02\n" +
+	"\x12RecordUsageRequest\x12'\n" +
+	"\x0fconversation_id\x18\x01 \x01(\tR\x0econversationId\x12\x1a\n" +
+	"\bprovider\x18\x02 \x01(\tR\bprovider\x12\x14\n" +
+	"\x05model\x18\x03 \x01(\tR\x05model\x12\x1c\n" +
+	"\toperation\x18\x04 \x01(\tR\toperation\x12/\n" +
+	"\ametrics\x18\x05 \x01(\v2\x15.rago.v1.UsageMetricsR\ametrics\x12\x1c\n" +
+	"\ttimestamp\x18\x06 \x01(\x03R\ttimestamp\x12E\n" +
+	"\bmetadata\x18\a \x03(\v2).rago.v1.RecordUsageRequest.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
+	"\x13RecordUsageResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"\xab\x01\n" +
+	"\x14GetUsageStatsRequest\x12'\n" +
+	"\x0fconversation_id\x18\x01 \x01(\tR\x0econversationId\x12\x1d\n" +
+	"\n" +
+	"start_time\x18\x02 \x01(\x03R\tstartTime\x12\x19\n" +
+	"\bend_time\x18\x03 \x01(\x03R\aendTime\x12\x1a\n" +
+	"\bprovider\x18\x04 \x01(\tR\bprovider\x12\x14\n" +
+	"\x05model\x18\x05 \x01(\tR\x05model\"\x9d\x04\n" +
+	"\x15GetUsageStatsResponse\x12%\n" +
+	"\x0etotal_requests\x18\x01 \x01(\x03R\rtotalRequests\x12!\n" +
+	"\ftotal_tokens\x18\x02 \x01(\x03R\vtotalTokens\x12\x1d\n" +
+	"\n" +
+	"total_cost\x18\x03 \x01(\x01R\ttotalCost\x12,\n" +
+	"\x12average_latency_ms\x18\x04 \x01(\x01R\x10averageLatencyMs\x12V\n" +
+	"\x0eusage_by_model\x18\x05 \x03(\v20.rago.v1.GetUsageStatsResponse.UsageByModelEntryR\fusageByModel\x12_\n" +
+	"\x11usage_by_provider\x18\x06 \x03(\v23.rago.v1.GetUsageStatsResponse.UsageByProviderEntryR\x0fusageByProvider\x1aV\n" +
+	"\x11UsageByModelEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12+\n" +
+	"\x05value\x18\x02 \x01(\v2\x15.rago.v1.UsageByModelR\x05value:\x028\x01\x1a\\\n" +
+	"\x14UsageByProviderEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12.\n" +
+	"\x05value\x18\x02 \x01(\v2\x18.rago.v1.UsageByProviderR\x05value:\x028\x01\"\x8b\x01\n" +
+	"\fUsageByModel\x12\x14\n" +
+	"\x05model\x18\x01 \x01(\tR\x05model\x12#\n" +
+	"\rrequest_count\x18\x02 \x01(\x03R\frequestCount\x12!\n" +
+	"\ftotal_tokens\x18\x03 \x01(\x03R\vtotalTokens\x12\x1d\n" +
+	"\n" +
+	"total_cost\x18\x04 \x01(\x01R\ttotalCost\"\x94\x01\n" +
+	"\x0fUsageByProvider\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\x12#\n" +
+	"\rrequest_count\x18\x02 \x01(\x03R\frequestCount\x12!\n" +
+	"\ftotal_tokens\x18\x03 \x01(\x03R\vtotalTokens\x12\x1d\n" +
+	"\n" +
+	"total_cost\x18\x04 \x01(\x01R\ttotalCost\"\xac\x01\n" +
+	"\x16GetUsageHistoryRequest\x12'\n" +
+	"\x0fconversation_id\x18\x01 \x01(\tR\x0econversationId\x12\x1d\n" +
+	"\n" +
+	"start_time\x18\x02 \x01(\x03R\tstartTime\x12\x19\n" +
+	"\bend_time\x18\x03 \x01(\x03R\aendTime\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\x12\x12\n" +
+	"\x04page\x18\x05 \x01(\x05R\x04page\"\x90\x01\n" +
+	"\x17GetUsageHistoryResponse\x12.\n" +
+	"\arecords\x18\x01 \x03(\v2\x14.rago.v1.UsageRecordR\arecords\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\x12\x12\n" +
+	"\x04page\x18\x03 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x04 \x01(\x05R\bpageSize\"\xe2\x02\n" +
+	"\vUsageRecord\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\x1a\n" +
+	"\bprovider\x18\x03 \x01(\tR\bprovider\x12\x14\n" +
+	"\x05model\x18\x04 \x01(\tR\x05model\x12\x1c\n" +
+	"\toperation\x18\x05 \x01(\tR\toperation\x12/\n" +
+	"\ametrics\x18\x06 \x01(\v2\x15.rago.v1.UsageMetricsR\ametrics\x12\x1c\n" +
+	"\ttimestamp\x18\a \x01(\x03R\ttimestamp\x12>\n" +
+	"\bmetadata\x18\b \x03(\v2\".rago.v1.UsageRecord.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x012\xc9\x05\n" +
 	"\n" +
 	"RAGService\x12Q\n" +
 	"\x0eIngestDocument\x12\x1e.rago.v1.IngestDocumentRequest\x1a\x1f.rago.v1.IngestDocumentResponse\x12c\n" +
@@ -3536,22 +5093,31 @@ const file_proto_rago_rago_proto_rawDesc = "" +
 	"\x10EmbeddingService\x12Z\n" +
 	"\x11GenerateEmbedding\x12!.rago.v1.GenerateEmbeddingRequest\x1a\".rago.v1.GenerateEmbeddingResponse\x12l\n" +
 	"\x17BatchGenerateEmbeddings\x12'.rago.v1.BatchGenerateEmbeddingsRequest\x1a(.rago.v1.BatchGenerateEmbeddingsResponse\x12Z\n" +
-	"\x11ComputeSimilarity\x12!.rago.v1.ComputeSimilarityRequest\x1a\".rago.v1.ComputeSimilarityResponseB*Z(github.com/liliang-cn/rago/v2/proto/ragob\x06proto3"
+	"\x11ComputeSimilarity\x12!.rago.v1.ComputeSimilarityRequest\x1a\".rago.v1.ComputeSimilarityResponse2\xff\x02\n" +
+	"\x13ConversationService\x12W\n" +
+	"\x10SaveConversation\x12 .rago.v1.SaveConversationRequest\x1a!.rago.v1.SaveConversationResponse\x12T\n" +
+	"\x0fGetConversation\x12\x1f.rago.v1.GetConversationRequest\x1a .rago.v1.GetConversationResponse\x12Z\n" +
+	"\x11ListConversations\x12!.rago.v1.ListConversationsRequest\x1a\".rago.v1.ListConversationsResponse\x12]\n" +
+	"\x12DeleteConversation\x12\".rago.v1.DeleteConversationRequest\x1a#.rago.v1.DeleteConversationResponse2\xfe\x01\n" +
+	"\fUsageService\x12H\n" +
+	"\vRecordUsage\x12\x1b.rago.v1.RecordUsageRequest\x1a\x1c.rago.v1.RecordUsageResponse\x12N\n" +
+	"\rGetUsageStats\x12\x1d.rago.v1.GetUsageStatsRequest\x1a\x1e.rago.v1.GetUsageStatsResponse\x12T\n" +
+	"\x0fGetUsageHistory\x12\x1f.rago.v1.GetUsageHistoryRequest\x1a .rago.v1.GetUsageHistoryResponseB*Z(github.com/liliang-cn/rago/v2/proto/ragob\x06proto3"
 
 var (
-	file_proto_rago_rago_proto_rawDescOnce sync.Once
-	file_proto_rago_rago_proto_rawDescData []byte
+	file_rago_proto_rawDescOnce sync.Once
+	file_rago_proto_rawDescData []byte
 )
 
-func file_proto_rago_rago_proto_rawDescGZIP() []byte {
-	file_proto_rago_rago_proto_rawDescOnce.Do(func() {
-		file_proto_rago_rago_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_rago_rago_proto_rawDesc), len(file_proto_rago_rago_proto_rawDesc)))
+func file_rago_proto_rawDescGZIP() []byte {
+	file_rago_proto_rawDescOnce.Do(func() {
+		file_rago_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_rago_proto_rawDesc), len(file_rago_proto_rawDesc)))
 	})
-	return file_proto_rago_rago_proto_rawDescData
+	return file_rago_proto_rawDescData
 }
 
-var file_proto_rago_rago_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
-var file_proto_rago_rago_proto_goTypes = []any{
+var file_rago_proto_msgTypes = make([]protoimpl.MessageInfo, 85)
+var file_rago_proto_goTypes = []any{
 	(*Document)(nil),                        // 0: rago.v1.Document
 	(*Chunk)(nil),                           // 1: rago.v1.Chunk
 	(*SearchResult)(nil),                    // 2: rago.v1.SearchResult
@@ -3600,43 +5166,70 @@ var file_proto_rago_rago_proto_goTypes = []any{
 	(*EmbeddingResult)(nil),                 // 45: rago.v1.EmbeddingResult
 	(*ComputeSimilarityRequest)(nil),        // 46: rago.v1.ComputeSimilarityRequest
 	(*ComputeSimilarityResponse)(nil),       // 47: rago.v1.ComputeSimilarityResponse
-	nil,                                     // 48: rago.v1.Document.MetadataEntry
-	nil,                                     // 49: rago.v1.Chunk.MetadataEntry
-	nil,                                     // 50: rago.v1.SearchResult.MetadataEntry
-	nil,                                     // 51: rago.v1.IngestDocumentRequest.MetadataEntry
-	nil,                                     // 52: rago.v1.QueryResponse.MetadataEntry
-	nil,                                     // 53: rago.v1.GetStatisticsResponse.DocumentsByCollectionEntry
-	nil,                                     // 54: rago.v1.HealthCheckResponse.ComponentsEntry
-	nil,                                     // 55: rago.v1.ExtractMetadataResponse.EntitiesEntry
-	nil,                                     // 56: rago.v1.ExtractMetadataResponse.CustomMetadataEntry
-	nil,                                     // 57: rago.v1.ModelInfo.CapabilitiesEntry
-	(*timestamppb.Timestamp)(nil),           // 58: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),                 // 59: google.protobuf.Struct
-	(*structpb.ListValue)(nil),              // 60: google.protobuf.ListValue
-	(*structpb.Value)(nil),                  // 61: google.protobuf.Value
+	(*ConversationMessage)(nil),             // 48: rago.v1.ConversationMessage
+	(*SaveConversationRequest)(nil),         // 49: rago.v1.SaveConversationRequest
+	(*SaveConversationResponse)(nil),        // 50: rago.v1.SaveConversationResponse
+	(*GetConversationRequest)(nil),          // 51: rago.v1.GetConversationRequest
+	(*GetConversationResponse)(nil),         // 52: rago.v1.GetConversationResponse
+	(*ListConversationsRequest)(nil),        // 53: rago.v1.ListConversationsRequest
+	(*ListConversationsResponse)(nil),       // 54: rago.v1.ListConversationsResponse
+	(*ConversationSummary)(nil),             // 55: rago.v1.ConversationSummary
+	(*DeleteConversationRequest)(nil),       // 56: rago.v1.DeleteConversationRequest
+	(*DeleteConversationResponse)(nil),      // 57: rago.v1.DeleteConversationResponse
+	(*UsageMetrics)(nil),                    // 58: rago.v1.UsageMetrics
+	(*RecordUsageRequest)(nil),              // 59: rago.v1.RecordUsageRequest
+	(*RecordUsageResponse)(nil),             // 60: rago.v1.RecordUsageResponse
+	(*GetUsageStatsRequest)(nil),            // 61: rago.v1.GetUsageStatsRequest
+	(*GetUsageStatsResponse)(nil),           // 62: rago.v1.GetUsageStatsResponse
+	(*UsageByModel)(nil),                    // 63: rago.v1.UsageByModel
+	(*UsageByProvider)(nil),                 // 64: rago.v1.UsageByProvider
+	(*GetUsageHistoryRequest)(nil),          // 65: rago.v1.GetUsageHistoryRequest
+	(*GetUsageHistoryResponse)(nil),         // 66: rago.v1.GetUsageHistoryResponse
+	(*UsageRecord)(nil),                     // 67: rago.v1.UsageRecord
+	nil,                                     // 68: rago.v1.Document.MetadataEntry
+	nil,                                     // 69: rago.v1.Chunk.MetadataEntry
+	nil,                                     // 70: rago.v1.SearchResult.MetadataEntry
+	nil,                                     // 71: rago.v1.IngestDocumentRequest.MetadataEntry
+	nil,                                     // 72: rago.v1.QueryResponse.MetadataEntry
+	nil,                                     // 73: rago.v1.GetStatisticsResponse.DocumentsByCollectionEntry
+	nil,                                     // 74: rago.v1.HealthCheckResponse.ComponentsEntry
+	nil,                                     // 75: rago.v1.ExtractMetadataResponse.EntitiesEntry
+	nil,                                     // 76: rago.v1.ExtractMetadataResponse.CustomMetadataEntry
+	nil,                                     // 77: rago.v1.ModelInfo.CapabilitiesEntry
+	nil,                                     // 78: rago.v1.ConversationMessage.MetadataEntry
+	nil,                                     // 79: rago.v1.SaveConversationRequest.MetadataEntry
+	nil,                                     // 80: rago.v1.GetConversationResponse.MetadataEntry
+	nil,                                     // 81: rago.v1.RecordUsageRequest.MetadataEntry
+	nil,                                     // 82: rago.v1.GetUsageStatsResponse.UsageByModelEntry
+	nil,                                     // 83: rago.v1.GetUsageStatsResponse.UsageByProviderEntry
+	nil,                                     // 84: rago.v1.UsageRecord.MetadataEntry
+	(*timestamppb.Timestamp)(nil),           // 85: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),                 // 86: google.protobuf.Struct
+	(*structpb.ListValue)(nil),              // 87: google.protobuf.ListValue
+	(*structpb.Value)(nil),                  // 88: google.protobuf.Value
 }
-var file_proto_rago_rago_proto_depIdxs = []int32{
-	48, // 0: rago.v1.Document.metadata:type_name -> rago.v1.Document.MetadataEntry
-	58, // 1: rago.v1.Document.created_at:type_name -> google.protobuf.Timestamp
-	58, // 2: rago.v1.Document.updated_at:type_name -> google.protobuf.Timestamp
+var file_rago_proto_depIdxs = []int32{
+	68, // 0: rago.v1.Document.metadata:type_name -> rago.v1.Document.MetadataEntry
+	85, // 1: rago.v1.Document.created_at:type_name -> google.protobuf.Timestamp
+	85, // 2: rago.v1.Document.updated_at:type_name -> google.protobuf.Timestamp
 	1,  // 3: rago.v1.Document.chunks:type_name -> rago.v1.Chunk
-	49, // 4: rago.v1.Chunk.metadata:type_name -> rago.v1.Chunk.MetadataEntry
-	50, // 5: rago.v1.SearchResult.metadata:type_name -> rago.v1.SearchResult.MetadataEntry
-	51, // 6: rago.v1.IngestDocumentRequest.metadata:type_name -> rago.v1.IngestDocumentRequest.MetadataEntry
+	69, // 4: rago.v1.Chunk.metadata:type_name -> rago.v1.Chunk.MetadataEntry
+	70, // 5: rago.v1.SearchResult.metadata:type_name -> rago.v1.SearchResult.MetadataEntry
+	71, // 6: rago.v1.IngestDocumentRequest.metadata:type_name -> rago.v1.IngestDocumentRequest.MetadataEntry
 	4,  // 7: rago.v1.IngestDocumentRequest.chunk_options:type_name -> rago.v1.ChunkOptions
 	3,  // 8: rago.v1.BatchIngestDocumentsRequest.documents:type_name -> rago.v1.IngestDocumentRequest
 	5,  // 9: rago.v1.BatchIngestDocumentsResponse.results:type_name -> rago.v1.IngestDocumentResponse
 	9,  // 10: rago.v1.QueryRequest.options:type_name -> rago.v1.QueryOptions
 	2,  // 11: rago.v1.QueryResponse.results:type_name -> rago.v1.SearchResult
-	52, // 12: rago.v1.QueryResponse.metadata:type_name -> rago.v1.QueryResponse.MetadataEntry
+	72, // 12: rago.v1.QueryResponse.metadata:type_name -> rago.v1.QueryResponse.MetadataEntry
 	2,  // 13: rago.v1.StreamQueryResponse.result:type_name -> rago.v1.SearchResult
 	12, // 14: rago.v1.StreamQueryResponse.metadata:type_name -> rago.v1.QueryMetadata
 	0,  // 15: rago.v1.GetDocumentResponse.document:type_name -> rago.v1.Document
 	0,  // 16: rago.v1.ListDocumentsResponse.documents:type_name -> rago.v1.Document
-	53, // 17: rago.v1.GetStatisticsResponse.documents_by_collection:type_name -> rago.v1.GetStatisticsResponse.DocumentsByCollectionEntry
-	58, // 18: rago.v1.GetStatisticsResponse.last_ingestion:type_name -> google.protobuf.Timestamp
-	54, // 19: rago.v1.HealthCheckResponse.components:type_name -> rago.v1.HealthCheckResponse.ComponentsEntry
-	58, // 20: rago.v1.ComponentHealth.last_check:type_name -> google.protobuf.Timestamp
+	73, // 17: rago.v1.GetStatisticsResponse.documents_by_collection:type_name -> rago.v1.GetStatisticsResponse.DocumentsByCollectionEntry
+	85, // 18: rago.v1.GetStatisticsResponse.last_ingestion:type_name -> google.protobuf.Timestamp
+	74, // 19: rago.v1.HealthCheckResponse.components:type_name -> rago.v1.HealthCheckResponse.ComponentsEntry
+	85, // 20: rago.v1.ComponentHealth.last_check:type_name -> google.protobuf.Timestamp
 	25, // 21: rago.v1.GenerateRequest.options:type_name -> rago.v1.GenerationOptions
 	28, // 22: rago.v1.StreamGenerateResponse.metadata:type_name -> rago.v1.GenerationMetadata
 	30, // 23: rago.v1.GenerateWithToolsRequest.messages:type_name -> rago.v1.Message
@@ -3644,70 +5237,101 @@ var file_proto_rago_rago_proto_depIdxs = []int32{
 	25, // 25: rago.v1.GenerateWithToolsRequest.options:type_name -> rago.v1.GenerationOptions
 	33, // 26: rago.v1.Message.tool_calls:type_name -> rago.v1.ToolCall
 	32, // 27: rago.v1.ToolDefinition.function:type_name -> rago.v1.FunctionDefinition
-	59, // 28: rago.v1.FunctionDefinition.parameters:type_name -> google.protobuf.Struct
+	86, // 28: rago.v1.FunctionDefinition.parameters:type_name -> google.protobuf.Struct
 	34, // 29: rago.v1.ToolCall.function:type_name -> rago.v1.FunctionCall
 	33, // 30: rago.v1.GenerateWithToolsResponse.tool_calls:type_name -> rago.v1.ToolCall
-	55, // 31: rago.v1.ExtractMetadataResponse.entities:type_name -> rago.v1.ExtractMetadataResponse.EntitiesEntry
-	56, // 32: rago.v1.ExtractMetadataResponse.custom_metadata:type_name -> rago.v1.ExtractMetadataResponse.CustomMetadataEntry
+	75, // 31: rago.v1.ExtractMetadataResponse.entities:type_name -> rago.v1.ExtractMetadataResponse.EntitiesEntry
+	76, // 32: rago.v1.ExtractMetadataResponse.custom_metadata:type_name -> rago.v1.ExtractMetadataResponse.CustomMetadataEntry
 	40, // 33: rago.v1.ListModelsResponse.models:type_name -> rago.v1.ModelInfo
-	57, // 34: rago.v1.ModelInfo.capabilities:type_name -> rago.v1.ModelInfo.CapabilitiesEntry
+	77, // 34: rago.v1.ModelInfo.capabilities:type_name -> rago.v1.ModelInfo.CapabilitiesEntry
 	45, // 35: rago.v1.BatchGenerateEmbeddingsResponse.results:type_name -> rago.v1.EmbeddingResult
-	23, // 36: rago.v1.HealthCheckResponse.ComponentsEntry.value:type_name -> rago.v1.ComponentHealth
-	60, // 37: rago.v1.ExtractMetadataResponse.EntitiesEntry.value:type_name -> google.protobuf.ListValue
-	61, // 38: rago.v1.ExtractMetadataResponse.CustomMetadataEntry.value:type_name -> google.protobuf.Value
-	3,  // 39: rago.v1.RAGService.IngestDocument:input_type -> rago.v1.IngestDocumentRequest
-	6,  // 40: rago.v1.RAGService.BatchIngestDocuments:input_type -> rago.v1.BatchIngestDocumentsRequest
-	8,  // 41: rago.v1.RAGService.Query:input_type -> rago.v1.QueryRequest
-	8,  // 42: rago.v1.RAGService.StreamQuery:input_type -> rago.v1.QueryRequest
-	13, // 43: rago.v1.RAGService.GetDocument:input_type -> rago.v1.GetDocumentRequest
-	15, // 44: rago.v1.RAGService.ListDocuments:input_type -> rago.v1.ListDocumentsRequest
-	17, // 45: rago.v1.RAGService.DeleteDocument:input_type -> rago.v1.DeleteDocumentRequest
-	19, // 46: rago.v1.RAGService.GetStatistics:input_type -> rago.v1.GetStatisticsRequest
-	21, // 47: rago.v1.RAGService.HealthCheck:input_type -> rago.v1.HealthCheckRequest
-	24, // 48: rago.v1.LLMService.Generate:input_type -> rago.v1.GenerateRequest
-	24, // 49: rago.v1.LLMService.StreamGenerate:input_type -> rago.v1.GenerateRequest
-	29, // 50: rago.v1.LLMService.GenerateWithTools:input_type -> rago.v1.GenerateWithToolsRequest
-	36, // 51: rago.v1.LLMService.ExtractMetadata:input_type -> rago.v1.ExtractMetadataRequest
-	38, // 52: rago.v1.LLMService.ListModels:input_type -> rago.v1.ListModelsRequest
-	41, // 53: rago.v1.EmbeddingService.GenerateEmbedding:input_type -> rago.v1.GenerateEmbeddingRequest
-	43, // 54: rago.v1.EmbeddingService.BatchGenerateEmbeddings:input_type -> rago.v1.BatchGenerateEmbeddingsRequest
-	46, // 55: rago.v1.EmbeddingService.ComputeSimilarity:input_type -> rago.v1.ComputeSimilarityRequest
-	5,  // 56: rago.v1.RAGService.IngestDocument:output_type -> rago.v1.IngestDocumentResponse
-	7,  // 57: rago.v1.RAGService.BatchIngestDocuments:output_type -> rago.v1.BatchIngestDocumentsResponse
-	10, // 58: rago.v1.RAGService.Query:output_type -> rago.v1.QueryResponse
-	11, // 59: rago.v1.RAGService.StreamQuery:output_type -> rago.v1.StreamQueryResponse
-	14, // 60: rago.v1.RAGService.GetDocument:output_type -> rago.v1.GetDocumentResponse
-	16, // 61: rago.v1.RAGService.ListDocuments:output_type -> rago.v1.ListDocumentsResponse
-	18, // 62: rago.v1.RAGService.DeleteDocument:output_type -> rago.v1.DeleteDocumentResponse
-	20, // 63: rago.v1.RAGService.GetStatistics:output_type -> rago.v1.GetStatisticsResponse
-	22, // 64: rago.v1.RAGService.HealthCheck:output_type -> rago.v1.HealthCheckResponse
-	26, // 65: rago.v1.LLMService.Generate:output_type -> rago.v1.GenerateResponse
-	27, // 66: rago.v1.LLMService.StreamGenerate:output_type -> rago.v1.StreamGenerateResponse
-	35, // 67: rago.v1.LLMService.GenerateWithTools:output_type -> rago.v1.GenerateWithToolsResponse
-	37, // 68: rago.v1.LLMService.ExtractMetadata:output_type -> rago.v1.ExtractMetadataResponse
-	39, // 69: rago.v1.LLMService.ListModels:output_type -> rago.v1.ListModelsResponse
-	42, // 70: rago.v1.EmbeddingService.GenerateEmbedding:output_type -> rago.v1.GenerateEmbeddingResponse
-	44, // 71: rago.v1.EmbeddingService.BatchGenerateEmbeddings:output_type -> rago.v1.BatchGenerateEmbeddingsResponse
-	47, // 72: rago.v1.EmbeddingService.ComputeSimilarity:output_type -> rago.v1.ComputeSimilarityResponse
-	56, // [56:73] is the sub-list for method output_type
-	39, // [39:56] is the sub-list for method input_type
-	39, // [39:39] is the sub-list for extension type_name
-	39, // [39:39] is the sub-list for extension extendee
-	0,  // [0:39] is the sub-list for field type_name
+	78, // 36: rago.v1.ConversationMessage.metadata:type_name -> rago.v1.ConversationMessage.MetadataEntry
+	48, // 37: rago.v1.SaveConversationRequest.messages:type_name -> rago.v1.ConversationMessage
+	79, // 38: rago.v1.SaveConversationRequest.metadata:type_name -> rago.v1.SaveConversationRequest.MetadataEntry
+	48, // 39: rago.v1.GetConversationResponse.messages:type_name -> rago.v1.ConversationMessage
+	80, // 40: rago.v1.GetConversationResponse.metadata:type_name -> rago.v1.GetConversationResponse.MetadataEntry
+	55, // 41: rago.v1.ListConversationsResponse.conversations:type_name -> rago.v1.ConversationSummary
+	58, // 42: rago.v1.RecordUsageRequest.metrics:type_name -> rago.v1.UsageMetrics
+	81, // 43: rago.v1.RecordUsageRequest.metadata:type_name -> rago.v1.RecordUsageRequest.MetadataEntry
+	82, // 44: rago.v1.GetUsageStatsResponse.usage_by_model:type_name -> rago.v1.GetUsageStatsResponse.UsageByModelEntry
+	83, // 45: rago.v1.GetUsageStatsResponse.usage_by_provider:type_name -> rago.v1.GetUsageStatsResponse.UsageByProviderEntry
+	67, // 46: rago.v1.GetUsageHistoryResponse.records:type_name -> rago.v1.UsageRecord
+	58, // 47: rago.v1.UsageRecord.metrics:type_name -> rago.v1.UsageMetrics
+	84, // 48: rago.v1.UsageRecord.metadata:type_name -> rago.v1.UsageRecord.MetadataEntry
+	23, // 49: rago.v1.HealthCheckResponse.ComponentsEntry.value:type_name -> rago.v1.ComponentHealth
+	87, // 50: rago.v1.ExtractMetadataResponse.EntitiesEntry.value:type_name -> google.protobuf.ListValue
+	88, // 51: rago.v1.ExtractMetadataResponse.CustomMetadataEntry.value:type_name -> google.protobuf.Value
+	88, // 52: rago.v1.SaveConversationRequest.MetadataEntry.value:type_name -> google.protobuf.Value
+	88, // 53: rago.v1.GetConversationResponse.MetadataEntry.value:type_name -> google.protobuf.Value
+	63, // 54: rago.v1.GetUsageStatsResponse.UsageByModelEntry.value:type_name -> rago.v1.UsageByModel
+	64, // 55: rago.v1.GetUsageStatsResponse.UsageByProviderEntry.value:type_name -> rago.v1.UsageByProvider
+	3,  // 56: rago.v1.RAGService.IngestDocument:input_type -> rago.v1.IngestDocumentRequest
+	6,  // 57: rago.v1.RAGService.BatchIngestDocuments:input_type -> rago.v1.BatchIngestDocumentsRequest
+	8,  // 58: rago.v1.RAGService.Query:input_type -> rago.v1.QueryRequest
+	8,  // 59: rago.v1.RAGService.StreamQuery:input_type -> rago.v1.QueryRequest
+	13, // 60: rago.v1.RAGService.GetDocument:input_type -> rago.v1.GetDocumentRequest
+	15, // 61: rago.v1.RAGService.ListDocuments:input_type -> rago.v1.ListDocumentsRequest
+	17, // 62: rago.v1.RAGService.DeleteDocument:input_type -> rago.v1.DeleteDocumentRequest
+	19, // 63: rago.v1.RAGService.GetStatistics:input_type -> rago.v1.GetStatisticsRequest
+	21, // 64: rago.v1.RAGService.HealthCheck:input_type -> rago.v1.HealthCheckRequest
+	24, // 65: rago.v1.LLMService.Generate:input_type -> rago.v1.GenerateRequest
+	24, // 66: rago.v1.LLMService.StreamGenerate:input_type -> rago.v1.GenerateRequest
+	29, // 67: rago.v1.LLMService.GenerateWithTools:input_type -> rago.v1.GenerateWithToolsRequest
+	36, // 68: rago.v1.LLMService.ExtractMetadata:input_type -> rago.v1.ExtractMetadataRequest
+	38, // 69: rago.v1.LLMService.ListModels:input_type -> rago.v1.ListModelsRequest
+	41, // 70: rago.v1.EmbeddingService.GenerateEmbedding:input_type -> rago.v1.GenerateEmbeddingRequest
+	43, // 71: rago.v1.EmbeddingService.BatchGenerateEmbeddings:input_type -> rago.v1.BatchGenerateEmbeddingsRequest
+	46, // 72: rago.v1.EmbeddingService.ComputeSimilarity:input_type -> rago.v1.ComputeSimilarityRequest
+	49, // 73: rago.v1.ConversationService.SaveConversation:input_type -> rago.v1.SaveConversationRequest
+	51, // 74: rago.v1.ConversationService.GetConversation:input_type -> rago.v1.GetConversationRequest
+	53, // 75: rago.v1.ConversationService.ListConversations:input_type -> rago.v1.ListConversationsRequest
+	56, // 76: rago.v1.ConversationService.DeleteConversation:input_type -> rago.v1.DeleteConversationRequest
+	59, // 77: rago.v1.UsageService.RecordUsage:input_type -> rago.v1.RecordUsageRequest
+	61, // 78: rago.v1.UsageService.GetUsageStats:input_type -> rago.v1.GetUsageStatsRequest
+	65, // 79: rago.v1.UsageService.GetUsageHistory:input_type -> rago.v1.GetUsageHistoryRequest
+	5,  // 80: rago.v1.RAGService.IngestDocument:output_type -> rago.v1.IngestDocumentResponse
+	7,  // 81: rago.v1.RAGService.BatchIngestDocuments:output_type -> rago.v1.BatchIngestDocumentsResponse
+	10, // 82: rago.v1.RAGService.Query:output_type -> rago.v1.QueryResponse
+	11, // 83: rago.v1.RAGService.StreamQuery:output_type -> rago.v1.StreamQueryResponse
+	14, // 84: rago.v1.RAGService.GetDocument:output_type -> rago.v1.GetDocumentResponse
+	16, // 85: rago.v1.RAGService.ListDocuments:output_type -> rago.v1.ListDocumentsResponse
+	18, // 86: rago.v1.RAGService.DeleteDocument:output_type -> rago.v1.DeleteDocumentResponse
+	20, // 87: rago.v1.RAGService.GetStatistics:output_type -> rago.v1.GetStatisticsResponse
+	22, // 88: rago.v1.RAGService.HealthCheck:output_type -> rago.v1.HealthCheckResponse
+	26, // 89: rago.v1.LLMService.Generate:output_type -> rago.v1.GenerateResponse
+	27, // 90: rago.v1.LLMService.StreamGenerate:output_type -> rago.v1.StreamGenerateResponse
+	35, // 91: rago.v1.LLMService.GenerateWithTools:output_type -> rago.v1.GenerateWithToolsResponse
+	37, // 92: rago.v1.LLMService.ExtractMetadata:output_type -> rago.v1.ExtractMetadataResponse
+	39, // 93: rago.v1.LLMService.ListModels:output_type -> rago.v1.ListModelsResponse
+	42, // 94: rago.v1.EmbeddingService.GenerateEmbedding:output_type -> rago.v1.GenerateEmbeddingResponse
+	44, // 95: rago.v1.EmbeddingService.BatchGenerateEmbeddings:output_type -> rago.v1.BatchGenerateEmbeddingsResponse
+	47, // 96: rago.v1.EmbeddingService.ComputeSimilarity:output_type -> rago.v1.ComputeSimilarityResponse
+	50, // 97: rago.v1.ConversationService.SaveConversation:output_type -> rago.v1.SaveConversationResponse
+	52, // 98: rago.v1.ConversationService.GetConversation:output_type -> rago.v1.GetConversationResponse
+	54, // 99: rago.v1.ConversationService.ListConversations:output_type -> rago.v1.ListConversationsResponse
+	57, // 100: rago.v1.ConversationService.DeleteConversation:output_type -> rago.v1.DeleteConversationResponse
+	60, // 101: rago.v1.UsageService.RecordUsage:output_type -> rago.v1.RecordUsageResponse
+	62, // 102: rago.v1.UsageService.GetUsageStats:output_type -> rago.v1.GetUsageStatsResponse
+	66, // 103: rago.v1.UsageService.GetUsageHistory:output_type -> rago.v1.GetUsageHistoryResponse
+	80, // [80:104] is the sub-list for method output_type
+	56, // [56:80] is the sub-list for method input_type
+	56, // [56:56] is the sub-list for extension type_name
+	56, // [56:56] is the sub-list for extension extendee
+	0,  // [0:56] is the sub-list for field type_name
 }
 
-func init() { file_proto_rago_rago_proto_init() }
-func file_proto_rago_rago_proto_init() {
-	if File_proto_rago_rago_proto != nil {
+func init() { file_rago_proto_init() }
+func file_rago_proto_init() {
+	if File_rago_proto != nil {
 		return
 	}
-	file_proto_rago_rago_proto_msgTypes[11].OneofWrappers = []any{
+	file_rago_proto_msgTypes[11].OneofWrappers = []any{
 		(*StreamQueryResponse_TextChunk)(nil),
 		(*StreamQueryResponse_Result)(nil),
 		(*StreamQueryResponse_Metadata)(nil),
 		(*StreamQueryResponse_Error)(nil),
 	}
-	file_proto_rago_rago_proto_msgTypes[27].OneofWrappers = []any{
+	file_rago_proto_msgTypes[27].OneofWrappers = []any{
 		(*StreamGenerateResponse_TextChunk)(nil),
 		(*StreamGenerateResponse_Metadata)(nil),
 		(*StreamGenerateResponse_Error)(nil),
@@ -3716,17 +5340,17 @@ func file_proto_rago_rago_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_rago_rago_proto_rawDesc), len(file_proto_rago_rago_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_rago_proto_rawDesc), len(file_rago_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   58,
+			NumMessages:   85,
 			NumExtensions: 0,
-			NumServices:   3,
+			NumServices:   5,
 		},
-		GoTypes:           file_proto_rago_rago_proto_goTypes,
-		DependencyIndexes: file_proto_rago_rago_proto_depIdxs,
-		MessageInfos:      file_proto_rago_rago_proto_msgTypes,
+		GoTypes:           file_rago_proto_goTypes,
+		DependencyIndexes: file_rago_proto_depIdxs,
+		MessageInfos:      file_rago_proto_msgTypes,
 	}.Build()
-	File_proto_rago_rago_proto = out.File
-	file_proto_rago_rago_proto_goTypes = nil
-	file_proto_rago_rago_proto_depIdxs = nil
+	File_rago_proto = out.File
+	file_rago_proto_goTypes = nil
+	file_rago_proto_depIdxs = nil
 }
