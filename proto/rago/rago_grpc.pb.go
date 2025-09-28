@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.29.3
-// source: proto/rago/rago.proto
+// source: rago.proto
 
 package rago
 
@@ -447,7 +447,7 @@ var RAGService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "proto/rago/rago.proto",
+	Metadata: "rago.proto",
 }
 
 const (
@@ -719,7 +719,7 @@ var LLMService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "proto/rago/rago.proto",
+	Metadata: "rago.proto",
 }
 
 const (
@@ -907,5 +907,421 @@ var EmbeddingService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/rago/rago.proto",
+	Metadata: "rago.proto",
+}
+
+const (
+	ConversationService_SaveConversation_FullMethodName   = "/rago.v1.ConversationService/SaveConversation"
+	ConversationService_GetConversation_FullMethodName    = "/rago.v1.ConversationService/GetConversation"
+	ConversationService_ListConversations_FullMethodName  = "/rago.v1.ConversationService/ListConversations"
+	ConversationService_DeleteConversation_FullMethodName = "/rago.v1.ConversationService/DeleteConversation"
+)
+
+// ConversationServiceClient is the client API for ConversationService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// ConversationService provides gRPC interface for conversation operations
+type ConversationServiceClient interface {
+	// Save or update a conversation
+	SaveConversation(ctx context.Context, in *SaveConversationRequest, opts ...grpc.CallOption) (*SaveConversationResponse, error)
+	// Get conversation by ID
+	GetConversation(ctx context.Context, in *GetConversationRequest, opts ...grpc.CallOption) (*GetConversationResponse, error)
+	// List conversations
+	ListConversations(ctx context.Context, in *ListConversationsRequest, opts ...grpc.CallOption) (*ListConversationsResponse, error)
+	// Delete conversation
+	DeleteConversation(ctx context.Context, in *DeleteConversationRequest, opts ...grpc.CallOption) (*DeleteConversationResponse, error)
+}
+
+type conversationServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewConversationServiceClient(cc grpc.ClientConnInterface) ConversationServiceClient {
+	return &conversationServiceClient{cc}
+}
+
+func (c *conversationServiceClient) SaveConversation(ctx context.Context, in *SaveConversationRequest, opts ...grpc.CallOption) (*SaveConversationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveConversationResponse)
+	err := c.cc.Invoke(ctx, ConversationService_SaveConversation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *conversationServiceClient) GetConversation(ctx context.Context, in *GetConversationRequest, opts ...grpc.CallOption) (*GetConversationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetConversationResponse)
+	err := c.cc.Invoke(ctx, ConversationService_GetConversation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *conversationServiceClient) ListConversations(ctx context.Context, in *ListConversationsRequest, opts ...grpc.CallOption) (*ListConversationsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListConversationsResponse)
+	err := c.cc.Invoke(ctx, ConversationService_ListConversations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *conversationServiceClient) DeleteConversation(ctx context.Context, in *DeleteConversationRequest, opts ...grpc.CallOption) (*DeleteConversationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteConversationResponse)
+	err := c.cc.Invoke(ctx, ConversationService_DeleteConversation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ConversationServiceServer is the server API for ConversationService service.
+// All implementations must embed UnimplementedConversationServiceServer
+// for forward compatibility.
+//
+// ConversationService provides gRPC interface for conversation operations
+type ConversationServiceServer interface {
+	// Save or update a conversation
+	SaveConversation(context.Context, *SaveConversationRequest) (*SaveConversationResponse, error)
+	// Get conversation by ID
+	GetConversation(context.Context, *GetConversationRequest) (*GetConversationResponse, error)
+	// List conversations
+	ListConversations(context.Context, *ListConversationsRequest) (*ListConversationsResponse, error)
+	// Delete conversation
+	DeleteConversation(context.Context, *DeleteConversationRequest) (*DeleteConversationResponse, error)
+	mustEmbedUnimplementedConversationServiceServer()
+}
+
+// UnimplementedConversationServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedConversationServiceServer struct{}
+
+func (UnimplementedConversationServiceServer) SaveConversation(context.Context, *SaveConversationRequest) (*SaveConversationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SaveConversation not implemented")
+}
+func (UnimplementedConversationServiceServer) GetConversation(context.Context, *GetConversationRequest) (*GetConversationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetConversation not implemented")
+}
+func (UnimplementedConversationServiceServer) ListConversations(context.Context, *ListConversationsRequest) (*ListConversationsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListConversations not implemented")
+}
+func (UnimplementedConversationServiceServer) DeleteConversation(context.Context, *DeleteConversationRequest) (*DeleteConversationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteConversation not implemented")
+}
+func (UnimplementedConversationServiceServer) mustEmbedUnimplementedConversationServiceServer() {}
+func (UnimplementedConversationServiceServer) testEmbeddedByValue()                             {}
+
+// UnsafeConversationServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ConversationServiceServer will
+// result in compilation errors.
+type UnsafeConversationServiceServer interface {
+	mustEmbedUnimplementedConversationServiceServer()
+}
+
+func RegisterConversationServiceServer(s grpc.ServiceRegistrar, srv ConversationServiceServer) {
+	// If the following call pancis, it indicates UnimplementedConversationServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ConversationService_ServiceDesc, srv)
+}
+
+func _ConversationService_SaveConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveConversationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConversationServiceServer).SaveConversation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ConversationService_SaveConversation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConversationServiceServer).SaveConversation(ctx, req.(*SaveConversationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ConversationService_GetConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetConversationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConversationServiceServer).GetConversation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ConversationService_GetConversation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConversationServiceServer).GetConversation(ctx, req.(*GetConversationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ConversationService_ListConversations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListConversationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConversationServiceServer).ListConversations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ConversationService_ListConversations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConversationServiceServer).ListConversations(ctx, req.(*ListConversationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ConversationService_DeleteConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteConversationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConversationServiceServer).DeleteConversation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ConversationService_DeleteConversation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConversationServiceServer).DeleteConversation(ctx, req.(*DeleteConversationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// ConversationService_ServiceDesc is the grpc.ServiceDesc for ConversationService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ConversationService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "rago.v1.ConversationService",
+	HandlerType: (*ConversationServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "SaveConversation",
+			Handler:    _ConversationService_SaveConversation_Handler,
+		},
+		{
+			MethodName: "GetConversation",
+			Handler:    _ConversationService_GetConversation_Handler,
+		},
+		{
+			MethodName: "ListConversations",
+			Handler:    _ConversationService_ListConversations_Handler,
+		},
+		{
+			MethodName: "DeleteConversation",
+			Handler:    _ConversationService_DeleteConversation_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "rago.proto",
+}
+
+const (
+	UsageService_RecordUsage_FullMethodName     = "/rago.v1.UsageService/RecordUsage"
+	UsageService_GetUsageStats_FullMethodName   = "/rago.v1.UsageService/GetUsageStats"
+	UsageService_GetUsageHistory_FullMethodName = "/rago.v1.UsageService/GetUsageHistory"
+)
+
+// UsageServiceClient is the client API for UsageService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// UsageService provides gRPC interface for usage tracking operations
+type UsageServiceClient interface {
+	// Record usage metrics
+	RecordUsage(ctx context.Context, in *RecordUsageRequest, opts ...grpc.CallOption) (*RecordUsageResponse, error)
+	// Get usage statistics
+	GetUsageStats(ctx context.Context, in *GetUsageStatsRequest, opts ...grpc.CallOption) (*GetUsageStatsResponse, error)
+	// Get usage history
+	GetUsageHistory(ctx context.Context, in *GetUsageHistoryRequest, opts ...grpc.CallOption) (*GetUsageHistoryResponse, error)
+}
+
+type usageServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewUsageServiceClient(cc grpc.ClientConnInterface) UsageServiceClient {
+	return &usageServiceClient{cc}
+}
+
+func (c *usageServiceClient) RecordUsage(ctx context.Context, in *RecordUsageRequest, opts ...grpc.CallOption) (*RecordUsageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordUsageResponse)
+	err := c.cc.Invoke(ctx, UsageService_RecordUsage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *usageServiceClient) GetUsageStats(ctx context.Context, in *GetUsageStatsRequest, opts ...grpc.CallOption) (*GetUsageStatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUsageStatsResponse)
+	err := c.cc.Invoke(ctx, UsageService_GetUsageStats_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *usageServiceClient) GetUsageHistory(ctx context.Context, in *GetUsageHistoryRequest, opts ...grpc.CallOption) (*GetUsageHistoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUsageHistoryResponse)
+	err := c.cc.Invoke(ctx, UsageService_GetUsageHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// UsageServiceServer is the server API for UsageService service.
+// All implementations must embed UnimplementedUsageServiceServer
+// for forward compatibility.
+//
+// UsageService provides gRPC interface for usage tracking operations
+type UsageServiceServer interface {
+	// Record usage metrics
+	RecordUsage(context.Context, *RecordUsageRequest) (*RecordUsageResponse, error)
+	// Get usage statistics
+	GetUsageStats(context.Context, *GetUsageStatsRequest) (*GetUsageStatsResponse, error)
+	// Get usage history
+	GetUsageHistory(context.Context, *GetUsageHistoryRequest) (*GetUsageHistoryResponse, error)
+	mustEmbedUnimplementedUsageServiceServer()
+}
+
+// UnimplementedUsageServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedUsageServiceServer struct{}
+
+func (UnimplementedUsageServiceServer) RecordUsage(context.Context, *RecordUsageRequest) (*RecordUsageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RecordUsage not implemented")
+}
+func (UnimplementedUsageServiceServer) GetUsageStats(context.Context, *GetUsageStatsRequest) (*GetUsageStatsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUsageStats not implemented")
+}
+func (UnimplementedUsageServiceServer) GetUsageHistory(context.Context, *GetUsageHistoryRequest) (*GetUsageHistoryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUsageHistory not implemented")
+}
+func (UnimplementedUsageServiceServer) mustEmbedUnimplementedUsageServiceServer() {}
+func (UnimplementedUsageServiceServer) testEmbeddedByValue()                      {}
+
+// UnsafeUsageServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to UsageServiceServer will
+// result in compilation errors.
+type UnsafeUsageServiceServer interface {
+	mustEmbedUnimplementedUsageServiceServer()
+}
+
+func RegisterUsageServiceServer(s grpc.ServiceRegistrar, srv UsageServiceServer) {
+	// If the following call pancis, it indicates UnimplementedUsageServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&UsageService_ServiceDesc, srv)
+}
+
+func _UsageService_RecordUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordUsageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UsageServiceServer).RecordUsage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UsageService_RecordUsage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UsageServiceServer).RecordUsage(ctx, req.(*RecordUsageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UsageService_GetUsageStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUsageStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UsageServiceServer).GetUsageStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UsageService_GetUsageStats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UsageServiceServer).GetUsageStats(ctx, req.(*GetUsageStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UsageService_GetUsageHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUsageHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UsageServiceServer).GetUsageHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UsageService_GetUsageHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UsageServiceServer).GetUsageHistory(ctx, req.(*GetUsageHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// UsageService_ServiceDesc is the grpc.ServiceDesc for UsageService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var UsageService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "rago.v1.UsageService",
+	HandlerType: (*UsageServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "RecordUsage",
+			Handler:    _UsageService_RecordUsage_Handler,
+		},
+		{
+			MethodName: "GetUsageStats",
+			Handler:    _UsageService_GetUsageStats_Handler,
+		},
+		{
+			MethodName: "GetUsageHistory",
+			Handler:    _UsageService_GetUsageHistory_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "rago.proto",
 }
