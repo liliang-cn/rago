@@ -10,19 +10,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/llm"
-	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	"github.com/liliang-cn/rago/v2/pkg/usage"
 )
 
 // ChatHandler handles chat-related HTTP requests
 type ChatHandler struct {
-	processor    *processor.Service
+	processor    domain.RAGProcessor
 	llmService   *llm.Service
 	usageService *usage.Service
 }
 
 // NewChatHandler creates a new chat handler
-func NewChatHandler(p *processor.Service, llm *llm.Service, usageService *usage.Service) *ChatHandler {
+func NewChatHandler(p domain.RAGProcessor, llm *llm.Service, usageService *usage.Service) *ChatHandler {
 	return &ChatHandler{
 		processor:    p,
 		llmService:   llm,

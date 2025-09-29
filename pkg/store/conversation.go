@@ -3,9 +3,15 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+// Common errors
+var (
+	ErrConversationNotFound = errors.New("conversation not found")
 )
 
 // ConversationMessage represents a single message in a conversation

@@ -33,6 +33,13 @@ type RAGQueryRecord struct {
 	Success         bool    `json:"success" db:"success"`
 	ErrorMessage    string  `json:"error_message" db:"error_message"`
 	
+	// Token tracking
+	InputTokens     int     `json:"input_tokens" db:"input_tokens"`         // Tokens in the input (query + context)
+	OutputTokens    int     `json:"output_tokens" db:"output_tokens"`       // Tokens in the generated output
+	TotalTokens     int     `json:"total_tokens" db:"total_tokens"`         // Total tokens used
+	EstimatedCost   float64 `json:"estimated_cost" db:"estimated_cost"`     // Estimated cost in USD
+	Model           string  `json:"model" db:"model"`                       // Model used for generation
+	
 	CreatedAt       time.Time `json:"created_at" db:"created_at"`
 }
 

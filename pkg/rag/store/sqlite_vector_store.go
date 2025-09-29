@@ -774,6 +774,18 @@ func (s *DocumentStore) ensureCollection(ctx context.Context, name string) error
 	return nil
 }
 
+// Reset removes all documents from the document store
+func (s *DocumentStore) Reset(ctx context.Context) error {
+	// Since documents are stored in the same sqvect database,
+	// we need to delete all entries with _type = "document"
+	// For now, we'll clear the entire store as it's simpler
+	// and documents/vectors are typically reset together
+	if err := s.sqvect.Clear(ctx); err != nil {
+		return fmt.Errorf("failed to reset document store: %w", err)
+	}
+	return nil
+}
+
 // Helper function to get sqvect client for DocumentStore creation
 func (s *SQLiteStore) GetSqvectStore() *core.SQLiteStore {
 	return s.sqvect

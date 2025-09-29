@@ -9,20 +9,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	"github.com/liliang-cn/rago/v2/pkg/usage"
 )
 
 type QueryHandler struct {
-	processor    *processor.Service
+	processor    domain.RAGProcessor
 	usageService *usage.Service
 }
 
-func NewQueryHandler(p *processor.Service) *QueryHandler {
+func NewQueryHandler(p domain.RAGProcessor) *QueryHandler {
 	return &QueryHandler{processor: p}
 }
 
-func NewQueryHandlerWithUsage(p *processor.Service, u *usage.Service) *QueryHandler {
+func NewQueryHandlerWithUsage(p domain.RAGProcessor, u *usage.Service) *QueryHandler {
 	return &QueryHandler{
 		processor:    p,
 		usageService: u,
