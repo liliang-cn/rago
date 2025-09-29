@@ -25,14 +25,22 @@ func NewVectorStore(config StoreConfig) (domain.VectorStore, error) {
 		}
 		return NewSQLiteStore(dbPath)
 		
+	case "qdrant":
+		var url, collection string
+		if config.Parameters != nil {
+			url, _ = config.Parameters["url"].(string)
+			collection, _ = config.Parameters["collection"].(string)
+		}
+		if url == "" {
+			url = "localhost:6334" // Default Qdrant gRPC port
+		}
+		if collection == "" {
+			collection = "rago_documents"
+		}
+		return NewQdrantStore(url, collection)
+		
 	// Future implementations can be added here:
 	/*
-	case "qdrant":
-		url := config.Parameters["url"].(string)
-		apiKey := config.Parameters["api_key"].(string)
-		collection := config.Parameters["collection"].(string)
-		return NewQdrantStore(url, apiKey, collection)
-		
 	case "pinecone":
 		apiKey := config.Parameters["api_key"].(string)
 		environment := config.Parameters["environment"].(string)

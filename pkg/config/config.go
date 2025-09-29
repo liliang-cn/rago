@@ -16,17 +16,24 @@ import (
 )
 
 type Config struct {
-	Server    ServerConfig     `mapstructure:"server"`
-	Providers ProvidersConfig  `mapstructure:"providers"`
-	Sqvect    SqvectConfig     `mapstructure:"sqvect"`
-	Chunker   ChunkerConfig    `mapstructure:"chunker"`
-	Ingest    IngestConfig     `mapstructure:"ingest"`
-	Tools     tools.ToolConfig `mapstructure:"tools"`
-	MCP       mcp.Config       `mapstructure:"mcp"`
-	Agents    *AgentsConfig    `mapstructure:"agents"`
+	Server      ServerConfig       `mapstructure:"server"`
+	Providers   ProvidersConfig    `mapstructure:"providers"`
+	Sqvect      SqvectConfig       `mapstructure:"sqvect"`
+	Chunker     ChunkerConfig      `mapstructure:"chunker"`
+	Ingest      IngestConfig       `mapstructure:"ingest"`
+	Tools       tools.ToolConfig   `mapstructure:"tools"`
+	MCP         mcp.Config         `mapstructure:"mcp"`
+	Agents      *AgentsConfig      `mapstructure:"agents"`
+	VectorStore *VectorStoreConfig `mapstructure:"vector_store"`
 
 	// Deprecated: Use Providers instead
 	Ollama OllamaConfig `mapstructure:"ollama"`
+}
+
+// VectorStoreConfig configures the vector storage backend
+type VectorStoreConfig struct {
+	Type       string                 `mapstructure:"type"`
+	Parameters map[string]interface{} `mapstructure:"parameters"`
 }
 
 type AgentsConfig struct {

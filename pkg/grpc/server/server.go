@@ -65,7 +65,7 @@ func NewServer(
 	llmProvider domain.LLMProvider,
 	embedder domain.EmbedderProvider,
 	convStore *store.ConversationStore,
-	usageTracker *usage.Tracker,
+	usageTracker *usage.Service,
 ) (*Server, error) {
 	// Create server options
 	opts := []grpc.ServerOption{

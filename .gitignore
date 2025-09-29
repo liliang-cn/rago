@@ -75,3 +75,5 @@ rago.toml
 .rago/
 
 rago-cli
+
+qdrant_storage

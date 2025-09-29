@@ -16,7 +16,8 @@ import (
 // Client provides high-level RAG operations
 type Client struct {
 	processor   *processor.Service
-	vectorStore *store.SQLiteStore
+	vectorStore domain.VectorStore
+	docStore    *store.DocumentStore
 	embedder    domain.Embedder
 	llm         domain.Generator
 	config      *config.Config
@@ -24,14 +25,47 @@ type Client struct {
 
 // NewClient creates a new RAG client
 func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generator, metadataExtractor domain.MetadataExtractor) (*Client, error) {
-	// Initialize vector store
-	vectorStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create vector store: %w", err)
+	// Initialize vector store based on configuration
+	var vectorStore domain.VectorStore
+	var docStore *store.DocumentStore
+	var err error
+
+	if cfg.VectorStore != nil && cfg.VectorStore.Type != "" {
+		// Use configured vector store
+		storeConfig := store.StoreConfig{
+			Type:       cfg.VectorStore.Type,
+			Parameters: cfg.VectorStore.Parameters,
+		}
+		vectorStore, err = store.NewVectorStore(storeConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create vector store: %w", err)
+		}
+
+		// For document store, use SQLite alongside vector stores that don't provide document storage
+		if cfg.VectorStore.Type == "qdrant" {
+			// Qdrant doesn't store full documents, so use SQLite for document storage
+			sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create document store: %w", err)
+			}
+			docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+		}
+	} else {
+		// Default to SQLite for backward compatibility
+		sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create vector store: %w", err)
+		}
+		vectorStore = sqliteStore
+		docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
 	}
 
-	// Initialize document store
-	docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
+	// If docStore is still nil (for SQLite vector store), create it
+	if docStore == nil {
+		if sqliteStore, ok := vectorStore.(*store.SQLiteStore); ok {
+			docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+		}
+	}
 
 	// Initialize chunker
 	chunkerService := chunker.New()
@@ -50,6 +84,7 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 	return &Client{
 		processor:   proc,
 		vectorStore: vectorStore,
+		docStore:    docStore,
 		embedder:    embedder,
 		llm:         llm,
 		config:      cfg,
@@ -159,15 +194,16 @@ func (c *Client) IngestURL(ctx context.Context, url string, opts *IngestOptions)
 
 // QueryOptions configures how queries are executed
 type QueryOptions struct {
-	TopK         int      // Number of documents to retrieve
-	Temperature  float64  // LLM temperature
-	MaxTokens    int      // Maximum tokens in response
-	ShowSources  bool     // Include source documents in response
-	ShowThinking bool     // Show reasoning process
-	Stream       bool     // Enable streaming response
-	ToolsEnabled bool     // Enable tool calling
-	AllowedTools []string // Specific tools to allow
-	MaxToolCalls int      // Maximum tool calls
+	TopK         int                    // Number of documents to retrieve
+	Temperature  float64                // LLM temperature
+	MaxTokens    int                    // Maximum tokens in response
+	ShowSources  bool                   // Include source documents in response
+	ShowThinking bool                   // Show reasoning process
+	Stream       bool                   // Enable streaming response
+	ToolsEnabled bool                   // Enable tool calling
+	AllowedTools []string               // Specific tools to allow
+	MaxToolCalls int                    // Maximum tool calls
+	Filters      map[string]interface{} // Metadata filters for document retrieval
 }
 
 // DefaultQueryOptions returns default query options
@@ -197,6 +233,7 @@ func (c *Client) Query(ctx context.Context, query string, opts *QueryOptions) (*
 		ToolsEnabled: opts.ToolsEnabled,
 		AllowedTools: opts.AllowedTools,
 		MaxToolCalls: opts.MaxToolCalls,
+		Filters:      opts.Filters,
 	}
 
 	resp, err := c.processor.Query(ctx, req)
@@ -209,6 +246,10 @@ func (c *Client) Query(ctx context.Context, query string, opts *QueryOptions) (*
 
 // ListDocuments lists all documents in the store
 func (c *Client) ListDocuments(ctx context.Context) ([]domain.Document, error) {
+	if c.docStore != nil {
+		return c.docStore.List(ctx)
+	}
+	// Fallback to vector store if it supports listing (like SQLite)
 	return c.vectorStore.List(ctx)
 }
 
@@ -224,7 +265,15 @@ func (c *Client) Reset(ctx context.Context) error {
 
 // GetStats returns statistics about the RAG store
 func (c *Client) GetStats(ctx context.Context) (*domain.Stats, error) {
-	docs, err := c.vectorStore.List(ctx)
+	var docs []domain.Document
+	var err error
+	
+	if c.docStore != nil {
+		docs, err = c.docStore.List(ctx)
+	} else {
+		docs, err = c.vectorStore.List(ctx)
+	}
+	
 	if err != nil {
 		return nil, err
 	}
@@ -244,8 +293,23 @@ func (c *Client) GetStats(ctx context.Context) (*domain.Stats, error) {
 
 // Close closes the RAG client and releases resources
 func (c *Client) Close() error {
+	var errs []error
+	
 	if c.vectorStore != nil {
-		return c.vectorStore.Close()
+		if closer, ok := c.vectorStore.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	
+	if c.docStore != nil {
+		// Document store typically uses same connection as SQLite vector store
+		// so it's already closed above
+	}
+	
+	if len(errs) > 0 {
+		return errs[0]
 	}
 	return nil
 }
@@ -256,6 +320,6 @@ func (c *Client) GetProcessor() *processor.Service {
 }
 
 // GetVectorStore returns the underlying vector store for advanced operations
-func (c *Client) GetVectorStore() *store.SQLiteStore {
+func (c *Client) GetVectorStore() domain.VectorStore {
 	return c.vectorStore
 }
