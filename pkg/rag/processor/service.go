@@ -619,8 +619,18 @@ func (s *Service) DeleteDocument(ctx context.Context, documentID string) error {
 }
 
 func (s *Service) Reset(ctx context.Context) error {
+	// Reset vector store (Qdrant)
 	if err := s.vectorStore.Reset(ctx); err != nil {
 		return fmt.Errorf("failed to reset vector store: %w", err)
+	}
+
+	// Reset document store (SQLite) if it has a Reset method
+	if s.documentStore != nil {
+		if resetter, ok := s.documentStore.(interface{ Reset(context.Context) error }); ok {
+			if err := resetter.Reset(ctx); err != nil {
+				return fmt.Errorf("failed to reset document store: %w", err)
+			}
+		}
 	}
 
 	return nil
@@ -811,17 +821,17 @@ func (s *Service) wrapCallbackForThinking(callback func(string), showThinking bo
 }
 
 // GetToolRegistry returns the tool registry if tools are enabled
-func (s *Service) GetToolRegistry() *tools.Registry {
+func (s *Service) GetToolRegistry() interface{} {
 	return s.toolRegistry
 }
 
 // GetToolExecutor returns the tool executor if tools are enabled
-func (s *Service) GetToolExecutor() *tools.Executor {
+func (s *Service) GetToolExecutor() interface{} {
 	return s.toolExecutor
 }
 
 // RegisterMCPTools registers MCP tools with the processor
-func (s *Service) RegisterMCPTools(mcpService *mcp.MCPService) error {
+func (s *Service) RegisterMCPTools(mcpService interface{}) error {
 	if !s.toolsEnabled {
 		return fmt.Errorf("tools are not enabled in this processor")
 	}
@@ -830,8 +840,14 @@ func (s *Service) RegisterMCPTools(mcpService *mcp.MCPService) error {
 		return fmt.Errorf("tool registry is not initialized")
 	}
 
+	// Type assert to MCP service
+	mcpSvc, ok := mcpService.(*mcp.MCPService)
+	if !ok {
+		return fmt.Errorf("invalid MCP service type")
+	}
+
 	// Get all available MCP tools
-	mcpTools := mcpService.GetAvailableTools()
+	mcpTools := mcpSvc.GetAvailableTools()
 	if len(mcpTools) == 0 {
 		return fmt.Errorf("no MCP tools available")
 	}
@@ -841,7 +857,7 @@ func (s *Service) RegisterMCPTools(mcpService *mcp.MCPService) error {
 		// Create an adapter that implements domain.Tool interface
 		adapter := &MCPToolAdapter{
 			mcpTool:    mcpTool,
-			mcpService: mcpService,
+			mcpService: mcpSvc,
 		}
 
 		// Register the adapter with the tool registry

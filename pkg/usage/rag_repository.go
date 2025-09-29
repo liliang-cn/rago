@@ -54,6 +54,11 @@ func (r *SQLiteRepository) InitializeRAGTables(ctx context.Context) error {
 			tool_calls_count INTEGER DEFAULT 0,
 			success BOOLEAN DEFAULT 0,
 			error_message TEXT,
+			input_tokens INTEGER DEFAULT 0,
+			output_tokens INTEGER DEFAULT 0,
+			total_tokens INTEGER DEFAULT 0,
+			estimated_cost REAL DEFAULT 0.0,
+			model TEXT DEFAULT '',
 			created_at TIMESTAMP NOT NULL,
 			FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
 			FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
@@ -91,6 +96,7 @@ func (r *SQLiteRepository) InitializeRAGTables(ctx context.Context) error {
 			FOREIGN KEY (rag_query_id) REFERENCES rag_queries(id) ON DELETE CASCADE
 		)`,
 		
+		
 		// Indexes for better performance
 		`CREATE INDEX IF NOT EXISTS idx_rag_queries_conversation_id ON rag_queries(conversation_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_rag_queries_created_at ON rag_queries(created_at)`,
@@ -102,9 +108,29 @@ func (r *SQLiteRepository) InitializeRAGTables(ctx context.Context) error {
 		`CREATE INDEX IF NOT EXISTS idx_rag_tool_calls_tool_name ON rag_tool_calls(tool_name)`,
 	}
 
+	// Execute table creation and index queries
 	for _, query := range queries {
 		if _, err := r.db.ExecContext(ctx, query); err != nil {
 			return fmt.Errorf("failed to execute RAG table creation query: %w", err)
+		}
+	}
+	
+	// Migration: Add token tracking columns if they don't exist
+	migrationQueries := []string{
+		`ALTER TABLE rag_queries ADD COLUMN input_tokens INTEGER DEFAULT 0`,
+		`ALTER TABLE rag_queries ADD COLUMN output_tokens INTEGER DEFAULT 0`,
+		`ALTER TABLE rag_queries ADD COLUMN total_tokens INTEGER DEFAULT 0`,
+		`ALTER TABLE rag_queries ADD COLUMN estimated_cost REAL DEFAULT 0.0`,
+		`ALTER TABLE rag_queries ADD COLUMN model TEXT DEFAULT ''`,
+	}
+	
+	// Execute migration queries (ignore errors for existing columns)
+	for _, query := range migrationQueries {
+		if _, err := r.db.ExecContext(ctx, query); err != nil {
+			// Ignore errors for columns that already exist
+			if !strings.Contains(err.Error(), "duplicate column name") {
+				return fmt.Errorf("failed to execute migration query: %w", err)
+			}
 		}
 	}
 
@@ -116,14 +142,17 @@ func (r *SQLiteRepository) CreateRAGQuery(ctx context.Context, query *RAGQueryRe
 	sql := `INSERT INTO rag_queries (
 		id, conversation_id, message_id, query, answer, top_k, temperature, max_tokens,
 		show_sources, show_thinking, tools_enabled, total_latency, retrieval_time,
-		generation_time, chunks_found, tool_calls_count, success, error_message, created_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		generation_time, chunks_found, tool_calls_count, success, error_message,
+		input_tokens, output_tokens, total_tokens, estimated_cost, model, created_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	
 	_, err := r.db.ExecContext(ctx, sql,
 		query.ID, query.ConversationID, query.MessageID, query.Query, query.Answer,
 		query.TopK, query.Temperature, query.MaxTokens, query.ShowSources, query.ShowThinking,
 		query.ToolsEnabled, query.TotalLatency, query.RetrievalTime, query.GenerationTime,
-		query.ChunksFound, query.ToolCallsCount, query.Success, query.ErrorMessage, query.CreatedAt,
+		query.ChunksFound, query.ToolCallsCount, query.Success, query.ErrorMessage,
+		query.InputTokens, query.OutputTokens, query.TotalTokens, query.EstimatedCost, query.Model,
+		query.CreatedAt,
 	)
 	return err
 }
@@ -132,7 +161,9 @@ func (r *SQLiteRepository) CreateRAGQuery(ctx context.Context, query *RAGQueryRe
 func (r *SQLiteRepository) GetRAGQuery(ctx context.Context, id string) (*RAGQueryRecord, error) {
 	sqlQuery := `SELECT id, conversation_id, message_id, query, answer, top_k, temperature, max_tokens,
 		show_sources, show_thinking, tools_enabled, total_latency, retrieval_time,
-		generation_time, chunks_found, tool_calls_count, success, error_message, created_at
+		generation_time, chunks_found, tool_calls_count, success, error_message,
+		COALESCE(input_tokens, 0), COALESCE(output_tokens, 0), COALESCE(total_tokens, 0), 
+		COALESCE(estimated_cost, 0.0), COALESCE(model, ''), created_at
 		FROM rag_queries WHERE id = ?`
 	
 	var query RAGQueryRecord
@@ -140,7 +171,9 @@ func (r *SQLiteRepository) GetRAGQuery(ctx context.Context, id string) (*RAGQuer
 		&query.ID, &query.ConversationID, &query.MessageID, &query.Query, &query.Answer,
 		&query.TopK, &query.Temperature, &query.MaxTokens, &query.ShowSources, &query.ShowThinking,
 		&query.ToolsEnabled, &query.TotalLatency, &query.RetrievalTime, &query.GenerationTime,
-		&query.ChunksFound, &query.ToolCallsCount, &query.Success, &query.ErrorMessage, &query.CreatedAt,
+		&query.ChunksFound, &query.ToolCallsCount, &query.Success, &query.ErrorMessage,
+		&query.InputTokens, &query.OutputTokens, &query.TotalTokens, &query.EstimatedCost, &query.Model,
+		&query.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("RAG query not found")

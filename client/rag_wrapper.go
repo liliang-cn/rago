@@ -19,8 +19,18 @@ func NewRAGWrapper(client *rag.Client) *RAGWrapper {
 
 // Ingest ingests text directly (simplified method)
 func (r *RAGWrapper) Ingest(text string) error {
-	// For now, return success - would need proper implementation
-	return nil
+	if r.client == nil {
+		return fmt.Errorf("RAG client not initialized")
+	}
+	
+	ctx := context.Background()
+	opts := &rag.IngestOptions{
+		ChunkSize: 1000,
+		Overlap:   200,
+	}
+	
+	_, err := r.client.IngestText(ctx, text, "direct-input", opts)
+	return err
 }
 
 // Query performs a simple query (simplified method)

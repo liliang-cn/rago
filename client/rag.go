@@ -128,9 +128,14 @@ func (c *BaseClient) QueryWithSources(query string, showSources bool) (domain.Qu
 // QueryWithFilters performs a query with metadata filters
 func (c *BaseClient) QueryWithFilters(query string, filters map[string]interface{}) (domain.QueryResponse, error) {
 	ctx := context.Background()
-	// For now, filters need to be handled at the query level
-	// This would require an enhancement to the RAG client
-	resp, err := c.ragClient.Query(ctx, query, nil)
+	opts := &rag.QueryOptions{
+		TopK:        5,
+		Temperature: 0.7,
+		MaxTokens:   2000,
+		ShowSources: true,
+		Filters:     filters,
+	}
+	resp, err := c.ragClient.Query(ctx, query, opts)
 	if err != nil {
 		return domain.QueryResponse{}, err
 	}
