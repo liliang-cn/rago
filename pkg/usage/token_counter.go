@@ -3,19 +3,23 @@ package usage
 import (
 	"strings"
 	"unicode/utf8"
+
+	tiktoken "github.com/pkoukk/tiktoken-go"
 )
 
 // TokenCounter provides methods for counting tokens
 type TokenCounter struct {
 	// Model-specific token counting configurations
-	modelConfig map[string]float64 // tokens per character ratio
+	modelConfig map[string]float64 // tokens per character ratio (fallback)
+	// Tiktoken encoders cache
+	encoders map[string]*tiktoken.Tiktoken
 }
 
 // NewTokenCounter creates a new token counter
 func NewTokenCounter() *TokenCounter {
 	return &TokenCounter{
 		modelConfig: map[string]float64{
-			// Approximate tokens per character for different models
+			// Approximate tokens per character for different models (fallback)
 			"gpt-3.5-turbo":    0.25,
 			"gpt-4":            0.25,
 			"gpt-4-turbo":      0.25,
@@ -30,19 +34,25 @@ func NewTokenCounter() *TokenCounter {
 			"qwen3":            0.28,
 			"default":          0.25, // Default ratio
 		},
+		encoders: make(map[string]*tiktoken.Tiktoken),
 	}
 }
 
-// EstimateTokens estimates the number of tokens in a text
-// This is a simple implementation that can be replaced with more accurate methods
+// EstimateTokens estimates the number of tokens in a text using tiktoken when possible
 func (tc *TokenCounter) EstimateTokens(text string, model string) int {
 	if text == "" {
 		return 0
 	}
 
-	// For more accurate counting, you could integrate tiktoken or similar libraries
-	// For now, we use a simple heuristic based on character and word count
-	
+	// Try to use tiktoken for accurate counting
+	encoder, err := tc.getOrCreateEncoder(model)
+	if err == nil && encoder != nil {
+		// Use tiktoken for accurate token counting
+		tokens := encoder.Encode(text, nil, nil)
+		return len(tokens)
+	}
+
+	// Fallback to character-based estimation
 	// Get model-specific ratio
 	ratio, exists := tc.modelConfig[strings.ToLower(model)]
 	if !exists {
@@ -71,6 +81,51 @@ func (tc *TokenCounter) EstimateTokens(text string, model string) int {
 	}
 	
 	return estimatedTokens
+}
+
+// getOrCreateEncoder gets or creates a tiktoken encoder for the model
+func (tc *TokenCounter) getOrCreateEncoder(model string) (*tiktoken.Tiktoken, error) {
+	// Check if we already have an encoder for this model
+	if encoder, exists := tc.encoders[model]; exists {
+		return encoder, nil
+	}
+
+	// Map model names to tiktoken encoding names
+	var encodingName string
+	modelLower := strings.ToLower(model)
+	
+	// OpenAI models
+	if strings.Contains(modelLower, "gpt-4o") {
+		encodingName = "o200k_base"
+	} else if strings.Contains(modelLower, "gpt-4") {
+		encodingName = "cl100k_base"
+	} else if strings.Contains(modelLower, "gpt-3.5-turbo") {
+		encodingName = "cl100k_base"
+	} else if strings.Contains(modelLower, "text-embedding-3") {
+		encodingName = "cl100k_base"
+	} else if strings.Contains(modelLower, "text-embedding-ada-002") {
+		encodingName = "cl100k_base"
+	} else if strings.Contains(modelLower, "davinci") || strings.Contains(modelLower, "curie") {
+		encodingName = "p50k_base"
+	} else {
+		// Default to cl100k_base for most modern models
+		encodingName = "cl100k_base"
+	}
+
+	// Try to get encoder by encoding name
+	encoder, err := tiktoken.GetEncoding(encodingName)
+	if err != nil {
+		// Try to get encoder for model directly
+		encoder, err = tiktoken.EncodingForModel(model)
+		if err != nil {
+			// Cannot create encoder, will use fallback
+			return nil, err
+		}
+	}
+
+	// Cache the encoder
+	tc.encoders[model] = encoder
+	return encoder, nil
 }
 
 // EstimateMessagesTokens estimates tokens for a list of messages
