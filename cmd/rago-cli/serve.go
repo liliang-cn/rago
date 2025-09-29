@@ -31,9 +31,9 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
 	pkgStore "github.com/liliang-cn/rago/v2/pkg/store"
 	"github.com/liliang-cn/rago/v2/pkg/usage"
+	"github.com/liliang-cn/rago/v2/pkg/tools"
 	"github.com/spf13/cobra"
 	"database/sql"
-	"os/user"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -58,20 +58,68 @@ var serveCmd = &cobra.Command{
 			enableUI = cfg.Server.EnableUI
 		}
 
-		// Initialize stores
-		vectorStore, err := store.NewSQLiteStore(
-			cfg.Sqvect.DBPath,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create vector store: %w", err)
+		// Initialize stores based on configuration
+		var vectorStore domain.VectorStore
+		var docStore *store.DocumentStore
+		var err error
+		
+		if cfg.VectorStore != nil && cfg.VectorStore.Type != "" {
+			// Use configured vector store
+			storeConfig := store.StoreConfig{
+				Type:       cfg.VectorStore.Type,
+				Parameters: cfg.VectorStore.Parameters,
+			}
+			vectorStore, err = store.NewVectorStore(storeConfig)
+			if err != nil {
+				return fmt.Errorf("failed to create vector store: %w", err)
+			}
+			
+			// For Qdrant, need separate document store
+			if cfg.VectorStore.Type == "qdrant" {
+				sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath)
+				if err != nil {
+					return fmt.Errorf("failed to create document store: %w", err)
+				}
+				docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+				defer func() {
+					if err := sqliteStore.Close(); err != nil {
+						fmt.Printf("Warning: failed to close document store: %v\n", err)
+					}
+				}()
+			}
+		} else {
+			// Default to SQLite
+			sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath)
+			if err != nil {
+				return fmt.Errorf("failed to create vector store: %w", err)
+			}
+			vectorStore = sqliteStore
+			docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+			defer func() {
+				if err := sqliteStore.Close(); err != nil {
+					fmt.Printf("Warning: failed to close vector store: %v\n", err)
+				}
+			}()
 		}
+		
+		// Close vector store when done (for non-SQLite stores)
 		defer func() {
-			if err := vectorStore.Close(); err != nil {
-				fmt.Printf("Warning: failed to close vector store: %v\n", err)
+			if closer, ok := vectorStore.(interface{ Close() error }); ok {
+				// Only close if it's not SQLite (already handled above)
+				if _, isSQLite := vectorStore.(*store.SQLiteStore); !isSQLite {
+					if err := closer.Close(); err != nil {
+						fmt.Printf("Warning: failed to close vector store: %v\n", err)
+					}
+				}
 			}
 		}()
-
-		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
+		
+		// Ensure docStore is initialized for SQLite
+		if docStore == nil {
+			if sqliteStore, ok := vectorStore.(*store.SQLiteStore); ok {
+				docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+			}
+		}
 
 		// Initialize services using shared provider system
 		ctx := context.Background()
@@ -95,12 +143,11 @@ var serveCmd = &cobra.Command{
 		// 设置Gin为release模式
 		gin.SetMode(gin.ReleaseMode)
 
-		// Initialize usage service with expanded home directory path
-		usr, err := user.Current()
-		if err != nil {
-			return fmt.Errorf("failed to get current user: %w", err)
+		// Initialize usage service with data directory from config
+		usageDataDir := ".rago/data"
+		if cfg.Agents != nil && cfg.Agents.DataPath != "" {
+			usageDataDir = cfg.Agents.DataPath
 		}
-		usageDataDir := filepath.Join(usr.HomeDir, ".rago")
 		usageService, err := usage.NewServiceWithDataDir(cfg, usageDataDir)
 		if err != nil {
 			return fmt.Errorf("failed to initialize usage service: %w", err)
@@ -111,8 +158,11 @@ var serveCmd = &cobra.Command{
 			}
 		}()
 
+		// Wrap processor with tracking capabilities
+		trackedProcessor := usage.NewTrackedRAGProcessor(processorService, usageService)
+
 		// Initialize conversation store
-		dbPath := filepath.Join(usr.HomeDir, ".rago", "conversations.db")
+		dbPath := filepath.Join(usageDataDir, "conversations.db")
 		db, err := sql.Open("sqlite3", dbPath)
 		if err != nil {
 			return fmt.Errorf("failed to open conversation database: %w", err)
@@ -124,7 +174,7 @@ var serveCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize conversation store: %w", err)
 		}
 
-		router, err := setupRouter(processorService, cfg, embedService, llmService, usageService, conversationStore)
+		router, err := setupRouter(trackedProcessor, processorService, cfg, embedService, llmService, usageService, conversationStore)
 		if err != nil {
 			return fmt.Errorf("failed to setup router: %w", err)
 		}
@@ -160,7 +210,7 @@ var serveCmd = &cobra.Command{
 	},
 }
 
-func setupRouter(processor *processor.Service, cfg *config.Config, embedService domain.Embedder, llmService domain.Generator, usageService *usage.Service, conversationStore *pkgStore.ConversationStore) (*gin.Engine, error) {
+func setupRouter(trackedProcessor domain.RAGProcessor, processorService *processor.Service, cfg *config.Config, embedService domain.Embedder, llmService domain.Generator, usageService *usage.Service, conversationStore *pkgStore.ConversationStore) (*gin.Engine, error) {
 	router := gin.New()
 
 	router.Use(gin.Logger())
@@ -212,40 +262,40 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 		// RAG endpoints
 		ragGroup := api.Group("/rag")
 		{
-			ingestHandler := ragHandlers.NewIngestHandler(processor)
+			ingestHandler := ragHandlers.NewIngestHandler(processorService)
 			ragGroup.POST("/ingest", ingestHandler.Handle)
 
-			queryHandler := ragHandlers.NewQueryHandlerWithUsage(processor, usageService)
+			queryHandler := ragHandlers.NewQueryHandler(trackedProcessor)
 			ragGroup.POST("/query", queryHandler.Handle)
 			ragGroup.POST("/query-stream", queryHandler.HandleStream)
 			ragGroup.POST("/search", queryHandler.SearchOnly)
 
-			documentsHandler := ragHandlers.NewDocumentsHandler(processor)
+			documentsHandler := ragHandlers.NewDocumentsHandler(processorService)
 			ragGroup.GET("/documents", documentsHandler.List)
 			ragGroup.GET("/documents/info", documentsHandler.ListWithInfo)
 			ragGroup.GET("/documents/:id", documentsHandler.GetDocumentInfo)
 			ragGroup.DELETE("/documents/:id", documentsHandler.Delete)
 
 			// Advanced search endpoints
-			searchHandler := ragHandlers.NewSearchHandler(processor)
+			searchHandler := ragHandlers.NewSearchHandler(processorService)
 			ragGroup.POST("/search/semantic", searchHandler.SemanticSearch)
 			ragGroup.POST("/search/hybrid", searchHandler.HybridSearch)
 			ragGroup.POST("/search/filtered", searchHandler.FilteredSearch)
 
-			resetHandler := ragHandlers.NewResetHandler(processor)
+			resetHandler := ragHandlers.NewResetHandler(processorService)
 			ragGroup.POST("/reset", resetHandler.Handle)
 		}
 
 		// Keep legacy endpoints for backward compatibility
-		ingestHandler := ragHandlers.NewIngestHandler(processor)
+		ingestHandler := ragHandlers.NewIngestHandler(processorService)
 		api.POST("/ingest", ingestHandler.Handle)
 
-		queryHandler := ragHandlers.NewQueryHandlerWithUsage(processor, usageService)
+		queryHandler := ragHandlers.NewQueryHandler(trackedProcessor)
 		api.POST("/query", queryHandler.Handle)
 		api.POST("/query-stream", queryHandler.HandleStream)
 		api.POST("/search", queryHandler.SearchOnly)
 
-		documentsHandler := ragHandlers.NewDocumentsHandler(processor)
+		documentsHandler := ragHandlers.NewDocumentsHandler(processorService)
 		api.GET("/documents", documentsHandler.List)
 		api.DELETE("/documents/:id", documentsHandler.Delete)
 
@@ -262,7 +312,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 
 			// Type assert to get the llm.Service
 			if llmServiceTyped, ok := llmSvc.(*llm.Service); ok {
-				chatHandler := chatHandlers.NewChatHandler(processor, llmServiceTyped, usageService)
+				chatHandler := chatHandlers.NewChatHandler(trackedProcessor, llmServiceTyped, usageService)
 				chatGroup.POST("/", chatHandler.Handle)
 				chatGroup.POST("/complete", chatHandler.Complete)
 			}
@@ -303,7 +353,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 		// Tools API endpoints (only if tools are enabled)
 		if cfg.Tools.Enabled {
 			// Initialize tools handler
-			toolsHandler := mcpHandlers.NewToolsHandler(processor.GetToolRegistry(), processor.GetToolExecutor())
+			toolsHandler := mcpHandlers.NewToolsHandler(processorService.GetToolRegistry().(*tools.Registry), processorService.GetToolExecutor().(*tools.Executor))
 
 			tools := api.Group("/tools")
 			{
@@ -318,7 +368,7 @@ func setupRouter(processor *processor.Service, cfg *config.Config, embedService 
 			}
 		}
 
-		api.POST("/reset", ragHandlers.NewResetHandler(processor).Handle)
+		api.POST("/reset", ragHandlers.NewResetHandler(processorService).Handle)
 
 		// MCP API endpoints (only if MCP is enabled)
 		var mcpHandler *mcpHandlers.MCPHandler

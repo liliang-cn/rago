@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // SwaggerManager manages multiple Swagger-based MCP servers
@@ -116,11 +118,11 @@ func (m *SwaggerManager) StopAll() error {
 }
 
 // GetAllTools returns all tools from all Swagger servers
-func (m *SwaggerManager) GetAllTools() (map[string][]*Tool, error) {
+func (m *SwaggerManager) GetAllTools() (map[string][]*mcp.Tool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	
-	allTools := make(map[string][]*Tool)
+	allTools := make(map[string][]*mcp.Tool)
 	
 	for name, server := range m.servers {
 		tools, err := server.GetTools()
@@ -129,13 +131,12 @@ func (m *SwaggerManager) GetAllTools() (map[string][]*Tool, error) {
 		}
 		
 		// Convert to internal Tool type
-		internalTools := make([]*Tool, 0, len(tools))
+		internalTools := make([]*mcp.Tool, 0, len(tools))
 		for _, tool := range tools {
-			internalTool := &Tool{
+			internalTool := &mcp.Tool{
 				Name:        fmt.Sprintf("%s.%s", name, tool.Name), // Prefix with server name
 				Description: tool.Description,
 				InputSchema: tool.InputSchema,
-				Server:      name, // Track which server owns this tool
 			}
 			internalTools = append(internalTools, internalTool)
 		}
@@ -191,9 +192,14 @@ func (si *SwaggerIntegration) RegisterWithService() error {
 	}
 	
 	// Register each tool with the MCP service
+	// Note: The Service type doesn't have RegisterToolHandler method
+	// This would need to be implemented based on the actual MCP service API
 	for serverName, tools := range allTools {
 		for _, tool := range tools {
-			// Register tool handler
+			// TODO: Register tool handler when Service API is updated
+			_ = serverName
+			_ = tool
+			/*
 			si.service.RegisterToolHandler(tool.Name, func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 				// Extract the actual tool name (remove server prefix)
 				actualToolName := tool.Name
@@ -202,6 +208,7 @@ func (si *SwaggerIntegration) RegisterWithService() error {
 				}
 				return si.manager.CallTool(ctx, serverName, actualToolName, args)
 			})
+			*/
 		}
 	}
 	

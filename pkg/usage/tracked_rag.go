@@ -14,6 +14,7 @@ import (
 type TrackedRAGProcessor struct {
 	processor    domain.RAGProcessor
 	usageService *Service
+	tokenCounter *TokenCounter
 }
 
 // NewTrackedRAGProcessor creates a new tracked RAG processor
@@ -21,6 +22,7 @@ func NewTrackedRAGProcessor(proc domain.RAGProcessor, usageService *Service) *Tr
 	return &TrackedRAGProcessor{
 		processor:    proc,
 		usageService: usageService,
+		tokenCounter: NewTokenCounter(),
 	}
 }
 
@@ -99,6 +101,9 @@ func (t *TrackedRAGProcessor) trackQuery(ctx context.Context, req domain.QueryRe
 	ragQuery.Answer = response.Answer
 	ragQuery.ChunksFound = len(response.Sources)
 	
+	// Calculate token usage for tracking
+	t.calculateTokenUsage(ragQuery, req, response)
+	
 	// Save the RAG query record
 	if err := t.usageService.repo.CreateRAGQuery(ctx, ragQuery); err != nil {
 		log.Printf("Failed to save RAG query: %v", err)
@@ -163,6 +168,10 @@ func (t *TrackedRAGProcessor) trackStreamQuery(ctx context.Context, req domain.Q
 		ragQuery.ErrorMessage = queryErr.Error()
 	} else {
 		ragQuery.Success = true
+		// Calculate token usage for successful streaming queries
+		// Note: For streaming, we don't have access to the original sources
+		// So we'll estimate based on the query and response only
+		t.calculateTokenUsageStreaming(ragQuery, req)
 	}
 	
 	// Save the RAG query record asynchronously
@@ -267,4 +276,71 @@ func (t *TrackedRAGProcessor) RegisterMCPTools(mcpService interface{}) error {
 		return method.RegisterMCPTools(mcpService)
 	}
 	return fmt.Errorf("RegisterMCPTools method not available")
+}
+
+// calculateTokenUsage calculates and updates token usage for the RAG query
+func (t *TrackedRAGProcessor) calculateTokenUsage(ragQuery *RAGQueryRecord, req domain.QueryRequest, response domain.QueryResponse) {
+	// Get model name from configuration or use default
+	// TODO: This should come from the actual LLM service configuration
+	model := "qwen3:4b" // Default from rago.toml
+	
+	// Build input context: query + retrieved chunks
+	inputText := req.Query
+	for _, source := range response.Sources {
+		inputText += "\n" + source.Content
+	}
+	
+	// Calculate token counts
+	inputTokens := t.tokenCounter.EstimateTokens(inputText, model)
+	outputTokens := t.tokenCounter.EstimateTokens(response.Answer, model)
+	totalTokens := inputTokens + outputTokens
+	
+	// Calculate estimated cost
+	estimatedCost := CalculateCost(model, inputTokens, outputTokens)
+	
+	// Update the query record
+	ragQuery.InputTokens = inputTokens
+	ragQuery.OutputTokens = outputTokens
+	ragQuery.TotalTokens = totalTokens
+	ragQuery.EstimatedCost = estimatedCost
+	ragQuery.Model = model
+	
+	log.Printf("Token usage calculated - Input: %d, Output: %d, Total: %d, Cost: $%.6f", 
+		inputTokens, outputTokens, totalTokens, estimatedCost)
+}
+
+// calculateTokenUsageStreaming calculates token usage for streaming queries
+func (t *TrackedRAGProcessor) calculateTokenUsageStreaming(ragQuery *RAGQueryRecord, req domain.QueryRequest) {
+	// Get model name from configuration or use default
+	model := "qwen3:4b" // Default from rago.toml
+	
+	// For streaming queries, we only have the query and response
+	// We can't access the retrieved chunks, so we estimate based on typical RAG context
+	inputTokens := t.tokenCounter.EstimateTokens(req.Query, model)
+	outputTokens := t.tokenCounter.EstimateTokens(ragQuery.Answer, model)
+	
+	// Add estimated tokens for retrieved context (approximate)
+	// Assume average chunk size and typical number of chunks
+	estimatedContextTokens := t.tokenCounter.EstimateTokens("", model) // This will be 0, but we can add estimate
+	if ragQuery.ChunksFound > 0 {
+		// Estimate average chunk size (500 characters per chunk)
+		avgChunkSize := 500 * ragQuery.ChunksFound
+		estimatedContextTokens = t.tokenCounter.EstimateTokens(string(make([]byte, avgChunkSize)), model)
+	}
+	
+	inputTokens += estimatedContextTokens
+	totalTokens := inputTokens + outputTokens
+	
+	// Calculate estimated cost
+	estimatedCost := CalculateCost(model, inputTokens, outputTokens)
+	
+	// Update the query record
+	ragQuery.InputTokens = inputTokens
+	ragQuery.OutputTokens = outputTokens
+	ragQuery.TotalTokens = totalTokens
+	ragQuery.EstimatedCost = estimatedCost
+	ragQuery.Model = model
+	
+	log.Printf("Streaming token usage calculated - Input: %d, Output: %d, Total: %d, Cost: $%.6f", 
+		inputTokens, outputTokens, totalTokens, estimatedCost)
 }

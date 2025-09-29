@@ -45,7 +45,6 @@ func (s *ConversationService) SaveConversation(ctx context.Context, req *pb.Save
 			Role:      msg.Role,
 			Content:   msg.Content,
 			Timestamp: msg.Timestamp,
-			Metadata:  msg.Metadata,
 		})
 	}
 
@@ -105,7 +104,7 @@ func (s *ConversationService) GetConversation(ctx context.Context, req *pb.GetCo
 			Role:      msg.Role,
 			Content:   msg.Content,
 			Timestamp: msg.Timestamp,
-			Metadata:  msg.Metadata,
+			Metadata:  map[string]string{}, // No metadata in store format
 		})
 	}
 

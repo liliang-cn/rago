@@ -70,7 +70,7 @@ func NewWithConfig(cfg *config.Config) (*BaseClient, error) {
 	metadataExtractor := llm
 
 	// Create RAG client
-	ragClient, err := rag.NewClient(cfg, embedder, metadataExtractor, metadataExtractor)
+	ragClient, err := rag.NewClient(cfg, embedder, llm, metadataExtractor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create RAG client: %w", err)
 	}

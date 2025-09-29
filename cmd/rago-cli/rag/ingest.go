@@ -48,20 +48,65 @@ You can also use --text flag to ingest text directly.`,
 			Cfg.Ingest.MetadataExtraction.Enable = true
 		}
 
-		// Initialize stores
-		vectorStore, err := store.NewSQLiteStore(
-			Cfg.Sqvect.DBPath,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create vector store: %w", err)
-		}
-		defer func() {
-			if err := vectorStore.Close(); err != nil {
-				log.Printf("failed to close vector store: %v", err)
+		// Initialize stores based on configuration
+		var vectorStore domain.VectorStore
+		var docStore domain.DocumentStore
+		var err error
+		
+		if Cfg.VectorStore != nil && Cfg.VectorStore.Type != "" {
+			// Use configured vector store
+			storeConfig := store.StoreConfig{
+				Type:       Cfg.VectorStore.Type,
+				Parameters: Cfg.VectorStore.Parameters,
 			}
-		}()
-
-		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
+			vectorStore, err = store.NewVectorStore(storeConfig)
+			if err != nil {
+				return fmt.Errorf("failed to create vector store: %w", err)
+			}
+			
+			// For Qdrant, we need a separate document store
+			if Cfg.VectorStore.Type == "qdrant" {
+				sqliteStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath)
+				if err != nil {
+					return fmt.Errorf("failed to create document store: %w", err)
+				}
+				docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+				defer func() {
+					if err := sqliteStore.Close(); err != nil {
+						log.Printf("failed to close document store: %v", err)
+					}
+				}()
+			}
+		} else {
+			// Default to SQLite
+			sqliteStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath)
+			if err != nil {
+				return fmt.Errorf("failed to create vector store: %w", err)
+			}
+			vectorStore = sqliteStore
+			docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+			defer func() {
+				if err := sqliteStore.Close(); err != nil {
+					log.Printf("failed to close vector store: %v", err)
+				}
+			}()
+		}
+		
+		// Close Qdrant connection if applicable
+		if qdrantStore, ok := vectorStore.(*store.QdrantStore); ok {
+			defer func() {
+				if err := qdrantStore.Close(); err != nil {
+					log.Printf("failed to close Qdrant store: %v", err)
+				}
+			}()
+		}
+		
+		// If docStore is still nil (for SQLite vector store), create it
+		if docStore == nil {
+			if sqliteStore, ok := vectorStore.(*store.SQLiteStore); ok {
+				docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+			}
+		}
 
 		// Initialize services using shared provider system
 		ctx := context.Background()

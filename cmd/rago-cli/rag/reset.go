@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
 	"github.com/spf13/cobra"
 )
@@ -34,15 +35,34 @@ var resetCmd = &cobra.Command{
 			}
 		}
 
-		vectorStore, err := store.NewSQLiteStore(
-			Cfg.Sqvect.DBPath,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create vector store: %w", err)
+		// Initialize vector store based on configuration
+		var vectorStore domain.VectorStore
+		var err error
+		
+		if Cfg.VectorStore != nil && Cfg.VectorStore.Type != "" {
+			// Use configured vector store
+			storeConfig := store.StoreConfig{
+				Type:       Cfg.VectorStore.Type,
+				Parameters: Cfg.VectorStore.Parameters,
+			}
+			vectorStore, err = store.NewVectorStore(storeConfig)
+			if err != nil {
+				return fmt.Errorf("failed to create vector store: %w", err)
+			}
+		} else {
+			// Default to SQLite
+			vectorStore, err = store.NewSQLiteStore(Cfg.Sqvect.DBPath)
+			if err != nil {
+				return fmt.Errorf("failed to create vector store: %w", err)
+			}
 		}
+		
+		// Close the store when done
 		defer func() {
-			if err := vectorStore.Close(); err != nil {
-				fmt.Printf("Warning: failed to close vector store: %v\n", err)
+			if closer, ok := vectorStore.(interface{ Close() error }); ok {
+				if err := closer.Close(); err != nil {
+					fmt.Printf("Warning: failed to close vector store: %v\n", err)
+				}
 			}
 		}()
 
