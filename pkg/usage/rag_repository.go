@@ -332,6 +332,8 @@ func (r *SQLiteRepository) ListToolCalls(ctx context.Context, ragQueryID string)
 		if err != nil {
 			return nil, err
 		}
+		// Set UUID to match ID for frontend compatibility
+		call.UUID = call.ID
 		calls = append(calls, &call)
 	}
 
@@ -385,6 +387,8 @@ func (r *SQLiteRepository) ListAllToolCalls(ctx context.Context, filter *RAGSear
 		if err != nil {
 			return nil, err
 		}
+		// Set UUID to match ID for frontend compatibility
+		call.UUID = call.ID
 		calls = append(calls, &call)
 	}
 

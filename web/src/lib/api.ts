@@ -115,6 +115,7 @@ export interface LLMChatRequest {
 
 export interface MCPChatRequest {
   message: string
+  conversation_id?: string
   options?: {
     temperature?: number
     max_tokens?: number
@@ -476,6 +477,14 @@ class APIClient {
         return { error: data.error || `HTTP ${response.status}` }
       }
 
+      // If the response has success/data structure, extract the inner data
+      if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
+        return { 
+          data: data.data,
+          success: data.success 
+        }
+      }
+      
       return { data }
     } catch (error) {
       return { error: error instanceof Error ? error.message : 'Unknown error' }
@@ -696,6 +705,7 @@ class APIClient {
   async mcpChat(request: MCPChatRequest): Promise<APIResponse<{
     content: string
     final_response?: string
+    conversation_id: string
     tool_calls?: Array<{
       tool_name: string
       args: Record<string, any>

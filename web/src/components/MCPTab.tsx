@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Card, Button, Tabs, Input, Space, Typography, Spin, Empty, Tag, Alert } from 'antd'
+import { useState, useEffect, useRef } from 'react'
+import { Card, Button, Tabs, Input, Space, Typography, Spin, Empty, Tag, Alert, Avatar, message } from 'antd'
 import { 
   ToolOutlined, 
   CloudServerOutlined, 
@@ -10,9 +10,14 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   DatabaseOutlined,
-  ThunderboltOutlined
+  ThunderboltOutlined,
+  MessageOutlined,
+  SendOutlined,
+  UserOutlined,
+  RobotOutlined,
+  ClearOutlined
 } from '@ant-design/icons'
-import { apiClient, MCPTool, MCPToolResult } from '@/lib/api'
+import { apiClient, MCPTool, MCPToolResult, conversationApi } from '@/lib/api'
 
 const { TextArea } = Input
 const { Title, Text, Paragraph } = Typography
@@ -21,6 +26,20 @@ const { TabPane } = Tabs
 interface ServerStatus {
   name: string
   status: boolean
+}
+
+interface MCPMessage {
+  role: 'user' | 'assistant'
+  content: string
+  thinking?: string
+  tool_calls?: Array<{
+    tool_name: string
+    args: Record<string, any>
+    result: any
+    success: boolean
+    error?: string
+    duration?: string
+  }>
 }
 
 export function MCPTab() {
@@ -32,10 +51,36 @@ export function MCPTab() {
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingTools, setIsLoadingTools] = useState(true)
   const [error, setError] = useState<string>('')
+  
+  // Chat state
+  const [messages, setMessages] = useState<MCPMessage[]>([])
+  const [chatInput, setChatInput] = useState<string>('')
+  const [isChatLoading, setIsChatLoading] = useState(false)
+  const [conversationId, setConversationId] = useState<string>('')
+  const [showThinking, setShowThinking] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadMCPData()
+    initializeConversation()
   }, [])
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const initializeConversation = async () => {
+    try {
+      const { id } = await conversationApi.createNew()
+      setConversationId(id)
+    } catch (error) {
+      console.error('Failed to create conversation:', error)
+    }
+  }
 
   const loadMCPData = async () => {
     setIsLoadingTools(true)
@@ -48,19 +93,29 @@ export function MCPTab() {
         apiClient.getMCPServers()
       ])
 
+      console.log('Tools response:', toolsResponse)
+      console.log('Servers response:', serversResponse)
+
       if (toolsResponse.data) {
-        setTools(toolsResponse.data.tools)
+        // Handle both formats: array directly or { tools: array }
+        const toolsData = Array.isArray(toolsResponse.data) 
+          ? toolsResponse.data 
+          : toolsResponse.data.tools || []
+        setTools(toolsData)
       }
 
       if (serversResponse.data) {
-        const serverList = Object.entries(serversResponse.data.servers).map(([name, status]) => ({
+        const serversData = serversResponse.data.servers || {}
+        const serverList = Object.entries(serversData).map(([name, status]) => ({
           name,
           status: Boolean(status)
         }))
         setServers(serverList)
       }
     } catch (err) {
-      setError('Failed to load MCP data')
+      console.error('Error loading MCP data:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load MCP data'
+      setError(errorMessage)
     } finally {
       setIsLoadingTools(false)
     }
@@ -111,6 +166,66 @@ export function MCPTab() {
     }
   }
 
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || isChatLoading) return
+
+    const userMessage = chatInput.trim()
+    setChatInput('')
+    setIsChatLoading(true)
+
+    // Add user message to chat
+    const newUserMessage: MCPMessage = {
+      role: 'user',
+      content: userMessage
+    }
+    setMessages(prev => [...prev, newUserMessage])
+
+    try {
+      const response = await apiClient.mcpChat({
+        message: userMessage,
+        conversation_id: conversationId,
+        options: {
+          show_thinking: showThinking,
+          temperature: 0.7,
+          max_tokens: 2000
+        }
+      })
+
+      if (response.data) {
+        const assistantMessage: MCPMessage = {
+          role: 'assistant',
+          content: response.data.final_response || response.data.content,
+          thinking: response.data.thinking,
+          tool_calls: response.data.tool_calls
+        }
+        setMessages(prev => [...prev, assistantMessage])
+
+        // Update conversation ID if it was generated
+        if (response.data.conversation_id && response.data.conversation_id !== conversationId) {
+          setConversationId(response.data.conversation_id)
+        }
+      } else {
+        message.error('Failed to get response from MCP chat')
+      }
+    } catch (error) {
+      console.error('Error sending MCP chat message:', error)
+      message.error('Failed to send message. Please try again.')
+    } finally {
+      setIsChatLoading(false)
+    }
+  }
+
+  const clearChat = async () => {
+    setMessages([])
+    try {
+      const { id } = await conversationApi.createNew()
+      setConversationId(id)
+      message.success('Chat cleared and new conversation started')
+    } catch (error) {
+      message.error('Failed to create new conversation')
+    }
+  }
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Card
@@ -149,7 +264,195 @@ export function MCPTab() {
           />
         )}
 
-        <Tabs defaultActiveKey="tools" style={{ flex: 1 }}>
+        <Tabs defaultActiveKey="chat" style={{ flex: 1 }}>
+
+          <TabPane 
+            tab={
+              <Space>
+                <MessageOutlined />
+                Chat
+              </Space>
+            } 
+            key="chat"
+          >
+            {/* Chat Interface */}
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              height: '600px' 
+            }}>
+              {/* Chat Header */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: 16,
+                padding: '8px 12px',
+                backgroundColor: '#f5f5f5',
+                borderRadius: 4
+              }}>
+                <Space>
+                  <Text strong>MCP Chat</Text>
+                  {conversationId && (
+                    <Tag color="blue">ID: {conversationId.slice(0, 8)}</Tag>
+                  )}
+                </Space>
+                <Space>
+                  <Button 
+                    size="small" 
+                    onClick={() => setShowThinking(!showThinking)}
+                    type={showThinking ? "primary" : "default"}
+                  >
+                    {showThinking ? "Hide" : "Show"} Thinking
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<ClearOutlined />}
+                    onClick={clearChat}
+                    disabled={messages.length === 0}
+                  >
+                    Clear
+                  </Button>
+                </Space>
+              </div>
+
+              {/* Messages Area */}
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: 16,
+                backgroundColor: '#f9f9f9',
+                borderRadius: 8,
+                marginBottom: 16
+              }}>
+                {messages.length === 0 ? (
+                  <Empty
+                    description="Start a conversation with MCP tools"
+                    style={{ marginTop: 50 }}
+                  />
+                ) : (
+                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                    {messages.map((msg, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          display: 'flex',
+                          justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
+                        }}
+                      >
+                        <Space
+                          align="start"
+                          style={{
+                            maxWidth: '80%',
+                            flexDirection: msg.role === 'user' ? 'row-reverse' : 'row'
+                          }}
+                        >
+                          <Avatar
+                            icon={msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
+                            style={{
+                              backgroundColor: msg.role === 'user' ? '#1890ff' : '#52c41a'
+                            }}
+                          />
+                          <Card
+                            size="small"
+                            style={{
+                              backgroundColor: msg.role === 'user' ? '#e6f7ff' : '#ffffff',
+                              border: msg.role === 'user' ? '1px solid #91d5ff' : '1px solid #e8e8e8'
+                            }}
+                          >
+                            <Paragraph
+                              style={{
+                                margin: 0,
+                                whiteSpace: 'pre-wrap',
+                                textAlign: 'left'
+                              }}
+                            >
+                              {msg.content}
+                            </Paragraph>
+
+                            {/* Tool Calls */}
+                            {msg.tool_calls && msg.tool_calls.length > 0 && (
+                              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f0f0f0' }}>
+                                <Text type="secondary" style={{ fontSize: 12, fontWeight: 500 }}>
+                                  Tool Calls:
+                                </Text>
+                                <Space direction="vertical" size="small" style={{ width: '100%', marginTop: 8 }}>
+                                  {msg.tool_calls.map((toolCall, idx) => (
+                                    <Card key={idx} size="small" style={{ backgroundColor: '#f9f9f9' }}>
+                                      <Space>
+                                        <ToolOutlined />
+                                        <Text style={{ fontSize: 12 }}>{toolCall.tool_name}</Text>
+                                        <Tag 
+                                          color={toolCall.success ? "green" : "red"} 
+                                          style={{ fontSize: 10 }}
+                                        >
+                                          {toolCall.success ? "Success" : "Failed"}
+                                        </Tag>
+                                        {toolCall.duration && (
+                                          <Text style={{ fontSize: 10, color: '#666' }}>
+                                            {toolCall.duration}ms
+                                          </Text>
+                                        )}
+                                      </Space>
+                                    </Card>
+                                  ))}
+                                </Space>
+                              </div>
+                            )}
+
+                            {/* Thinking */}
+                            {msg.thinking && showThinking && (
+                              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #f0f0f0' }}>
+                                <Text type="secondary" style={{ fontSize: 11 }}>
+                                  Thinking: {msg.thinking}
+                                </Text>
+                              </div>
+                            )}
+                          </Card>
+                        </Space>
+                      </div>
+                    ))}
+                    {isChatLoading && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                        <Space align="start">
+                          <Avatar icon={<RobotOutlined />} style={{ backgroundColor: '#52c41a' }} />
+                          <Card size="small">
+                            <Spin size="small" />
+                            <Text style={{ marginLeft: 8 }}>Processing with MCP tools...</Text>
+                          </Card>
+                        </Space>
+                      </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                  </Space>
+                )}
+              </div>
+
+              {/* Input Area */}
+              <Space.Compact style={{ width: '100%' }}>
+                <Input
+                  placeholder="Ask me to use MCP tools..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onPressEnter={(e) => {
+                    if (!e.shiftKey) {
+                      e.preventDefault()
+                      sendChatMessage()
+                    }
+                  }}
+                  disabled={isChatLoading}
+                />
+                <Button
+                  type="primary"
+                  icon={<SendOutlined />}
+                  onClick={sendChatMessage}
+                  loading={isChatLoading}
+                >
+                  Send
+                </Button>
+              </Space.Compact>
+            </div>
+          </TabPane>
 
           <TabPane 
             tab={

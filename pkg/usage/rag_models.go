@@ -66,6 +66,7 @@ type RAGChunkHit struct {
 // RAGToolCall represents a tool call made during RAG processing
 type RAGToolCall struct {
 	ID              string `json:"id" db:"id"`
+	UUID            string `json:"uuid"` // Same as ID, for frontend compatibility
 	RAGQueryID      string `json:"rag_query_id" db:"rag_query_id"`
 	ToolName        string `json:"tool_name" db:"tool_name"`
 	Arguments       string `json:"arguments" db:"arguments"`      // JSON string
@@ -192,8 +193,10 @@ func NewRAGToolCall(ragQueryID string, toolCall domain.ExecutedToolCall) *RAGToo
 		}
 	}
 	
+	id := uuid.New().String()
 	return &RAGToolCall{
-		ID:         uuid.New().String(),
+		ID:         id,
+		UUID:       id, // Same as ID, for frontend compatibility
 		RAGQueryID: ragQueryID,
 		ToolName:   toolCall.Function.Name,
 		Arguments:  string(argsJSON),
