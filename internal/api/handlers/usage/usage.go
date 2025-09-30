@@ -342,7 +342,7 @@ func (h *Handler) GetCostByProvider(w http.ResponseWriter, r *http.Request) {
 
 // ListUsageRecords lists usage records
 func (h *Handler) ListUsageRecords(w http.ResponseWriter, r *http.Request) {
-	filter := parseUsageFilter(r)
+	_ = parseUsageFilter(r) // TODO: Use filter when service method is implemented
 	
 	// Note: This requires adding a method to the service
 	// For now, returning empty array
