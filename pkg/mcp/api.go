@@ -93,7 +93,14 @@ func NewMCPLibraryAPI(config *Config) *MCPLibraryAPI {
 
 // Start initializes the MCP service
 func (api *MCPLibraryAPI) Start(ctx context.Context) error {
-	return api.service.Initialize(ctx)
+	// Use StartWithFailures to continue even if some servers fail
+	succeeded, failed, _ := api.service.toolManager.StartWithFailuresDetailed(ctx)
+	if len(succeeded) == 0 && len(failed) > 0 {
+		// Only return error if all servers failed
+		return fmt.Errorf("all MCP servers failed to start")
+	}
+	// Return nil even if some servers failed, as long as at least one succeeded
+	return nil
 }
 
 // StartWithFailures initializes the MCP service, continuing even if some servers fail

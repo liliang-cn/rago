@@ -114,7 +114,7 @@ func (h *AnalyticsHandler) GetToolCalls(c *gin.Context) {
 	for _, call := range calls {
 		response = append(response, gin.H{
 			"id":           call.ID,
-			"uuid":         call.ID,
+			"uuid":         call.UUID, // Use the UUID field now
 			"tool":         call.ToolName,
 			"tool_name":    call.ToolName,
 			"tool_type":    "mcp", // Default to MCP type

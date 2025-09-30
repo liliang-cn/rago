@@ -1,12 +1,40 @@
 {
   "mcpServers": {
     "sqlite": {
-      "command": "mcp-sqlite-server",
-      "args": ["./data"]
+      "type": "stdio",
+      "command": "/usr/local/bin/mcp-sqlite-server",
+      "args": ["./.rago/data"],
+      "env": {
+        "DEBUG": "false"
+      }
     },
+    
     "filesystem": {
-      "command": "mcp-filesystem-server",
-      "args": ["./workspace"]
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/username/Documents"
+      ]
+    },
+    
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "your-github-token"
+      }
+    },
+    
+    "http-api": {
+      "type": "http",
+      "url": "https://api.example.com/mcp/v1",
+      "headers": {
+        "Authorization": "Bearer your-api-token"
+      }
     }
   }
 }

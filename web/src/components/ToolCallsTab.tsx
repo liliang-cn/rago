@@ -189,11 +189,14 @@ export function ToolCallsTab() {
     fetchData()
   }, [timeRange])
 
-  const filteredCalls = Array.isArray(toolCalls) ? toolCalls.filter(call =>
-    call?.tool_name?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
-    call?.uuid?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
-    call?.server_name?.toLowerCase()?.includes(searchTerm.toLowerCase())
-  ) : []
+  const filteredCalls = Array.isArray(toolCalls) ? toolCalls.filter(call => {
+    if (!call) return false
+    return (
+      call?.tool_name?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+      call?.uuid?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+      call?.server_name?.toLowerCase()?.includes(searchTerm.toLowerCase())
+    )
+  }) : []
 
   const formatDuration = (ms: number) => {
     if (ms < 1000) return `${ms}ms`
@@ -395,27 +398,29 @@ export function ToolCallsTab() {
                 <List
                   loading={loading}
                   dataSource={filteredCalls}
-                  renderItem={(call) => (
-                    <List.Item style={{ padding: 0, marginBottom: 8 }}>
-                      <Card
-                        size="small"
-                        hoverable
-                        onClick={() => fetchCallDetails(call.uuid)}
-                        style={{ 
-                          width: '100%',
-                          cursor: 'pointer',
-                          backgroundColor: selectedCall?.record.uuid === call.uuid ? '#e6f7ff' : undefined,
-                          border: selectedCall?.record.uuid === call.uuid ? '1px solid #1890ff' : undefined
-                        }}
+                  renderItem={(call) => {
+                    if (!call) return null
+                    return (
+                      <List.Item style={{ padding: 0, marginBottom: 8 }}>
+                        <Card
+                          size="small"
+                          hoverable
+                          onClick={() => fetchCallDetails(call?.uuid)}
+                          style={{ 
+                            width: '100%',
+                            cursor: 'pointer',
+                            backgroundColor: selectedCall?.record?.uuid === call?.uuid ? '#e6f7ff' : undefined,
+                            border: selectedCall?.record?.uuid === call?.uuid ? '1px solid #1890ff' : undefined
+                          }}
                         bodyStyle={{ padding: 16 }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                           <Space>
-                            <Tag color={getTypeColor(call.tool_type)}>
-                              {call.tool_type}
+                            <Tag color={getTypeColor(call?.tool_type)}>
+                              {call?.tool_type}
                             </Tag>
-                            <Text strong>{call.tool_name}</Text>
-                            {call.success ? (
+                            <Text strong>{call?.tool_name}</Text>
+                            {call?.success ? (
                               <CheckCircleOutlined style={{ color: '#52c41a' }} />
                             ) : (
                               <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
@@ -423,7 +428,7 @@ export function ToolCallsTab() {
                           </Space>
                           <Space>
                             <Text style={{ fontSize: 12, color: '#8c8c8c' }}>
-                              {formatDuration(call.duration_ms || 0)}
+                              {formatDuration(call?.duration_ms || 0)}
                             </Text>
                             <Tooltip title="Copy UUID">
                               <Button
@@ -432,7 +437,7 @@ export function ToolCallsTab() {
                                 icon={<CopyOutlined />}
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  copyUuid(call.uuid)
+                                  copyUuid(call?.uuid)
                                 }}
                               />
                             </Tooltip>
@@ -443,36 +448,37 @@ export function ToolCallsTab() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <Text style={{ fontSize: 11, color: '#8c8c8c' }}>UUID:</Text>
                             <Text code style={{ fontSize: 11 }}>
-                              {call.uuid?.slice(0, 8) || 'Unknown'}...{call.uuid?.slice(-8) || ''}
+                              {call?.uuid?.slice(0, 8) || 'Unknown'}...{call?.uuid?.slice(-8) || ''}
                             </Text>
                           </div>
                           
-                          {call.server_name && (
+                          {call?.server_name && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <CloudServerOutlined style={{ fontSize: 10, color: '#8c8c8c' }} />
-                              <Text style={{ fontSize: 11, color: '#8c8c8c' }}>{call.server_name}</Text>
+                              <Text style={{ fontSize: 11, color: '#8c8c8c' }}>{call?.server_name}</Text>
                             </div>
                           )}
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <ClockCircleOutlined style={{ fontSize: 10, color: '#8c8c8c' }} />
                             <Text style={{ fontSize: 11, color: '#8c8c8c' }}>
-                              {formatTimestamp(call.created_at)}
+                              {formatTimestamp(call?.created_at)}
                             </Text>
                           </div>
 
-                          {!call.success && call.error_message && (
+                          {!call?.success && call?.error_message && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <WarningOutlined style={{ fontSize: 10, color: '#ff4d4f' }} />
                               <Text style={{ fontSize: 11, color: '#ff4d4f' }} ellipsis={{ tooltip: true }}>
-                                {call.error_message}
+                                {call?.error_message}
                               </Text>
                             </div>
                           )}
                         </Space>
                       </Card>
                     </List.Item>
-                  )}
+                    )
+                  }}
                 />
               </div>
             </Card>
@@ -722,26 +728,26 @@ export function ToolCallsTab() {
                   >
                     <Space direction="vertical" style={{ width: '100%' }} size="small">
                       {Array.isArray(selectedCall?.related_calls) ? selectedCall.related_calls.map((call) => (
-                        <Card key={call.uuid} size="small" hoverable>
+                        <Card key={call?.uuid} size="small" hoverable>
                           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                             <Space>
-                              <Tag color={getTypeColor(call.tool_type)}>
-                                {call.tool_type}
+                              <Tag color={getTypeColor(call?.tool_type)}>
+                                {call?.tool_type}
                               </Tag>
-                              <Text strong style={{ fontSize: 12 }}>{call.tool_name}</Text>
-                              {call.success ? (
+                              <Text strong style={{ fontSize: 12 }}>{call?.tool_name}</Text>
+                              {call?.success ? (
                                 <CheckCircleOutlined style={{ fontSize: 12, color: '#52c41a' }} />
                               ) : (
                                 <CloseCircleOutlined style={{ fontSize: 12, color: '#ff4d4f' }} />
                               )}
                             </Space>
                             <Text style={{ fontSize: 11, color: '#8c8c8c' }}>
-                              {formatDuration(call.duration_ms || 0)}
+                              {formatDuration(call?.duration_ms || 0)}
                             </Text>
                           </div>
                           <div style={{ marginTop: 4 }}>
                             <Text style={{ fontSize: 11, color: '#8c8c8c' }}>
-                              {formatTimestamp(call.created_at)}
+                              {formatTimestamp(call?.created_at)}
                             </Text>
                           </div>
                         </Card>
