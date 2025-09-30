@@ -20,6 +20,7 @@ import (
 	mcpHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/mcp"
 	platformHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/platform"
 	ragHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/rag"
+	usageHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/usage"
 	v1Handlers "github.com/liliang-cn/rago/v2/internal/api/handlers/v1"
 	"github.com/liliang-cn/rago/v2/internal/web"
 	"github.com/liliang-cn/rago/v2/pkg/config"
@@ -381,11 +382,14 @@ func setupRouter(trackedProcessor domain.RAGProcessor, processorService *process
 			}
 
 			// Initialize MCP handler
+			log.Printf("Initializing MCP with config: enabled=%v, servers=%v", mcpConfig.Enabled, mcpConfig.Servers)
 			var err error
-			mcpHandler, err = mcpHandlers.NewMCPHandler(mcpConfig)
+			mcpHandler, err = mcpHandlers.NewMCPHandler(mcpConfig, conversationStore)
 			if err != nil {
 				log.Printf("Warning: failed to initialize MCP handler: %v", err)
+				log.Printf("MCP servers will not be available. Error details: %+v", err)
 			} else {
+				log.Printf("MCP handler initialized successfully")
 				// Create MCP service for agents
 				// mcpService used to be passed to agent handlers, no longer needed
 
@@ -429,39 +433,49 @@ func setupRouter(trackedProcessor domain.RAGProcessor, processorService *process
 		// V1 API endpoints for backward compatibility and analytics
 		v1Group := api.Group("/v1")
 		{
-			// Analytics handlers
+			// Initialize Gin usage handler for RAG visualization and usage tracking
+			usageHandler := usageHandlers.NewGinHandler(usageService)
+			
+			
+			// Conversation routes
+			v1Group.GET("/conversations", usageHandler.ListConversations)
+			v1Group.POST("/conversations", usageHandler.CreateConversation)
+			v1Group.GET("/conversations/:id", usageHandler.GetConversation)
+			v1Group.DELETE("/conversations/:id", usageHandler.DeleteConversation)
+			v1Group.GET("/conversations/:id/export", usageHandler.ExportConversation)
+			
+			// Usage statistics routes
+			v1Group.GET("/usage/stats", usageHandler.GetUsageStats)
+			v1Group.GET("/usage/stats/type", usageHandler.GetUsageStatsByType)
+			v1Group.GET("/usage/stats/provider", usageHandler.GetUsageStatsByProvider)
+			v1Group.GET("/usage/stats/daily", usageHandler.GetDailyUsage)
+			v1Group.GET("/usage/stats/models", usageHandler.GetTopModels)
+			
+			// Usage records routes
+			v1Group.GET("/usage/records", usageHandler.ListUsageRecords)
+			v1Group.GET("/usage/records/:id", usageHandler.GetUsageRecord)
+			
+			// RAG visualization routes
+			v1Group.GET("/rag/queries", usageHandler.ListRAGQueries)
+			v1Group.GET("/rag/queries/:id", usageHandler.GetRAGQuery)
+			v1Group.GET("/rag/queries/:id/visualization", usageHandler.GetRAGVisualization)
+			v1Group.GET("/rag/analytics", usageHandler.GetRAGAnalytics)
+			v1Group.GET("/rag/performance", usageHandler.GetRAGPerformanceReport)
+			
+			// Analytics handlers (keep existing ones for backward compatibility)
 			analyticsHandler := v1Handlers.NewAnalyticsHandler(usageService)
 			
 			// Tool calls analytics
 			v1Group.GET("/tool-calls/stats", analyticsHandler.GetToolCallStats)
 			v1Group.GET("/tool-calls", analyticsHandler.GetToolCalls)
 			v1Group.GET("/tool-calls/analytics", analyticsHandler.GetToolCallAnalytics)
-			
-			// RAG analytics
-			v1Group.GET("/rag/performance", analyticsHandler.GetRAGPerformance)
-			v1Group.GET("/rag/queries", analyticsHandler.GetRAGQueries)
-			v1Group.GET("/rag/analytics", analyticsHandler.GetRAGAnalytics)
-			
-			// Usage handlers with middleware to inject usage service
-			usageHandler := v1Handlers.NewUsageHandler(usageService)
+			v1Group.GET("/tool-calls/:id/visualization", usageHandler.GetToolCallVisualization)
 			
 			// Middleware to inject usage service into context
 			v1Group.Use(func(c *gin.Context) {
 				c.Set("usageService", usageService)
 				c.Next()
 			})
-			
-			// Conversations
-			v1Group.GET("/conversations", usageHandler.GetConversations)
-			v1Group.GET("/conversations/:id", usageHandler.GetConversation)
-			
-			// Usage statistics
-			v1Group.GET("/usage/stats", usageHandler.GetUsageStats)
-			v1Group.GET("/usage/stats/type", usageHandler.GetUsageStatsByType)
-			v1Group.GET("/usage/stats/provider", usageHandler.GetUsageStatsByProvider)
-			v1Group.GET("/usage/stats/models", usageHandler.GetUsageStatsByModel)
-			v1Group.GET("/usage/stats/daily", usageHandler.GetDailyUsageStats)
-			v1Group.GET("/usage/stats/cost", usageHandler.GetUsageCost)
 		}
 	}
 

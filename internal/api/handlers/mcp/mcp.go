@@ -8,16 +8,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/liliang-cn/rago/v2/internal/api/handlers"
 	mcppkg "github.com/liliang-cn/rago/v2/pkg/mcp"
+	"github.com/liliang-cn/rago/v2/pkg/store"
 )
 
 // MCPHandler handles MCP-related HTTP requests
 type MCPHandler struct {
 	mcpService *mcppkg.MCPService
 	mcpAPI     *mcppkg.MCPLibraryAPI
+	convStore  *store.ConversationStore
 }
 
 // NewMCPHandler creates a new MCP handler
-func NewMCPHandler(config *mcppkg.Config) (*MCPHandler, error) {
+func NewMCPHandler(config *mcppkg.Config, convStore *store.ConversationStore) (*MCPHandler, error) {
 	mcpAPI := mcppkg.NewMCPLibraryAPI(config)
 	mcpService := mcppkg.NewMCPService(config)
 
@@ -32,6 +34,7 @@ func NewMCPHandler(config *mcppkg.Config) (*MCPHandler, error) {
 	return &MCPHandler{
 		mcpService: mcpService,
 		mcpAPI:     mcpAPI,
+		convStore:  convStore,
 	}, nil
 }
 

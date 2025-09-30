@@ -11,14 +11,25 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// ServerType represents the type of MCP server connection
+type ServerType string
+
+const (
+	ServerTypeStdio ServerType = "stdio"
+	ServerTypeHTTP  ServerType = "http"
+)
+
 // ServerConfig represents the configuration for an MCP server
 type ServerConfig struct {
 	Name             string            `toml:"name" json:"name" mapstructure:"name"`
 	Description      string            `toml:"description" json:"description" mapstructure:"description"`
-	Command          []string          `toml:"command" json:"command" mapstructure:"command"`
-	Args             []string          `toml:"args" json:"args" mapstructure:"args"`
-	WorkingDir       string            `toml:"working_dir" json:"working_dir" mapstructure:"working_dir"`
-	Env              map[string]string `toml:"env" json:"env" mapstructure:"env"`
+	Type             ServerType        `toml:"type" json:"type" mapstructure:"type"`                       // "stdio" or "http"
+	Command          []string          `toml:"command" json:"command" mapstructure:"command"`               // For stdio type
+	Args             []string          `toml:"args" json:"args" mapstructure:"args"`                       // For stdio type
+	URL              string            `toml:"url" json:"url" mapstructure:"url"`                           // For http type
+	Headers          map[string]string `toml:"headers" json:"headers" mapstructure:"headers"`               // For http type
+	WorkingDir       string            `toml:"working_dir" json:"working_dir" mapstructure:"working_dir"`   // For stdio type
+	Env              map[string]string `toml:"env" json:"env" mapstructure:"env"`                           // For stdio type
 	AutoStart        bool              `toml:"auto_start" json:"auto_start" mapstructure:"auto_start"`
 	RestartOnFailure bool              `toml:"restart_on_failure" json:"restart_on_failure" mapstructure:"restart_on_failure"`
 	MaxRestarts      int               `toml:"max_restarts" json:"max_restarts" mapstructure:"max_restarts"`
@@ -55,10 +66,13 @@ func DefaultConfig() Config {
 
 // SimpleServerConfig represents a simplified server configuration for JSON files
 type SimpleServerConfig struct {
-	Command    string            `json:"command"`
-	Args       []string          `json:"args,omitempty"`
-	WorkingDir string            `json:"working_dir,omitempty"`
-	Env        map[string]string `json:"env,omitempty"`
+	Type       string            `json:"type,omitempty"`        // "stdio" or "http", defaults to "stdio"
+	Command    string            `json:"command,omitempty"`     // For stdio type
+	Args       []string          `json:"args,omitempty"`        // For stdio type
+	URL        string            `json:"url,omitempty"`         // For http type
+	Headers    map[string]string `json:"headers,omitempty"`     // For http type
+	WorkingDir string            `json:"working_dir,omitempty"` // For stdio type
+	Env        map[string]string `json:"env,omitempty"`         // For stdio type
 }
 
 // JSONServersConfig represents the root structure of the JSON MCP servers config file
@@ -134,11 +148,23 @@ func (c *Config) loadServerFile(serverFile string) error {
 
 	// Convert to ServerConfig and append to existing servers
 	for name, simpleConfig := range jsonConfig.MCPServers {
+		// Determine server type
+		serverType := ServerTypeStdio
+		if simpleConfig.Type != "" {
+			serverType = ServerType(simpleConfig.Type)
+		} else if simpleConfig.URL != "" {
+			// Auto-detect HTTP type if URL is provided
+			serverType = ServerTypeHTTP
+		}
+
 		serverConfig := ServerConfig{
 			Name:             name,
 			Description:      fmt.Sprintf("MCP server: %s", name),
-			Command:          []string{simpleConfig.Command},
+			Type:             serverType,
+			Command:          []string{},
 			Args:             simpleConfig.Args,
+			URL:              simpleConfig.URL,
+			Headers:          simpleConfig.Headers,
 			WorkingDir:       simpleConfig.WorkingDir,
 			Env:              simpleConfig.Env,
 			AutoStart:        true, // Default to auto-start for JSON-configured servers
@@ -146,6 +172,11 @@ func (c *Config) loadServerFile(serverFile string) error {
 			MaxRestarts:      3,
 			RestartDelay:     5 * time.Second,
 			Capabilities:     []string{}, // Will be discovered at runtime
+		}
+
+		// Set command based on type
+		if serverType == ServerTypeStdio && simpleConfig.Command != "" {
+			serverConfig.Command = []string{simpleConfig.Command}
 		}
 
 		// Add to loaded servers list

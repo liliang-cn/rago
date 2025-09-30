@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -35,24 +36,34 @@ func (c *Client) Connect(ctx context.Context) error {
 		return nil
 	}
 
-	// Create command for the MCP server
-	cmd := exec.CommandContext(ctx, c.config.Command[0], c.config.Args...)
+	// Create transport based on server type
+	var transport mcp.Transport
+	var err error
 
-	// Set working directory if specified
-	if c.config.WorkingDir != "" {
-		cmd.Dir = c.config.WorkingDir
-	}
-
-	// Set environment variables - inherit parent environment and add custom ones
-	cmd.Env = os.Environ()
-	if len(c.config.Env) > 0 {
-		for key, value := range c.config.Env {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+	switch c.config.Type {
+	case ServerTypeHTTP:
+		// Create HTTP transport for HTTP-based MCP servers
+		if c.config.URL == "" {
+			return fmt.Errorf("URL is required for HTTP MCP server %s", c.config.Name)
 		}
-	}
+		transport, err = c.createHTTPTransport()
+		if err != nil {
+			return fmt.Errorf("failed to create HTTP transport for %s: %w", c.config.Name, err)
+		}
 
-	// Create command transport
-	transport := &mcp.CommandTransport{Command: cmd}
+	case ServerTypeStdio, "":
+		// Default to stdio for backward compatibility
+		if len(c.config.Command) == 0 {
+			return fmt.Errorf("command is required for stdio MCP server %s", c.config.Name)
+		}
+		transport, err = c.createStdioTransport(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create stdio transport for %s: %w", c.config.Name, err)
+		}
+
+	default:
+		return fmt.Errorf("unsupported server type: %s", c.config.Type)
+	}
 
 	// Create MCP client with implementation info
 	clientImpl := &mcp.Implementation{
@@ -77,6 +88,72 @@ func (c *Client) Connect(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// createStdioTransport creates a command transport for stdio-based servers
+func (c *Client) createStdioTransport(ctx context.Context) (mcp.Transport, error) {
+	// Create command for the MCP server
+	cmd := exec.CommandContext(ctx, c.config.Command[0], c.config.Args...)
+
+	// Set working directory if specified
+	if c.config.WorkingDir != "" {
+		cmd.Dir = c.config.WorkingDir
+	}
+
+	// Set environment variables - inherit parent environment and add custom ones
+	cmd.Env = os.Environ()
+	if len(c.config.Env) > 0 {
+		for key, value := range c.config.Env {
+			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+		}
+	}
+
+	// Create command transport
+	return &mcp.CommandTransport{Command: cmd}, nil
+}
+
+// createHTTPTransport creates an HTTP transport for HTTP-based servers
+func (c *Client) createHTTPTransport() (mcp.Transport, error) {
+	// MCP SDK provides StreamableClientTransport for HTTP connections
+	// This uses Server-Sent Events (SSE) for bidirectional communication
+	
+	// Create HTTP client with custom headers if needed
+	httpClient := &http.Client{}
+	
+	// If headers are specified, we'll need to wrap the HTTP client
+	// to add them to each request (this would need custom RoundTripper)
+	if len(c.config.Headers) > 0 {
+		httpClient.Transport = &headerTransport{
+			headers: c.config.Headers,
+			base:    http.DefaultTransport,
+		}
+	}
+	
+	transport := &mcp.StreamableClientTransport{
+		Endpoint:   c.config.URL,
+		HTTPClient: httpClient,
+		MaxRetries: 5,
+	}
+
+	return transport, nil
+}
+
+// headerTransport adds custom headers to all HTTP requests
+type headerTransport struct {
+	headers map[string]string
+	base    http.RoundTripper
+}
+
+func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone the request to avoid modifying the original
+	req = req.Clone(req.Context())
+	
+	// Add custom headers
+	for k, v := range t.headers {
+		req.Header.Set(k, v)
+	}
+	
+	return t.base.RoundTrip(req)
 }
 
 // loadTools fetches and caches the available tools from the server
