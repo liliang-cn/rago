@@ -22,16 +22,8 @@ func NewFactory() *Factory {
 func (f *Factory) CreateLLMProvider(ctx context.Context, config interface{}) (domain.LLMProvider, error) {
 	// Try to handle as a typed configuration first
 	switch cfg := config.(type) {
-	case *domain.OllamaProviderConfig:
-		return NewOllamaLLMProvider(cfg)
 	case *domain.OpenAIProviderConfig:
 		return NewOpenAILLMProvider(cfg)
-	case *domain.LMStudioProviderConfig:
-		return NewLMStudioLLMProvider(cfg)
-	case *domain.ClaudeProviderConfig:
-		return NewClaudeProvider(cfg)
-	case *domain.GeminiProviderConfig:
-		return NewGeminiProvider(cfg)
 	case map[string]interface{}:
 		// Handle dynamic configuration with type field
 		return f.CreateLLMProviderFromMap(ctx, cfg)
@@ -46,15 +38,8 @@ func (f *Factory) CreateLLMProviderFromMap(ctx context.Context, configMap map[st
 	if err != nil {
 		return nil, err
 	}
-	
+
 	switch providerType {
-	case domain.ProviderOllama:
-		cfg := &domain.OllamaProviderConfig{}
-		if err := mapToStruct(configMap, cfg); err != nil {
-			return nil, fmt.Errorf("failed to parse ollama config: %w", err)
-		}
-		cfg.Type = domain.ProviderOllama
-		return NewOllamaLLMProvider(cfg)
 	case domain.ProviderOpenAI:
 		cfg := &domain.OpenAIProviderConfig{}
 		if err := mapToStruct(configMap, cfg); err != nil {
@@ -62,27 +47,6 @@ func (f *Factory) CreateLLMProviderFromMap(ctx context.Context, configMap map[st
 		}
 		cfg.Type = domain.ProviderOpenAI
 		return NewOpenAILLMProvider(cfg)
-	case domain.ProviderLMStudio:
-		cfg := &domain.LMStudioProviderConfig{}
-		if err := mapToStruct(configMap, cfg); err != nil {
-			return nil, fmt.Errorf("failed to parse lmstudio config: %w", err)
-		}
-		cfg.Type = domain.ProviderLMStudio
-		return NewLMStudioLLMProvider(cfg)
-	case domain.ProviderClaude:
-		cfg := &domain.ClaudeProviderConfig{}
-		if err := mapToStruct(configMap, cfg); err != nil {
-			return nil, fmt.Errorf("failed to parse claude config: %w", err)
-		}
-		cfg.Type = domain.ProviderClaude
-		return NewClaudeProvider(cfg)
-	case domain.ProviderGemini:
-		cfg := &domain.GeminiProviderConfig{}
-		if err := mapToStruct(configMap, cfg); err != nil {
-			return nil, fmt.Errorf("failed to parse gemini config: %w", err)
-		}
-		cfg.Type = domain.ProviderGemini
-		return NewGeminiProvider(cfg)
 	default:
 		return nil, fmt.Errorf("unsupported provider type: %s", providerType)
 	}
@@ -92,12 +56,8 @@ func (f *Factory) CreateLLMProviderFromMap(ctx context.Context, configMap map[st
 func (f *Factory) CreateEmbedderProvider(ctx context.Context, config interface{}) (domain.EmbedderProvider, error) {
 	// Try to handle as a typed configuration first
 	switch cfg := config.(type) {
-	case *domain.OllamaProviderConfig:
-		return NewOllamaEmbedderProvider(cfg)
 	case *domain.OpenAIProviderConfig:
 		return NewOpenAIEmbedderProvider(cfg)
-	case *domain.LMStudioProviderConfig:
-		return NewLMStudioEmbedderProvider(cfg)
 	case map[string]interface{}:
 		// Handle dynamic configuration with type field
 		return f.CreateEmbedderProviderFromMap(ctx, cfg)
@@ -112,15 +72,8 @@ func (f *Factory) CreateEmbedderProviderFromMap(ctx context.Context, configMap m
 	if err != nil {
 		return nil, err
 	}
-	
+
 	switch providerType {
-	case domain.ProviderOllama:
-		cfg := &domain.OllamaProviderConfig{}
-		if err := mapToStruct(configMap, cfg); err != nil {
-			return nil, fmt.Errorf("failed to parse ollama config: %w", err)
-		}
-		cfg.Type = domain.ProviderOllama
-		return NewOllamaEmbedderProvider(cfg)
 	case domain.ProviderOpenAI:
 		cfg := &domain.OpenAIProviderConfig{}
 		if err := mapToStruct(configMap, cfg); err != nil {
@@ -128,13 +81,6 @@ func (f *Factory) CreateEmbedderProviderFromMap(ctx context.Context, configMap m
 		}
 		cfg.Type = domain.ProviderOpenAI
 		return NewOpenAIEmbedderProvider(cfg)
-	case domain.ProviderLMStudio:
-		cfg := &domain.LMStudioProviderConfig{}
-		if err := mapToStruct(configMap, cfg); err != nil {
-			return nil, fmt.Errorf("failed to parse lmstudio config: %w", err)
-		}
-		cfg.Type = domain.ProviderLMStudio
-		return NewLMStudioEmbedderProvider(cfg)
 	default:
 		return nil, fmt.Errorf("unsupported provider type: %s", providerType)
 	}
@@ -142,14 +88,8 @@ func (f *Factory) CreateEmbedderProviderFromMap(ctx context.Context, configMap m
 
 // DetermineProviderType determines the provider type from configuration
 func DetermineProviderType(config *domain.ProviderConfig) (domain.ProviderType, error) {
-	if config.Ollama != nil {
-		return domain.ProviderOllama, nil
-	}
 	if config.OpenAI != nil {
 		return domain.ProviderOpenAI, nil
-	}
-	if config.LMStudio != nil {
-		return domain.ProviderLMStudio, nil
 	}
 	return "", fmt.Errorf("no valid provider configuration found")
 }
@@ -162,12 +102,8 @@ func GetProviderConfig(config *domain.ProviderConfig) (interface{}, error) {
 	}
 
 	switch providerType {
-	case domain.ProviderOllama:
-		return config.Ollama, nil
 	case domain.ProviderOpenAI:
 		return config.OpenAI, nil
-	case domain.ProviderLMStudio:
-		return config.LMStudio, nil
 	default:
 		return nil, fmt.Errorf("unsupported provider type: %s", providerType)
 	}
@@ -176,21 +112,11 @@ func GetProviderConfig(config *domain.ProviderConfig) (interface{}, error) {
 // GetLLMProviderConfig returns the LLM provider configuration based on default settings
 func GetLLMProviderConfig(config *domain.ProviderConfig, defaultProvider string) (interface{}, error) {
 	switch defaultProvider {
-	case "ollama":
-		if config.Ollama == nil {
-			return nil, fmt.Errorf("ollama provider configuration not found")
-		}
-		return config.Ollama, nil
 	case "openai":
 		if config.OpenAI == nil {
 			return nil, fmt.Errorf("openai provider configuration not found")
 		}
 		return config.OpenAI, nil
-	case "lmstudio":
-		if config.LMStudio == nil {
-			return nil, fmt.Errorf("lmstudio provider configuration not found")
-		}
-		return config.LMStudio, nil
 	default:
 		return nil, fmt.Errorf("unsupported default LLM provider: %s", defaultProvider)
 	}
@@ -213,22 +139,17 @@ func (f *Factory) CreateLLMPool(ctx context.Context, providerConfigs map[string]
 
 // GetEmbedderProviderConfig returns the embedder provider configuration based on default settings
 func GetEmbedderProviderConfig(config *domain.ProviderConfig, defaultProvider string) (interface{}, error) {
+	// If no specific default embedder is set, use the LLM provider
+	if defaultProvider == "" {
+		return GetLLMProviderConfig(config, defaultProvider)
+	}
+
 	switch defaultProvider {
-	case "ollama":
-		if config.Ollama == nil {
-			return nil, fmt.Errorf("ollama provider configuration not found")
-		}
-		return config.Ollama, nil
 	case "openai":
 		if config.OpenAI == nil {
 			return nil, fmt.Errorf("openai provider configuration not found")
 		}
 		return config.OpenAI, nil
-	case "lmstudio":
-		if config.LMStudio == nil {
-			return nil, fmt.Errorf("lmstudio provider configuration not found")
-		}
-		return config.LMStudio, nil
 	default:
 		return nil, fmt.Errorf("unsupported default embedder provider: %s", defaultProvider)
 	}
@@ -266,16 +187,8 @@ func DetectProviderType(config interface{}) (domain.ProviderType, error) {
 	}
 	
 	switch typeString {
-	case "ollama":
-		return domain.ProviderOllama, nil
 	case "openai":
 		return domain.ProviderOpenAI, nil
-	case "lmstudio":
-		return domain.ProviderLMStudio, nil
-	case "claude":
-		return domain.ProviderClaude, nil
-	case "gemini":
-		return domain.ProviderGemini, nil
 	default:
 		return "", fmt.Errorf("unsupported provider type: %s", typeString)
 	}

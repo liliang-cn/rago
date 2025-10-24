@@ -9,11 +9,7 @@ import (
 type ProviderType string
 
 const (
-	ProviderOllama   ProviderType = "ollama"
-	ProviderOpenAI   ProviderType = "openai"
-	ProviderLMStudio ProviderType = "lmstudio"
-	ProviderClaude   ProviderType = "claude"
-	ProviderGemini   ProviderType = "gemini"
+	ProviderOpenAI ProviderType = "openai"
 )
 
 // BaseProviderConfig contains common configuration for all providers
@@ -22,16 +18,8 @@ type BaseProviderConfig struct {
 	Timeout time.Duration `mapstructure:"timeout"`
 }
 
-// OllamaProviderConfig contains Ollama-specific configuration
-type OllamaProviderConfig struct {
-	BaseProviderConfig `mapstructure:",squash"`
-	BaseURL            string `mapstructure:"base_url"`
-	EmbeddingModel     string `mapstructure:"embedding_model"`
-	LLMModel           string `mapstructure:"llm_model"`
-	HideBuiltinThinkTag bool   `mapstructure:"hide_builtin_think_tag"`
-}
-
 // OpenAIProviderConfig contains OpenAI-compatible provider configuration
+// This is used for OpenAI API compatible LLMs including Ollama, LMStudio, etc.
 type OpenAIProviderConfig struct {
 	BaseProviderConfig `mapstructure:",squash"`
 	BaseURL            string `mapstructure:"base_url"`
@@ -42,43 +30,9 @@ type OpenAIProviderConfig struct {
 	Project            string `mapstructure:"project,omitempty"`
 }
 
-// LMStudioProviderConfig contains LM Studio-specific configuration
-type LMStudioProviderConfig struct {
-	BaseProviderConfig `mapstructure:",squash"`
-	BaseURL            string `mapstructure:"base_url"`
-	LLMModel           string `mapstructure:"llm_model"`
-	EmbeddingModel     string `mapstructure:"embedding_model"`
-	APIKey             string `mapstructure:"api_key,omitempty"` // Optional API key
-}
-
-// ClaudeProviderConfig contains Claude (Anthropic) provider configuration
-type ClaudeProviderConfig struct {
-	BaseProviderConfig `mapstructure:",squash"`
-	APIKey             string `mapstructure:"api_key"`
-	BaseURL            string `mapstructure:"base_url,omitempty"` // Optional custom endpoint
-	LLMModel           string `mapstructure:"llm_model"`
-	MaxTokens          int    `mapstructure:"max_tokens,omitempty"`
-	AnthropicVersion   string `mapstructure:"anthropic_version,omitempty"` // API version
-}
-
-// GeminiProviderConfig contains Google Gemini provider configuration
-type GeminiProviderConfig struct {
-	BaseProviderConfig `mapstructure:",squash"`
-	APIKey             string `mapstructure:"api_key"`
-	BaseURL            string `mapstructure:"base_url,omitempty"` // Optional custom endpoint
-	LLMModel           string `mapstructure:"llm_model"`
-	EmbeddingModel     string `mapstructure:"embedding_model,omitempty"`
-	ProjectID          string `mapstructure:"project_id,omitempty"` // For Google Cloud
-	Location           string `mapstructure:"location,omitempty"`   // For Google Cloud
-}
-
 // ProviderConfig is a union type for provider configurations
 type ProviderConfig struct {
-	Ollama   *OllamaProviderConfig   `mapstructure:"ollama,omitempty"`
-	OpenAI   *OpenAIProviderConfig   `mapstructure:"openai,omitempty"`
-	LMStudio *LMStudioProviderConfig `mapstructure:"lmstudio,omitempty"`
-	Claude   *ClaudeProviderConfig   `mapstructure:"claude,omitempty"`
-	Gemini   *GeminiProviderConfig   `mapstructure:"gemini,omitempty"`
+	OpenAI *OpenAIProviderConfig `mapstructure:"openai,omitempty"`
 }
 
 // LLMProvider wraps the Generator interface with provider-specific information

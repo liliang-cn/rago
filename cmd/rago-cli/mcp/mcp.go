@@ -10,6 +10,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/spf13/cobra"
 )
 
@@ -116,8 +117,7 @@ func runMCPChat(cmd *cobra.Command, args []string) error {
 
 	// Check if interactive mode (no arguments provided)
 	if len(args) == 0 {
-		ctx := context.Background()
-		return runInteractiveMCPChat(ctx, temperature, maxTokens)
+		return fmt.Errorf("interactive mode not available - please provide a message")
 	}
 
 	message := strings.Join(args, " ")
@@ -132,10 +132,10 @@ func runMCPChat(cmd *cobra.Command, args []string) error {
 
 	ctx := context.Background()
 
-	// Initialize providers
-	_, llmService, _, err := InitializeProviders(ctx, Cfg)
+	// Get global LLM service
+	llmService, err := services.GetGlobalLLM()
 	if err != nil {
-		return fmt.Errorf("failed to initialize LLM service: %w", err)
+		return fmt.Errorf("failed to get global LLM service: %w", err)
 	}
 
 	// Create MCP tool manager

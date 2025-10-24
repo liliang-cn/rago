@@ -1,13 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/liliang-cn/rago/v2/cmd/rago-cli/agent"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/mcp"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/profile"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/rag"
 	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/spf13/cobra"
 )
 
@@ -27,16 +28,10 @@ var RootCmd = &cobra.Command{
 It provides unified access to:
   • LLM - Language model operations (generation, chat, streaming)
   • RAG - Retrieval-augmented generation (ingestion, search, Q&A)
-  • Tools - External tool integration via MCP protocol
-  • Agent - Autonomous task execution with natural language
-
-Get started:
-  rago init              # Initialize configuration
-  rago platform demo     # Run platform demonstration
-  rago platform --help   # Show platform commands`,
+  • Tools - External tool integration via MCP protocol`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip config loading for commands that don't need existing config
-		if cmd.Name() == "init" || cmd.Name() == "version" {
+		if cmd.Name() == "version" {
 			return nil
 		}
 
@@ -50,10 +45,16 @@ Get started:
 			cfg.Sqvect.DBPath = dbPath
 		}
 
+		// Initialize global LLM service
+		globalLLMService := services.GetGlobalLLMService()
+		ctx := context.Background()
+		if err := globalLLMService.Initialize(ctx, cfg); err != nil {
+			return fmt.Errorf("failed to initialize global LLM service: %w", err)
+		}
+
 		// Pass shared variables to all packages
 		rag.SetSharedVariables(cfg, verbose, quiet, version)
 		mcp.SetSharedVariables(cfg, verbose, quiet)
-		agent.SetSharedVariables(cfg, verbose, quiet)
 		profile.SetSharedVariables(cfg, verbose, quiet)
 
 		return nil
@@ -90,7 +91,6 @@ func init() {
 	RootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "quiet mode")
 
 	RootCmd.AddCommand(versionCmd)
-	RootCmd.AddCommand(initCmd)
 
 	// Add RAG parent command from rag package
 	RootCmd.AddCommand(rag.RagCmd)
@@ -98,18 +98,10 @@ func init() {
 	// Add MCP parent command from mcp package
 	RootCmd.AddCommand(mcp.MCPCmd)
 
-	// Add Agent parent command from agent package
-	agent.Initialize(nil)
-	if agent.AgentCmd != nil {
-		RootCmd.AddCommand(agent.AgentCmd)
-	}
-
 	// Add Profile command
 	RootCmd.AddCommand(profile.ProfileCmd)
 
 	RootCmd.AddCommand(serveCmd)
-	RootCmd.AddCommand(grpcCmd)
 	RootCmd.AddCommand(llmCmd)
-	RootCmd.AddCommand(chatCmd)
 	RootCmd.AddCommand(statusCmd)
 }

@@ -81,12 +81,6 @@ export interface MCPToolCall {
   args: Record<string, any>
 }
 
-export interface TaskItem {
-  content: string
-  status: 'pending' | 'in_progress' | 'completed'
-  activeForm: string
-}
-
 export interface SearchRequest {
   query: string
   top_k?: number

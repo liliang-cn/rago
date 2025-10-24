@@ -93,6 +93,11 @@ func NewMCPLibraryAPI(config *Config) *MCPLibraryAPI {
 
 // Start initializes the MCP service
 func (api *MCPLibraryAPI) Start(ctx context.Context) error {
+	// Check if MCP service is enabled
+	if !api.service.IsEnabled() {
+		return fmt.Errorf("MCP service is disabled")
+	}
+
 	// Use StartWithFailures to continue even if some servers fail
 	succeeded, failed, _ := api.service.toolManager.StartWithFailuresDetailed(ctx)
 	if len(succeeded) == 0 && len(failed) > 0 {

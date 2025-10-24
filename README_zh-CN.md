@@ -1,4 +1,4 @@
-# RAGO - 本地 RAG 系统与智能代理自动化
+# RAGO - 本地 RAG 系统
 
 [English Documentation](README.md)
 
@@ -30,11 +30,6 @@ RAGO (Retrieval-Augmented Generation Offline) 是一个完全本地的 RAG 系�
 - **查询增强** - 在 RAG 查询期间使用工具获得更丰富的答案
 - **批量操作** - 并行执行多个工具调用
 
-### 🤖 **智能代理自动化**
-- **自然语言工作流** - 从纯文本描述生成工作流
-- **MCP 工具编排** - 在自动化工作流中协调多个工具
-- **异步执行** - 支持依赖解析的并行步骤执行
-- **意图识别** - 自动检测用户意图以提供更智能的响应
 
 ### 💻 **开发者体验**
 - **简化的客户端 API** - 所有操作的清晰、直观的客户端包
@@ -78,7 +73,9 @@ cd rago
 go build -o rago ./cmd/rago-cli
 
 # 可选：创建配置（仅在需要自定义设置时）
-./rago init  # 交互式 - 选择"跳过"以零配置
+# 复制示例配置文件并根据需要修改：
+cp rago.example.toml rago.toml
+# 编辑 rago.toml 设置您的首选配置
 ```
 
 ### 🎯 零配置使用
@@ -111,16 +108,7 @@ ollama pull nomic-embed-text   # 默认嵌入器
 ./rago query "分析这些数据并保存结果" --mcp
 ```
 
-### 🤖 代理示例
 
-```bash
-# 自然语言工作流
-./rago agent run "获取当前时间并告诉我是早上还是晚上"
-./rago agent run "获取旧金山的天气并分析条件"
-
-# 保存工作流以便重用
-./rago agent run "监控 github.com/golang/go 的新版本发布" --save
-```
 
 ## 📖 库使用
 
@@ -169,11 +157,6 @@ if client.Tools != nil {
         map[string]interface{}{"path": "README.md"})
 }
 
-// 使用包装器的智能代理自动化
-if client.Agent != nil {
-    result, err := client.Agent.Run("总结最近的变化")
-    plan, err := client.Agent.PlanWithOptions(ctx, "构建 REST API", nil)
-}
 
 // 也可以直接使用 BaseClient 方法
 resp, err := client.Query(ctx, client.QueryRequest{Query: "测试"})
@@ -188,7 +171,6 @@ resp, err := client.RunTask(ctx, client.TaskRequest{Task: "分析数据"})
 - **[LLM 操作](./examples/02_llm_operations)** - 生成、流式传输、带历史的聊天
 - **[RAG 操作](./examples/03_rag_operations)** - 文档摄取、查询、语义搜索
 - **[MCP 工具集成](./examples/04_mcp_tools)** - 工具列表、执行、LLM 集成
-- **[代理与任务自动化](./examples/05_agent_automation)** - 任务调度、工作流、自动化
 - **[完整平台演示](./examples/06_complete_platform)** - 所有功能协同工作
 
 ### 直接包使用（高级）
@@ -274,10 +256,6 @@ response, _ := processor.Query(ctx, req)
 - `POST /api/mcp/tools/call` - 执行 MCP 工具
 - `GET /api/mcp/status` - 检查 MCP 服务器状态
 
-#### 智能代理自动化
-- `POST /api/agent/run` - 生成并执行工作流
-- `GET /api/agent/list` - 列出已保存的代理
-- `POST /api/agent/create` - 创建新代理
 
 
 ## ⚙️ 配置
@@ -329,8 +307,7 @@ servers_config_path = "mcpServers.json"
   - [LLM 操作](./examples/02_llm_operations) - 直接 LLM 使用
   - [RAG 操作](./examples/03_rag_operations) - 文档摄取和查询
   - [MCP 工具](./examples/04_mcp_tools) - 工具集成模式
-  - [代理自动化](./examples/05_agent_automation) - 任务调度和工作流
-  - [完整平台](./examples/06_complete_platform) - 完整集成示例
+    - [完整平台](./examples/06_complete_platform) - 完整集成示例
 
 ### 参考文档
 - [API 参考](./docs/api.md) - HTTP API 文档

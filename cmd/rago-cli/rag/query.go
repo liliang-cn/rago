@@ -12,6 +12,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
+	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/spf13/cobra"
 )
 
@@ -42,8 +43,7 @@ MCP tools provide enhanced functionality for file operations, database queries, 
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Check if interactive mode (no arguments provided or --interactive flag)
 		if interactive || len(args) == 0 {
-			ctx := context.Background()
-			return runInteractiveRAGQuery(ctx)
+			return fmt.Errorf("interactive mode not available - please provide a question")
 		}
 
 		// Handle MCP mode
@@ -111,11 +111,29 @@ MCP tools provide enhanced functionality for file operations, database queries, 
 			}
 		}
 
-		// Initialize services using shared provider system
+		// Initialize services using global LLM service
 		ctx := context.Background()
-		embedService, llmService, metadataExtractor, err := InitializeProviders(ctx, Cfg)
+		llmService, err := services.GetGlobalLLM()
 		if err != nil {
-			return fmt.Errorf("failed to initialize providers: %w", err)
+			return fmt.Errorf("failed to get global LLM service: %w", err)
+		}
+
+		embedService, err := services.GetGlobalEmbeddingService(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get global embedder service: %w", err)
+		}
+
+		// Create metadata extractor from LLM service if it implements the interface
+		var metadataExtractor domain.MetadataExtractor
+		if extractor, ok := llmService.(domain.MetadataExtractor); ok {
+			metadataExtractor = extractor
+		} else {
+			// Fallback: use embedder service
+			if extractor, ok := embedService.(domain.MetadataExtractor); ok {
+				metadataExtractor = extractor
+			} else {
+				return fmt.Errorf("neither LLM nor embedder service implements MetadataExtractor interface")
+			}
 		}
 
 		chunkerService := chunker.New()
@@ -452,10 +470,28 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 
 	docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
 
-	// Initialize services
-	embedService, llmService, metadataExtractor, err := InitializeProviders(ctx, Cfg)
+	// Initialize services using global LLM service
+	llmService, err := services.GetGlobalLLM()
 	if err != nil {
-		return fmt.Errorf("failed to initialize providers: %w", err)
+		return fmt.Errorf("failed to get global LLM service: %w", err)
+	}
+
+	embedService, err := services.GetGlobalEmbeddingService(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get global embedder service: %w", err)
+	}
+
+	// Create metadata extractor from LLM service if it implements the interface
+	var metadataExtractor domain.MetadataExtractor
+	if extractor, ok := llmService.(domain.MetadataExtractor); ok {
+		metadataExtractor = extractor
+	} else {
+		// Fallback: use embedder service
+		if extractor, ok := embedService.(domain.MetadataExtractor); ok {
+			metadataExtractor = extractor
+		} else {
+			return fmt.Errorf("neither LLM nor embedder service implements MetadataExtractor interface")
+		}
 	}
 
 	chunkerService := chunker.New()

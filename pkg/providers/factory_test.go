@@ -11,43 +11,45 @@ func TestFactoryCreateProviders(t *testing.T) {
 	factory := NewFactory()
 	ctx := context.Background()
 
-	t.Run("CreateOllamaLLMProvider", func(t *testing.T) {
-		config := &domain.OllamaProviderConfig{
+	t.Run("CreateOpenAILLMProvider", func(t *testing.T) {
+		config := &domain.OpenAIProviderConfig{
 			BaseProviderConfig: domain.BaseProviderConfig{
-				Type: domain.ProviderOllama,
+				Type: domain.ProviderOpenAI,
 			},
 			BaseURL:        "http://localhost:11434",
+			APIKey:         "ollama",
 			EmbeddingModel: "nomic-embed-text",
 			LLMModel:       "qwen3",
 		}
 
 		provider, err := factory.CreateLLMProvider(ctx, config)
 		if err != nil {
-			t.Fatalf("Failed to create Ollama LLM provider: %v", err)
+			t.Fatalf("Failed to create OpenAI LLM provider: %v", err)
 		}
 
-		if provider.ProviderType() != domain.ProviderOllama {
-			t.Errorf("Expected provider type %s, got %s", domain.ProviderOllama, provider.ProviderType())
+		if provider.ProviderType() != domain.ProviderOpenAI {
+			t.Errorf("Expected provider type %s, got %s", domain.ProviderOpenAI, provider.ProviderType())
 		}
 	})
 
-	t.Run("CreateOllamaEmbedderProvider", func(t *testing.T) {
-		config := &domain.OllamaProviderConfig{
+	t.Run("CreateOpenAIEmbedderProvider", func(t *testing.T) {
+		config := &domain.OpenAIProviderConfig{
 			BaseProviderConfig: domain.BaseProviderConfig{
-				Type: domain.ProviderOllama,
+				Type: domain.ProviderOpenAI,
 			},
 			BaseURL:        "http://localhost:11434",
+			APIKey:         "ollama",
 			EmbeddingModel: "nomic-embed-text",
 			LLMModel:       "qwen3",
 		}
 
 		provider, err := factory.CreateEmbedderProvider(ctx, config)
 		if err != nil {
-			t.Fatalf("Failed to create Ollama embedder provider: %v", err)
+			t.Fatalf("Failed to create OpenAI embedder provider: %v", err)
 		}
 
-		if provider.ProviderType() != domain.ProviderOllama {
-			t.Errorf("Expected provider type %s, got %s", domain.ProviderOllama, provider.ProviderType())
+		if provider.ProviderType() != domain.ProviderOpenAI {
+			t.Errorf("Expected provider type %s, got %s", domain.ProviderOpenAI, provider.ProviderType())
 		}
 	})
 
@@ -106,10 +108,11 @@ func TestFactoryCreateProviders(t *testing.T) {
 	})
 
 	t.Run("CreateFromMapConfig", func(t *testing.T) {
-		// Test creating Ollama provider from map config
+		// Test creating OpenAI provider from map config
 		mapConfig := map[string]interface{}{
-			"type":            "ollama",
+			"type":            "openai",
 			"base_url":        "http://localhost:11434",
+			"api_key":         "ollama",
 			"llm_model":       "qwen3",
 			"embedding_model": "nomic-embed-text",
 			"timeout":         "30s",
@@ -122,8 +125,8 @@ func TestFactoryCreateProviders(t *testing.T) {
 		if provider == nil {
 			t.Fatal("Expected non-nil provider")
 		}
-		if provider.ProviderType() != domain.ProviderOllama {
-			t.Errorf("Expected provider type %s, got %s", domain.ProviderOllama, provider.ProviderType())
+		if provider.ProviderType() != domain.ProviderOpenAI {
+			t.Errorf("Expected provider type %s, got %s", domain.ProviderOpenAI, provider.ProviderType())
 		}
 
 		// Test creating embedder from map config
@@ -134,8 +137,8 @@ func TestFactoryCreateProviders(t *testing.T) {
 		if embedder == nil {
 			t.Fatal("Expected non-nil embedder")
 		}
-		if embedder.ProviderType() != domain.ProviderOllama {
-			t.Errorf("Expected embedder type %s, got %s", domain.ProviderOllama, embedder.ProviderType())
+		if embedder.ProviderType() != domain.ProviderOpenAI {
+			t.Errorf("Expected embedder type %s, got %s", domain.ProviderOpenAI, embedder.ProviderType())
 		}
 	})
 }
@@ -148,12 +151,12 @@ func TestDetectProviderType(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name: "Valid ollama type",
+			name: "Legacy ollama type (now unsupported)",
 			config: map[string]interface{}{
 				"type": "ollama",
 			},
-			expected:    domain.ProviderOllama,
-			expectError: false,
+			expected:    "",
+			expectError: true,
 		},
 		{
 			name: "Valid openai type",
@@ -164,12 +167,12 @@ func TestDetectProviderType(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "Valid lmstudio type",
+			name: "Legacy lmstudio type (now unsupported)",
 			config: map[string]interface{}{
 				"type": "lmstudio",
 			},
-			expected:    domain.ProviderLMStudio,
-			expectError: false,
+			expected:    "",
+			expectError: true,
 		},
 		{
 			name: "Missing type field",
@@ -216,16 +219,16 @@ func TestDetectProviderType(t *testing.T) {
 
 func TestProviderConfigHelpers(t *testing.T) {
 	t.Run("DetermineProviderType", func(t *testing.T) {
-		// Test Ollama config
+		// Test OpenAI config
 		ollamaConfig := &domain.ProviderConfig{
-			Ollama: &domain.OllamaProviderConfig{},
+			OpenAI: &domain.OpenAIProviderConfig{},
 		}
 		providerType, err := DetermineProviderType(ollamaConfig)
 		if err != nil {
-			t.Fatalf("Failed to determine provider type for Ollama: %v", err)
+			t.Fatalf("Failed to determine provider type for OpenAI: %v", err)
 		}
-		if providerType != domain.ProviderOllama {
-			t.Errorf("Expected %s, got %s", domain.ProviderOllama, providerType)
+		if providerType != domain.ProviderOpenAI {
+			t.Errorf("Expected %s, got %s", domain.ProviderOpenAI, providerType)
 		}
 
 		// Test OpenAI config
@@ -249,11 +252,11 @@ func TestProviderConfigHelpers(t *testing.T) {
 	})
 
 	t.Run("GetProviderConfig", func(t *testing.T) {
-		ollamaProviderConfig := &domain.OllamaProviderConfig{
+		ollamaProviderConfig := &domain.OpenAIProviderConfig{
 			BaseURL: "http://localhost:11434",
 		}
 		config := &domain.ProviderConfig{
-			Ollama: ollamaProviderConfig,
+			OpenAI: ollamaProviderConfig,
 		}
 
 		result, err := GetProviderConfig(config)
@@ -267,14 +270,14 @@ func TestProviderConfigHelpers(t *testing.T) {
 	})
 
 	t.Run("GetLLMProviderConfig", func(t *testing.T) {
-		ollamaProviderConfig := &domain.OllamaProviderConfig{
+		ollamaProviderConfig := &domain.OpenAIProviderConfig{
 			BaseURL: "http://localhost:11434",
 		}
 		config := &domain.ProviderConfig{
-			Ollama: ollamaProviderConfig,
+			OpenAI: ollamaProviderConfig,
 		}
 
-		result, err := GetLLMProviderConfig(config, "ollama")
+		result, err := GetLLMProviderConfig(config, "openai")
 		if err != nil {
 			t.Fatalf("Failed to get LLM provider config: %v", err)
 		}
@@ -309,21 +312,21 @@ func TestProviderConfigHelpers(t *testing.T) {
 		}
 
 		// Test missing config
-		_, err = GetEmbedderProviderConfig(config, "ollama")
+		_, err = GetEmbedderProviderConfig(config, "unsupported")
 		if err == nil {
-			t.Error("Expected error for missing ollama config")
+			t.Error("Expected error for missing unsupported config")
 		}
 	})
 }
 
-func TestFactory_CreateLMStudioProviders(t *testing.T) {
+func TestFactory_CreateOpenAIProviders(t *testing.T) {
 	factory := NewFactory()
 	ctx := context.Background()
 
-	t.Run("CreateLMStudioLLMProvider", func(t *testing.T) {
-		config := &domain.LMStudioProviderConfig{
+	t.Run("CreateOpenAILLMProvider", func(t *testing.T) {
+		config := &domain.OpenAIProviderConfig{
 			BaseProviderConfig: domain.BaseProviderConfig{
-				Type: domain.ProviderLMStudio,
+				Type: domain.ProviderOpenAI,
 			},
 			BaseURL:        "http://localhost:1234/v1",
 			APIKey:         "test-key",
@@ -333,18 +336,18 @@ func TestFactory_CreateLMStudioProviders(t *testing.T) {
 
 		provider, err := factory.CreateLLMProvider(ctx, config)
 		if err != nil {
-			t.Fatalf("Failed to create LMStudio LLM provider: %v", err)
+			t.Fatalf("Failed to create OpenAI LLM provider: %v", err)
 		}
 
-		if provider.ProviderType() != domain.ProviderLMStudio {
-			t.Errorf("Expected provider type %s, got %s", domain.ProviderLMStudio, provider.ProviderType())
+		if provider.ProviderType() != domain.ProviderOpenAI {
+			t.Errorf("Expected provider type %s, got %s", domain.ProviderOpenAI, provider.ProviderType())
 		}
 	})
 
-	t.Run("CreateLMStudioEmbedderProvider", func(t *testing.T) {
-		config := &domain.LMStudioProviderConfig{
+	t.Run("CreateOpenAIEmbedderProvider", func(t *testing.T) {
+		config := &domain.OpenAIProviderConfig{
 			BaseProviderConfig: domain.BaseProviderConfig{
-				Type: domain.ProviderLMStudio,
+				Type: domain.ProviderOpenAI,
 			},
 			BaseURL:        "http://localhost:1234/v1",
 			APIKey:         "test-key",
@@ -354,11 +357,11 @@ func TestFactory_CreateLMStudioProviders(t *testing.T) {
 
 		provider, err := factory.CreateEmbedderProvider(ctx, config)
 		if err != nil {
-			t.Fatalf("Failed to create LMStudio embedder provider: %v", err)
+			t.Fatalf("Failed to create OpenAI embedder provider: %v", err)
 		}
 
-		if provider.ProviderType() != domain.ProviderLMStudio {
-			t.Errorf("Expected provider type %s, got %s", domain.ProviderLMStudio, provider.ProviderType())
+		if provider.ProviderType() != domain.ProviderOpenAI {
+			t.Errorf("Expected provider type %s, got %s", domain.ProviderOpenAI, provider.ProviderType())
 		}
 	})
 }
@@ -378,20 +381,19 @@ func TestDetermineProviderType_AllCases(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name: "LMStudio config",
+			name: "OpenAI config",
 			config: &domain.ProviderConfig{
-				LMStudio: &domain.LMStudioProviderConfig{},
+				OpenAI: &domain.OpenAIProviderConfig{},
 			},
-			expected:    domain.ProviderLMStudio,
+			expected:    domain.ProviderOpenAI,
 			expectError: false,
 		},
 		{
-			name: "Multiple configs - Ollama priority",
+			name: "OpenAI config only",
 			config: &domain.ProviderConfig{
-				Ollama: &domain.OllamaProviderConfig{},
 				OpenAI: &domain.OpenAIProviderConfig{},
 			},
-			expected:    domain.ProviderOllama,
+			expected:    domain.ProviderOpenAI,
 			expectError: false,
 		},
 		{
@@ -425,9 +427,9 @@ func TestGetProviderConfig_AllProviders(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name: "LMStudio provider config",
+			name: "OpenAI provider config",
 			config: &domain.ProviderConfig{
-				LMStudio: &domain.LMStudioProviderConfig{
+				OpenAI: &domain.OpenAIProviderConfig{
 					BaseURL: "http://localhost:1234/v1",
 					APIKey:  "test-key",
 				},
@@ -457,50 +459,50 @@ func TestGetProviderConfig_AllProviders(t *testing.T) {
 	}
 }
 
-func TestGetLLMProviderConfig_LMStudio(t *testing.T) {
+func TestGetLLMProviderConfig_OpenAI(t *testing.T) {
 	config := &domain.ProviderConfig{
-		LMStudio: &domain.LMStudioProviderConfig{
+		OpenAI: &domain.OpenAIProviderConfig{
 			BaseURL: "http://localhost:1234/v1",
 		},
 	}
 
-	result, err := GetLLMProviderConfig(config, "lmstudio")
+	result, err := GetLLMProviderConfig(config, "openai")
 	if err != nil {
-		t.Fatalf("Failed to get LMStudio provider config: %v", err)
+		t.Fatalf("Failed to get OpenAI provider config: %v", err)
 	}
 
-	if result != config.LMStudio {
+	if result != config.OpenAI {
 		t.Error("Expected same config instance")
 	}
 
-	// Test missing LMStudio config
+	// Test missing OpenAI config
 	emptyConfig := &domain.ProviderConfig{}
-	_, err = GetLLMProviderConfig(emptyConfig, "lmstudio")
+	_, err = GetLLMProviderConfig(emptyConfig, "unsupported")
 	if err == nil {
-		t.Error("Expected error for missing lmstudio config")
+		t.Error("Expected error for missing unsupported config")
 	}
 }
 
-func TestGetEmbedderProviderConfig_LMStudio(t *testing.T) {
+func TestGetEmbedderProviderConfig_OpenAI(t *testing.T) {
 	config := &domain.ProviderConfig{
-		LMStudio: &domain.LMStudioProviderConfig{
+		OpenAI: &domain.OpenAIProviderConfig{
 			BaseURL: "http://localhost:1234/v1",
 		},
 	}
 
-	result, err := GetEmbedderProviderConfig(config, "lmstudio")
+	result, err := GetEmbedderProviderConfig(config, "openai")
 	if err != nil {
-		t.Fatalf("Failed to get LMStudio embedder config: %v", err)
+		t.Fatalf("Failed to get OpenAI embedder config: %v", err)
 	}
 
-	if result != config.LMStudio {
+	if result != config.OpenAI {
 		t.Error("Expected same config instance")
 	}
 
-	// Test missing LMStudio config
+	// Test missing OpenAI config
 	emptyConfig := &domain.ProviderConfig{}
-	_, err = GetEmbedderProviderConfig(emptyConfig, "lmstudio")
+	_, err = GetEmbedderProviderConfig(emptyConfig, "unsupported")
 	if err == nil {
-		t.Error("Expected error for missing lmstudio config")
+		t.Error("Expected error for missing unsupported config")
 	}
 }
