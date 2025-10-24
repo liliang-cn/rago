@@ -32,7 +32,6 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
 	pkgStore "github.com/liliang-cn/rago/v2/pkg/store"
 	"github.com/liliang-cn/rago/v2/pkg/usage"
-	"github.com/liliang-cn/rago/v2/pkg/tools"
 	"github.com/spf13/cobra"
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
@@ -351,23 +350,7 @@ func setupRouter(trackedProcessor domain.RAGProcessor, processorService *process
 			}
 		}
 
-		// Tools API endpoints (only if tools are enabled)
-		if cfg.Tools.Enabled {
-			// Initialize tools handler
-			toolsHandler := mcpHandlers.NewToolsHandler(processorService.GetToolRegistry().(*tools.Registry), processorService.GetToolExecutor().(*tools.Executor))
-
-			tools := api.Group("/tools")
-			{
-				tools.GET("", toolsHandler.ListTools)
-				tools.GET("/:name", toolsHandler.GetTool)
-				tools.POST("/:name/execute", toolsHandler.ExecuteTool)
-				tools.GET("/stats", toolsHandler.GetToolStats)
-				tools.GET("/registry/stats", toolsHandler.GetRegistryStats)
-				tools.GET("/executions", toolsHandler.ListExecutions)
-				tools.GET("/executions/:id", toolsHandler.GetExecution)
-				tools.DELETE("/executions/:id", toolsHandler.CancelExecution)
-			}
-		}
+		// Tools API endpoints have been removed - use MCP servers instead
 
 		api.POST("/reset", ragHandlers.NewResetHandler(processorService).Handle)
 
@@ -381,10 +364,29 @@ func setupRouter(trackedProcessor domain.RAGProcessor, processorService *process
 				LogLevel: cfg.MCP.LogLevel,
 			}
 
-			// Initialize MCP handler
+			// Get llm.Service for MCP handler
+			var llmServiceForMCP *llm.Service
+			// Try to extract llm.Service from domain.Generator
+			var llmSvc interface{}
+			if svc, ok := llmService.(interface{ GetService() interface{} }); ok {
+				llmSvc = svc.GetService()
+			} else {
+				llmSvc = llmService
+			}
+			// Type assert to get the llm.Service
+			if llmServiceTyped, ok := llmSvc.(*llm.Service); ok {
+				llmServiceForMCP = llmServiceTyped
+			}
+
+			// Initialize MCP handler with LLM support
 			log.Printf("Initializing MCP with config: enabled=%v, servers=%v", mcpConfig.Enabled, mcpConfig.Servers)
 			var err error
-			mcpHandler, err = mcpHandlers.NewMCPHandler(mcpConfig, conversationStore)
+			if llmServiceForMCP != nil {
+				mcpHandler, err = mcpHandlers.NewMCPHandlerWithLLM(mcpConfig, conversationStore, llmServiceForMCP)
+			} else {
+				log.Printf("Warning: LLM service not available for MCP, using basic handler")
+				mcpHandler, err = mcpHandlers.NewMCPHandler(mcpConfig, conversationStore)
+			}
 			if err != nil {
 				log.Printf("Warning: failed to initialize MCP handler: %v", err)
 				log.Printf("MCP servers will not be available. Error details: %+v", err)

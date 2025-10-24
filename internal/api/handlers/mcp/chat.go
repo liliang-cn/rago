@@ -1,13 +1,17 @@
 package mcp
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 	mcppkg "github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/store"
 )
@@ -90,26 +94,147 @@ func (h *MCPHandler) ChatWithMCP(c *gin.Context) {
 		toolsToUse = filtered
 	}
 
-	// TODO: Integrate with actual LLM for intelligent tool selection
-	// This is a placeholder implementation that should be replaced with:
-	// 1. LLM-based tool selection and argument extraction
-	// 2. Multi-turn conversation handling
-	// 3. Proper error handling and validation
-	
-	response := MCPChatResponse{
-		Content:        "MCP chat functionality is available but requires LLM integration for intelligent tool usage.",
-		FinalResponse:  "To use MCP tools effectively, this endpoint needs to be integrated with an LLM service that can determine which tools to call based on user messages.",
-		HasThinking:    req.Options.ShowThinking,
-		ToolCalls:      []MCPToolCallResult{},
+	// Check if LLM service is available
+	if h.llmService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"error":   "LLM service not configured",
+		})
+		return
 	}
 
-	// For now, return a helpful message about the available tools
-	if len(toolsToUse) > 0 {
-		var toolNames []string
-		for _, tool := range toolsToUse {
-			toolNames = append(toolNames, tool.Name)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
+	defer cancel()
+
+	// Load conversation history
+	var messages []domain.Message
+	if h.convStore != nil && req.ConversationID != "" {
+		if conv, err := h.convStore.GetConversation(req.ConversationID); err == nil {
+			messages = h.buildMessageHistory(conv)
 		}
-		response.Content = fmt.Sprintf("Available MCP tools: %v. Integration with LLM needed for automatic tool selection.", toolNames)
+	}
+
+	// Add current user message
+	messages = append(messages, domain.Message{
+		Role:    "user",
+		Content: req.Message,
+	})
+
+	// Convert MCP tools to domain tool definitions
+	var toolDefinitions []domain.ToolDefinition
+	if len(toolsToUse) > 0 {
+		toolDefinitions = h.convertMCPToolsToDefinitions(toolsToUse)
+	}
+
+	// Prepare system prompt
+	systemPrompt := h.buildSystemPrompt(req.Options.ShowThinking)
+	if len(messages) == 0 || messages[0].Role != "system" {
+		messages = append([]domain.Message{{
+			Role:    "system",
+			Content: systemPrompt,
+		}}, messages...)
+	}
+
+	// Generate response with tool support
+	genOpts := &domain.GenerationOptions{
+		Temperature: req.Options.Temperature,
+		MaxTokens:   req.Options.MaxTokens,
+		ToolChoice:  "auto", // Let the LLM decide when to use tools
+	}
+
+	var finalResponse string
+	var toolCalls []MCPToolCallResult
+	var thinking string
+	var currentContent strings.Builder
+
+	// Execute LLM with tools
+	if len(toolDefinitions) > 0 {
+		result, err := h.llmService.GenerateWithTools(ctx, messages, toolDefinitions, genOpts)
+		if err != nil {
+			log.Printf("LLM generation failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"error":   "Failed to generate response: " + err.Error(),
+			})
+			return
+		}
+
+		currentContent.WriteString(result.Content)
+
+		// Process tool calls if any
+		if len(result.ToolCalls) > 0 && req.Options.MaxToolCalls > 0 {
+			toolCalls = h.executeToolCalls(ctx, result.ToolCalls, req.Options.MaxToolCalls)
+			
+			// Add tool results to messages
+			messages = append(messages, domain.Message{
+				Role:      "assistant",
+				Content:   result.Content,
+				ToolCalls: result.ToolCalls,
+			})
+
+			for i, toolCall := range result.ToolCalls {
+				if i < len(toolCalls) {
+					toolResult := toolCalls[i]
+					resultContent := fmt.Sprintf("Tool '%s' result: %v", toolResult.ToolName, toolResult.Result)
+					if !toolResult.Success {
+						resultContent = fmt.Sprintf("Tool '%s' error: %s", toolResult.ToolName, toolResult.Error)
+					}
+					messages = append(messages, domain.Message{
+						Role:       "tool",
+						Content:    resultContent,
+						ToolCallID: toolCall.ID,
+					})
+				}
+			}
+
+			// Get final response after tool execution
+			finalResult, err := h.llmService.GenerateWithTools(ctx, messages, nil, genOpts)
+			if err != nil {
+				finalResponse = currentContent.String()
+			} else {
+				finalResponse = finalResult.Content
+			}
+		} else {
+			finalResponse = result.Content
+		}
+	} else {
+		// No tools available, just generate response
+		prompt := messages[len(messages)-1].Content
+		if len(messages) > 1 {
+			// Build conversation context
+			var contextBuilder strings.Builder
+			for _, msg := range messages[:len(messages)-1] {
+				contextBuilder.WriteString(fmt.Sprintf("%s: %s\n", msg.Role, msg.Content))
+			}
+			contextBuilder.WriteString("user: ")
+			contextBuilder.WriteString(prompt)
+			prompt = contextBuilder.String()
+		}
+		
+		resp, err := h.llmService.Generate(ctx, prompt, genOpts)
+		if err != nil {
+			log.Printf("LLM generation failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"error":   "Failed to generate response: " + err.Error(),
+			})
+			return
+		}
+		finalResponse = resp
+	}
+
+	// Extract thinking if present
+	if req.Options.ShowThinking {
+		finalResponse, thinking = h.extractThinking(finalResponse)
+	}
+
+	response := MCPChatResponse{
+		Content:        finalResponse,
+		FinalResponse:  finalResponse,
+		ToolCalls:      toolCalls,
+		Thinking:       thinking,
+		HasThinking:    thinking != "",
+		ConversationID: req.ConversationID,
 	}
 
 	// Set conversation ID in response

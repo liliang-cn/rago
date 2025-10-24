@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/tools"
 )
 
 func TestConfig_Validate(t *testing.T) {
@@ -39,7 +38,6 @@ func TestConfig_Validate(t *testing.T) {
 					Overlap:   50,
 					Method:    "sentence",
 				},
-				Tools: tools.DefaultToolConfig(),
 			},
 			wantErr: false,
 		},
@@ -352,10 +350,6 @@ func TestConfig_ValidateChunkerConfig(t *testing.T) {
 				Sqvect: SqvectConfig{
 					DBPath: "./data/test.db",
 					TopK:   5,
-				},
-				Tools: tools.ToolConfig{
-					Enabled:       false,
-					SecurityLevel: "normal",
 				},
 				Chunker: tt.config,
 			}
