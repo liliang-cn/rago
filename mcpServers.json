@@ -1,12 +1,62 @@
 {
-  "mcpServers": {
-    "sqlite": {
-      "type": "stdio",
-      "command": "/Users/liliang/go/bin/mcp-sqlite-server",
-      "args": ["/Users/liliang/Things/AI/go/rago/.rago/data"],
-      "env": {
-        "DEBUG": "true"
-      }
+  "filesystem": {
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory"],
+    "description": "File system operations (read, write, list, execute)",
+    "env": {}
+  },
+  "fetch": {
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-fetch"],
+    "description": "HTTP/HTTPS request operations",
+    "env": {}
+  },
+  "memory": {
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-memory"],
+    "description": "In-memory key-value storage",
+    "env": {}
+  },
+  "time": {
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-time"],
+    "description": "Date, time, and calendar operations",
+    "env": {}
+  },
+  "sequential-thinking": {
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-sequential-thinking"],
+    "description": "Sequential thinking and reasoning processes",
+    "env": {}
+  },
+  "git": {
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-git", "/path/to/git/repository"],
+    "description": "Git repository operations",
+    "env": {}
+  },
+  "postgres": {
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-postgres"],
+    "description": "PostgreSQL database operations",
+    "env": {
+      "POSTGRES_CONNECTION_STRING": "postgresql://user:password@localhost:5432/database"
+    }
+  },
+  "brave-search": {
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-brave-search"],
+    "description": "Brave search engine integration",
+    "env": {
+      "BRAVE_API_KEY": "your-brave-api-key"
+    }
+  },
+  "e2b": {
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-e2b"],
+    "description": "E2B sandboxed code execution",
+    "env": {
+      "E2B_API_KEY": "your-e2b-api-key"
     }
   }
 }
