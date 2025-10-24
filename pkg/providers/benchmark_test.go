@@ -63,24 +63,26 @@ var personSchema = map[string]interface{}{
 
 // Complex nested schema
 
-// Benchmark LMStudio structured output with simple data
-func BenchmarkLMStudioStructuredSimple(b *testing.B) {
+// Benchmark OpenAI-compatible structured output with simple data
+func BenchmarkOpenAIStructuredSimple(b *testing.B) {
 	if testing.Short() {
 		b.Skip("skipping benchmark in short mode")
 	}
 
-	config := &domain.LMStudioProviderConfig{
+	config := &domain.OpenAIProviderConfig{
 		BaseProviderConfig: domain.BaseProviderConfig{
-			Type:    domain.ProviderLMStudio,
+			Type:    domain.ProviderOpenAI,
 			Timeout: 30 * time.Second,
 		},
 		BaseURL:  "http://localhost:1234",
+		APIKey:   "test-key",
 		LLMModel: "qwen/qwen3-4b",
 	}
 
-	provider, err := NewLMStudioLLMProvider(config)
+	factory := NewFactory()
+	provider, err := factory.CreateLLMProvider(context.Background(), config)
 	if err != nil {
-		b.Fatalf("Failed to create LMStudio provider: %v", err)
+		b.Fatalf("Failed to create OpenAI provider: %v", err)
 	}
 
 	ctx := context.Background()
@@ -106,24 +108,26 @@ func BenchmarkLMStudioStructuredSimple(b *testing.B) {
 	})
 }
 
-// Benchmark LMStudio with complex nested data
-func BenchmarkLMStudioStructuredComplex(b *testing.B) {
+// Benchmark OpenAI with complex nested data
+func BenchmarkOpenAIStructuredComplex(b *testing.B) {
 	if testing.Short() {
 		b.Skip("skipping benchmark in short mode")
 	}
 
-	config := &domain.LMStudioProviderConfig{
+	config := &domain.OpenAIProviderConfig{
 		BaseProviderConfig: domain.BaseProviderConfig{
-			Type:    domain.ProviderLMStudio,
+			Type:    domain.ProviderOpenAI,
 			Timeout: 60 * time.Second,
 		},
 		BaseURL:  "http://localhost:1234",
+		APIKey:   "test-key",
 		LLMModel: "qwen/qwen3-4b",
 	}
 
-	provider, err := NewLMStudioLLMProvider(config)
+	factory := NewFactory()
+	provider, err := factory.CreateLLMProvider(context.Background(), config)
 	if err != nil {
-		b.Fatalf("Failed to create LMStudio provider: %v", err)
+		b.Fatalf("Failed to create OpenAI provider: %v", err)
 	}
 
 	ctx := context.Background()
@@ -147,24 +151,26 @@ func BenchmarkLMStudioStructuredComplex(b *testing.B) {
 	}
 }
 
-// Benchmark Ollama structured output
+// Benchmark Ollama-compatible structured output
 func BenchmarkOllamaStructuredSimple(b *testing.B) {
 	if testing.Short() {
 		b.Skip("skipping benchmark in short mode")
 	}
 
-	config := &domain.OllamaProviderConfig{
+	config := &domain.OpenAIProviderConfig{
 		BaseProviderConfig: domain.BaseProviderConfig{
-			Type:    domain.ProviderOllama,
+			Type:    domain.ProviderOpenAI,
 			Timeout: 30 * time.Second,
 		},
 		BaseURL:  "http://localhost:11434",
+		APIKey:   "ollama",
 		LLMModel: "qwen3",
 	}
 
-	provider, err := NewOllamaLLMProvider(config)
+	factory := NewFactory()
+	provider, err := factory.CreateLLMProvider(context.Background(), config)
 	if err != nil {
-		b.Fatalf("Failed to create Ollama provider: %v", err)
+		b.Fatalf("Failed to create Ollama-compatible provider: %v", err)
 	}
 
 	ctx := context.Background()
@@ -195,16 +201,18 @@ func BenchmarkLMStudioTraditionalVsStructured(b *testing.B) {
 		b.Skip("skipping benchmark in short mode")
 	}
 
-	config := &domain.LMStudioProviderConfig{
+	config := &domain.OpenAIProviderConfig{
 		BaseProviderConfig: domain.BaseProviderConfig{
-			Type:    domain.ProviderLMStudio,
+			Type:    domain.ProviderOpenAI,
 			Timeout: 30 * time.Second,
 		},
 		BaseURL:  "http://localhost:1234",
+		APIKey:   "test-key",
 		LLMModel: "qwen/qwen3-4b",
 	}
 
-	provider, err := NewLMStudioLLMProvider(config)
+	factory := NewFactory()
+	provider, err := factory.CreateLLMProvider(context.Background(), config)
 	if err != nil {
 		b.Fatalf("Failed to create LMStudio provider: %v", err)
 	}
@@ -246,16 +254,18 @@ func BenchmarkStructuredOutputMemory(b *testing.B) {
 		b.Skip("skipping benchmark in short mode")
 	}
 
-	config := &domain.LMStudioProviderConfig{
+	config := &domain.OpenAIProviderConfig{
 		BaseProviderConfig: domain.BaseProviderConfig{
-			Type:    domain.ProviderLMStudio,
+			Type:    domain.ProviderOpenAI,
 			Timeout: 30 * time.Second,
 		},
 		BaseURL:  "http://localhost:1234",
+		APIKey:   "test-key",
 		LLMModel: "qwen/qwen3-4b",
 	}
 
-	provider, err := NewLMStudioLLMProvider(config)
+	factory := NewFactory()
+	provider, err := factory.CreateLLMProvider(context.Background(), config)
 	if err != nil {
 		b.Fatalf("Failed to create LMStudio provider: %v", err)
 	}

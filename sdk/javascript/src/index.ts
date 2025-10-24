@@ -15,7 +15,6 @@ export { LLMModule } from './modules/llm';
 export { ConversationsModule } from './modules/conversations';
 export { MCPModule } from './modules/mcp';
 export { AnalyticsModule } from './modules/analytics';
-export { AgentsModule } from './modules/agents';
 export { ToolsModule } from './modules/tools';
 
 // Type exports

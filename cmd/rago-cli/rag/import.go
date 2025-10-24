@@ -8,6 +8,7 @@ import (
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
+	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/spf13/cobra"
 )
 
@@ -99,10 +100,10 @@ var importCmd = &cobra.Command{
 		// Initialize embedder if we need to recompute vectors
 		var embedService domain.Embedder
 		if recomputeVectors || (len(exportData.Chunks) > 0 && len(exportData.Chunks[0].Vector) == 0) {
-			// Initialize providers to get embedder service
-			embedService, _, _, err = InitializeProviders(ctx, Cfg)
+			// Get global embedder service
+			embedService, err = services.GetGlobalEmbeddingService(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to initialize embedder: %w", err)
+				return fmt.Errorf("failed to get global embedder service: %w", err)
 			}
 			fmt.Println("Embedder initialized for vector computation...")
 		}

@@ -6,10 +6,7 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/llm"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
-	"github.com/liliang-cn/rago/v2/pkg/rag/embedder"
 	"github.com/spf13/cobra"
 )
 
@@ -28,12 +25,20 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	factory := providers.NewFactory()
 
 	// Check if using new provider configuration
-	if cfg.Providers.ProviderConfigs.Ollama != nil || cfg.Providers.ProviderConfigs.OpenAI != nil {
+	if cfg.Providers.ProviderConfigs.OpenAI != nil {
 		return checkProviderStatus(ctx, factory, cfg)
 	}
 
-	// Fallback to legacy configuration
-	return checkLegacyStatus(ctx, cfg)
+	// No provider configured
+	fmt.Println("⚠️  No provider configuration found")
+	fmt.Println("💡 Please configure an OpenAI-compatible provider in your config file")
+	fmt.Println("   Example:")
+	fmt.Println("   [providers.provider_configs.openai]")
+	fmt.Println("   base_url = \"http://localhost:11434/v1\"")
+	fmt.Println("   api_key = \"not-required-for-local-llm\"")
+	fmt.Println("   llm_model = \"qwen3:latest\"")
+	fmt.Println("   embedding_model = \"text-embedding-ada-002\"")
+	return nil
 }
 
 func checkProviderStatus(ctx context.Context, factory *providers.Factory, cfg *config.Config) error {
@@ -55,7 +60,6 @@ func checkProviderStatus(ctx context.Context, factory *providers.Factory, cfg *c
 					fmt.Printf("❌ LLM provider health check failed: %v\n", err)
 				} else {
 					fmt.Printf("✅ LLM provider is healthy\n")
-					printProviderConfig(cfg.Providers.DefaultLLM, llmConfig)
 				}
 			}
 		}
@@ -77,104 +81,10 @@ func checkProviderStatus(ctx context.Context, factory *providers.Factory, cfg *c
 					fmt.Printf("❌ Embedder provider health check failed: %v\n", err)
 				} else {
 					fmt.Printf("✅ Embedder provider is healthy\n")
-					printProviderConfig(cfg.Providers.DefaultEmbedder, embedderConfig)
 				}
 			}
 		}
 	}
 
 	return nil
-}
-
-func printProviderConfig(providerType string, config interface{}) {
-	switch providerType {
-	case "ollama":
-		if ollamaConfig, ok := config.(*domain.OllamaProviderConfig); ok {
-			fmt.Printf("   • Base URL: %s\n", ollamaConfig.BaseURL)
-			fmt.Printf("   • LLM Model: %s\n", ollamaConfig.LLMModel)
-			fmt.Printf("   • Embedding Model: %s\n", ollamaConfig.EmbeddingModel)
-			fmt.Printf("   • Timeout: %s\n", ollamaConfig.Timeout)
-		}
-	case "openai":
-		if openaiConfig, ok := config.(*domain.OpenAIProviderConfig); ok {
-			fmt.Printf("   • Base URL: %s\n", openaiConfig.BaseURL)
-			fmt.Printf("   • LLM Model: %s\n", openaiConfig.LLMModel)
-			fmt.Printf("   • Embedding Model: %s\n", openaiConfig.EmbeddingModel)
-			fmt.Printf("   • API Key: %s\n", maskAPIKey(openaiConfig.APIKey))
-			fmt.Printf("   • Timeout: %s\n", openaiConfig.Timeout)
-		}
-	}
-}
-
-func maskAPIKey(apiKey string) string {
-	if len(apiKey) <= 8 {
-		return "****"
-	}
-	return apiKey[:4] + "****" + apiKey[len(apiKey)-4:]
-}
-
-func checkLegacyStatus(ctx context.Context, cfg *config.Config) error {
-	fmt.Println("🔍 Checking Ollama provider configuration...")
-
-	// Check if Ollama provider is configured
-	if cfg.Providers.ProviderConfigs.Ollama == nil {
-		fmt.Printf("⚠️  Ollama provider not configured in provider system\n")
-		return nil
-	}
-	fmt.Printf("🔍 Checking Ollama connection to %s...\n", cfg.Providers.ProviderConfigs.Ollama.BaseURL)
-
-	// Create Ollama service using provider system
-	factory := providers.NewFactory()
-
-	ollamaConfig := &domain.OllamaProviderConfig{
-		BaseProviderConfig: domain.BaseProviderConfig{
-			Type:    domain.ProviderOllama,
-			Timeout: cfg.Providers.ProviderConfigs.Ollama.Timeout,
-		},
-		BaseURL:        cfg.Providers.ProviderConfigs.Ollama.BaseURL,
-		LLMModel:       cfg.Providers.ProviderConfigs.Ollama.LLMModel,
-		EmbeddingModel: cfg.Providers.ProviderConfigs.Ollama.EmbeddingModel,
-	}
-
-	// Check LLM provider
-	llmProvider, err := factory.CreateLLMProvider(ctx, ollamaConfig)
-	if err != nil {
-		fmt.Printf("❌ Failed to create Ollama LLM provider: %v\n", err)
-		return nil
-	}
-
-	ollamaService := llm.NewService(llmProvider)
-
-	// Check Ollama health
-	if err := ollamaService.Health(ctx); err != nil {
-		fmt.Printf("❌ Ollama connection failed: %v\n", err)
-		return nil
-	}
-
-	fmt.Printf("✅ Ollama is available at %s\n", cfg.Providers.ProviderConfigs.Ollama.BaseURL)
-	fmt.Printf("📋 Configuration:\n")
-	fmt.Printf("   • LLM Model: %s\n", cfg.Providers.ProviderConfigs.Ollama.LLMModel)
-	fmt.Printf("   • Embedding Model: %s\n", cfg.Providers.ProviderConfigs.Ollama.EmbeddingModel)
-	fmt.Printf("   • Timeout: %s\n", cfg.Providers.ProviderConfigs.Ollama.Timeout)
-
-	// Check embedder
-	embedderProvider, err := factory.CreateEmbedderProvider(ctx, ollamaConfig)
-	if err != nil {
-		fmt.Printf("⚠️  Failed to create embedder provider: %v\n", err)
-		return nil
-	}
-
-	embedService := embedder.NewService(embedderProvider)
-
-	if err := embedService.Health(ctx); err != nil {
-		fmt.Printf("⚠️  Embedder health check failed: %v\n", err)
-	} else {
-		fmt.Printf("✅ Embedder is healthy\n")
-	}
-
-	return nil
-}
-
-func init() {
-	RootCmd.AddCommand(statusCmd)
 }

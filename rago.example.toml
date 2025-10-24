@@ -91,18 +91,6 @@ health_check_interval = "60s"          # Server health monitoring interval
 #   }
 # }
 
-# ============================================================================
-# AGENTS CONFIGURATION
-# ============================================================================
-
-[agents]
-enabled = true                         # Enable agent functionality
-storage_type = "persistent"            # "memory" or "persistent"
-data_path = ".rago/data"              # Path for database files
-workspace_path = ".rago/workspace"     # Agent workspace for file operations
-max_concurrent = 5                     # Maximum concurrent executions
-default_timeout = 300                  # Default timeout in seconds
-enable_generation = true               # Enable workflow generation from natural language
 
 # ============================================================================
 # SERVER CONFIGURATION (HTTP API and Web UI)
@@ -200,4 +188,3 @@ auto_load = true                      # Auto-load plugins on startup
 # RAGO_SQVECT_DB_PATH=/path/to/database.db
 # RAGO_CHUNKER_CHUNK_SIZE=1000
 # RAGO_MCP_ENABLED=true
-# RAGO_AGENTS_ENABLED=true

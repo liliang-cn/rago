@@ -118,14 +118,8 @@ func (cws *ConfigWithSettings) CreateProviderClient(ctx context.Context) (*Provi
 	providerNames := []string{}
 
 	// Add static providers
-	if cws.Providers.ProviderConfigs.Ollama != nil {
-		providerNames = append(providerNames, "ollama")
-	}
 	if cws.Providers.ProviderConfigs.OpenAI != nil {
 		providerNames = append(providerNames, "openai")
-	}
-	if cws.Providers.ProviderConfigs.LMStudio != nil {
-		providerNames = append(providerNames, "lmstudio")
 	}
 
 	// Add dynamic providers

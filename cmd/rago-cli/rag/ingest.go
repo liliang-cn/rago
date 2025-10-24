@@ -13,6 +13,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
+	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/spf13/cobra"
 )
 
@@ -108,11 +109,20 @@ You can also use --text flag to ingest text directly.`,
 			}
 		}
 
-		// Initialize services using shared provider system
+		// Initialize services using global LLM service
 		ctx := context.Background()
-		embedService, _, metadataExtractor, err := InitializeProviders(ctx, Cfg)
+		embedService, err := services.GetGlobalEmbeddingService(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to initialize providers: %w", err)
+			return fmt.Errorf("failed to get global embedder service: %w", err)
+		}
+
+		// Create metadata extractor from embedder service if it implements the interface
+		var metadataExtractor domain.MetadataExtractor
+		if extractor, ok := embedService.(domain.MetadataExtractor); ok {
+			metadataExtractor = extractor
+		} else {
+			// Fallback: create a default metadata extractor
+			return fmt.Errorf("embedder service does not implement MetadataExtractor interface")
 		}
 
 		chunkerService := chunker.New()

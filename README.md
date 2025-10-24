@@ -1,4 +1,4 @@
-# RAGO - Local RAG System with Agent Automation
+# RAGO - Local RAG System
 
 [中文文档](README_zh-CN.md)
 
@@ -30,11 +30,6 @@ RAGO (Retrieval-Augmented Generation Offline) is a fully local RAG system writte
 - **Query Enhancement** - Use tools during RAG queries for richer answers
 - **Batch Operations** - Execute multiple tool calls in parallel
 
-### 🤖 **Agent Automation**
-- **Natural Language Workflows** - Generate workflows from plain text descriptions
-- **MCP Tool Orchestration** - Coordinate multiple tools in automated workflows
-- **Async Execution** - Parallel step execution with dependency resolution
-- **Intent Recognition** - Automatically detect user intent for smarter responses
 
 ### 💻 **Developer Experience**
 - **Simplified Client API** - Clean, intuitive client package for all operations
@@ -78,7 +73,9 @@ cd rago
 go build -o rago ./cmd/rago-cli
 
 # Optional: Create config (only if you need custom settings)
-./rago init  # Interactive - choose "Skip" for zero-config
+# Copy the example config and modify as needed:
+cp rago.example.toml rago.toml
+# Edit rago.toml with your preferred settings
 ```
 
 ### 🎯 Zero-Config Usage
@@ -100,16 +97,6 @@ ollama pull nomic-embed-text   # Default embedder
 ./rago query "Analyze this data and save results" --mcp
 ```
 
-### 🤖 Agent Examples 
-
-```bash
-# Natural language workflows
-./rago agent run "get current time and tell me if it's morning or evening"
-./rago agent run "fetch weather for San Francisco and analyze conditions"
-
-# Save workflows for reuse
-./rago agent run "monitor github.com/golang/go for new releases" --save
-```
 
 ## 📖 Library Usage
 
@@ -158,11 +145,6 @@ if client.Tools != nil {
         map[string]interface{}{"path": "README.md"})
 }
 
-// Agent automation with wrapper
-if client.Agent != nil {
-    result, err := client.Agent.Run("Summarize recent changes")
-    plan, err := client.Agent.PlanWithOptions(ctx, "Build a REST API", nil)
-}
 
 // Direct BaseClient methods also available
 resp, err := client.Query(ctx, client.QueryRequest{Query: "test"})
@@ -177,7 +159,6 @@ Comprehensive examples demonstrating all client features:
 - **[LLM Operations](./examples/02_llm_operations)** - Generation, streaming, chat with history
 - **[RAG Operations](./examples/03_rag_operations)** - Document ingestion, queries, semantic search
 - **[MCP Tools Integration](./examples/04_mcp_tools)** - Tool listing, execution, LLM integration
-- **[Agent & Task Automation](./examples/05_agent_automation)** - Task scheduling, workflows, automation
 - **[Complete Platform Demo](./examples/06_complete_platform)** - All features working together
 
 ### Direct Package Usage (Advanced)
@@ -263,10 +244,6 @@ Start the API server:
 - `POST /api/mcp/tools/call` - Execute MCP tool
 - `GET /api/mcp/status` - Check MCP server status
 
-#### Agent Automation 
-- `POST /api/agent/run` - Generate and execute workflows
-- `GET /api/agent/list` - List saved agents
-- `POST /api/agent/create` - Create new agent
 
 ## ⚙️ Configuration
 
@@ -317,8 +294,7 @@ servers_config_path = "mcpServers.json"
   - [LLM Operations](./examples/02_llm_operations) - Direct LLM usage
   - [RAG Operations](./examples/03_rag_operations) - Document ingestion and queries
   - [MCP Tools](./examples/04_mcp_tools) - Tool integration patterns
-  - [Agent Automation](./examples/05_agent_automation) - Task scheduling and workflows
-  - [Complete Platform](./examples/06_complete_platform) - Full integration example
+    - [Complete Platform](./examples/06_complete_platform) - Full integration example
 
 ### References
 - [API Reference](./docs/api.md) - HTTP API documentation

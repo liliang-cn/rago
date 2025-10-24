@@ -97,7 +97,7 @@ func TestInitializeEmbedder_NoProviderConfigured(t *testing.T) {
 		t.Error("Expected error when no embedder provider configured")
 	}
 
-	if err.Error() != "no embedder provider configured" {
+	if err.Error() != "no OpenAI provider configuration found" {
 		t.Errorf("Expected specific error message, got: %v", err)
 	}
 }
@@ -115,7 +115,7 @@ func TestInitializeLLM_NoProviderConfigured(t *testing.T) {
 		t.Error("Expected error when no LLM provider configured")
 	}
 
-	if err.Error() != "no LLM provider configured" {
+	if err.Error() != "no OpenAI provider configuration found" {
 		t.Errorf("Expected specific error message, got: %v", err)
 	}
 }

@@ -8,22 +8,23 @@ import (
 )
 
 func TestProviderConfigValidation(t *testing.T) {
-	t.Run("ValidOllamaProviderConfig", func(t *testing.T) {
+	t.Run("ValidOpenAICompatibleProviderConfig", func(t *testing.T) {
 		cfg := &Config{
 			Server: ServerConfig{
 				Port: 7127,
 				Host: "localhost",
 			},
 			Providers: ProvidersConfig{
-				DefaultLLM:      "ollama",
-				DefaultEmbedder: "ollama",
+				DefaultLLM:      "openai",
+				DefaultEmbedder: "openai",
 				ProviderConfigs: domain.ProviderConfig{
-					Ollama: &domain.OllamaProviderConfig{
+					OpenAI: &domain.OpenAIProviderConfig{
 						BaseProviderConfig: domain.BaseProviderConfig{
-							Type:    domain.ProviderOllama,
+							Type:    domain.ProviderOpenAI,
 							Timeout: 30 * time.Second,
 						},
 						BaseURL:        "http://localhost:11434",
+						APIKey:         "ollama", // Ollama doesn't need real API key
 						EmbeddingModel: "nomic-embed-text",
 						LLMModel:       "qwen3",
 					},
@@ -44,7 +45,7 @@ func TestProviderConfigValidation(t *testing.T) {
 
 		err := cfg.Validate()
 		if err != nil {
-			t.Errorf("Valid Ollama provider config should not fail validation: %v", err)
+			t.Errorf("Valid OpenAI-compatible provider config should not fail validation: %v", err)
 		}
 	})
 
