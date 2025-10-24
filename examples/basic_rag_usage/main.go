@@ -159,6 +159,33 @@ Key features include smart chunking, metadata extraction, and MCP tool integrati
 		fmt.Printf("  Total chunks: %d\n", stats.TotalChunks)
 	}
 
+	// Example 4: Check MCP Status
+	fmt.Println("\n=== Example 4: MCP Status ===")
+	mcpStatus, err := client.GetMCPStatus(ctx)
+	if err != nil {
+		log.Printf("Failed to get MCP status: %v", err)
+	} else {
+		if statusMap, ok := mcpStatus.(map[string]interface{}); ok {
+			fmt.Printf("MCP Enabled: %v\n", statusMap["enabled"])
+			fmt.Printf("Message: %s\n", statusMap["message"])
+
+			if servers, ok := statusMap["servers"].([]interface{}); ok {
+				fmt.Printf("MCP Servers (%d):\n", len(servers))
+				for i, server := range servers {
+					if serverMap, ok := server.(map[string]interface{}); ok {
+						name := serverMap["name"]
+						description := serverMap["description"]
+						running := serverMap["running"]
+						toolCount := serverMap["tool_count"]
+
+						fmt.Printf("  %d. %s: %v (%d tools)\n", i+1, name, running, toolCount)
+						fmt.Printf("     Description: %s\n", description)
+					}
+				}
+			}
+		}
+	}
+
 	fmt.Println("\n=== Examples completed successfully! ===")
 }
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
@@ -150,15 +149,15 @@ func main() {
 		"type": "object",
 		"properties": map[string]interface{}{
 			"name": map[string]interface{}{
-				"type": "string",
+				"type":        "string",
 				"description": "Character's name",
 			},
 			"age": map[string]interface{}{
-				"type": "integer",
+				"type":        "integer",
 				"description": "Character's age",
 			},
 			"occupation": map[string]interface{}{
-				"type": "string",
+				"type":        "string",
 				"description": "Character's occupation",
 			},
 			"hobbies": map[string]interface{}{

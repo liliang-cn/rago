@@ -313,41 +313,62 @@ func runMCPStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("   Max Concurrent: %d\n", Cfg.MCP.MaxConcurrentRequests)
 	fmt.Printf("   Health Check Interval: %v\n", Cfg.MCP.HealthCheckInterval)
 
-	// Create tool manager
-	toolManager := mcp.NewMCPToolManager(&Cfg.MCP)
-	defer func() {
-		if err := toolManager.Close(); err != nil {
-			// Only print error if it's not a signal-related termination
-			if !strings.Contains(err.Error(), "signal: killed") {
-				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
-			}
-		}
-	}()
-
-	// Get server status
-	serverStatus := toolManager.GetServerStatus()
-	fmt.Printf("\n📊 Servers (%d configured):\n", len(Cfg.MCP.Servers))
-
 	// Load server configurations first
 	if err := Cfg.MCP.LoadServersFromJSON(); err != nil {
 		return fmt.Errorf("failed to load server configurations: %w", err)
 	}
 
+	fmt.Printf("\n📊 Servers (%d configured):\n", len(Cfg.MCP.LoadedServers))
+
+	// Test each server by attempting to connect and list tools
 	for _, serverConfig := range Cfg.MCP.LoadedServers {
-		status := "❌ Stopped"
-		if connected, exists := serverStatus[serverConfig.Name]; exists && connected {
-			status = "✅ Running"
+		fmt.Printf("   - %s: ", serverConfig.Name)
+
+		// Test server connectivity by trying to start it temporarily
+		toolManager := mcp.NewMCPToolManager(&Cfg.MCP)
+
+		// Create a short timeout context for testing
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
+		// Try to start just this server
+		started, _ := toolManager.StartWithFailures(ctx)
+
+		var isRunning bool
+		var toolCount int
+
+		if len(started) > 0 {
+			// Check if this specific server started
+			for _, startedName := range started {
+				if startedName == serverConfig.Name {
+					isRunning = true
+					// Try to list tools to confirm it's working
+					tools := toolManager.ListToolsByServer(serverConfig.Name)
+					toolCount = len(tools)
+					break
+				}
+			}
 		}
 
-		fmt.Printf("   - %s: %s\n", serverConfig.Name, status)
+		// Clean up immediately
+		toolManager.Close()
+		cancel()
+
+		// Display status
+		if isRunning {
+			fmt.Printf("✅ Running (%d tools)\n", toolCount)
+		} else {
+			fmt.Printf("❌ Stopped/Unavailable\n")
+		}
+
 		fmt.Printf("     Description: %s\n", serverConfig.Description)
-		fmt.Printf("     Command: %v\n", serverConfig.Command)
-		fmt.Printf("     Auto-start: %v\n", serverConfig.AutoStart)
-
-		if connected, exists := serverStatus[serverConfig.Name]; exists && connected {
-			tools := toolManager.ListToolsByServer(serverConfig.Name)
-			fmt.Printf("     Tools: %d available\n", len(tools))
+		if len(serverConfig.Command) > 0 {
+			fmt.Printf("     Command: %v\n", serverConfig.Command)
 		}
+		if serverConfig.URL != "" {
+			fmt.Printf("     URL: %s\n", serverConfig.URL)
+		}
+		fmt.Printf("     Type: %s\n", serverConfig.Type)
+		fmt.Printf("     Auto-start: %v\n", serverConfig.AutoStart)
 		fmt.Println()
 	}
 
