@@ -23,8 +23,15 @@ func NewOpenAILLMProvider(config *domain.OpenAIProviderConfig) (domain.LLMProvid
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 
-	opts := []option.RequestOption{
-		option.WithAPIKey(config.APIKey),
+	opts := []option.RequestOption{}
+
+	// For local services like Ollama, API key might not be required
+	// Use empty string for API key if not provided, let the provider handle authentication
+	if config.APIKey != "" {
+		opts = append(opts, option.WithAPIKey(config.APIKey))
+	} else {
+		// Use a placeholder for local services that don't require API keys
+		opts = append(opts, option.WithAPIKey("ollama"))
 	}
 
 	if config.BaseURL != "" {
@@ -610,8 +617,15 @@ func NewOpenAIEmbedderProvider(config *domain.OpenAIProviderConfig) (domain.Embe
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 
-	opts := []option.RequestOption{
-		option.WithAPIKey(config.APIKey),
+	opts := []option.RequestOption{}
+
+	// For local services like Ollama, API key might not be required
+	// Use empty string for API key if not provided, let the provider handle authentication
+	if config.APIKey != "" {
+		opts = append(opts, option.WithAPIKey(config.APIKey))
+	} else {
+		// Use a placeholder for local services that don't require API keys
+		opts = append(opts, option.WithAPIKey("ollama"))
 	}
 
 	if config.BaseURL != "" {
