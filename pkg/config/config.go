@@ -505,9 +505,7 @@ func (c *Config) validateProviderConfig() error {
 
 // validateOpenAIProviderConfig validates OpenAI provider configuration
 func (c *Config) validateOpenAIProviderConfig(config *domain.OpenAIProviderConfig) error {
-	if config.APIKey == "" {
-		return fmt.Errorf("api_key cannot be empty")
-	}
+	// API key is optional - let the provider handle authentication
 	if config.EmbeddingModel == "" {
 		return fmt.Errorf("embedding_model cannot be empty")
 	}

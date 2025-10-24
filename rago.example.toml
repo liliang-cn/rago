@@ -1,190 +1,138 @@
-# RAGO Complete Configuration Example
-# This file contains all available configuration options based on actual code
-# Copy this file to rago.toml and customize as needed
+# RAGO v2 Configuration Example
+# This file demonstrates all available configuration options for RAGO v2
+# Copy this file to 'rago.toml' and modify according to your needs
 
-# ============================================================================
-# PROVIDERS CONFIGURATION
-# ============================================================================
+[server]
+# HTTP server configuration
+port = 7127                           # Server port (avoids common ports like 3000, 8080, 9000)
+host = "0.0.0.0"                     # Server host (0.0.0.0 for LAN access)
+enable_ui = false                     # Enable web UI (not implemented in v2)
+cors_origins = ["*"]                  # CORS origins for API
 
 [providers]
-# Default LLM provider to use when not specified
-# Options: "ollama", "openai", "lmstudio"
-default_llm = "ollama"
+# Provider configuration
+default_llm = "openai"               # Default LLM provider
+default_embedder = "openai"           # Default embedding provider
 
-# Default embedder provider (defaults to same as default_llm if not set)
-default_embedder = "ollama"
-
-# ----------------------------------------------------------------------------
-# Ollama Provider (Local models)
-# ----------------------------------------------------------------------------
-[providers.ollama]
-type = "ollama"
-base_url = "http://localhost:11434"
-llm_model = "qwen3:4b"                  # Model for chat/completion
-embedding_model = "nomic-embed-text"    # Model for embeddings
-timeout = "30s"
-
-# ----------------------------------------------------------------------------
-# OpenAI Provider
-# ----------------------------------------------------------------------------
 [providers.openai]
+# OpenAI-compatible provider configuration
+# Works with: OpenAI API, Ollama, LM Studio, and any OpenAI-compatible service
 type = "openai"
-api_key = "sk-..."                      # Or use env var OPENAI_API_KEY
-base_url = "https://api.openai.com/v1"  # Optional, for custom endpoints
-llm_model = "gpt-4o"
-embedding_model = "text-embedding-3-small"
-timeout = "30s"
-organization = ""                        # Optional organization ID
-project = ""                            # Optional project ID
+base_url = "http://localhost:11434/v1"     # LLM endpoint URL
+api_key = ""                                # API key (optional - provider handles auth)
+llm_model = "qwen3"                        # LLM model name
+embedding_model = "nomic-embed-text"       # Embedding model name
+timeout = "30s"                            # Request timeout
+# organization = "your-org-id"             # Optional: OpenAI organization
+# project = "your-project-id"               # Optional: OpenAI project
 
-# ----------------------------------------------------------------------------
-# LM Studio Provider (Local OpenAI-compatible server)
-# ----------------------------------------------------------------------------
-[providers.lmstudio]
-type = "lmstudio"
-base_url = "http://localhost:1234/v1"
-llm_model = "local-model"
-embedding_model = "local-embedding-model"
-timeout = "30s"
+[sqvect]
+# SQLite vector database configuration
+db_path = "~/.rago/data/rag.db"            # Database file path
+max_conns = 10                             # Maximum connections
+batch_size = 100                           # Batch size for operations
+top_k = 5                                  # Number of results to return
+threshold = 0.0                            # Similarity threshold (0.0-1.0)
 
-# ----------------------------------------------------------------------------
-# LLM Pool Configuration (Optional)
-# ----------------------------------------------------------------------------
-[providers.llm_pool]
-enabled = false                         # Enable LLM pool
-providers = ["ollama", "openai"]       # List of provider names in the pool
-strategy = "round_robin"               # "round_robin", "random", "least_load", "failover"
-health_check_interval = "30s"          # Health check interval
-max_retries = 3                        # Maximum retry attempts
-retry_delay = "1s"                     # Delay between retries
+[chunker]
+# Text chunking configuration
+chunk_size = 500                           # Size of text chunks
+overlap = 50                              # Overlap between chunks
+method = "sentence"                        # Chunking method: "sentence", "paragraph", "token"
 
-# ============================================================================
-# MCP (Model Context Protocol) CONFIGURATION
-# ============================================================================
+[ingest.metadata_extraction]
+# Automatic metadata extraction configuration
+enable = false                             # Enable metadata extraction
+llm_model = ""                             # LLM model for extraction (auto-configured)
 
 [mcp]
-enabled = true                          # Enable/disable MCP servers
-servers = ["./mcpServers.json"]        # MCP server configuration files
-log_level = "info"                     # "debug", "info", "warn", "error"
-default_timeout = "60s"                # Request timeout
-max_concurrent_requests = 10           # Parallel request limit
-health_check_interval = "60s"          # Server health monitoring interval
+# Model Context Protocol (MCP) configuration
+enabled = true                             # Enable MCP tool integration
+log_level = "info"                         # MCP log level: "debug", "info", "warn", "error"
+default_timeout = "30s"                    # Default timeout for MCP operations
+max_concurrent_requests = 5                # Maximum concurrent MCP requests
+health_check_interval = "60s"              # Health check interval
+servers_config_path = "mcpServers.json"    # MCP servers configuration file
 
-# Example mcpServers.json configuration:
+# MCP Servers Configuration (External JSON file)
+# Create mcpServers.json with the following structure:
 # {
-#   "mcpServers": {
-#     "sqlite": {
-#       "type": "stdio",              # Server type: stdio (default) or http
-#       "command": "/path/to/mcp-sqlite-server",
-#       "args": ["/path/to/data"],
-#       "env": {"DEBUG": "true"}
-#     },
-#     "filesystem": {
-#       "command": "npx",
-#       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/allowed/path"]
-#     },
-#     "http-example": {
-#       "type": "http",                # HTTP-based MCP server
-#       "url": "https://api.example.com/mcp",
-#       "headers": {"Authorization": "Bearer token"}
-#     }
+#   "filesystem": {
+#     "command": "npx",
+#     "args": ["@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory"],
+#     "description": "File system operations"
+#   },
+#   "fetch": {
+#     "command": "npx",
+#     "args": ["@modelcontextprotocol/server-fetch"],
+#     "description": "HTTP/HTTPS operations"
+#   },
+#   "memory": {
+#     "command": "npx",
+#     "args": ["@modelcontextprotocol/server-memory"],
+#     "description": "Memory storage operations"
 #   }
 # }
 
+# Advanced Configuration Options
 
-# ============================================================================
-# SERVER CONFIGURATION (HTTP API and Web UI)
-# ============================================================================
-
-[server]
-host = "0.0.0.0"                       # Listen address
-port = 7127                            # Listen port (avoid common ports)
-enable_ui = true                       # Enable web UI
-cors_origins = ["*"]                   # Allowed CORS origins
-
-# ============================================================================
-# VECTOR STORE CONFIGURATION
-# ============================================================================
-
-# Option 1: SQLite/Sqvect (Embedded, local-first) - DEFAULT
 [vector_store]
-type = "sqvect"                        # "sqvect" or "sqlite" (both work)
+# Optional: External vector store configuration
+# type = "qdrant"                         # Vector store type: "sqlite" (default), "qdrant"
+# parameters = {                           # Store-specific parameters
+#   "host": "localhost",
+#   "port": 6333,
+#   "api_key": "your-qdrant-key"
+# }
 
-[vector_store.parameters]
-db_path = ".rago/data/rag.db"         # Database file path
-
-# Option 2: Qdrant (High-performance vector database)
-# [vector_store]
-# type = "qdrant"
-# 
-# [vector_store.parameters]
-# url = "localhost:6334"               # Qdrant server URL (gRPC port)
-# collection = "rago_documents"        # Collection name
-
-# ============================================================================
-# SQVECT CONFIGURATION (SQLite vector-specific settings)
-# ============================================================================
-
-[sqvect]
-db_path = ".rago/data/rag.db"         # Database path (can be different from vector_store)
-max_conns = 10                        # Max database connections
-batch_size = 100                      # Batch size for operations
-top_k = 5                             # Default number of results
-threshold = 0.0                       # Similarity threshold
-
-# ============================================================================
-# CHUNKER CONFIGURATION (Document processing)
-# ============================================================================
-
-[chunker]
-chunk_size = 500                      # Target chunk size in tokens
-overlap = 50                          # Overlap between chunks in tokens
-method = "sentence"                   # "sentence", "paragraph", "token"
-
-# ============================================================================
-# INGESTION CONFIGURATION
-# ============================================================================
-
-[ingest]
-
-[ingest.metadata_extraction]
-enable = false                        # Enable LLM-based metadata extraction
-llm_model = "qwen3:4b"               # Model for metadata extraction (auto-configured if not set)
-
-# ============================================================================
-# TOOLS CONFIGURATION
-# ============================================================================
-
-[tools]
-enabled = true                        # Enable tools functionality
-max_concurrent_calls = 10             # Max concurrent tool calls
-call_timeout = "30s"                  # Tool call timeout
-security_level = "normal"             # "strict", "normal", "permissive"
-log_level = "info"                    # "debug", "info", "warn", "error"
-enabled_tools = []                    # List of enabled tools (empty = all)
-
-[tools.rate_limit]
-calls_per_minute = 60                 # Rate limit per minute (0 = unlimited)
-calls_per_hour = 0                    # Rate limit per hour (0 = unlimited)
-burst_size = 10                       # Burst size for rate limiting
-
-[tools.plugins]
-enabled = false                       # Enable plugin system
-plugin_paths = []                     # Paths to plugin directories
-auto_load = true                      # Auto-load plugins on startup
-
-# ============================================================================
-# ENVIRONMENT VARIABLES
-# ============================================================================
-# All configuration options can be overridden with environment variables
-# using the RAGO_ prefix. Examples:
+# Environment Variable Override Examples
+# Set these in your environment to override config values:
 #
-# RAGO_SERVER_PORT=8080
-# RAGO_SERVER_HOST=localhost
-# RAGO_SERVER_ENABLE_UI=true
-# RAGO_PROVIDERS_DEFAULT_LLM=openai
-# RAGO_PROVIDERS_OPENAI_API_KEY=sk-...
-# RAGO_OLLAMA_BASE_URL=http://localhost:11434
-# RAGO_SQVECT_DB_PATH=/path/to/database.db
-# RAGO_CHUNKER_CHUNK_SIZE=1000
-# RAGO_MCP_ENABLED=true
+# export RAGO_SERVER_PORT="7127"
+# export RAGO_SERVER_HOST="0.0.0.0"
+# export RAGO_PROVIDERS_DEFAULT_LLM="openai"
+# export RAGO_PROVIDERS_DEFAULT_EMBEDDER="openai"
+# export RAGO_OPENAI_API_KEY="your-api-key"
+# export RAGO_OPENAI_BASE_URL="http://localhost:11434/v1"
+# export RAGO_OPENAI_LLM_MODEL="qwen3"
+# export RAGO_OPENAI_EMBEDDING_MODEL="nomic-embed-text"
+# export RAGO_SQVECT_DB_PATH="/custom/path/rag.db"
+# export RAGO_CHUNKER_CHUNK_SIZE="500"
+# export RAGO_CHUNKER_OVERLAP="50"
+# export RAGO_CHUNKER_METHOD="sentence"
+# export RAGO_MCP_ENABLED="true"
+
+# Provider-Specific Examples
+
+## Ollama Configuration (Local)
+# [providers.openai]
+# type = "openai"
+# base_url = "http://localhost:11434/v1"
+# api_key = ""  # Optional
+# llm_model = "qwen3"
+# embedding_model = "nomic-embed-text"
+
+## LM Studio Configuration (Local)
+# [providers.openai]
+# type = "openai"
+# base_url = "http://localhost:1234/v1"
+# api_key = ""  # Optional
+# llm_model = "your-model-name"
+# embedding_model = "your-embedding-model"
+
+## OpenAI Configuration (Cloud)
+# [providers.openai]
+# type = "openai"
+# base_url = "https://api.openai.com/v1"
+# api_key = "sk-your-openai-api-key"  # Set if needed
+# llm_model = "gpt-4o-mini"
+# embedding_model = "text-embedding-3-small"
+# organization = "org-your-org-id"
+
+## Custom OpenAI-Compatible Service
+# [providers.openai]
+# type = "openai"
+# base_url = "https://your-service.com/v1"
+# api_key = "your-api-key"  # Set if needed
+# llm_model = "your-model"
+# embedding_model = "your-embedding-model"
