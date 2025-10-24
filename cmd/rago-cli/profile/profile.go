@@ -1,6 +1,8 @@
 package profile
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,7 +11,10 @@ import (
 	"text/tabwriter"
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/providers"
 	"github.com/liliang-cn/rago/v2/pkg/settings"
+	"github.com/liliang-cn/rago/v2/pkg/store"
 	"github.com/spf13/cobra"
 )
 
@@ -306,6 +311,86 @@ var updateCmd = &cobra.Command{
 	},
 }
 
+var autoCreateCmd = &cobra.Command{
+	Use:   "auto-create <profile-name>",
+	Short: "Auto-create a profile from conversation history",
+	Long: `Automatically generate a profile based on analysis of conversation history.
+This command analyzes existing conversations to determine communication patterns,
+preferred topics, and style, then creates an optimized profile using LLM assistance.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if settingSvc == nil {
+			return fmt.Errorf("settings service not initialized")
+		}
+
+		profileName := args[0]
+		conversationIDs, _ := cmd.Flags().GetStringSlice("conversations")
+		provider, _ := cmd.Flags().GetString("provider")
+		useRecent, _ := cmd.Flags().GetInt("use-recent")
+		setActive, _ := cmd.Flags().GetBool("set-active")
+
+		var convIDs []string
+
+		if len(conversationIDs) > 0 {
+			// Use specified conversation IDs
+			convIDs = conversationIDs
+		} else if useRecent > 0 {
+			// Get recent conversations
+			recentConvs, err := getRecentConversations(useRecent)
+			if err != nil {
+				return fmt.Errorf("failed to get recent conversations: %w", err)
+			}
+			if len(recentConvs) == 0 {
+				return fmt.Errorf("no recent conversations found")
+			}
+
+			for _, conv := range recentConvs {
+				convIDs = append(convIDs, conv.ID)
+			}
+			fmt.Printf("Using %d recent conversations for analysis\n", len(recentConvs))
+		} else {
+			return fmt.Errorf("must specify either --conversations or --use-recent")
+		}
+
+		// Set up LLM service if not already available
+		if err := setupLLMService(provider); err != nil {
+			return fmt.Errorf("failed to set up LLM service: %w", err)
+		}
+
+		fmt.Printf("Analyzing %d conversations to generate profile '%s'...\n", len(convIDs), profileName)
+
+		profile, err := settingSvc.AutoGenerateProfileFromHistory(convIDs, profileName)
+		if err != nil {
+			return fmt.Errorf("failed to auto-generate profile: %w", err)
+		}
+
+		if setActive {
+			if err := settingSvc.SetActiveProfile(profile.ID); err != nil {
+				return fmt.Errorf("failed to set profile as active: %w", err)
+			}
+			fmt.Printf("Profile '%s' created and set as active\n", profile.Name)
+		} else {
+			fmt.Printf("Profile '%s' created successfully\n", profile.Name)
+		}
+
+		fmt.Printf("  ID: %s\n", profile.ID)
+		fmt.Printf("  Description: %s\n", profile.Description)
+		if profile.DefaultSystemPrompt != "" {
+			fmt.Printf("  System Prompt: %s\n", truncateString(profile.DefaultSystemPrompt, 100))
+		}
+
+		// Show metadata
+		if len(profile.Metadata) > 0 {
+			fmt.Printf("  Metadata:\n")
+			for k, v := range profile.Metadata {
+				fmt.Printf("    %s: %s\n", k, v)
+			}
+		}
+
+		return nil
+	},
+}
+
 var deleteCmd = &cobra.Command{
 	Use:   "delete <name-or-id>",
 	Short: "Delete a profile",
@@ -550,12 +635,174 @@ func init() {
 	llmCmd.AddCommand(llmSetCmd)
 	llmCmd.AddCommand(llmListCmd)
 
+	// Auto-create command flags
+	autoCreateCmd.Flags().StringSlice("conversations", []string{}, "Specific conversation IDs to analyze")
+	autoCreateCmd.Flags().Int("use-recent", 0, "Use N most recent conversations")
+	autoCreateCmd.Flags().String("provider", "openai", "LLM provider for analysis")
+	autoCreateCmd.Flags().Bool("set-active", false, "Set the created profile as active")
+
 	// Add all commands to the profile command
 	ProfileCmd.AddCommand(listCmd)
 	ProfileCmd.AddCommand(createCmd)
+	ProfileCmd.AddCommand(autoCreateCmd)
 	ProfileCmd.AddCommand(switchCmd)
 	ProfileCmd.AddCommand(showCmd)
 	ProfileCmd.AddCommand(updateCmd)
 	ProfileCmd.AddCommand(deleteCmd)
 	ProfileCmd.AddCommand(llmCmd)
+}
+
+// Helper functions for auto-create command
+
+// getRecentConversations retrieves the most recent conversations
+func getRecentConversations(limit int) ([]*store.Conversation, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("configuration not initialized")
+	}
+
+	// Open database connection
+	db, err := sql.Open("sqlite3", cfg.Sqvect.DBPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+	defer db.Close()
+
+	// Create conversation store
+	convStore, err := store.NewConversationStore(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create conversation store: %w", err)
+	}
+
+	// Get recent conversations
+	conversations, _, err := convStore.ListConversations(limit, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list conversations: %w", err)
+	}
+
+	return conversations, nil
+}
+
+// setupLLMService initializes the LLM service for profile generation
+func setupLLMService(_ string) error {
+	if cfg == nil {
+		return fmt.Errorf("configuration not initialized")
+	}
+
+	// Open database connection
+	db, err := sql.Open("sqlite3", cfg.Sqvect.DBPath)
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Initialize real LLM provider using the existing provider system
+	ctx := context.Background()
+
+	// Create provider factory
+	factory := providers.NewFactory()
+
+	// Only support OpenAI format (all local LLMs are compatible with OpenAI API)
+	if cfg.Providers.ProviderConfigs.OpenAI == nil {
+		return fmt.Errorf("OpenAI provider not configured")
+	}
+
+	// Create the LLM provider using OpenAI format
+	provider, err := factory.CreateLLMProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
+	if err != nil {
+		return fmt.Errorf("failed to create LLM provider: %w", err)
+	}
+
+	// Set components for settings service
+	if err := settingSvc.SetComponents(db, provider); err != nil {
+		return fmt.Errorf("failed to set components: %w", err)
+	}
+
+	return nil
+}
+
+// mockLLMProvider is a simple mock provider for testing purposes
+type mockLLMProvider struct{}
+
+func (m *mockLLMProvider) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
+	// Return a mock JSON response for profile generation
+	mockResponse := `{
+		"name": "auto-generated-profile",
+		"description": "Profile automatically generated from conversation history",
+		"system_prompt": "You are a helpful assistant tailored to the user's communication style and preferences.",
+		"metadata": {
+			"generated_from": "conversation_history",
+			"communication_style": "conversational",
+			"auto_generated": "true"
+		},
+		"llm_settings": {}
+	}`
+	return mockResponse, nil
+}
+
+func (m *mockLLMProvider) Stream(ctx context.Context, prompt string, opts *domain.GenerationOptions, callback func(string)) error {
+	// Simple mock streaming
+	callback("Mock streaming response")
+	return nil
+}
+
+func (m *mockLLMProvider) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
+	// Return a mock result
+	result := &domain.GenerationResult{
+		Content: "Mock response with tools",
+		ToolCalls: []domain.ToolCall{},
+	}
+	return result, nil
+}
+
+func (m *mockLLMProvider) StreamWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
+	// Mock streaming with tools
+	return callback("Mock tool streaming response", []domain.ToolCall{})
+}
+
+func (m *mockLLMProvider) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	// Return mock structured result
+	result := &domain.StructuredResult{
+		Data:  map[string]interface{}{},
+		Raw:   "Mock structured response",
+		Valid: true,
+	}
+	return result, nil
+}
+
+func (m *mockLLMProvider) RecognizeIntent(ctx context.Context, request string) (*domain.IntentResult, error) {
+	// Return mock intent
+	return &domain.IntentResult{
+		Intent:     "mock_intent",
+		Confidence: 1.0,
+		KeyVerbs:   []string{},
+		Entities:   []string{},
+		NeedsTools: false,
+		Reasoning:  "Mock intent recognition",
+	}, nil
+}
+
+func (m *mockLLMProvider) ProviderType() domain.ProviderType {
+	return domain.ProviderOpenAI // Use OpenAI as mock type
+}
+
+func (m *mockLLMProvider) Health(ctx context.Context) error {
+	return nil // Mock: always healthy
+}
+
+func (m *mockLLMProvider) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
+	// Return mock metadata
+	return &domain.ExtractedMetadata{
+		Summary:      "Mock content summary",
+		Keywords:     []string{"mock", "content"},
+		DocumentType: "text",
+		CreationDate: "",
+		Collection:   "mock_collection",
+	}, nil
+}
+
+// truncateString truncates a string to a maximum length
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

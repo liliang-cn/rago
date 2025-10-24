@@ -80,18 +80,8 @@ func (s *StatusChecker) checkLLMProvider(ctx context.Context) ProviderHealthStat
 	}
 
 	// Get provider details
-	if s.config.Providers.ProviderConfigs.Ollama != nil && s.config.Providers.DefaultLLM == "ollama" {
-		cfg := s.config.Providers.ProviderConfigs.Ollama
-		status.Details["base_url"] = cfg.BaseURL
-		status.Details["model"] = cfg.LLMModel
-		status.Details["timeout"] = cfg.Timeout.String()
-	} else if s.config.Providers.ProviderConfigs.OpenAI != nil && s.config.Providers.DefaultLLM == "openai" {
+	if s.config.Providers.ProviderConfigs.OpenAI != nil && s.config.Providers.DefaultLLM == "openai" {
 		cfg := s.config.Providers.ProviderConfigs.OpenAI
-		status.Details["base_url"] = cfg.BaseURL
-		status.Details["model"] = cfg.LLMModel
-		status.Details["timeout"] = cfg.Timeout.String()
-	} else if s.config.Providers.ProviderConfigs.LMStudio != nil && s.config.Providers.DefaultLLM == "lmstudio" {
-		cfg := s.config.Providers.ProviderConfigs.LMStudio
 		status.Details["base_url"] = cfg.BaseURL
 		status.Details["model"] = cfg.LLMModel
 		status.Details["timeout"] = cfg.Timeout.String()
@@ -122,18 +112,8 @@ func (s *StatusChecker) checkEmbedderProvider(ctx context.Context) ProviderHealt
 	}
 
 	// Get provider details
-	if s.config.Providers.ProviderConfigs.Ollama != nil && s.config.Providers.DefaultEmbedder == "ollama" {
-		cfg := s.config.Providers.ProviderConfigs.Ollama
-		status.Details["base_url"] = cfg.BaseURL
-		status.Details["model"] = cfg.EmbeddingModel
-		status.Details["timeout"] = cfg.Timeout.String()
-	} else if s.config.Providers.ProviderConfigs.OpenAI != nil && s.config.Providers.DefaultEmbedder == "openai" {
+	if s.config.Providers.ProviderConfigs.OpenAI != nil && s.config.Providers.DefaultEmbedder == "openai" {
 		cfg := s.config.Providers.ProviderConfigs.OpenAI
-		status.Details["base_url"] = cfg.BaseURL
-		status.Details["model"] = cfg.EmbeddingModel
-		status.Details["timeout"] = cfg.Timeout.String()
-	} else if s.config.Providers.ProviderConfigs.LMStudio != nil && s.config.Providers.DefaultEmbedder == "lmstudio" {
-		cfg := s.config.Providers.ProviderConfigs.LMStudio
 		status.Details["base_url"] = cfg.BaseURL
 		status.Details["model"] = cfg.EmbeddingModel
 		status.Details["timeout"] = cfg.Timeout.String()

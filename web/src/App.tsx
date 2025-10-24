@@ -8,7 +8,6 @@ import {
   SearchOutlined,
   RobotOutlined,
   ApiOutlined,
-  UnorderedListOutlined,
   MonitorOutlined,
   BarChartOutlined,
   HistoryOutlined,
@@ -26,7 +25,6 @@ import { DocumentsTab } from './components/DocumentsTab';
 import { SearchTab } from './components/SearchTab';
 import { LLMTab } from './components/LLMTab';
 import { MCPTab } from './components/MCPTab';
-import { TasksTab } from './components/TasksTab';
 import { StatusTab } from './components/StatusTab';
 import { TokenAnalysisTab } from './components/TokenAnalysisTab';
 import { ConversationHistoryTab } from './components/ConversationHistoryTab';
@@ -60,7 +58,6 @@ const menuItems: MenuItem[] = [
   getItem('Search', 'search', <SearchOutlined />),
   getItem('LLM Settings', 'llm', <RobotOutlined />),
   getItem('MCP Tools', 'mcp', <ApiOutlined />),
-  getItem('Tasks', 'tasks', <UnorderedListOutlined />),
   getItem('System Status', 'status', <MonitorOutlined />),
   getItem('Token Analysis', 'tokens', <BarChartOutlined />),
   getItem('History', 'history', <HistoryOutlined />),
@@ -195,7 +192,6 @@ function AppContent() {
               <Route path="/search" element={<SearchTab />} />
               <Route path="/llm" element={<LLMTab />} />
               <Route path="/mcp" element={<MCPTab />} />
-              <Route path="/tasks" element={<TasksTab />} />
               <Route path="/status" element={<StatusTab />} />
               <Route path="/tokens" element={<TokenAnalysisTab />} />
               <Route path="/history" element={<ConversationHistoryTab />} />

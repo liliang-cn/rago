@@ -234,48 +234,6 @@ export interface RAGPerformanceMetrics {
   error_rate: number;
 }
 
-// === Agent Types ===
-
-export interface AgentRunRequest {
-  task: string;
-  context?: Record<string, any>;
-  tools?: string[];
-  max_iterations?: number;
-}
-
-export interface AgentRunResponse {
-  result: string;
-  iterations: AgentIteration[];
-  total_steps: number;
-  success: boolean;
-  error?: string;
-}
-
-export interface AgentIteration {
-  step: number;
-  action: string;
-  tool?: string;
-  result?: string;
-  thinking?: string;
-}
-
-export interface AgentPlanRequest {
-  task: string;
-  context?: Record<string, any>;
-}
-
-export interface AgentPlanResponse {
-  plan: AgentStep[];
-  estimated_time: number;
-  required_tools: string[];
-}
-
-export interface AgentStep {
-  step_number: number;
-  description: string;
-  tool?: string;
-  expected_output: string;
-}
 
 // === Tool Types ===
 

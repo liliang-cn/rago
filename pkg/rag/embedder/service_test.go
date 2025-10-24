@@ -36,7 +36,7 @@ func (m *MockEmbedderProvider) ProviderType() domain.ProviderType {
 
 func TestNewService(t *testing.T) {
 	provider := &MockEmbedderProvider{
-		providerType: domain.ProviderOllama,
+		providerType: domain.ProviderOpenAI,
 	}
 
 	service := NewService(provider)
@@ -171,7 +171,7 @@ func TestService_ProviderType(t *testing.T) {
 	}{
 		{
 			name:         "ollama provider",
-			providerType: domain.ProviderOllama,
+			providerType: domain.ProviderOpenAI,
 		},
 		{
 			name:         "openai provider",
@@ -179,7 +179,7 @@ func TestService_ProviderType(t *testing.T) {
 		},
 		{
 			name:         "lmstudio provider",
-			providerType: domain.ProviderLMStudio,
+			providerType: domain.ProviderOpenAI,
 		},
 	}
 

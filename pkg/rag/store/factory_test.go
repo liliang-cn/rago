@@ -75,7 +75,7 @@ func TestNewVectorStore(t *testing.T) {
 			errorMsg:    "unsupported vector store type: ",
 		},
 		{
-			name: "Future store type (not implemented)",
+			name: "Qdrant store (connection expected to fail)",
 			config: StoreConfig{
 				Type: "qdrant",
 				Parameters: map[string]interface{}{
@@ -85,7 +85,7 @@ func TestNewVectorStore(t *testing.T) {
 				},
 			},
 			shouldError: true,
-			errorMsg:    "unsupported vector store type: qdrant",
+			errorMsg:    "", // Expect any connection error since no server is running
 		},
 	}
 
