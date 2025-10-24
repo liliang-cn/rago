@@ -13,8 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/mcp"
-	"github.com/liliang-cn/rago/v2/pkg/tools"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
 )
 
@@ -26,10 +24,6 @@ type Service struct {
 	documentStore   domain.DocumentStore
 	config          *config.Config
 	llmService      domain.MetadataExtractor
-	toolsEnabled    bool
-	toolRegistry    *tools.Registry
-	toolExecutor    *tools.Executor
-	toolCoordinator *tools.Coordinator
 }
 
 func New(
@@ -49,37 +43,13 @@ func New(
 		documentStore: documentStore,
 		config:        config,
 		llmService:    llmService,
-		toolsEnabled:  config.Tools.Enabled,
 	}
 
-	// Initialize tools if enabled
-	if config.Tools.Enabled {
-		s.initializeTools()
-	}
 
 	return s
 }
 
 // initializeTools sets up the tool system
-func (s *Service) initializeTools() {
-	// Create tool registry
-	s.toolRegistry = tools.NewRegistry(&s.config.Tools)
-
-	// Create tool executor
-	executorConfig := &tools.ExecutorConfig{
-		MaxConcurrency: s.config.Tools.MaxConcurrency,
-		DefaultTimeout: s.config.Tools.CallTimeout,
-		EnableLogging:  true,
-	}
-	s.toolExecutor = tools.NewExecutor(s.toolRegistry, executorConfig)
-
-	// Create tool coordinator
-	coordConfig := tools.DefaultCoordinatorConfig()
-	s.toolCoordinator = tools.NewCoordinator(s.toolRegistry, s.toolExecutor, coordConfig)
-
-	// Built-in tools have been deprecated and removed
-	// Use MCP servers for all tool functionality
-}
 
 func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.IngestResponse, error) {
 	if err := s.validateIngestRequest(req); err != nil {
@@ -292,219 +262,21 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 }
 
 // QueryWithTools processes a query with tool calling support
+// QueryWithTools - deprecated, use MCP instead
 func (s *Service) QueryWithTools(ctx context.Context, req domain.QueryRequest) (domain.QueryResponse, error) {
-	start := time.Now()
-
-	if req.Query == "" {
-		return domain.QueryResponse{}, fmt.Errorf("%w: empty query", domain.ErrInvalidInput)
-	}
-
-	// If tools are not enabled or not requested, fall back to regular query
-	if !s.toolsEnabled || !req.ToolsEnabled {
-		return s.Query(ctx, req)
-	}
-
-	// Perform hybrid search first to get context
-	chunks, err := s.hybridSearch(ctx, req)
-	if err != nil {
-		return domain.QueryResponse{}, err
-	}
-
-	// Build tools list based on allowed tools
-	availableTools := s.getAvailableTools(req.AllowedTools)
-	if len(availableTools) == 0 {
-		// No tools available, fall back to regular query
-		return s.Query(ctx, req)
-	}
-
-	// Convert to domain.ToolDefinition
-	toolDefs := make([]domain.ToolDefinition, 0, len(availableTools))
-	for _, tool := range availableTools {
-		params := tool.Parameters()
-		toolDef := domain.ToolDefinition{
-			Type: "function",
-			Function: domain.ToolFunction{
-				Name:        tool.Name(),
-				Description: tool.Description(),
-				Parameters: map[string]interface{}{
-					"type":       params.Type,
-					"properties": params.Properties,
-					"required":   params.Required,
-				},
-			},
-		}
-		toolDefs = append(toolDefs, toolDef)
-	}
-
-	// Create execution context
-	execCtx := &tools.ExecutionContext{
-		RequestID: uuid.New().String(),
-	}
-
-	// Generate options
-	genOpts := &domain.GenerationOptions{
-		Temperature: req.Temperature,
-		MaxTokens:   req.MaxTokens,
-	}
-
-	if genOpts.Temperature <= 0 {
-		genOpts.Temperature = 0.7
-	}
-	if genOpts.MaxTokens <= 0 {
-		genOpts.MaxTokens = 25000 // Increased for tool calling scenarios
-	}
-
-	// Build prompt with context
-	prompt := s.buildPromptWithContext(req.Query, chunks)
-
-	// Use coordinator to handle tool calling conversation
-	response, err := s.toolCoordinator.HandleToolCallingConversation(
-		ctx, s.generator, prompt, toolDefs, genOpts, execCtx,
-	)
-	if err != nil {
-		return domain.QueryResponse{}, fmt.Errorf("tool calling failed: %w", err)
-	}
-
-	// Clean up internal thinking tags if needed
-	if !req.ShowThinking {
-		response.Answer = s.cleanThinkingTags(response.Answer)
-	}
-
-	// Add sources from initial search
-	response.Sources = chunks
-	response.Elapsed = time.Since(start).String()
-
-	return *response, nil
+	return s.Query(ctx, req)
 }
 
 // StreamQueryWithTools processes a streaming query with tool calling support
+// StreamQueryWithTools - deprecated, use MCP instead
 func (s *Service) StreamQueryWithTools(ctx context.Context, req domain.QueryRequest, callback func(string)) error {
-	if req.Query == "" {
-		return fmt.Errorf("%w: empty query", domain.ErrInvalidInput)
-	}
-
-	if callback == nil {
-		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
-	}
-
-	// If tools are not enabled or not requested, fall back to regular stream query
-	if !s.toolsEnabled || !req.ToolsEnabled {
-		return s.StreamQuery(ctx, req, callback)
-	}
-
-	// Perform hybrid search first
-	chunks, err := s.hybridSearch(ctx, req)
-	if err != nil {
-		return err
-	}
-
-	// Build tools list
-	availableTools := s.getAvailableTools(req.AllowedTools)
-	if len(availableTools) == 0 {
-		return s.StreamQuery(ctx, req, callback)
-	}
-
-	// Convert to domain.ToolDefinition
-	toolDefs := make([]domain.ToolDefinition, 0, len(availableTools))
-	for _, tool := range availableTools {
-		params := tool.Parameters()
-		toolDef := domain.ToolDefinition{
-			Type: "function",
-			Function: domain.ToolFunction{
-				Name:        tool.Name(),
-				Description: tool.Description(),
-				Parameters: map[string]interface{}{
-					"type":       params.Type,
-					"properties": params.Properties,
-					"required":   params.Required,
-				},
-			},
-		}
-		toolDefs = append(toolDefs, toolDef)
-	}
-
-	// Create execution context
-	execCtx := &tools.ExecutionContext{
-		RequestID: uuid.New().String(),
-	}
-
-	// Generate options
-	genOpts := &domain.GenerationOptions{
-		Temperature: req.Temperature,
-		MaxTokens:   req.MaxTokens,
-	}
-
-	if genOpts.Temperature <= 0 {
-		genOpts.Temperature = 0.7
-	}
-	if genOpts.MaxTokens <= 0 {
-		genOpts.MaxTokens = 25000
-	}
-
-	// Build prompt with context
-	prompt := s.buildPromptWithContext(req.Query, chunks)
-
-	// Wrap callback to handle thinking tags
-	wrappedCallback := s.wrapCallbackForThinking(callback, req.ShowThinking)
-
-	// Create a callback that handles tool execution results
-	toolCallback := func(chunk string, toolCalls []domain.ExecutedToolCall, finished bool) error {
-		if chunk != "" {
-			wrappedCallback(chunk)
-		}
-
-		// Optionally send tool execution info
-		if len(toolCalls) > 0 && req.ShowThinking {
-			for _, call := range toolCalls {
-				info := fmt.Sprintf("\n[Tool: %s - %s]\n", call.Function.Name,
-					map[bool]string{true: "Success", false: "Failed"}[call.Success])
-				wrappedCallback(info)
-			}
-		}
-
-		return nil
-	}
-
-	// Use coordinator for streaming with tools
-	return s.toolCoordinator.StreamToolCallingConversation(
-		ctx, s.generator, prompt, toolDefs, genOpts, execCtx, toolCallback,
-	)
+	return s.StreamQuery(ctx, req, callback)
 }
 
 // getAvailableTools returns the list of available tools based on allowed list
-func (s *Service) getAvailableTools(allowedTools []string) []tools.Tool {
-	if s.toolRegistry == nil {
-		return nil
-	}
-
-	allTools := s.toolRegistry.ListEnabled()
-	if len(allowedTools) == 0 {
-		// Return all enabled tools
-		result := make([]tools.Tool, 0, len(allTools))
-		for _, info := range allTools {
-			if tool, exists := s.toolRegistry.Get(info.Name); exists {
-				result = append(result, tool)
-			}
-		}
-		return result
-	}
-
-	// Filter by allowed list
-	allowedMap := make(map[string]bool)
-	for _, name := range allowedTools {
-		allowedMap[name] = true
-	}
-
-	result := make([]tools.Tool, 0, len(allowedTools))
-	for _, info := range allTools {
-		if allowedMap[info.Name] {
-			if tool, exists := s.toolRegistry.Get(info.Name); exists {
-				result = append(result, tool)
-			}
-		}
-	}
-
-	return result
+// getAvailableTools - deprecated
+func (s *Service) getAvailableTools(allowedTools []string) []interface{} {
+	return nil
 }
 
 // buildPromptWithContext builds a prompt with RAG context
@@ -821,141 +593,20 @@ func (s *Service) wrapCallbackForThinking(callback func(string), showThinking bo
 }
 
 // GetToolRegistry returns the tool registry if tools are enabled
+// GetToolRegistry - deprecated
 func (s *Service) GetToolRegistry() interface{} {
-	return s.toolRegistry
+	return nil
 }
 
 // GetToolExecutor returns the tool executor if tools are enabled
+// GetToolExecutor - deprecated
 func (s *Service) GetToolExecutor() interface{} {
-	return s.toolExecutor
+	return nil
 }
 
 // RegisterMCPTools registers MCP tools with the processor
+// RegisterMCPTools - deprecated
 func (s *Service) RegisterMCPTools(mcpService interface{}) error {
-	if !s.toolsEnabled {
-		return fmt.Errorf("tools are not enabled in this processor")
-	}
-
-	if s.toolRegistry == nil {
-		return fmt.Errorf("tool registry is not initialized")
-	}
-
-	// Type assert to MCP service
-	mcpSvc, ok := mcpService.(*mcp.MCPService)
-	if !ok {
-		return fmt.Errorf("invalid MCP service type")
-	}
-
-	// Get all available MCP tools
-	mcpTools := mcpSvc.GetAvailableTools()
-	if len(mcpTools) == 0 {
-		return fmt.Errorf("no MCP tools available")
-	}
-
-	// Register each MCP tool as a domain.Tool
-	for _, mcpTool := range mcpTools {
-		// Create an adapter that implements domain.Tool interface
-		adapter := &MCPToolAdapter{
-			mcpTool:    mcpTool,
-			mcpService: mcpSvc,
-		}
-
-		// Register the adapter with the tool registry
-		if err := s.toolRegistry.Register(adapter); err != nil {
-			log.Printf("Failed to register MCP tool %s: %v", mcpTool.Name(), err)
-			continue
-		}
-
-		log.Printf("[INFO] Registered MCP tool: %s", mcpTool.Name())
-	}
-
-	return nil
+	return fmt.Errorf("tools have been removed - use MCP servers directly")
 }
 
-// MCPToolAdapter adapts MCP tools to the domain.Tool interface
-type MCPToolAdapter struct {
-	mcpTool    *mcp.MCPToolWrapper
-	mcpService *mcp.MCPService
-}
-
-// Name returns the tool name
-func (a *MCPToolAdapter) Name() string {
-	return a.mcpTool.Name()
-}
-
-// Description returns the tool description
-func (a *MCPToolAdapter) Description() string {
-	return a.mcpTool.Description()
-}
-
-// Parameters returns the tool parameters in the expected format
-func (a *MCPToolAdapter) Parameters() tools.ToolParameters {
-	// Convert MCP tool schema to tools.ToolParameters
-	schema := a.mcpTool.Schema()
-
-	params := tools.ToolParameters{
-		Type:       "object",
-		Properties: make(map[string]tools.ToolParameter),
-		Required:   []string{},
-	}
-
-	if properties, ok := schema["properties"].(map[string]interface{}); ok {
-		for name, prop := range properties {
-			if propMap, ok := prop.(map[string]interface{}); ok {
-				param := tools.ToolParameter{
-					Type:        getString(propMap, "type", "string"),
-					Description: getString(propMap, "description", ""),
-				}
-				params.Properties[name] = param
-			}
-		}
-	}
-
-	if required, ok := schema["required"].([]string); ok {
-		params.Required = required
-	}
-
-	return params
-}
-
-// Execute runs the MCP tool with the given arguments
-func (a *MCPToolAdapter) Execute(ctx context.Context, args map[string]interface{}) (*tools.ToolResult, error) {
-	result, err := a.mcpTool.Call(ctx, args)
-	if err != nil {
-		return &tools.ToolResult{
-			Success: false,
-			Error:   err.Error(),
-		}, nil
-	}
-
-	return &tools.ToolResult{
-		Success: result.Success,
-		Data:    result.Data,
-		Error:   result.Error,
-	}, nil
-}
-
-// Validate checks if the provided arguments are valid for this tool
-func (a *MCPToolAdapter) Validate(args map[string]interface{}) error {
-	// Basic validation - could be enhanced based on MCP tool schema
-	params := a.Parameters()
-
-	// Check required parameters
-	for _, required := range params.Required {
-		if _, exists := args[required]; !exists {
-			return fmt.Errorf("required parameter '%s' is missing", required)
-		}
-	}
-
-	return nil
-}
-
-// Helper function to safely get string values from map
-func getString(m map[string]interface{}, key, defaultValue string) string {
-	if val, ok := m[key]; ok {
-		if str, ok := val.(string); ok {
-			return str
-		}
-	}
-	return defaultValue
-}

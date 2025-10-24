@@ -11,7 +11,6 @@ import (
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
-	"github.com/liliang-cn/rago/v2/pkg/tools"
 	"github.com/spf13/viper"
 )
 
@@ -21,7 +20,6 @@ type Config struct {
 	Sqvect      SqvectConfig       `mapstructure:"sqvect"`
 	Chunker     ChunkerConfig      `mapstructure:"chunker"`
 	Ingest      IngestConfig       `mapstructure:"ingest"`
-	Tools       tools.ToolConfig   `mapstructure:"tools"`
 	MCP         mcp.Config         `mapstructure:"mcp"`
 	Agents      *AgentsConfig      `mapstructure:"agents"`
 	VectorStore *VectorStoreConfig `mapstructure:"vector_store"`
@@ -45,6 +43,7 @@ type AgentsConfig struct {
 	MaxConcurrent    int    `mapstructure:"max_concurrent"`    // Max concurrent agent executions
 	DefaultTimeout   int    `mapstructure:"default_timeout"`   // Default timeout in seconds
 	EnableGeneration bool   `mapstructure:"enable_generation"` // Enable agent/workflow generation from NL
+	MaxAgents        int    `mapstructure:"max_agents"`        // Maximum agents in the pool
 }
 
 type ProvidersConfig struct {
@@ -112,8 +111,6 @@ type ChunkerConfig struct {
 	Method    string `mapstructure:"method"`
 }
 
-// ToolsConfig is an alias for tools.ToolConfig for backward compatibility
-type ToolsConfig = tools.ToolConfig
 
 func Load(configPath string) (*Config, error) {
 	config := &Config{}
@@ -280,23 +277,7 @@ func setDefaults() {
 	viper.SetDefault("agents.default_timeout", 300) // 5 minutes
 	viper.SetDefault("agents.enable_generation", true)
 
-	// Tools configuration defaults
-	toolConfig := tools.DefaultToolConfig()
-	viper.SetDefault("tools.enabled", toolConfig.Enabled)
-	viper.SetDefault("tools.max_concurrent_calls", toolConfig.MaxConcurrency)
-	viper.SetDefault("tools.call_timeout", toolConfig.CallTimeout)
-	viper.SetDefault("tools.security_level", toolConfig.SecurityLevel)
-	viper.SetDefault("tools.enabled_tools", toolConfig.EnabledTools)
-	viper.SetDefault("tools.log_level", toolConfig.LogLevel)
-	viper.SetDefault("tools.rate_limit.calls_per_minute", toolConfig.RateLimit.CallsPerMinute)
-	viper.SetDefault("tools.rate_limit.calls_per_hour", toolConfig.RateLimit.CallsPerHour)
-	viper.SetDefault("tools.rate_limit.burst_size", toolConfig.RateLimit.BurstSize)
-	// Built-in tools have been removed - use MCP servers instead
-
-	// Plugin configuration defaults
-	viper.SetDefault("tools.plugins.enabled", toolConfig.Plugins.Enabled)
-	viper.SetDefault("tools.plugins.plugin_paths", toolConfig.Plugins.PluginPaths)
-	viper.SetDefault("tools.plugins.auto_load", toolConfig.Plugins.AutoLoad)
+	// Tools have been removed - use MCP servers instead
 
 	// MCP configuration defaults
 	mcpConfig := mcp.DefaultConfig()
@@ -514,10 +495,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("llm_model for metadata extraction should be auto-configured but is still empty")
 	}
 
-	// Validate tools configuration
-	if err := c.validateToolsConfig(); err != nil {
-		return fmt.Errorf("invalid tools configuration: %w", err)
-	}
 
 	// Validate MCP configuration
 	if err := c.validateMCPConfig(); err != nil {
@@ -681,49 +658,6 @@ func (c *Config) validateLegacyOllamaConfig() error {
 	return nil
 }
 
-// validateToolsConfig validates the tools configuration
-func (c *Config) validateToolsConfig() error {
-	if c.Tools.MaxConcurrency < 0 {
-		return fmt.Errorf("max_concurrent_calls must be non-negative: %d", c.Tools.MaxConcurrency)
-	}
-
-	if c.Tools.CallTimeout < 0 {
-		return fmt.Errorf("call_timeout must be non-negative: %v", c.Tools.CallTimeout)
-	}
-
-	validSecurityLevels := map[string]bool{
-		"strict":     true,
-		"normal":     true,
-		"permissive": true,
-	}
-	if !validSecurityLevels[c.Tools.SecurityLevel] {
-		return fmt.Errorf("invalid security_level: %s (must be strict, normal, or permissive)", c.Tools.SecurityLevel)
-	}
-
-	validLogLevels := map[string]bool{
-		"debug": true,
-		"info":  true,
-		"warn":  true,
-		"error": true,
-	}
-	if c.Tools.LogLevel != "" && !validLogLevels[c.Tools.LogLevel] {
-		return fmt.Errorf("invalid log_level: %s (must be debug, info, warn, or error)", c.Tools.LogLevel)
-	}
-
-	if c.Tools.RateLimit.CallsPerMinute < 0 {
-		return fmt.Errorf("rate_limit.calls_per_minute must be non-negative: %d", c.Tools.RateLimit.CallsPerMinute)
-	}
-
-	if c.Tools.RateLimit.CallsPerHour < 0 {
-		return fmt.Errorf("rate_limit.calls_per_hour must be non-negative: %d", c.Tools.RateLimit.CallsPerHour)
-	}
-
-	if c.Tools.RateLimit.BurstSize < 0 {
-		return fmt.Errorf("rate_limit.burst_size must be non-negative: %d", c.Tools.RateLimit.BurstSize)
-	}
-
-	return nil
-}
 
 func GetEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
