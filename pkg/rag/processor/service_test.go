@@ -192,9 +192,6 @@ func createSimpleTestService() *Service {
 			Overlap:   20,
 			Method:    "sentence",
 		},
-		Tools: config.ToolsConfig{
-			Enabled: false,
-		},
 	}
 
 	return New(
@@ -396,9 +393,6 @@ func TestProcessorService_WithMetadataExtraction(t *testing.T) {
 			ChunkSize: 100,
 			Overlap:   20,
 			Method:    "sentence",
-		},
-		Tools: config.ToolsConfig{
-			Enabled: false,
 		},
 	}
 

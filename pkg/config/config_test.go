@@ -438,20 +438,23 @@ func TestGetEnvOrDefaultBool(t *testing.T) {
 func TestProvidersConfig(t *testing.T) {
 	config := &Config{
 		Providers: ProvidersConfig{
-			DefaultLLM:      "ollama",
+			DefaultLLM:      "openai",
 			DefaultEmbedder: "openai",
 			ProviderConfigs: domain.ProviderConfig{
-				Ollama: &domain.OllamaProviderConfig{
+				OpenAI: &domain.OpenAIProviderConfig{
 					BaseProviderConfig: domain.BaseProviderConfig{
-						Type: domain.ProviderOllama,
+						Type: domain.ProviderOpenAI,
 					},
-					BaseURL: "http://localhost:11434",
+					BaseURL:        "http://localhost:11434",
+					APIKey:         "test-key",
+					EmbeddingModel: "text-embedding-ada-002",
+					LLMModel:       "gpt-3.5-turbo",
 				},
 			},
 		},
 	}
 
-	if config.Providers.DefaultLLM != "ollama" {
+	if config.Providers.DefaultLLM != "openai" {
 		t.Error("DefaultLLM not set correctly")
 	}
 
@@ -459,8 +462,8 @@ func TestProvidersConfig(t *testing.T) {
 		t.Error("DefaultEmbedder not set correctly")
 	}
 
-	if config.Providers.ProviderConfigs.Ollama == nil {
-		t.Error("Ollama provider config not set")
+	if config.Providers.ProviderConfigs.OpenAI == nil {
+		t.Error("OpenAI provider config not set")
 	}
 }
 

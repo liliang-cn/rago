@@ -18,7 +18,7 @@ import (
 	conversationHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/conversation"
 	llmHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/llm"
 	mcpHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/mcp"
-	platformHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/platform"
+	// platformHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/platform"
 	ragHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/rag"
 	usageHandlers "github.com/liliang-cn/rago/v2/internal/api/handlers/usage"
 	v1Handlers "github.com/liliang-cn/rago/v2/internal/api/handlers/v1"
@@ -145,9 +145,6 @@ var serveCmd = &cobra.Command{
 
 		// Initialize usage service with data directory from config
 		usageDataDir := ".rago/data"
-		if cfg.Agents != nil && cfg.Agents.DataPath != "" {
-			usageDataDir = cfg.Agents.DataPath
-		}
 		usageService, err := usage.NewServiceWithDataDir(cfg, usageDataDir)
 		if err != nil {
 			return fmt.Errorf("failed to initialize usage service: %w", err)
@@ -233,7 +230,9 @@ func setupRouter(trackedProcessor domain.RAGProcessor, processorService *process
 	{
 		api.GET("/health", handlers.NewHealthHandler().Handle)
 
-		// Platform unified API endpoints (NEW)
+		// Platform unified API endpoints (NEW) - TEMPORARILY DISABLED
+		// TODO: Fix client package import and re-enable
+		/*
 		platformGroup := api.Group("/platform")
 		{
 			platformHandler := platformHandlers.NewHandler(cfg)
@@ -254,10 +253,8 @@ func setupRouter(trackedProcessor domain.RAGProcessor, processorService *process
 			platformGroup.GET("/tools", platformHandler.ToolsList)
 			platformGroup.POST("/tools/call", platformHandler.ToolCall)
 
-			// Agent endpoints
-			platformGroup.POST("/agent/run", platformHandler.AgentRun)
-			platformGroup.POST("/agent/plan", platformHandler.AgentPlan)
-		}
+			}
+		*/
 
 		// RAG endpoints
 		ragGroup := api.Group("/rag")
@@ -428,9 +425,6 @@ func setupRouter(trackedProcessor domain.RAGProcessor, processorService *process
 				})
 			}
 		}
-
-		// Agent functionality is available via CLI: rago agent run
-		// Web API for agents has been simplified and moved to CLI-only
 
 		// V1 API endpoints for backward compatibility and analytics
 		v1Group := api.Group("/v1")

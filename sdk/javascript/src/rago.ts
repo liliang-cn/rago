@@ -4,7 +4,6 @@ import { LLMModule } from './modules/llm';
 import { ConversationsModule } from './modules/conversations';
 import { MCPModule } from './modules/mcp';
 import { AnalyticsModule } from './modules/analytics';
-import { AgentsModule } from './modules/agents';
 import { ToolsModule } from './modules/tools';
 import { RAGOConfig } from './types';
 
@@ -21,7 +20,6 @@ export class RAGO {
   public readonly conversations: ConversationsModule;
   public readonly mcp: MCPModule;
   public readonly analytics: AnalyticsModule;
-  public readonly agents: AgentsModule;
   public readonly tools: ToolsModule;
 
   constructor(config: RAGOConfig) {
@@ -33,7 +31,6 @@ export class RAGO {
     this.conversations = new ConversationsModule(this.client);
     this.mcp = new MCPModule(this.client);
     this.analytics = new AnalyticsModule(this.client);
-    this.agents = new AgentsModule(this.client);
     this.tools = new ToolsModule(this.client);
   }
 

@@ -26,11 +26,8 @@ type Service struct {
 
 // NewService creates a new usage tracking service
 func NewService(cfg *config.Config) (*Service, error) {
-	// Use agents data path from config, fallback to default if not set
+	// Use default data path
 	dataDir := ".rago/data"
-	if cfg.Agents != nil && cfg.Agents.DataPath != "" {
-		dataDir = cfg.Agents.DataPath
-	}
 	return NewServiceWithDataDir(cfg, dataDir)
 }
 

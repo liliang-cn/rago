@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/providers"
+	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/spf13/cobra"
 )
 
@@ -45,11 +45,10 @@ var llmChatCmd = &cobra.Command{
 			cfg.Providers.DefaultLLM = llmProvider
 		}
 
-		// Create LLM service using utils helper
-		factory := providers.NewFactory()
-		llmService, err := providers.InitializeLLM(ctx, cfg, factory)
+		// Get global LLM service
+		llmService, err := services.GetGlobalLLM()
 		if err != nil {
-			return fmt.Errorf("failed to create LLM service: %w", err)
+			return fmt.Errorf("failed to get global LLM service: %w", err)
 		}
 
 		// Create generation options
@@ -85,27 +84,12 @@ var llmListCmd = &cobra.Command{
 		fmt.Println("🤖 Available LLM Providers and Models")
 		fmt.Println("=====================================")
 
-		// List Ollama provider if configured
-		if cfg.Providers.ProviderConfigs.Ollama != nil {
-			fmt.Printf("\n📦 Ollama\n")
-			fmt.Printf("   URL: %s\n", cfg.Providers.ProviderConfigs.Ollama.BaseURL)
-			fmt.Printf("   LLM Model: %s\n", cfg.Providers.ProviderConfigs.Ollama.LLMModel)
-			fmt.Printf("   Embedding Model: %s\n", cfg.Providers.ProviderConfigs.Ollama.EmbeddingModel)
-		}
-
-		// List OpenAI provider if configured
+		// List OpenAI provider if configured (compatible with all OpenAI-format LLMs)
 		if cfg.Providers.ProviderConfigs.OpenAI != nil {
-			fmt.Printf("\n📦 OpenAI\n")
+			fmt.Printf("\n📦 OpenAI (Compatible Format)\n")
+			fmt.Printf("   URL: %s\n", cfg.Providers.ProviderConfigs.OpenAI.BaseURL)
 			fmt.Printf("   LLM Model: %s\n", cfg.Providers.ProviderConfigs.OpenAI.LLMModel)
 			fmt.Printf("   Embedding Model: %s\n", cfg.Providers.ProviderConfigs.OpenAI.EmbeddingModel)
-		}
-
-		// List LMStudio provider if configured
-		if cfg.Providers.ProviderConfigs.LMStudio != nil {
-			fmt.Printf("\n📦 LM Studio\n")
-			fmt.Printf("   URL: %s\n", cfg.Providers.ProviderConfigs.LMStudio.BaseURL)
-			fmt.Printf("   LLM Model: %s\n", cfg.Providers.ProviderConfigs.LMStudio.LLMModel)
-			fmt.Printf("   Embedding Model: %s\n", cfg.Providers.ProviderConfigs.LMStudio.EmbeddingModel)
 		}
 
 		fmt.Printf("\n⭐ Default LLM Provider: %s\n", cfg.Providers.DefaultLLM)

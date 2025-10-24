@@ -21,7 +21,6 @@ type Config struct {
 	Chunker     ChunkerConfig      `mapstructure:"chunker"`
 	Ingest      IngestConfig       `mapstructure:"ingest"`
 	MCP         mcp.Config         `mapstructure:"mcp"`
-	Agents      *AgentsConfig      `mapstructure:"agents"`
 	VectorStore *VectorStoreConfig `mapstructure:"vector_store"`
 
 	// Deprecated: Use Providers instead
@@ -34,17 +33,6 @@ type VectorStoreConfig struct {
 	Parameters map[string]interface{} `mapstructure:"parameters"`
 }
 
-type AgentsConfig struct {
-	Enabled          bool   `mapstructure:"enabled"`
-	StorageType      string `mapstructure:"storage_type"`      // "memory" or "persistent"
-	StoragePath      string `mapstructure:"storage_path"`      // Path for persistent storage (deprecated, use DataPath)
-	DataPath         string `mapstructure:"data_path"`         // Path for database storage (e.g., .rago/data)
-	WorkspacePath    string `mapstructure:"workspace_path"`    // Path for agent workspace (e.g., .rago/workspace)
-	MaxConcurrent    int    `mapstructure:"max_concurrent"`    // Max concurrent agent executions
-	DefaultTimeout   int    `mapstructure:"default_timeout"`   // Default timeout in seconds
-	EnableGeneration bool   `mapstructure:"enable_generation"` // Enable agent/workflow generation from NL
-	MaxAgents        int    `mapstructure:"max_agents"`        // Maximum agents in the pool
-}
 
 type ProvidersConfig struct {
 	// The default provider to use for LLM operations
@@ -230,27 +218,15 @@ func setDefaults() {
 	viper.SetDefault("server.cors_origins", []string{"*"})
 
 	// Provider defaults
-	viper.SetDefault("providers.default_llm", "ollama")
+	viper.SetDefault("providers.default_llm", "openai")
 	viper.SetDefault("providers.default_embedder", "") // Will default to same as default_llm
 
-	// Ollama provider defaults (backward compatibility)
-	viper.SetDefault("providers.ollama.type", "ollama")
-	viper.SetDefault("providers.ollama.embedding_model", "nomic-embed-text")
-	viper.SetDefault("providers.ollama.llm_model", "qwen3")
-	viper.SetDefault("providers.ollama.base_url", "http://localhost:11434")
-	viper.SetDefault("providers.ollama.timeout", "30s")
-	
-	// OpenAI provider defaults
+	// OpenAI provider defaults (compatible with all OpenAI-format LLMs)
 	viper.SetDefault("providers.openai.type", "openai")
-	
-	// LMStudio provider defaults
-	viper.SetDefault("providers.lmstudio.type", "lmstudio")
-
-	// Deprecated: Keep for backward compatibility
-	viper.SetDefault("ollama.embedding_model", "nomic-embed-text")
-	viper.SetDefault("ollama.llm_model", "qwen3")
-	viper.SetDefault("ollama.base_url", "http://localhost:11434")
-	viper.SetDefault("ollama.timeout", "30s")
+	viper.SetDefault("providers.openai.base_url", "http://localhost:11434/v1") // Default to local LLM
+	viper.SetDefault("providers.openai.embedding_model", "text-embedding-ada-002")
+	viper.SetDefault("providers.openai.llm_model", "gpt-3.5-turbo")
+	viper.SetDefault("providers.openai.timeout", "30s")
 
 	viper.SetDefault("sqvect.db_path", "~/.rago/data/rag.db")
 	viper.SetDefault("sqvect.max_conns", 10)
@@ -268,15 +244,7 @@ func setDefaults() {
 	viper.SetDefault("ingest.metadata_extraction.enable", false)
 	// Note: llm_model will be auto-configured to use default LLM if not set
 
-	// Agent configuration defaults
-	viper.SetDefault("agents.enabled", true)
-	viper.SetDefault("agents.storage_type", "persistent")
-	viper.SetDefault("agents.data_path", ".rago/data")
-	viper.SetDefault("agents.workspace_path", ".rago/workspace")
-	viper.SetDefault("agents.max_concurrent", 5)
-	viper.SetDefault("agents.default_timeout", 300) // 5 minutes
-	viper.SetDefault("agents.enable_generation", true)
-
+	
 	// Tools have been removed - use MCP servers instead
 
 	// MCP configuration defaults
@@ -312,20 +280,7 @@ func bindEnvVars() {
 		log.Printf("Warning: failed to bind providers.default_embedder env var: %v", err)
 	}
 
-	// Ollama provider environment variables
-	if err := viper.BindEnv("providers.ollama.embedding_model", "RAGO_OLLAMA_EMBEDDING_MODEL"); err != nil {
-		log.Printf("Warning: failed to bind providers.ollama.embedding_model env var: %v", err)
-	}
-	if err := viper.BindEnv("providers.ollama.llm_model", "RAGO_OLLAMA_LLM_MODEL"); err != nil {
-		log.Printf("Warning: failed to bind providers.ollama.llm_model env var: %v", err)
-	}
-	if err := viper.BindEnv("providers.ollama.base_url", "RAGO_OLLAMA_BASE_URL"); err != nil {
-		log.Printf("Warning: failed to bind providers.ollama.base_url env var: %v", err)
-	}
-	if err := viper.BindEnv("providers.ollama.timeout", "RAGO_OLLAMA_TIMEOUT"); err != nil {
-		log.Printf("Warning: failed to bind providers.ollama.timeout env var: %v", err)
-	}
-
+	
 	// OpenAI provider environment variables
 	if err := viper.BindEnv("providers.openai.api_key", "RAGO_OPENAI_API_KEY"); err != nil {
 		log.Printf("Warning: failed to bind providers.openai.api_key env var: %v", err)
@@ -453,16 +408,9 @@ func (c *Config) Validate() error {
 
 	// Validate provider configurations only if they exist
 	if c.Providers.DefaultLLM != "" || c.Providers.DefaultEmbedder != "" ||
-		c.Providers.ProviderConfigs.Ollama != nil || c.Providers.ProviderConfigs.OpenAI != nil {
+		c.Providers.ProviderConfigs.OpenAI != nil {
 		if err := c.validateProviderConfig(); err != nil {
 			return fmt.Errorf("invalid provider configuration: %w", err)
-		}
-	}
-
-	// Backward compatibility: validate deprecated ollama config if new config is not provided
-	if c.Providers.ProviderConfigs.Ollama == nil && c.Providers.ProviderConfigs.OpenAI == nil {
-		if err := c.validateLegacyOllamaConfig(); err != nil {
-			return fmt.Errorf("invalid ollama configuration: %w", err)
 		}
 	}
 
@@ -507,23 +455,12 @@ func (c *Config) Validate() error {
 // getDefaultLLMModel returns the appropriate LLM model based on configuration
 func (c *Config) getDefaultLLMModel() string {
 	// Use new provider system if available
-	if c.Providers.ProviderConfigs.Ollama != nil {
-		return c.Providers.ProviderConfigs.Ollama.LLMModel
-	}
 	if c.Providers.ProviderConfigs.OpenAI != nil {
 		return c.Providers.ProviderConfigs.OpenAI.LLMModel
 	}
-	if c.Providers.ProviderConfigs.LMStudio != nil {
-		return c.Providers.ProviderConfigs.LMStudio.LLMModel
-	}
-
-	// Fallback to legacy ollama config
-	if c.Ollama.LLMModel != "" {
-		return c.Ollama.LLMModel
-	}
 
 	// Final fallback
-	return "qwen3"
+	return "gpt-3.5-turbo"
 }
 
 // validateProviderConfig validates the new provider configuration
@@ -537,24 +474,15 @@ func (c *Config) validateProviderConfig() error {
 		c.Providers.DefaultEmbedder = c.Providers.DefaultLLM
 	}
 
-	validProviders := map[string]bool{"ollama": true, "openai": true, "lmstudio": true}
+	validProviders := map[string]bool{"openai": true}
 	if !validProviders[c.Providers.DefaultLLM] {
-		return fmt.Errorf("invalid default_llm provider: %s (supported: ollama, openai, lmstudio)", c.Providers.DefaultLLM)
+		return fmt.Errorf("invalid default_llm provider: %s (supported: openai)", c.Providers.DefaultLLM)
 	}
 	if !validProviders[c.Providers.DefaultEmbedder] {
-		return fmt.Errorf("invalid default_embedder provider: %s (supported: ollama, openai, lmstudio)", c.Providers.DefaultEmbedder)
+		return fmt.Errorf("invalid default_embedder provider: %s (supported: openai)", c.Providers.DefaultEmbedder)
 	}
 
 	// Validate individual provider configurations only if they're being used
-	if c.Providers.ProviderConfigs.Ollama != nil {
-		// Only validate if ollama is being used
-		if c.Providers.DefaultLLM == "ollama" || c.Providers.DefaultEmbedder == "ollama" {
-			if err := c.validateOllamaProviderConfig(c.Providers.ProviderConfigs.Ollama); err != nil {
-				return fmt.Errorf("invalid ollama provider config: %w", err)
-			}
-		}
-	}
-
 	if c.Providers.ProviderConfigs.OpenAI != nil {
 		// Only validate if openai is being used
 		if c.Providers.DefaultLLM == "openai" || c.Providers.DefaultEmbedder == "openai" {
@@ -564,51 +492,16 @@ func (c *Config) validateProviderConfig() error {
 		}
 	}
 
-	if c.Providers.ProviderConfigs.LMStudio != nil {
-		// Only validate if lmstudio is being used
-		if c.Providers.DefaultLLM == "lmstudio" || c.Providers.DefaultEmbedder == "lmstudio" {
-			if err := c.validateLMStudioProviderConfig(c.Providers.ProviderConfigs.LMStudio); err != nil {
-				return fmt.Errorf("invalid lmstudio provider config: %w", err)
-			}
-		}
-	}
-
 	// Ensure the default providers have corresponding configurations
-	if c.Providers.DefaultLLM == "ollama" || c.Providers.DefaultEmbedder == "ollama" {
-		if c.Providers.ProviderConfigs.Ollama == nil {
-			return fmt.Errorf("ollama provider configuration is required when using ollama as default provider")
-		}
-	}
 	if c.Providers.DefaultLLM == "openai" || c.Providers.DefaultEmbedder == "openai" {
 		if c.Providers.ProviderConfigs.OpenAI == nil {
 			return fmt.Errorf("openai provider configuration is required when using openai as default provider")
 		}
 	}
-	if c.Providers.DefaultLLM == "lmstudio" || c.Providers.DefaultEmbedder == "lmstudio" {
-		if c.Providers.ProviderConfigs.LMStudio == nil {
-			return fmt.Errorf("lmstudio provider configuration is required when using lmstudio as default provider")
-		}
-	}
 
 	return nil
 }
 
-// validateOllamaProviderConfig validates Ollama provider configuration
-func (c *Config) validateOllamaProviderConfig(config *domain.OllamaProviderConfig) error {
-	if config.BaseURL == "" {
-		return fmt.Errorf("base_url cannot be empty")
-	}
-	if config.EmbeddingModel == "" {
-		return fmt.Errorf("embedding_model cannot be empty")
-	}
-	if config.LLMModel == "" {
-		return fmt.Errorf("llm_model cannot be empty")
-	}
-	if config.Timeout <= 0 {
-		return fmt.Errorf("timeout must be positive: %v", config.Timeout)
-	}
-	return nil
-}
 
 // validateOpenAIProviderConfig validates OpenAI provider configuration
 func (c *Config) validateOpenAIProviderConfig(config *domain.OpenAIProviderConfig) error {
@@ -627,22 +520,6 @@ func (c *Config) validateOpenAIProviderConfig(config *domain.OpenAIProviderConfi
 	return nil
 }
 
-// validateLMStudioProviderConfig validates LM Studio provider configuration
-func (c *Config) validateLMStudioProviderConfig(config *domain.LMStudioProviderConfig) error {
-	if config.BaseURL == "" {
-		return fmt.Errorf("base_url cannot be empty")
-	}
-	if config.LLMModel == "" {
-		return fmt.Errorf("llm_model cannot be empty")
-	}
-	if config.EmbeddingModel == "" {
-		return fmt.Errorf("embedding_model cannot be empty")
-	}
-	if config.Timeout <= 0 {
-		return fmt.Errorf("timeout must be positive: %v", config.Timeout)
-	}
-	return nil
-}
 
 // validateLegacyOllamaConfig validates the deprecated ollama configuration
 func (c *Config) validateLegacyOllamaConfig() error {
