@@ -113,14 +113,43 @@ RAGO v2 使用子命令结构来组织不同功能。RAG 相关操作都在 `rag
 ```
 
 ### `profile` - 用户配置管理
-管理用户配置文件和 LLM 设置
+管理用户配置文件和 LLM 设置（v2.17.0 完全功能）
 
 ```bash
 # 显示当前配置
 ./rago-cli profile show
 
-# 设置默认 LLM
-./rago-cli profile set default_llm openai
+# 创建新配置
+./rago-cli profile create "research" "Profile for academic research"
+
+# 列出所有配置
+./rago-cli profile list
+
+# 设置活跃配置
+./rago-cli profile set-active research
+
+# 更新配置
+./rago-cli profile update research --description "Updated research profile"
+
+# 删除配置
+./rago-cli profile delete research
+
+# 配置 LLM 设置
+./rago-cli profile llm-settings research --temperature 0.3 --max-tokens 3000 --system-prompt "You are a research assistant"
+```
+
+### `examples` - 运行示例程序
+运行 RAGO v2 库使用示例（v2.17.0 新增）
+
+```bash
+# 基础 RAG 使用示例
+./rago-cli examples basic
+
+# 高级功能示例（Profile + MCP）
+./rago-cli examples advanced
+
+# 快速入门演示（所有功能）
+./rago-cli examples quickstart
 ```
 
 ### `usage` - 使用统计
@@ -227,4 +256,28 @@ RAGO v2 使用子命令结构来组织不同功能。RAG 相关操作都在 `rag
 - [主文档](README.md) - 完整的项目文档
 - [配置示例](rago.example.toml) - 详细的配置选项
 - [中文文档](README_zh-CN.md) - 中文版本文档
+- [库使用指南](docs/LIBRARY_USAGE.md) - 完整的库 API 文档
 - [示例代码](examples/) - 使用示例
+  - [基础 RAG 示例](examples/basic_rag_usage/) - 基础库使用
+  - [高级功能示例](examples/advanced_features/) - Profile + MCP
+  - [快速入门演示](examples/quickstart/) - 所有功能演示
+
+## 🆕 v2.17.0 新功能
+
+### Profile Management (完全功能)
+- ✅ **多用户支持** - 创建和管理不同配置
+- ✅ **LLM 设置** - 每个配置独立的 LLM 参数
+- ✅ **配置切换** - 无缝切换不同环境
+- ✅ **设置持久化** - 自动保存和加载用户偏好
+
+### MCP Integration (完全功能)
+- ✅ **工具管理** - 列出和调用 MCP 工具
+- ✅ **服务状态** - 实时监控 MCP 服务器
+- ✅ **工具调用** - 程序化工具执行
+- ✅ **配置支持** - 灵活的 MCP 服务器配置
+
+### Enhanced Library API
+- ✅ **完整客户端** - 600+ 行的完整实现
+- ✅ **类型安全** - 所有方法都有正确类型
+- ✅ **错误处理** - 全面的错误处理机制
+- ✅ **向后兼容** - 保持 API 稳定性

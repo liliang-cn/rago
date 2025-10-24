@@ -342,27 +342,62 @@ fmt.Printf("Generated response: %s\n", response)
 
 ### MCP Tools Integration
 
-MCP (Model Context Protocol) tools integration is planned but not yet fully available in the library API.
+MCP (Model Context Protocol) tools integration is fully functional! You can manage MCP servers and call tools programmatically.
 
 ```go
-// List available tools (placeholder)
-tools, err := client.ListTools(ctx)
-if err != nil {
-    fmt.Printf("MCP tools not yet available: %v\n", err)
-}
-
-// Call a tool (placeholder)
-result, err := client.CallTool(ctx, "tool_name", map[string]interface{}{
-    "param": "value",
-})
-if err != nil {
-    fmt.Printf("MCP tool calls not yet available: %v\n", err)
-}
-
-// Get MCP status (placeholder)
+// Get MCP service status
 status, err := client.GetMCPStatus(ctx)
 if err != nil {
-    fmt.Printf("MCP status not yet available: %v\n", err)
+    log.Printf("Failed to get MCP status: %v", err)
+} else {
+    fmt.Printf("MCP Status: %+v\n", status)
+    // Output: map[enabled:true message:MCP service operational servers:[...]]
+}
+
+// List available MCP tools
+tools, err := client.ListTools(ctx)
+if err != nil {
+    log.Printf("Failed to list tools: %v", err)
+} else {
+    fmt.Printf("Available tools: %d\n", len(tools))
+    for _, tool := range tools {
+        if toolMap, ok := tool.(map[string]interface{}); ok {
+            fmt.Printf("- %s: %s (from %s)\n",
+                toolMap["name"], toolMap["description"], toolMap["server"])
+        }
+    }
+}
+
+// Call an MCP tool
+result, err := client.CallTool(ctx, "filesystem_read_file", map[string]interface{}{
+    "path": "/path/to/file.txt",
+})
+if err != nil {
+    log.Printf("Tool call failed: %v", err)
+} else {
+    fmt.Printf("Tool result: %+v\n", result)
+    // Output: map[success:true data:file_content error:]
+}
+```
+
+#### MCP Configuration
+
+Configure MCP servers in `mcpServers.json`:
+
+```json
+{
+  "filesystem": {
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-filesystem", "/allowed/path"],
+    "description": "File system operations",
+    "auto_start": true
+  },
+  "fetch": {
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-fetch"],
+    "description": "HTTP/HTTPS requests",
+    "auto_start": true
+  }
 }
 ```
 
@@ -461,7 +496,7 @@ func main() {
 }
 ```
 
-### Example 2: Multi-Profile System
+### Example 2: Complete Profile Management
 
 ```go
 package main
@@ -473,69 +508,352 @@ import (
 
     "github.com/liliang-cn/rago/v2/pkg/rag"
     "github.com/liliang-cn/rago/v2/pkg/config"
+    "github.com/liliang-cn/rago/v2/pkg/domain"
     "github.com/liliang-cn/rago/v2/pkg/providers"
+    "github.com/liliang-cn/rago/v2/pkg/settings"
 )
 
 func main() {
     ctx := context.Background()
 
-    // Setup client (same as Example 1)
+    // Setup client
     client := setupClient(ctx)
     defer client.Close()
 
-    // Create different profiles for different use cases
-    profiles := []struct {
-        name        string
-        description string
-    }{
-        {"general", "General purpose Q&A"},
-        {"technical", "Technical documentation"},
-        {"research", "Research and analysis"},
-    }
+    fmt.Println("=== Profile Management Demo ===")
 
-    // Create profiles
-    for _, profile := range profiles {
-        _, err := client.CreateProfile(profile.name, profile.description)
-        if err != nil {
-            log.Printf("Failed to create profile '%s': %v", profile.name, err)
-            continue
-        }
-        fmt.Printf("Created profile: %s\n", profile.name)
-    }
-
-    // List all profiles
-    allProfiles, err := client.ListProfiles()
+    // 1. List existing profiles
+    profiles, err := client.ListProfiles()
     if err != nil {
         log.Fatal("Failed to list profiles:", err)
     }
 
-    fmt.Printf("\nAvailable Profiles:\n")
-    for _, profile := range allProfiles {
-        activeStatus := ""
+    fmt.Printf("Existing profiles: %d\n", len(profiles))
+    for _, profile := range profiles {
+        status := ""
         if profile.IsActive {
-            activeStatus = " [ACTIVE]"
+            status = " [ACTIVE]"
         }
-        fmt.Printf("- %s: %s%s\n", profile.Name, profile.Description, activeStatus)
+        fmt.Printf("  - %s: %s%s\n", profile.Name, profile.Description, status)
     }
 
-    // Switch between profiles (placeholder implementation)
-    fmt.Printf("\nProfile switching will be available in future versions.\n")
+    // 2. Create specialized profiles
+    researchProfile, err := client.CreateProfile(
+        "research",
+        "Profile for academic research and analysis",
+    )
+    if err != nil {
+        log.Printf("Failed to create research profile: %v", err)
+    } else {
+        fmt.Printf("Created research profile: %s\n", researchProfile.ID)
+    }
+
+    devProfile, err := client.CreateProfile(
+        "development",
+        "Profile for software development tasks",
+    )
+    if err != nil {
+        log.Printf("Failed to create dev profile: %v", err)
+    } else {
+        fmt.Printf("Created dev profile: %s\n", devProfile.ID)
+    }
+
+    // 3. Configure LLM settings for profiles
+    configureLLMSettings(ctx, client, researchProfile, "research")
+    configureLLMSettings(ctx, client, devProfile, "development")
+
+    // 4. Switch between profiles and test
+    fmt.Println("\n=== Testing Profile Switching ===")
+
+    // Switch to research profile
+    err = client.SetActiveProfile(researchProfile.ID)
+    if err != nil {
+        log.Printf("Failed to set active profile: %v", err)
+    } else {
+        fmt.Printf("Switched to research profile\n")
+        testProfileQuery(ctx, client, "What are the latest research trends in AI?")
+    }
+
+    // Switch to development profile
+    err = client.SetActiveProfile(devProfile.ID)
+    if err != nil {
+        log.Printf("Failed to set active profile: %v", err)
+    } else {
+        fmt.Printf("Switched to development profile\n")
+        testProfileQuery(ctx, client, "How do I implement a REST API in Go?")
+    }
+
+    // Switch back to default profile
+    if len(profiles) > 0 {
+        for _, profile := range profiles {
+            if profile.IsActive {
+                err = client.SetActiveProfile(profile.ID)
+                if err == nil {
+                    fmt.Printf("Switched back to default profile: %s\n", profile.Name)
+                }
+                break
+            }
+        }
+    }
+}
+
+func configureLLMSettings(ctx context.Context, client *rag.Client, profile *rag.UserProfile, useCase string) {
+    // Create LLM settings request
+    settingsReq := settings.CreateLLMSettingsRequest{
+        ProfileID:    profile.ID,
+        ProviderName: "openai",
+        SystemPrompt: getSystemPrompt(useCase),
+        Temperature:  getTemperature(useCase),
+        MaxTokens:    getMaxTokens(useCase),
+        Settings: map[string]interface{}{
+            "model":       "qwen3",
+            "use_case":    useCase,
+            "created_by":  "rago-client",
+        },
+    }
+
+    // Update LLM settings using the settings service
+    settingsService := client.GetSettings()
+    llmSettings, err := settingsService.CreateOrUpdateLLMSettings(settingsReq)
+    if err != nil {
+        log.Printf("Failed to configure LLM settings for %s: %v", profile.Name, err)
+    } else {
+        fmt.Printf("Configured LLM settings for %s profile\n", profile.Name)
+        fmt.Printf("  System Prompt: %s\n", llmSettings.SystemPrompt[:min(50, len(llmSettings.SystemPrompt))] + "...")
+        fmt.Printf("  Temperature: %.1f\n", *llmSettings.Temperature)
+    }
+}
+
+func getSystemPrompt(useCase string) string {
+    switch useCase {
+    case "research":
+        return "You are a research assistant. Provide detailed, accurate, and well-cited responses. Focus on academic rigor and evidence-based answers."
+    case "development":
+        return "You are a software development assistant. Provide clear, practical code examples and best practices. Focus on production-ready solutions."
+    default:
+        return "You are a helpful assistant. Provide accurate and useful information."
+    }
+}
+
+func getTemperature(useCase string) *float64 {
+    switch useCase {
+    case "research":
+        temp := 0.3
+        return &temp
+    case "development":
+        temp := 0.1
+        return &temp
+    default:
+        temp := 0.7
+        return &temp
+    }
+}
+
+func getMaxTokens(useCase string) *int {
+    switch useCase {
+    case "research":
+        maxTokens := 3000
+        return &maxTokens
+    case "development":
+        maxTokens := 2000
+        return &maxTokens
+    default:
+        maxTokens := 1500
+        return &maxTokens
+    }
+}
+
+func testProfileQuery(ctx context.Context, client *rag.Client, query string) {
+    // Ingest some test content
+    testContent := fmt.Sprintf("Test content for query: %s", query)
+    _, err := client.IngestText(ctx, testContent, "test.txt", rag.DefaultIngestOptions())
+    if err != nil {
+        log.Printf("Failed to ingest test content: %v", err)
+        return
+    }
+
+    // Query with current profile
+    resp, err := client.Query(ctx, query, rag.DefaultQueryOptions())
+    if err != nil {
+        log.Printf("Failed to query: %v", err)
+        return
+    }
+
+    fmt.Printf("Query: %s\n", query)
+    fmt.Printf("Answer: %s\n", resp.Answer[:min(200, len(resp.Answer))] + "...")
+    fmt.Printf("Sources: %d\n\n", len(resp.Sources))
 }
 
 func setupClient(ctx context.Context) *rag.Client {
-    // Configuration setup (same as Example 1)
     cfg := &config.Config{}
     cfg.Providers.DefaultLLM = "openai"
-    cfg.Providers.OpenAI = &domain.OpenAIProviderConfig{
-        BaseURL:        "http://localhost:11434/v1",
-        APIKey:         "ollama",
-        LLMModel:       "qwen3",
-        EmbeddingModel: "nomic-embed-text",
+    cfg.Providers.ProviderConfigs = domain.ProviderConfig{
+        OpenAI: &domain.OpenAIProviderConfig{
+            BaseURL:        "http://localhost:11434/v1",
+            APIKey:         "ollama",
+            LLMModel:       "qwen3",
+            EmbeddingModel: "nomic-embed-text",
+        },
     }
     cfg.Sqvect.DBPath = "./data/rag.db"
+    cfg.MCP.Enabled = true
 
-    embedder, _ := providers.CreateEmbedderProvider(ctx, cfg.Providers.OpenAI)
-    llm, _ := providers.CreateLLMProvider(ctx, cfg.Providers.OpenAI)
+    factory := providers.NewFactory()
+    embedder, _ := factory.CreateEmbedderProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
+    llm, _ := factory.CreateLLMProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
+
+    client, _ := rag.NewClient(cfg, embedder, llm, nil)
+    return client
+}
+
+func min(a, b int) int {
+    if a < b {
+        return a
+    }
+    return b
+}
+```
+
+### Example 3: MCP Tools Integration
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    "github.com/liliang-cn/rago/v2/pkg/rag"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // Setup client with MCP enabled
+    client := setupClient(ctx)
+    defer client.Close()
+
+    fmt.Println("=== MCP Integration Demo ===")
+
+    // 1. Check MCP service status
+    status, err := client.GetMCPStatus(ctx)
+    if err != nil {
+        log.Printf("Failed to get MCP status: %v", err)
+        return
+    }
+
+    fmt.Printf("MCP Status: %+v\n", status)
+
+    if enabled, ok := status["enabled"].(bool); ok && enabled {
+        // 2. List available tools
+        tools, err := client.ListTools(ctx)
+        if err != nil {
+            log.Printf("Failed to list tools: %v", err)
+            return
+        }
+
+        fmt.Printf("Available MCP tools: %d\n", len(tools))
+        for i, tool := range tools {
+            if toolMap, ok := tool.(map[string]interface{}); ok {
+                fmt.Printf("%d. %s: %s (from %s)\n",
+                    i+1,
+                    toolMap["name"],
+                    toolMap["description"],
+                    toolMap["server"])
+            }
+        }
+
+        // 3. Test tool calls (if tools are available)
+        if len(tools) > 0 {
+            fmt.Println("\n=== Testing Tool Calls ===")
+            testMCPTools(ctx, client, tools)
+        } else {
+            fmt.Println("\nNo MCP tools available. Configure MCP servers in mcpServers.json")
+        }
+    } else {
+        fmt.Println("MCP is not enabled. Set MCP.Enabled = true in configuration.")
+    }
+}
+
+func testMCPTools(ctx context.Context, client *rag.Client, tools []interface{}) {
+    for i, tool := range tools {
+        if i >= 3 { // Test only first 3 tools
+            break
+        }
+
+        if toolMap, ok := tool.(map[string]interface{}); ok {
+            toolName := toolMap["name"].(string)
+            fmt.Printf("Testing tool: %s\n", toolName)
+
+            // Try different tool calls based on tool type
+            var arguments map[string]interface{}
+            switch {
+            case contains(toolName, "filesystem"):
+                arguments = map[string]interface{}{
+                    "path": "/tmp/test.txt",
+                }
+            case contains(toolName, "fetch"):
+                arguments = map[string]interface{}{
+                    "url": "https://httpbin.org/json",
+                }
+            case contains(toolName, "memory"):
+                arguments = map[string]interface{}{
+                    "key":   "test_key",
+                    "value": "test_value",
+                }
+            default:
+                arguments = map[string]interface{}{
+                    "test": "value",
+                }
+            }
+
+            result, err := client.CallTool(ctx, toolName, arguments)
+            if err != nil {
+                log.Printf("Failed to call tool %s: %v", toolName, err)
+            } else {
+                fmt.Printf("Tool %s result: %+v\n", toolName, result)
+            }
+        }
+    }
+}
+
+func contains(s, substr string) bool {
+    return len(s) >= len(substr) && (s == substr ||
+           (len(s) > len(substr) &&
+            (s[:len(substr)] == substr ||
+             s[len(s)-len(substr):] == substr ||
+             indexOf(s, substr) >= 0)))
+}
+
+func indexOf(s, substr string) int {
+    for i := 0; i <= len(s)-len(substr); i++ {
+        if s[i:i+len(substr)] == substr {
+            return i
+        }
+    }
+    return -1
+}
+
+func setupClient(ctx context.Context) *rag.Client {
+    // Same setup as previous examples with MCP enabled
+    cfg := &config.Config{}
+    cfg.Providers.DefaultLLM = "openai"
+    cfg.Providers.ProviderConfigs = domain.ProviderConfig{
+        OpenAI: &domain.OpenAIProviderConfig{
+            BaseURL:        "http://localhost:11434/v1",
+            APIKey:         "ollama",
+            LLMModel:       "qwen3",
+            EmbeddingModel: "nomic-embed-text",
+        },
+    }
+    cfg.Sqvect.DBPath = "./data/rag.db"
+    cfg.MCP.Enabled = true
+    cfg.MCP.ServersConfigPath = "mcpServers.json"
+
+    factory := providers.NewFactory()
+    embedder, _ := factory.CreateEmbedderProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
+    llm, _ := factory.CreateLLMProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
 
     client, _ := rag.NewClient(cfg, embedder, llm, nil)
     return client
@@ -572,12 +890,10 @@ if err != nil {
 
 ## Current Limitations
 
-- MCP tools integration is not yet available in library API
-- Profile-based configuration switching is partially implemented
-- LLM settings management through profiles needs implementation
 - Streaming queries require additional setup
+- MCP tools require proper server configuration in `mcpServers.json`
 
-These features are planned for future releases.
+All other features including Profile Management and LLM Settings are fully functional!
 
 ## Support
 
