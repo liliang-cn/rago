@@ -27,6 +27,12 @@ RAGO (Retrieval-Augmented Generation Offline) v2 is a streamlined, production-re
 - **External Servers** - Connect to any MCP-compatible tool server
 - **Query Enhancement** - Use tools during RAG queries for richer answers
 
+### 👥 **Profile Management**
+- **Multi-User Support** - Create and manage user profiles with different settings
+- **Profile Switching** - Seamlessly switch between different configurations
+- **Settings Persistence** - Store and retrieve user preferences and LLM settings
+- **Isolated Environments** - Each profile maintains its own configuration and data
+
 ### 💻 **Developer Experience**
 - **Clean Library API** - Simple, intuitive interfaces for all operations
 - **Zero-Config Mode** - Works out of the box with smart defaults

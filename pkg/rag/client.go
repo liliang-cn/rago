@@ -26,6 +26,7 @@ type Client struct {
 	config      *config.Config
 	settings    *settings.Service
 	mcpService  *mcp.Service
+	mcpConfig   *mcp.Config
 }
 
 // NewClient creates a new RAG client
@@ -93,9 +94,14 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 	}
 
 	// Initialize MCP service
-	// Note: MCP service requires an LLM generator, but we'll initialize it later when needed
+	// MCP service configuration
+	mcpConfig := &mcp.Config{
+		ServersConfigPath: cfg.MCP.ServersConfigPath,
+		Enabled:          cfg.MCP.Enabled,
+	}
+
 	var mcpService *mcp.Service
-	// mcpService will be initialized lazily when needed
+	// MCP service will be initialized lazily with LLM when needed
 
 	return &Client{
 		processor:   proc,
@@ -106,6 +112,7 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 		config:      cfg,
 		settings:    settingsService,
 		mcpService:  mcpService,
+		mcpConfig:   mcpConfig,
 	}, nil
 }
 
@@ -337,6 +344,11 @@ func (c *Client) GetProcessor() *processor.Service {
 	return c.processor
 }
 
+// GetSettings returns the settings service for advanced operations
+func (c *Client) GetSettings() *settings.Service {
+	return c.settings
+}
+
 // GetVectorStore returns the underlying vector store for advanced operations
 func (c *Client) GetVectorStore() domain.VectorStore {
 	return c.vectorStore
@@ -409,36 +421,103 @@ func (c *Client) updateConfigFromActiveProfile() error {
 		return err
 	}
 
-	// Note: Profile model settings are stored in LLMSettings, not directly in UserProfile
-	// This is a placeholder for future profile-based configuration updates
-	_ = profile
+	// Get LLM settings for the active profile
+	if c.config.Providers.DefaultLLM == "openai" {
+		llmSettings, err := c.settings.GetLLMSettingsForActiveProfile("openai")
+		if err == nil && llmSettings != nil {
+			// Update config with profile-specific LLM settings
+			if c.config.Providers.ProviderConfigs.OpenAI != nil {
+				if llmSettings.Temperature != nil {
+					// Note: Temperature settings would need to be applied at generation time
+				}
+				if llmSettings.MaxTokens != nil {
+					// Note: MaxTokens settings would need to be applied at generation time
+				}
+			}
+		}
+	}
 
+	_ = profile
+	return nil
+}
+
+// initMCPService initializes the MCP service if not already done
+func (c *Client) initMCPService(ctx context.Context) error {
+	if c.mcpService != nil {
+		return nil // Already initialized
+	}
+
+	if c.mcpConfig == nil || !c.mcpConfig.Enabled {
+		return fmt.Errorf("MCP not enabled in configuration")
+	}
+
+	// Create MCP service with LLM
+	service, err := mcp.NewService(c.mcpConfig, c.llm)
+	if err != nil {
+		return fmt.Errorf("failed to create MCP service: %w", err)
+	}
+
+	c.mcpService = service
 	return nil
 }
 
 // LLM settings management
 
 // UpdateLLMSettings updates LLM settings in the active profile
-func (c *Client) UpdateLLMSettings(settings *settings.LLMSettings) error {
-	// TODO: Implement LLM settings update when settings service supports it
-	return fmt.Errorf("LLM settings management not yet available")
+func (c *Client) UpdateLLMSettings(llmSettings *settings.LLMSettings) error {
+	// Create update request
+	updateReq := settings.UpdateLLMSettingsRequest{
+		SystemPrompt: &llmSettings.SystemPrompt,
+		Temperature:  llmSettings.Temperature,
+		MaxTokens:    llmSettings.MaxTokens,
+		Settings:     &llmSettings.Settings,
+	}
+
+	// Update the LLM settings
+	_, err := c.settings.UpdateLLMSettings(llmSettings.ID, updateReq)
+	return err
 }
 
 // GetLLMSettings retrieves LLM settings from the active profile
 func (c *Client) GetLLMSettings() (*settings.LLMSettings, error) {
-	// TODO: Implement LLM settings retrieval when settings service supports it
-	return nil, fmt.Errorf("LLM settings management not yet available")
+	// Get LLM settings for the active profile and default provider
+	providerName := c.config.Providers.DefaultLLM
+	if providerName == "" {
+		providerName = "openai"
+	}
+
+	return c.settings.GetLLMSettingsForActiveProfile(providerName)
 }
 
 // UpdateLLMModel updates the LLM model in the active profile
 func (c *Client) UpdateLLMModel(modelName string) error {
-	// TODO: Implement LLM model update when settings service supports it
-	return fmt.Errorf("LLM model management not yet available")
+	// Get current LLM settings
+	settings, err := c.GetLLMSettings()
+	if err != nil {
+		return fmt.Errorf("failed to get current LLM settings: %w", err)
+	}
+
+	// Update the model in settings (stored in Settings field)
+	if settings.Settings == nil {
+		settings.Settings = make(map[string]interface{})
+	}
+	settings.Settings["model"] = modelName
+
+	// Update the settings
+	return c.UpdateLLMSettings(settings)
 }
 
 // GetLLMModel retrieves the current LLM model
 func (c *Client) GetLLMModel() (string, error) {
-	// For now, return the model from config
+	// Try to get from LLM settings first
+	llmSettings, err := c.GetLLMSettings()
+	if err == nil && llmSettings != nil && llmSettings.Settings != nil {
+		if model, ok := llmSettings.Settings["model"].(string); ok {
+			return model, nil
+		}
+	}
+
+	// Fallback to config
 	if c.config.Providers.ProviderConfigs.OpenAI != nil {
 		return c.config.Providers.ProviderConfigs.OpenAI.LLMModel, nil
 	}
@@ -449,22 +528,82 @@ func (c *Client) GetLLMModel() (string, error) {
 
 // ListTools lists available MCP tools
 func (c *Client) ListTools(ctx context.Context) ([]interface{}, error) {
-	// TODO: Implement MCP tools integration when MCP service is properly initialized
-	return []interface{}{}, fmt.Errorf("MCP tools integration not yet available")
+	// Initialize MCP service if needed
+	if err := c.initMCPService(ctx); err != nil {
+		return []interface{}{}, fmt.Errorf("MCP service unavailable: %w", err)
+	}
+
+	// Get available tools from all running servers
+	tools := c.mcpService.GetAvailableTools(ctx)
+
+	// Convert to generic interface slice
+	result := make([]interface{}, len(tools))
+	for i, tool := range tools {
+		result[i] = map[string]interface{}{
+			"name":        tool.Name,
+			"description": tool.Description,
+			"server":      tool.ServerName,
+		}
+	}
+
+	return result, nil
 }
 
 // CallTool executes an MCP tool
 func (c *Client) CallTool(ctx context.Context, toolName string, arguments map[string]interface{}) (interface{}, error) {
-	// TODO: Implement MCP tools integration when MCP service is properly initialized
-	return nil, fmt.Errorf("MCP tools integration not yet available")
+	// Initialize MCP service if needed
+	if err := c.initMCPService(ctx); err != nil {
+		return nil, fmt.Errorf("MCP service unavailable: %w", err)
+	}
+
+	// Call the tool
+	result, err := c.mcpService.CallTool(ctx, toolName, arguments)
+	if err != nil {
+		return nil, fmt.Errorf("tool execution failed: %w", err)
+	}
+
+	// Convert result to generic interface
+	return map[string]interface{}{
+		"success": result.Success,
+		"data":    result.Data,
+		"error":   result.Error,
+	}, nil
 }
 
 // GetMCPStatus returns MCP service status
 func (c *Client) GetMCPStatus(ctx context.Context) (interface{}, error) {
-	// TODO: Implement MCP status when MCP service is properly initialized
+	if c.mcpConfig == nil || !c.mcpConfig.Enabled {
+		return map[string]interface{}{
+			"enabled": false,
+			"message": "MCP not enabled in configuration",
+		}, nil
+	}
+
+	// Initialize MCP service if needed
+	if err := c.initMCPService(ctx); err != nil {
+		return map[string]interface{}{
+			"enabled": false,
+			"message": fmt.Sprintf("MCP service initialization failed: %v", err),
+		}, nil
+	}
+
+	// Get server status
+	servers := c.mcpService.ListServers()
+
+	serverStatus := make([]interface{}, len(servers))
+	for i, server := range servers {
+		serverStatus[i] = map[string]interface{}{
+			"name":        server.Name,
+			"description": server.Description,
+			"running":     server.Running,
+			"tool_count":  server.ToolCount,
+		}
+	}
+
 	return map[string]interface{}{
-		"enabled": false,
-		"message": "MCP service not yet available",
+		"enabled": true,
+		"message": "MCP service operational",
+		"servers": serverStatus,
 	}, nil
 }
 
