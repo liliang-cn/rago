@@ -60,12 +60,24 @@ var llmChatCmd = &cobra.Command{
 		fmt.Println("🤖 LLM Response:")
 		fmt.Println("================")
 
-		// Execute generation
-		resp, err := llmService.Generate(ctx, message, opts)
-		if err != nil {
-			return fmt.Errorf("generation failed: %w", err)
+		// Execute generation (streaming or non-streaming)
+		if llmStream {
+			// Stream the response
+			err = llmService.Stream(ctx, message, opts, func(chunk string) {
+				fmt.Print(chunk)
+			})
+			if err != nil {
+				return fmt.Errorf("streaming generation failed: %w", err)
+			}
+			fmt.Println() // Add newline after streaming completes
+		} else {
+			// Non-streaming response
+			resp, err := llmService.Generate(ctx, message, opts)
+			if err != nil {
+				return fmt.Errorf("generation failed: %w", err)
+			}
+			fmt.Println(resp)
 		}
-		fmt.Println(resp)
 
 		return nil
 	},
