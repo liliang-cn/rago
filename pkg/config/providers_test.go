@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/tools"
 )
 
 func TestProviderConfigValidation(t *testing.T) {
@@ -40,10 +39,6 @@ func TestProviderConfigValidation(t *testing.T) {
 				ChunkSize: 300,
 				Overlap:   50,
 				Method:    "sentence",
-			},
-			Tools: tools.ToolConfig{
-				Enabled:       false,
-				SecurityLevel: "normal",
 			},
 		}
 
@@ -86,10 +81,6 @@ func TestProviderConfigValidation(t *testing.T) {
 				Overlap:   50,
 				Method:    "sentence",
 			},
-			Tools: tools.ToolConfig{
-				Enabled:       false,
-				SecurityLevel: "normal",
-			},
 		}
 
 		err := cfg.Validate()
@@ -121,10 +112,6 @@ func TestProviderConfigValidation(t *testing.T) {
 				ChunkSize: 300,
 				Overlap:   50,
 				Method:    "sentence",
-			},
-			Tools: tools.ToolConfig{
-				Enabled:       false,
-				SecurityLevel: "normal",
 			},
 		}
 

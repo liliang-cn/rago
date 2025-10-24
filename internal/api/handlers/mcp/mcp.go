@@ -2,11 +2,15 @@ package mcp
 
 import (
 	"context"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/liliang-cn/rago/v2/internal/api/handlers"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/llm"
 	mcppkg "github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/store"
 )
@@ -16,6 +20,7 @@ type MCPHandler struct {
 	mcpService *mcppkg.MCPService
 	mcpAPI     *mcppkg.MCPLibraryAPI
 	convStore  *store.ConversationStore
+	llmService *llm.Service
 }
 
 // NewMCPHandler creates a new MCP handler
@@ -36,6 +41,16 @@ func NewMCPHandler(config *mcppkg.Config, convStore *store.ConversationStore) (*
 		mcpAPI:     mcpAPI,
 		convStore:  convStore,
 	}, nil
+}
+
+// NewMCPHandlerWithLLM creates a new MCP handler with LLM support
+func NewMCPHandlerWithLLM(config *mcppkg.Config, convStore *store.ConversationStore, llmService *llm.Service) (*MCPHandler, error) {
+	handler, err := NewMCPHandler(config, convStore)
+	if err != nil {
+		return nil, err
+	}
+	handler.llmService = llmService
+	return handler, nil
 }
 
 // ListTools returns all available MCP tools
@@ -276,4 +291,126 @@ func (h *MCPHandler) GetToolsByServer(c *gin.Context) {
 // Close shuts down the MCP handler
 func (h *MCPHandler) Close() error {
 	return h.mcpAPI.Stop()
+}
+
+// Helper methods for LLM-based chat
+
+// buildMessageHistory converts conversation history to domain messages
+func (h *MCPHandler) buildMessageHistory(conv *store.Conversation) []domain.Message {
+	var messages []domain.Message
+	for _, msg := range conv.Messages {
+		dmsg := domain.Message{
+			Role:    msg.Role,
+			Content: msg.Content,
+		}
+		// Handle tool calls in history if needed
+		if msg.Role == "assistant" && len(msg.Sources) > 0 {
+			// Convert sources to tool calls if they represent tool results
+			for _, source := range msg.Sources {
+				if strings.HasPrefix(source.Source, "MCP Tool:") {
+					// This was a tool call result
+					// You might want to reconstruct tool calls here
+				}
+			}
+		}
+		messages = append(messages, dmsg)
+	}
+	return messages
+}
+
+// convertMCPToolsToDefinitions converts MCP tools to domain tool definitions
+func (h *MCPHandler) convertMCPToolsToDefinitions(tools []mcppkg.ToolSummary) []domain.ToolDefinition {
+	var definitions []domain.ToolDefinition
+	for _, tool := range tools {
+		// Get detailed tool info
+		availableTools := h.mcpService.GetAvailableTools()
+		if mcpTool, exists := availableTools[tool.Name]; exists {
+			schema := mcpTool.Schema()
+			
+			// Convert schema to parameters
+			parameters := make(map[string]interface{})
+			// Schema is already a map[string]interface{}
+			if inputSchema, ok := schema["inputSchema"]; ok {
+				if inputParams, ok := inputSchema.(map[string]interface{}); ok {
+					parameters = inputParams
+				}
+			}
+			
+			definitions = append(definitions, domain.ToolDefinition{
+				Type: "function",
+				Function: domain.ToolFunction{
+					Name:        tool.Name,
+					Description: tool.Description,
+					Parameters:  parameters,
+				},
+			})
+		}
+	}
+	return definitions
+}
+
+// buildSystemPrompt creates a system prompt for the LLM
+func (h *MCPHandler) buildSystemPrompt(showThinking bool) string {
+	var prompt strings.Builder
+	prompt.WriteString("You are a helpful AI assistant with access to MCP (Model Context Protocol) tools.\n")
+	prompt.WriteString("You can use these tools to help answer user questions and perform tasks.\n")
+	prompt.WriteString("When you need to use a tool, make sure to provide the correct arguments.\n")
+	prompt.WriteString("After using tools, provide a clear and helpful response based on the results.\n")
+	
+	if showThinking {
+		prompt.WriteString("\n<thinking>\n")
+		prompt.WriteString("Show your reasoning process when deciding which tools to use.\n")
+		prompt.WriteString("</thinking>\n")
+	}
+	
+	return prompt.String()
+}
+
+// executeToolCalls executes the tool calls requested by the LLM
+func (h *MCPHandler) executeToolCalls(_ context.Context, toolCalls []domain.ToolCall, maxCalls int) []MCPToolCallResult {
+	var results []MCPToolCallResult
+	
+	for i, toolCall := range toolCalls {
+		if i >= maxCalls {
+			break
+		}
+		
+		start := time.Now()
+		
+		// Execute the tool
+		result, err := h.mcpAPI.CallToolWithTimeout(toolCall.Function.Name, toolCall.Function.Arguments, 30*time.Second)
+		
+		toolResult := MCPToolCallResult{
+			ToolName: toolCall.Function.Name,
+			Args:     toolCall.Function.Arguments,
+			Duration: time.Since(start).String(),
+		}
+		
+		if err != nil {
+			toolResult.Success = false
+			toolResult.Error = err.Error()
+			log.Printf("Tool call failed: %s - %v", toolCall.Function.Name, err)
+		} else {
+			toolResult.Success = true
+			toolResult.Result = result
+		}
+		
+		results = append(results, toolResult)
+	}
+	
+	return results
+}
+
+// extractThinking extracts thinking tags from the response
+func (h *MCPHandler) extractThinking(content string) (string, string) {
+	thinkingStart := strings.Index(content, "<thinking>")
+	thinkingEnd := strings.Index(content, "</thinking>")
+	
+	if thinkingStart >= 0 && thinkingEnd > thinkingStart {
+		thinking := content[thinkingStart+10 : thinkingEnd]
+		cleanContent := content[:thinkingStart] + content[thinkingEnd+11:]
+		return strings.TrimSpace(cleanContent), strings.TrimSpace(thinking)
+	}
+	
+	return content, ""
 }

@@ -10,12 +10,14 @@ import (
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/provider/factory"
+	"github.com/liliang-cn/rago/v2/pkg/providers"
+	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
 )
 
 func main() {
+	ctx := context.Background()
 	fmt.Println("=== RAGO Qdrant + Ollama Test ===")
 	fmt.Println("Models: qwen3:latest + nomic-embed-text:latest")
 	fmt.Println()
@@ -28,7 +30,7 @@ func main() {
 			ProviderConfigs: domain.ProviderConfig{
 				Ollama: &domain.OllamaProviderConfig{
 					BaseProviderConfig: domain.BaseProviderConfig{
-						Type:    domain.ProviderTypeOllama,
+						Type:    domain.ProviderOllama,
 						Timeout: 30 * time.Second,
 					},
 					BaseURL:        "http://localhost:11434",
@@ -38,9 +40,9 @@ func main() {
 			},
 		},
 		Chunker: config.ChunkerConfig{
-			DefaultSize:    500,
-			DefaultOverlap: 50,
-			Method:         "sentence",
+			ChunkSize: 500,
+			Overlap:   50,
+			Method:    "sentence",
 		},
 	}
 
@@ -81,36 +83,23 @@ func main() {
 
 	// 4. Create providers
 	fmt.Println("2. Creating Ollama providers...")
-	providerRegistry := factory.NewProviderRegistry()
-	err = providerRegistry.RegisterFromConfig(cfg)
+	embedder, generator, _, err := providers.InitializeProviders(ctx, cfg)
 	if err != nil {
-		log.Fatalf("Failed to register providers: %v", err)
-	}
-
-	embedder, err := providerRegistry.GetEmbedder("ollama")
-	if err != nil {
-		log.Fatalf("Failed to get embedder: %v", err)
-	}
-
-	generator, err := providerRegistry.GetGenerator("ollama")
-	if err != nil {
-		log.Fatalf("Failed to get generator: %v", err)
+		log.Fatalf("Failed to initialize providers: %v", err)
 	}
 
 	// 5. Create RAG processor
 	fmt.Println("3. Creating RAG processor...")
-	ragProcessor := processor.NewService(
-		vectorStore,
-		documentStore,
+	chunkerService := chunker.New()
+	ragProcessor := processor.New(
 		embedder,
 		generator,
-		nil, // chunker - will use default
+		chunkerService,
+		vectorStore,
+		documentStore,
+		cfg,
 		nil, // metadata extractor
-		nil, // tool registry
-		nil, // tool executor
 	)
-
-	ctx := context.Background()
 
 	// 6. Clear any existing data
 	fmt.Println("4. Clearing existing data...")
