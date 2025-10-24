@@ -130,11 +130,8 @@ MCP tools provide enhanced functionality for file operations, database queries, 
 			metadataExtractor,
 		)
 
-		// Determine if tools should be enabled based on config or flag
-		toolsEnabled := enableTools
-		if !cmd.Flags().Changed("tools") {
-			toolsEnabled = Cfg.Tools.Enabled
-		}
+		// Tools have been removed - use MCP servers instead
+		toolsEnabled := false
 
 		if interactive || len(args) == 0 {
 			return runInteractive(ctx, processor, toolsEnabled)
