@@ -4,7 +4,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
@@ -21,11 +20,6 @@ func TestConfig_Validate(t *testing.T) {
 				Server: ServerConfig{
 					Port: 7127,
 					Host: "localhost",
-				},
-				Ollama: OllamaConfig{
-					BaseURL:        "http://localhost:11434",
-					EmbeddingModel: "nomic-embed-text",
-					LLMModel:       "qwen3",
 				},
 				Sqvect: SqvectConfig{
 					DBPath:    "./data/test.db",
@@ -48,11 +42,6 @@ func TestConfig_Validate(t *testing.T) {
 					Port: 0,
 					Host: "localhost",
 				},
-				Ollama: OllamaConfig{
-					BaseURL:        "http://localhost:11434",
-					EmbeddingModel: "nomic-embed-text",
-					LLMModel:       "qwen3",
-				},
 				Sqvect: SqvectConfig{
 					DBPath: "./data/test.db",
 					TopK:   5,
@@ -71,11 +60,6 @@ func TestConfig_Validate(t *testing.T) {
 				Server: ServerConfig{
 					Port: 70000,
 					Host: "localhost",
-				},
-				Ollama: OllamaConfig{
-					BaseURL:        "http://localhost:11434",
-					EmbeddingModel: "nomic-embed-text",
-					LLMModel:       "qwen3",
 				},
 				Sqvect: SqvectConfig{
 					DBPath: "./data/test.db",
@@ -96,11 +80,6 @@ func TestConfig_Validate(t *testing.T) {
 					Port: 7127,
 					Host: "",
 				},
-				Ollama: OllamaConfig{
-					BaseURL:        "http://localhost:11434",
-					EmbeddingModel: "nomic-embed-text",
-					LLMModel:       "qwen3",
-				},
 				Sqvect: SqvectConfig{
 					DBPath: "./data/test.db",
 					TopK:   5,
@@ -119,11 +98,6 @@ func TestConfig_Validate(t *testing.T) {
 				Server: ServerConfig{
 					Port: 7127,
 					Host: "localhost",
-				},
-				Ollama: OllamaConfig{
-					BaseURL:        "http://localhost:11434",
-					EmbeddingModel: "nomic-embed-text",
-					LLMModel:       "qwen3",
 				},
 				Sqvect: SqvectConfig{
 					DBPath: "./data/test.db",
@@ -342,11 +316,6 @@ func TestConfig_ValidateChunkerConfig(t *testing.T) {
 					Port: 7127,
 					Host: "localhost",
 				},
-				Ollama: OllamaConfig{
-					BaseURL:        "http://localhost:11434",
-					EmbeddingModel: "nomic-embed-text",
-					LLMModel:       "qwen3",
-				},
 				Sqvect: SqvectConfig{
 					DBPath: "./data/test.db",
 					TopK:   5,
@@ -486,17 +455,3 @@ func TestIngestConfig(t *testing.T) {
 	}
 }
 
-func TestOllamaConfig_Timeout(t *testing.T) {
-	config := &Config{
-		Ollama: OllamaConfig{
-			BaseURL:        "http://localhost:11434",
-			EmbeddingModel: "nomic-embed-text",
-			LLMModel:       "qwen3",
-			Timeout:        30 * time.Second,
-		},
-	}
-
-	if config.Ollama.Timeout != 30*time.Second {
-		t.Errorf("Expected timeout 30s, got %v", config.Ollama.Timeout)
-	}
-}

@@ -89,36 +89,4 @@ func TestProviderConfigValidation(t *testing.T) {
 			t.Errorf("Valid OpenAI provider config should not fail validation: %v", err)
 		}
 	})
-
-	t.Run("BackwardCompatibilityMode", func(t *testing.T) {
-		cfg := &Config{
-			Server: ServerConfig{
-				Port: 7127,
-				Host: "localhost",
-			},
-			// No Providers config, should fall back to legacy Ollama config
-			Ollama: OllamaConfig{
-				BaseURL:        "http://localhost:11434",
-				EmbeddingModel: "nomic-embed-text",
-				LLMModel:       "qwen3",
-				Timeout:        30 * time.Second,
-			},
-			Sqvect: SqvectConfig{
-				DBPath:    "./test.db",
-				MaxConns:  10,
-				BatchSize: 100,
-				TopK:      5,
-			},
-			Chunker: ChunkerConfig{
-				ChunkSize: 300,
-				Overlap:   50,
-				Method:    "sentence",
-			},
-		}
-
-		err := cfg.Validate()
-		if err != nil {
-			t.Errorf("Backward compatibility mode should not fail validation: %v", err)
-		}
-	})
 }

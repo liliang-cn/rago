@@ -124,6 +124,10 @@ func (s *SimpleVectorStore) Reset(ctx context.Context) error {
 	return nil
 }
 
+func (s *SimpleVectorStore) GetGraphStore() domain.GraphStore {
+	return nil
+}
+
 type SimpleDocumentStore struct {
 	docs []domain.Document
 }
