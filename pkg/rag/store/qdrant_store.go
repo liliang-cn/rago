@@ -507,3 +507,7 @@ func (s *QdrantStore) Close() error {
 
 // Helper variable for wait parameter
 var waitTrue = true
+
+func (s *QdrantStore) GetGraphStore() domain.GraphStore {
+	return nil // Graph not supported in Qdrant backend yet
+}

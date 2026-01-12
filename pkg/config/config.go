@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
@@ -22,9 +21,6 @@ type Config struct {
 	Ingest      IngestConfig       `mapstructure:"ingest"`
 	MCP         mcp.Config         `mapstructure:"mcp"`
 	VectorStore *VectorStoreConfig `mapstructure:"vector_store"`
-
-	// Deprecated: Use Providers instead
-	Ollama OllamaConfig `mapstructure:"ollama"`
 }
 
 // VectorStoreConfig configures the vector storage backend
@@ -76,13 +72,6 @@ type ServerConfig struct {
 	Host        string   `mapstructure:"host"`
 	EnableUI    bool     `mapstructure:"enable_ui"`
 	CORSOrigins []string `mapstructure:"cors_origins"`
-}
-
-type OllamaConfig struct {
-	EmbeddingModel string        `mapstructure:"embedding_model"`
-	LLMModel       string        `mapstructure:"llm_model"`
-	BaseURL        string        `mapstructure:"base_url"`
-	Timeout        time.Duration `mapstructure:"timeout"`
 }
 
 type SqvectConfig struct {
@@ -304,20 +293,6 @@ func bindEnvVars() {
 		log.Printf("Warning: failed to bind providers.openai.timeout env var: %v", err)
 	}
 
-	// Deprecated: Keep for backward compatibility
-	if err := viper.BindEnv("ollama.embedding_model", "RAGO_OLLAMA_EMBEDDING_MODEL"); err != nil {
-		log.Printf("Warning: failed to bind ollama.embedding_model env var: %v", err)
-	}
-	if err := viper.BindEnv("ollama.llm_model", "RAGO_OLLAMA_LLM_MODEL"); err != nil {
-		log.Printf("Warning: failed to bind ollama.llm_model env var: %v", err)
-	}
-	if err := viper.BindEnv("ollama.base_url", "RAGO_OLLAMA_BASE_URL"); err != nil {
-		log.Printf("Warning: failed to bind ollama.base_url env var: %v", err)
-	}
-	if err := viper.BindEnv("ollama.timeout", "RAGO_OLLAMA_TIMEOUT"); err != nil {
-		log.Printf("Warning: failed to bind ollama.timeout env var: %v", err)
-	}
-
 	if err := viper.BindEnv("sqvect.db_path", "RAGO_SQVECT_DB_PATH"); err != nil {
 		log.Printf("Warning: failed to bind sqvect.db_path env var: %v", err)
 	}
@@ -514,21 +489,6 @@ func (c *Config) validateOpenAIProviderConfig(config *domain.OpenAIProviderConfi
 	}
 	if config.Timeout <= 0 {
 		return fmt.Errorf("timeout must be positive: %v", config.Timeout)
-	}
-	return nil
-}
-
-
-// validateLegacyOllamaConfig validates the deprecated ollama configuration
-func (c *Config) validateLegacyOllamaConfig() error {
-	if c.Ollama.BaseURL == "" {
-		return fmt.Errorf("ollama base URL cannot be empty")
-	}
-	if c.Ollama.EmbeddingModel == "" {
-		return fmt.Errorf("embedding model cannot be empty")
-	}
-	if c.Ollama.LLMModel == "" {
-		return fmt.Errorf("LLM model cannot be empty")
 	}
 	return nil
 }

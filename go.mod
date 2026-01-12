@@ -8,10 +8,10 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/liliang-cn/mcp-swagger-server v0.4.0
-	github.com/liliang-cn/sqvect v1.0.0
+	github.com/liliang-cn/sqvect v1.1.0
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/modelcontextprotocol/go-sdk v1.0.0
-	github.com/openai/openai-go/v2 v2.1.1
+	github.com/openai/openai-go/v3 v3.16.0
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/qdrant/go-client v1.15.2
 	github.com/robfig/cron/v3 v3.0.1
@@ -67,7 +67,7 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tidwall/gjson v1.14.4 // indirect
+	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect

@@ -9,6 +9,7 @@ import (
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/sqvect/pkg/core"
+	"github.com/liliang-cn/sqvect/pkg/graph"
 	"github.com/liliang-cn/sqvect/pkg/sqvect"
 )
 
@@ -28,6 +29,13 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sqvect database: %w", err)
 	}
+
+	// Initialize graph schema
+	ctx := context.Background()
+	if err := db.Graph().InitGraphSchema(ctx); err != nil {
+		// Log error but continue as graph might not be needed immediately
+		fmt.Printf("Warning: Failed to init graph schema: %v\n", err)
+	}
 	
 	// Get the vector store from the database
 	vectorStore := db.Vector()
@@ -43,6 +51,104 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 		db:     db,
 		sqvect: sqliteStore,
 	}, nil
+}
+
+func (s *SQLiteStore) GetGraphStore() domain.GraphStore {
+	return &SQLiteGraphStore{
+		graph: s.db.Graph(),
+	}
+}
+
+type SQLiteGraphStore struct {
+	graph *graph.GraphStore
+}
+
+func (s *SQLiteGraphStore) UpsertNode(ctx context.Context, node domain.GraphNode) error {
+	// Convert vector to float32
+	var vector []float32
+	if len(node.Vector) > 0 {
+		vector = make([]float32, len(node.Vector))
+		for i, v := range node.Vector {
+			vector[i] = float32(v)
+		}
+	}
+
+	gNode := &graph.GraphNode{
+		ID:         node.ID,
+		Vector:     vector,
+		Content:    node.Content,
+		NodeType:   node.NodeType,
+		Properties: node.Properties,
+	}
+
+	return s.graph.UpsertNode(ctx, gNode)
+}
+
+func (s *SQLiteGraphStore) UpsertEdge(ctx context.Context, edge domain.GraphEdge) error {
+	gEdge := &graph.GraphEdge{
+		ID:         edge.ID,
+		FromNodeID: edge.FromNodeID,
+		ToNodeID:   edge.ToNodeID,
+		EdgeType:   edge.EdgeType,
+		Weight:     edge.Weight,
+		Properties: edge.Properties,
+	}
+
+	return s.graph.UpsertEdge(ctx, gEdge)
+}
+
+func (s *SQLiteGraphStore) InitGraphSchema(ctx context.Context) error {
+	return s.graph.InitGraphSchema(ctx)
+}
+
+func (s *SQLiteGraphStore) HybridSearch(ctx context.Context, vector []float64, startNodeID string, topK int) ([]domain.HybridSearchResult, error) {
+	// Convert vector
+	var queryVector []float32
+	if len(vector) > 0 {
+		queryVector = make([]float32, len(vector))
+		for i, v := range vector {
+			queryVector[i] = float32(v)
+		}
+	}
+
+	query := &graph.HybridQuery{
+		Vector:      queryVector,
+		StartNodeID: startNodeID,
+		TopK:        topK,
+	}
+
+	results, err := s.graph.HybridSearch(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	domainResults := make([]domain.HybridSearchResult, len(results))
+	for i, res := range results {
+		// Convert graph node to domain node
+		var dNode *domain.GraphNode
+		if res.Node != nil {
+			nodeVector := make([]float64, len(res.Node.Vector))
+			for j, v := range res.Node.Vector {
+				nodeVector[j] = float64(v)
+			}
+			dNode = &domain.GraphNode{
+				ID:         res.Node.ID,
+				Content:    res.Node.Content,
+				NodeType:   res.Node.NodeType,
+				Properties: res.Node.Properties,
+				Vector:     nodeVector,
+			}
+		}
+
+		domainResults[i] = domain.HybridSearchResult{
+			Node:        dNode,
+			Score:       res.CombinedScore,
+			VectorScore: res.VectorScore,
+			GraphScore:  res.GraphScore,
+		}
+	}
+
+	return domainResults, nil
 }
 
 func (s *SQLiteStore) Store(ctx context.Context, chunks []domain.Chunk) error {

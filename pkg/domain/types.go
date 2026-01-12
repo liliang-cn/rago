@@ -187,6 +187,40 @@ type ExecutedToolCall struct {
 	Error   string      `json:"error,omitempty"`
 }
 
+// Graph types for domain layer
+
+type GraphNode struct {
+	ID         string                 `json:"id"`
+	Content    string                 `json:"content,omitempty"`
+	NodeType   string                 `json:"node_type,omitempty"`
+	Properties map[string]interface{} `json:"properties,omitempty"`
+	Vector     []float64              `json:"vector,omitempty"`
+}
+
+type GraphEdge struct {
+	ID         string                 `json:"id"`
+	FromNodeID string                 `json:"from_node_id"`
+	ToNodeID   string                 `json:"to_node_id"`
+	EdgeType   string                 `json:"edge_type,omitempty"`
+	Weight     float64                `json:"weight"`
+	Properties map[string]interface{} `json:"properties,omitempty"`
+}
+
+type HybridSearchResult struct {
+	Chunk       *Chunk     `json:"chunk,omitempty"`
+	Node        *GraphNode `json:"node,omitempty"`
+	Score       float64    `json:"score"`
+	VectorScore float64    `json:"vector_score"`
+	GraphScore  float64    `json:"graph_score"`
+}
+
+type GraphStore interface {
+	UpsertNode(ctx context.Context, node GraphNode) error
+	UpsertEdge(ctx context.Context, edge GraphEdge) error
+	HybridSearch(ctx context.Context, vector []float64, startNodeID string, topK int) ([]HybridSearchResult, error)
+	InitGraphSchema(ctx context.Context) error
+}
+
 type Chunker interface {
 	Split(text string, options ChunkOptions) ([]string, error)
 }
@@ -204,6 +238,7 @@ type VectorStore interface {
 	Delete(ctx context.Context, documentID string) error
 	List(ctx context.Context) ([]Document, error)
 	Reset(ctx context.Context) error
+	GetGraphStore() GraphStore
 }
 
 type DocumentStore interface {
