@@ -1,5 +1,5 @@
 
-.PHONY: help dev build test clean deps frontend backend frontend-dev
+.PHONY: help dev build test clean deps frontend build-web backend frontend-dev
 
 # Get the latest git tag (fallback to v0.0.0 if no tags)
 GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
@@ -17,7 +17,8 @@ help:
 	@echo "  dev         - Start development server (builds web + runs backend)"
 	@echo "  frontend-dev - Start frontend dev server with hot reload (port 5555)"
 	@echo "  build       - Build complete application with web UI"
-	@echo "  frontend    - Build only the web UI"
+	@echo "  frontend    - Build only the web UI (alias: build-web)"
+	@echo "  build-web   - Alias for frontend"
 	@echo "  backend     - Build only the Go binary (without rebuilding frontend)"
 	@echo "  test        - Run all tests"
 	@echo "  clean       - Clean build artifacts and databases"
@@ -42,6 +43,15 @@ frontend:
 	@echo "Building web assets..."
 	@cd web && npm install && npm run build
 	@echo "✅ Frontend built to internal/web/dist/"
+
+# Alias for frontend
+build-web: frontend
+
+# Alias for build
+build-all: build
+
+# Run checks (tests for now, can add linting later)
+check: test
 
 # Start frontend development server with hot reload
 frontend-dev:
