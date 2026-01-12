@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
 	"github.com/liliang-cn/rago/v2/pkg/rag"
 )
@@ -67,7 +68,7 @@ func main() {
 	fmt.Println("\n=== Example 3: RAG Client with Configuration ===")
 
 	// Create metadata extractor (optional, can be nil)
-	var metadataExtractor interface{} = nil
+	var metadataExtractor domain.MetadataExtractor = nil
 
 	// Create RAG client
 	client, err := rag.NewClient(cfg, embedderProvider, llmProvider, metadataExtractor)
