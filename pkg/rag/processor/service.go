@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	pdf "github.com/dslipak/pdf"
@@ -24,6 +25,8 @@ type Service struct {
 	documentStore   domain.DocumentStore
 	config          *config.Config
 	llmService      domain.MetadataExtractor
+	extractor       *EntityExtractor
+	graphStore      domain.GraphStore
 }
 
 func New(
@@ -45,6 +48,13 @@ func New(
 		llmService:    llmService,
 	}
 
+	// Initialize entity extractor
+	s.extractor = NewEntityExtractor(generator)
+
+	// Get graph store if available
+	if vectorStore != nil {
+		s.graphStore = vectorStore.GetGraphStore()
+	}
 
 	return s
 }
@@ -138,6 +148,101 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 
 	if err := s.vectorStore.Store(ctx, chunks); err != nil {
 		return domain.IngestResponse{}, fmt.Errorf("failed to store vectors: %w", err)
+	}
+
+	// GraphRAG Extraction
+	if s.graphStore != nil {
+		log.Println("Starting GraphRAG extraction (concurrent)...")
+		
+		// Concurrency control (limit to 3 concurrent LLM calls to avoid rate limits/freezing)
+		concurrencyLimit := 3
+		sem := make(chan struct{}, concurrencyLimit)
+		var wg sync.WaitGroup
+
+		// Process chunks
+		for i, chunk := range chunks {
+			// Skip very small chunks
+			if len(chunk.Content) < 50 {
+				continue
+			}
+
+			wg.Add(1)
+			go func(idx int, c domain.Chunk) {
+				defer wg.Done()
+				
+				// Acquire semaphore
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				// Create a context with timeout for each extraction to prevent hanging
+				extractCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+				defer cancel()
+
+				graphData, err := s.extractor.Extract(extractCtx, c.Content)
+				if err != nil {
+					log.Printf("Graph extraction failed for chunk %d: %v", idx, err)
+					return
+				}
+
+				// Store Entities as Nodes
+				for _, entity := range graphData.Entities {
+					entityID := generateEntityID(entity.Name, "") // Ignore type for ID consistency
+					
+					// Get embedding for entity (also needs context)
+					// We reuse the extraction context or create a new short one
+					embedCtx, embedCancel := context.WithTimeout(ctx, 10*time.Second)
+					vec, err := s.embedder.Embed(embedCtx, entity.Description)
+					embedCancel()
+					
+					if err != nil {
+						log.Printf("Failed to embed entity %s: %v", entity.Name, err)
+						continue
+					}
+
+					node := domain.GraphNode{
+						ID:         entityID,
+						Content:    entity.Description,
+						NodeType:   entity.Type,
+						Properties: map[string]interface{}{
+							"name": entity.Name,
+							"source_chunk_id": c.ID,
+							"source_doc_id": c.DocumentID,
+						},
+						Vector: vec,
+					}
+
+					if err := s.graphStore.UpsertNode(extractCtx, node); err != nil {
+						log.Printf("Failed to upsert node %s: %v", entity.Name, err)
+					}
+				}
+
+				// Store Relationships as Edges
+				for _, rel := range graphData.Relationships {
+					fromID := generateEntityID(rel.Source, "")
+					toID := generateEntityID(rel.Target, "")
+					
+					edge := domain.GraphEdge{
+						ID:         uuid.New().String(),
+						FromNodeID: fromID,
+						ToNodeID:   toID,
+						EdgeType:   rel.Type,
+						Weight:     1.0,
+						Properties: map[string]interface{}{
+							"description": rel.Description,
+							"source_chunk_id": c.ID,
+						},
+					}
+
+					if err := s.graphStore.UpsertEdge(extractCtx, edge); err != nil {
+						log.Printf("Failed to upsert edge %s->%s: %v", rel.Source, rel.Target, err)
+					}
+				}
+			}(i, chunk)
+		}
+		
+		// Wait for all routines to finish
+		wg.Wait()
+		log.Println("GraphRAG extraction completed.")
 	}
 
 	// Store document metadata after vectors are stored (sqvect v0.7.0 needs vectors first)
@@ -356,6 +461,7 @@ func (s *Service) hybridSearch(ctx context.Context, req domain.QueryRequest) ([]
 		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
 	}
 
+	// 1. Standard Vector Search (Chunks)
 	var chunks []domain.Chunk
 	if len(req.Filters) > 0 {
 		chunks, err = s.vectorStore.SearchWithFilters(ctx, queryVector, req.TopK, req.Filters)
@@ -365,6 +471,51 @@ func (s *Service) hybridSearch(ctx context.Context, req domain.QueryRequest) ([]
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to search vectors: %w", err)
+	}
+
+	// 2. Graph Search (Entities) - Enrich with Knowledge Graph
+	if s.graphStore != nil {
+		var startNodeID string
+		// Extract start node from query (if query is substantial)
+		if len(req.Query) > 10 {
+			// This adds latency but enables graph traversal
+			entities, err := s.extractor.Extract(ctx, req.Query)
+			if err == nil && len(entities.Entities) > 0 {
+				startNodeID = generateEntityID(entities.Entities[0].Name, "")
+				log.Printf("GraphRAG: Using start node '%s' (%s)", entities.Entities[0].Name, startNodeID)
+			}
+		}
+
+		// Perform hybrid search
+		graphResults, err := s.graphStore.HybridSearch(ctx, queryVector, startNodeID, 3) // Fetch top 3 entities
+		if err == nil {
+			for _, res := range graphResults {
+				if res.Node != nil {
+					name, _ := res.Node.Properties["name"].(string)
+					
+					// Create a pseudo-chunk for the entity
+					entityChunk := domain.Chunk{
+						ID:         "graph_" + res.Node.ID,
+						DocumentID: "graph_virtual_doc",
+						Content: fmt.Sprintf("[Knowledge Graph Entity]\nName: %s\nType: %s\nDescription: %s",
+							name,
+							res.Node.NodeType,
+							res.Node.Content),
+						Score:    res.Score,
+						Metadata: res.Node.Properties,
+					}
+					// Ensure metadata has source
+					if entityChunk.Metadata == nil {
+						entityChunk.Metadata = make(map[string]interface{})
+					}
+					entityChunk.Metadata["source"] = "Knowledge Graph"
+					
+					chunks = append(chunks, entityChunk)
+				}
+			}
+		} else {
+			log.Printf("Graph hybrid search failed: %v", err)
+		}
 	}
 
 	return s.deduplicateChunks(chunks), nil
@@ -609,4 +760,22 @@ func (s *Service) GetToolExecutor() interface{} {
 func (s *Service) RegisterMCPTools(mcpService interface{}) error {
 	return fmt.Errorf("tools have been removed - use MCP servers directly")
 }
+
+// generateEntityID creates a deterministic ID for an entity
+func generateEntityID(name, entityType string) string {
+	// Normalize name
+	normalized := strings.ToLower(strings.TrimSpace(name))
+	// Create seed string
+	// If type is empty, we just hash the name to ensure we can link to it
+	// even if we don't know the type in a relationship context
+	var seed string
+	if entityType == "" {
+		seed = normalized
+	} else {
+		seed = fmt.Sprintf("%s:%s", normalized, strings.ToLower(strings.TrimSpace(entityType)))
+	}
+	// Generate UUID
+	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(seed)).String()
+}
+
 
