@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
@@ -38,6 +39,11 @@ func main() {
 				Overlap:   50,
 				Method:    "sentence",
 			},
+			Ingest: config.IngestConfig{
+				MetadataExtraction: config.MetadataExtractionConfig{
+					Enable: true,
+				},
+			},
 			Providers: config.ProvidersConfig{
 				DefaultLLM:     "openai",
 				DefaultEmbedder: "openai",
@@ -45,7 +51,7 @@ func main() {
 					OpenAI: &domain.OpenAIProviderConfig{
 						BaseProviderConfig: domain.BaseProviderConfig{
 							Type:    domain.ProviderOpenAI,
-							Timeout: 30 * 1000000000,
+							Timeout: 30 * time.Second,
 						},
 						BaseURL:        getEnvOrDefault("RAGO_OPENAI_BASE_URL", "http://localhost:11434/v1"),
 						APIKey:         apiKey,
@@ -71,9 +77,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create embedder: %v", err)
 	}
+	
+	// Cast LLM to MetadataExtractor for GraphRAG
+	var extractor domain.MetadataExtractor
+	if e, ok := llm.(domain.MetadataExtractor); ok {
+		extractor = e
+	}
 
 	// Create RAG client
-	client, err := rag.NewClient(cfg, embedder, llm, nil)
+	client, err := rag.NewClient(cfg, embedder, llm, extractor)
 	if err != nil {
 		log.Fatalf("Failed to create RAG client: %v", err)
 	}
