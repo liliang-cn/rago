@@ -72,8 +72,8 @@ backend:
 test:
 	@echo "Running Go tests..."
 	@go test ./... -v
-	@echo "Running web tests..."
-	@cd web && npm test
+	# Web tests skipped (no test script in package.json)
+	# @cd web && npm test
 
 # Clean build artifacts and databases
 clean:
