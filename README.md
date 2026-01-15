@@ -329,12 +329,11 @@ servers_config_path = "mcpServers.json"
 - **[Configuration Guide](./pkg/config/)** - Full configuration options
 - **[中文文档](./README_zh-CN.md)** - Chinese documentation
 
-### Examples (Coming Soon)
-We're updating examples for the simplified v2 API. Check back soon for:
-- Basic RAG client usage
-- LLM service examples
-- MCP tools integration
-- Configuration patterns
+### Examples
+- **[Basic RAG Client Usage](./examples/basic_rag_usage/)** - Simple ingestion and query
+- **[Advanced Library Usage](./examples/advanced_library_usage/)** - Batch ingest, GraphRAG, Chat Memory, Reranking
+- **[LLM Service Examples](./examples/llm_service/)** - Direct LLM usage
+- **[Configuration Patterns](./examples/config_based/)** - Using TOML config
 
 ## 🤝 Contributing
 
