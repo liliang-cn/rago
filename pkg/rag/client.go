@@ -217,6 +217,11 @@ func (c *Client) IngestURL(ctx context.Context, url string, opts *IngestOptions)
 	return &resp, nil
 }
 
+// IngestBatch ingests multiple files or contents
+func (c *Client) IngestBatch(ctx context.Context, requests []domain.IngestRequest) ([]domain.IngestResponse, error) {
+	return c.processor.IngestBatch(ctx, requests)
+}
+
 // QueryOptions configures how queries are executed
 type QueryOptions struct {
 	TopK         int                    // Number of documents to retrieve
