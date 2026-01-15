@@ -496,9 +496,13 @@ func (s *Service) hybridSearch(ctx context.Context, req domain.QueryRequest) ([]
 		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
 	}
 
-	// 1. Standard Vector Search (Chunks)
+	// 1. Standard or Advanced Vector Search (Chunks)
 	var chunks []domain.Chunk
-	if len(req.Filters) > 0 {
+	if req.RerankStrategy != "" {
+		chunks, err = s.vectorStore.SearchWithReranker(ctx, queryVector, req.Query, req.TopK, req.RerankStrategy, req.RerankBoost)
+	} else if req.DiversityLambda > 0 {
+		chunks, err = s.vectorStore.SearchWithDiversity(ctx, queryVector, req.TopK, req.DiversityLambda)
+	} else if len(req.Filters) > 0 {
 		chunks, err = s.vectorStore.SearchWithFilters(ctx, queryVector, req.TopK, req.Filters)
 	} else {
 		chunks, err = s.vectorStore.Search(ctx, queryVector, req.TopK)
