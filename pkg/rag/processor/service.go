@@ -148,6 +148,11 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 
 	}
 
+	// Store document metadata BEFORE vectors (sqvect v2 needs document to exist for foreign key)
+	if err := s.documentStore.Store(ctx, doc); err != nil {
+		return domain.IngestResponse{}, fmt.Errorf("failed to store document: %w", err)
+	}
+
 	if err := s.vectorStore.Store(ctx, chunks); err != nil {
 		return domain.IngestResponse{}, fmt.Errorf("failed to store vectors: %w", err)
 	}
@@ -155,7 +160,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 	// GraphRAG Extraction
 	if s.graphStore != nil {
 		log.Println("Starting GraphRAG extraction (concurrent)...")
-		
+
 		// Concurrency control (limit to 3 concurrent LLM calls to avoid rate limits/freezing)
 		concurrencyLimit := 3
 		sem := make(chan struct{}, concurrencyLimit)
@@ -171,7 +176,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 			wg.Add(1)
 			go func(idx int, c domain.Chunk) {
 				defer wg.Done()
-				
+
 				// Acquire semaphore
 				sem <- struct{}{}
 				defer func() { <-sem }()
@@ -189,13 +194,13 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 				// Store Entities as Nodes
 				for _, entity := range graphData.Entities {
 					entityID := generateEntityID(entity.Name, "") // Ignore type for ID consistency
-					
+
 					// Get embedding for entity (also needs context)
 					// We reuse the extraction context or create a new short one
 					embedCtx, embedCancel := context.WithTimeout(ctx, 10*time.Second)
 					vec, err := s.embedder.Embed(embedCtx, entity.Description)
 					embedCancel()
-					
+
 					if err != nil {
 						log.Printf("Failed to embed entity %s: %v", entity.Name, err)
 						continue
@@ -206,9 +211,9 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 						Content:    entity.Description,
 						NodeType:   entity.Type,
 						Properties: map[string]interface{}{
-							"name": entity.Name,
+							"name":            entity.Name,
 							"source_chunk_id": c.ID,
-							"source_doc_id": c.DocumentID,
+							"source_doc_id":   c.DocumentID,
 						},
 						Vector: vec,
 					}
@@ -222,7 +227,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 				for _, rel := range graphData.Relationships {
 					fromID := generateEntityID(rel.Source, "")
 					toID := generateEntityID(rel.Target, "")
-					
+
 					edge := domain.GraphEdge{
 						ID:         uuid.New().String(),
 						FromNodeID: fromID,
@@ -230,7 +235,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 						EdgeType:   rel.Type,
 						Weight:     1.0,
 						Properties: map[string]interface{}{
-							"description": rel.Description,
+							"description":     rel.Description,
 							"source_chunk_id": c.ID,
 						},
 					}
@@ -241,15 +246,10 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 				}
 			}(i, chunk)
 		}
-		
+
 		// Wait for all routines to finish
 		wg.Wait()
 		log.Println("GraphRAG extraction completed.")
-	}
-
-	// Store document metadata after vectors are stored (sqvect v0.7.0 needs vectors first)
-	if err := s.documentStore.Store(ctx, doc); err != nil {
-		return domain.IngestResponse{}, fmt.Errorf("failed to store document: %w", err)
 	}
 
 	return domain.IngestResponse{
