@@ -27,6 +27,7 @@ type Service struct {
 	llmService      domain.MetadataExtractor
 	extractor       *EntityExtractor
 	graphStore      domain.GraphStore
+	chatStore       domain.ChatStore
 }
 
 func New(
@@ -54,6 +55,7 @@ func New(
 	// Get graph store if available
 	if vectorStore != nil {
 		s.graphStore = vectorStore.GetGraphStore()
+		s.chatStore = vectorStore.GetChatStore()
 	}
 
 	return s
@@ -776,6 +778,163 @@ func generateEntityID(name, entityType string) string {
 	}
 	// Generate UUID
 	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(seed)).String()
+}
+
+func (s *Service) StartChat(ctx context.Context, userID string, metadata map[string]interface{}) (*domain.ChatSession, error) {
+	if s.chatStore == nil {
+		return nil, fmt.Errorf("chat store not initialized")
+	}
+
+	session := &domain.ChatSession{
+		ID:        uuid.New().String(),
+		UserID:    userID,
+		Metadata:  metadata,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := s.chatStore.CreateSession(ctx, session); err != nil {
+		return nil, err
+	}
+
+	return session, nil
+}
+
+func (s *Service) Chat(ctx context.Context, sessionID string, message string, opts *domain.QueryRequest) (*domain.QueryResponse, error) {
+	if s.chatStore == nil {
+		return nil, fmt.Errorf("chat store not initialized")
+	}
+
+	// 1. Embed user message for semantic search
+	msgVector, err := s.embedder.Embed(ctx, message)
+	if err != nil {
+		return nil, fmt.Errorf("failed to embed message: %w", err)
+	}
+
+	// 2. Store user message
+	userMsg := &domain.ChatMessage{
+		ID:        uuid.New().String(),
+		SessionID: sessionID,
+		Role:      "user",
+		Content:   message,
+		Vector:    msgVector,
+		CreatedAt: time.Now(),
+	}
+	if err := s.chatStore.AddMessage(ctx, userMsg); err != nil {
+		return nil, fmt.Errorf("failed to store user message: %w", err)
+	}
+
+	// 3. Retrieve relevant history (Recent + Semantic)
+	// Recent history for immediate context
+	recentHistory, err := s.chatStore.GetSessionHistory(ctx, sessionID, 10)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recent history: %w", err)
+	}
+
+	// Semantic search for long-term memory recall
+	relevantHistory, err := s.chatStore.SearchChatHistory(ctx, msgVector, sessionID, 5)
+	if err != nil {
+		log.Printf("Warning: failed to search chat history: %v", err)
+	}
+
+	// 4. Perform Hybrid RAG Search (Documents + Graph)
+	ragChunks, err := s.hybridSearch(ctx, *opts)
+	if err != nil {
+		return nil, fmt.Errorf("hybrid search failed: %w", err)
+	}
+
+	// 5. Compose Prompt
+	prompt := s.buildChatPrompt(message, recentHistory, relevantHistory, ragChunks)
+
+	// 6. Generate Response
+	genOpts := &domain.GenerationOptions{
+		Temperature: opts.Temperature,
+		MaxTokens:   opts.MaxTokens,
+	}
+	answer, err := s.generator.Generate(ctx, prompt, genOpts)
+	if err != nil {
+		return nil, fmt.Errorf("generation failed: %w", err)
+	}
+
+	// Clean thinking tags if needed
+	if !opts.ShowThinking {
+		answer = s.cleanThinkingTags(answer)
+	}
+
+	// 7. Store Assistant Message
+	ansVector, _ := s.embedder.Embed(ctx, answer) // Ignore error, best effort
+
+	asstMsg := &domain.ChatMessage{
+		ID:        uuid.New().String(),
+		SessionID: sessionID,
+		Role:      "assistant",
+		Content:   answer,
+		Vector:    ansVector,
+		CreatedAt: time.Now(),
+	}
+	if err := s.chatStore.AddMessage(ctx, asstMsg); err != nil {
+		log.Printf("Warning: failed to store assistant message: %v", err)
+	}
+
+	return &domain.QueryResponse{
+		Answer:  answer,
+		Sources: ragChunks,
+	}, nil
+}
+
+func (s *Service) buildChatPrompt(query string, recent []*domain.ChatMessage, relevant []*domain.ChatMessage, chunks []domain.Chunk) string {
+	var sb strings.Builder
+
+	sb.WriteString("You are a helpful AI assistant with access to a knowledge base and conversation history.\n")
+	sb.WriteString("Use the following context to answer the user's question.\n\n")
+
+	// Knowledge Base Context
+	if len(chunks) > 0 {
+		sb.WriteString("### Knowledge Base Context:\n")
+		for i, chunk := range chunks {
+			sb.WriteString(fmt.Sprintf("[%d] %s\n", i+1, chunk.Content))
+		}
+		sb.WriteString("\n")
+	}
+
+	// Relevant Past Conversation (Recall)
+	seenIDs := make(map[string]bool)
+	for _, msg := range recent {
+		seenIDs[msg.ID] = true
+	}
+
+	hasRelevant := false
+	for _, msg := range relevant {
+		if !seenIDs[msg.ID] && msg.Role != "system" {
+			if !hasRelevant {
+				sb.WriteString("### Relevant Past Conversation:\n")
+				hasRelevant = true
+			}
+			sb.WriteString(fmt.Sprintf("%s: %s\n", strings.Title(msg.Role), msg.Content))
+		}
+	}
+	if hasRelevant {
+		sb.WriteString("\n")
+	}
+
+	// Recent Conversation History
+	sb.WriteString("### Recent Conversation:\n")
+	for _, msg := range recent {
+		if msg.Role != "system" {
+			sb.WriteString(fmt.Sprintf("%s: %s\n", strings.Title(msg.Role), msg.Content))
+		}
+	}
+	
+	// If the most recent message isn't the query (unlikely given logic flow), append query
+	// But since we store before fetch, it should be there.
+	// Safety check:
+	if len(recent) == 0 || recent[len(recent)-1].Content != query {
+		sb.WriteString(fmt.Sprintf("User: %s\n", query))
+	}
+	
+	sb.WriteString("\nAssistant:")
+
+	return sb.String()
 }
 
 

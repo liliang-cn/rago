@@ -128,6 +128,10 @@ func (s *SimpleVectorStore) GetGraphStore() domain.GraphStore {
 	return nil
 }
 
+func (s *SimpleVectorStore) GetChatStore() domain.ChatStore {
+	return nil
+}
+
 type SimpleDocumentStore struct {
 	docs []domain.Document
 }

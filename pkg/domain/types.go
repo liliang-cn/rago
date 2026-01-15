@@ -221,6 +221,35 @@ type GraphStore interface {
 	InitGraphSchema(ctx context.Context) error
 }
 
+// Chat types for domain layer
+
+type ChatSession struct {
+	ID        string                 `json:"id"`
+	UserID    string                 `json:"user_id"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	CreatedAt time.Time              `json:"created_at"`
+	UpdatedAt time.Time              `json:"updated_at"`
+}
+
+type ChatMessage struct {
+	ID        string                 `json:"id"`
+	SessionID string                 `json:"session_id"`
+	Role      string                 `json:"role"` // 'user', 'assistant', 'system'
+	Content   string                 `json:"content"`
+	Vector    []float64              `json:"vector,omitempty"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	CreatedAt time.Time              `json:"created_at"`
+}
+
+type ChatStore interface {
+	CreateSession(ctx context.Context, session *ChatSession) error
+	GetSession(ctx context.Context, id string) (*ChatSession, error)
+	AddMessage(ctx context.Context, msg *ChatMessage) error
+	GetSessionHistory(ctx context.Context, sessionID string, limit int) ([]*ChatMessage, error)
+	SearchChatHistory(ctx context.Context, queryVec []float64, sessionID string, limit int) ([]*ChatMessage, error)
+	InitChatSchema(ctx context.Context) error
+}
+
 type Chunker interface {
 	Split(text string, options ChunkOptions) ([]string, error)
 }
@@ -239,6 +268,7 @@ type VectorStore interface {
 	List(ctx context.Context) ([]Document, error)
 	Reset(ctx context.Context) error
 	GetGraphStore() GraphStore
+	GetChatStore() ChatStore
 }
 
 type DocumentStore interface {

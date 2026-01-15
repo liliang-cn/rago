@@ -274,6 +274,10 @@ func (m *mockVectorStore) GetGraphStore() domain.GraphStore {
 	return nil
 }
 
+func (m *mockVectorStore) GetChatStore() domain.ChatStore {
+	return nil
+}
+
 func TestStoreConfig(t *testing.T) {
 	t.Run("Config structure", func(t *testing.T) {
 		config := StoreConfig{
