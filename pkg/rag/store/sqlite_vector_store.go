@@ -727,257 +727,64 @@ func NewDocumentStore(sqvectStore *core.SQLiteStore) *DocumentStore {
 }
 
 func (s *DocumentStore) Store(ctx context.Context, doc domain.Document) error {
-	// Store document as a special embedding with empty vector for metadata-only storage
-	metadata := make(map[string]string)
-	if doc.Metadata != nil {
-		for k, v := range doc.Metadata {
-			metadata[k] = fmt.Sprintf("%v", v)
-		}
-	}
-	metadata["_type"] = "document"
-	metadata["_path"] = doc.Path
-	metadata["_url"] = doc.URL
-	metadata["_created"] = doc.Created.Format("2006-01-02T15:04:05Z07:00")
-
-	// Determine collection from metadata
-	collection := "default"
-	if collectionName, ok := doc.Metadata["collection"].(string); ok && collectionName != "" {
-		collection = collectionName
-		// Ensure collection exists
-		if err := s.ensureCollection(ctx, collection); err != nil {
-			return fmt.Errorf("failed to ensure collection %s: %w", collection, err)
-		}
+	// Map domain.Document to core.Document
+	coreDoc := &core.Document{
+		ID:        doc.ID,
+		Title:     doc.Path, // Using path as title for now
+		SourceURL: doc.URL,
+		Version:   1,
+		Metadata:  doc.Metadata,
+		CreatedAt: doc.Created,
+		UpdatedAt: doc.Created,
 	}
 
-	embedding := &core.Embedding{
-		ID:         doc.ID,
-		Vector:     []float32{}, // Empty vector for document metadata
-		Content:    doc.Content,
-		DocID:      doc.ID,
-		Collection: collection,
-		Metadata:   metadata,
-	}
-
-	if err := s.sqvect.Upsert(ctx, embedding); err != nil {
-		return fmt.Errorf("%w: failed to store document in collection %s: %v", domain.ErrDocumentStoreFailed, collection, err)
+	if err := s.sqvect.CreateDocument(ctx, coreDoc); err != nil {
+		return fmt.Errorf("%w: failed to store document: %v", domain.ErrDocumentStoreFailed, err)
 	}
 
 	return nil
 }
 
 func (s *DocumentStore) Get(ctx context.Context, id string) (domain.Document, error) {
-	// Use the new GetByDocID method from sqvect v0.3.0
-	embeddings, err := s.sqvect.GetByDocID(ctx, id)
+	doc, err := s.sqvect.GetDocument(ctx, id)
 	if err != nil {
-		return domain.Document{}, fmt.Errorf("%w: failed to get document by ID: %v", domain.ErrDocumentStoreFailed, err)
-	}
-
-	// Find the document metadata embedding
-	for _, embedding := range embeddings {
-		if embedding.Metadata["_type"] == "document" && embedding.DocID == id {
-			// Parse created time
-			var created time.Time
-			if createdStr, ok := embedding.Metadata["_created"]; ok {
-				if parsed, err := time.Parse("2006-01-02T15:04:05Z07:00", createdStr); err == nil {
-					created = parsed
-				}
-			}
-
-			doc := domain.Document{
-				ID:      id,
-				Path:    embedding.Metadata["_path"],
-				URL:     embedding.Metadata["_url"],
-				Content: embedding.Content,
-				Created: created,
-			}
-
-			// Copy non-internal metadata
-			doc.Metadata = make(map[string]interface{})
-			for k, v := range embedding.Metadata {
-				if !strings.HasPrefix(k, "_") {
-					doc.Metadata[k] = v
-				}
-			}
-
-			return doc, nil
+		if strings.Contains(err.Error(), "not found") {
+			return domain.Document{}, domain.ErrDocumentNotFound
 		}
+		return domain.Document{}, fmt.Errorf("%w: failed to get document: %v", domain.ErrDocumentStoreFailed, err)
 	}
 
-	return domain.Document{}, domain.ErrDocumentNotFound
+	return domain.Document{
+		ID:       doc.ID,
+		Path:     doc.Title,
+		URL:      doc.SourceURL,
+		Metadata: doc.Metadata,
+		Created:  doc.CreatedAt,
+	}, nil
 }
 
 func (s *DocumentStore) List(ctx context.Context) ([]domain.Document, error) {
-	// Use the same optimized approach as SQLiteStore
-	return s.listWithOptimizedAPI(ctx)
-}
-
-// Optimized method using new sqvect v0.3.0 APIs
-func (s *DocumentStore) listWithOptimizedAPI(ctx context.Context) ([]domain.Document, error) {
-	// Try using ListDocumentsWithInfo first (sqvect v0.3.0)
-	docInfos, err := s.sqvect.ListDocumentsWithInfo(ctx)
+	docs, err := s.sqvect.ListDocumentsWithFilter(ctx, "", 1000)
 	if err != nil {
-		// Fall back to old method if ListDocumentsWithInfo is not available
-		return s.listWithFallback(ctx)
+		return nil, fmt.Errorf("%w: failed to list documents: %v", domain.ErrDocumentStoreFailed, err)
 	}
 
-	if len(docInfos) == 0 {
-		return []domain.Document{}, nil
-	}
-
-	documents := make([]domain.Document, 0, len(docInfos))
-
-	for _, docInfo := range docInfos {
-		// Get the document details using GetByDocID
-		embeddings, err := s.sqvect.GetByDocID(ctx, docInfo.DocID)
-		if err != nil {
-			continue // Skip this document if we can't get its embeddings
-		}
-
-		// Find the document metadata embedding
-		for _, embedding := range embeddings {
-			if embedding.Metadata["_type"] == "document" {
-				// Parse created time
-				var created time.Time
-				if createdStr, ok := embedding.Metadata["_created"]; ok {
-					if parsed, err := time.Parse("2006-01-02T15:04:05Z07:00", createdStr); err == nil {
-						created = parsed
-					}
-				}
-
-				doc := domain.Document{
-					ID:      embedding.DocID,
-					Path:    embedding.Metadata["_path"],
-					URL:     embedding.Metadata["_url"],
-					Content: embedding.Content,
-					Created: created,
-				}
-
-				// Copy non-internal metadata
-				doc.Metadata = make(map[string]interface{})
-				for k, v := range embedding.Metadata {
-					if !strings.HasPrefix(k, "_") {
-						doc.Metadata[k] = v
-					}
-				}
-
-				documents = append(documents, doc)
-				break
-			}
+	result := make([]domain.Document, len(docs))
+	for i, doc := range docs {
+		result[i] = domain.Document{
+			ID:       doc.ID,
+			Path:     doc.Title,
+			URL:      doc.SourceURL,
+			Metadata: doc.Metadata,
+			Created:  doc.CreatedAt,
 		}
 	}
 
-	return documents, nil
-}
-
-// Fallback method for DocumentStore
-func (s *DocumentStore) listWithFallback(ctx context.Context) ([]domain.Document, error) {
-	// Try GetDocumentsByType
-	embeddings, err := s.sqvect.GetDocumentsByType(ctx, "document")
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to get documents: %v", domain.ErrDocumentStoreFailed, err)
-	}
-
-	if len(embeddings) == 0 {
-		// Final fallback: ListDocuments + GetByDocID
-		docIDs, err := s.sqvect.ListDocuments(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("%w: failed to list documents: %v", domain.ErrDocumentStoreFailed, err)
-		}
-
-		documentMap := make(map[string]domain.Document)
-
-		for _, docID := range docIDs {
-			docEmbeddings, err := s.sqvect.GetByDocID(ctx, docID)
-			if err != nil {
-				continue // Skip this document if we can't get its embeddings
-			}
-
-			// Find the document metadata embedding
-			for _, embedding := range docEmbeddings {
-				if embedding.Metadata["_type"] == "document" {
-					// Parse created time
-					var created time.Time
-					if createdStr, ok := embedding.Metadata["_created"]; ok {
-						if parsed, err := time.Parse("2006-01-02T15:04:05Z07:00", createdStr); err == nil {
-							created = parsed
-						}
-					}
-
-					doc := domain.Document{
-						ID:      embedding.DocID,
-						Path:    embedding.Metadata["_path"],
-						URL:     embedding.Metadata["_url"],
-						Content: embedding.Content,
-						Created: created,
-					}
-
-					// Copy non-internal metadata
-					doc.Metadata = make(map[string]interface{})
-					for k, v := range embedding.Metadata {
-						if !strings.HasPrefix(k, "_") {
-							doc.Metadata[k] = v
-						}
-					}
-
-					documentMap[embedding.DocID] = doc
-					break
-				}
-			}
-		}
-
-		// Convert map to slice
-		documents := make([]domain.Document, 0, len(documentMap))
-		for _, doc := range documentMap {
-			documents = append(documents, doc)
-		}
-
-		return documents, nil
-	}
-
-	// Process GetDocumentsByType results
-	documentMap := make(map[string]domain.Document)
-
-	for _, embedding := range embeddings {
-		if embedding.Metadata["_type"] == "document" {
-			// Parse created time
-			var created time.Time
-			if createdStr, ok := embedding.Metadata["_created"]; ok {
-				if parsed, err := time.Parse("2006-01-02T15:04:05Z07:00", createdStr); err == nil {
-					created = parsed
-				}
-			}
-
-			doc := domain.Document{
-				ID:      embedding.DocID,
-				Path:    embedding.Metadata["_path"],
-				URL:     embedding.Metadata["_url"],
-				Content: embedding.Content,
-				Created: created,
-			}
-
-			// Copy non-internal metadata
-			doc.Metadata = make(map[string]interface{})
-			for k, v := range embedding.Metadata {
-				if !strings.HasPrefix(k, "_") {
-					doc.Metadata[k] = v
-				}
-			}
-
-			documentMap[embedding.DocID] = doc
-		}
-	}
-
-	// Convert map to slice
-	documents := make([]domain.Document, 0, len(documentMap))
-	for _, doc := range documentMap {
-		documents = append(documents, doc)
-	}
-
-	return documents, nil
+	return result, nil
 }
 
 func (s *DocumentStore) Delete(ctx context.Context, id string) error {
-	if err := s.sqvect.Delete(ctx, id); err != nil {
+	if err := s.sqvect.DeleteDocument(ctx, id); err != nil {
 		return fmt.Errorf("%w: failed to delete document: %v", domain.ErrDocumentStoreFailed, err)
 	}
 	return nil
