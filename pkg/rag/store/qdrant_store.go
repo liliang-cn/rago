@@ -508,6 +508,14 @@ func (s *QdrantStore) Close() error {
 // Helper variable for wait parameter
 var waitTrue = true
 
+func (s *QdrantStore) SearchWithReranker(ctx context.Context, vector []float64, queryText string, topK int, strategy string, boost float64) ([]domain.Chunk, error) {
+	return nil, fmt.Errorf("reranking not supported in Qdrant backend yet")
+}
+
+func (s *QdrantStore) SearchWithDiversity(ctx context.Context, vector []float64, topK int, lambda float32) ([]domain.Chunk, error) {
+	return nil, fmt.Errorf("diversity search not supported in Qdrant backend yet")
+}
+
 func (s *QdrantStore) GetGraphStore() domain.GraphStore {
 	return nil // Graph not supported in Qdrant backend yet
 }

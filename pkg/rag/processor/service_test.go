@@ -104,6 +104,14 @@ func (s *SimpleVectorStore) SearchWithFilters(ctx context.Context, vector []floa
 	return s.Search(ctx, vector, topK)
 }
 
+func (s *SimpleVectorStore) SearchWithReranker(ctx context.Context, vector []float64, queryText string, topK int, strategy string, boost float64) ([]domain.Chunk, error) {
+	return s.Search(ctx, vector, topK)
+}
+
+func (s *SimpleVectorStore) SearchWithDiversity(ctx context.Context, vector []float64, topK int, lambda float32) ([]domain.Chunk, error) {
+	return s.Search(ctx, vector, topK)
+}
+
 func (s *SimpleVectorStore) Delete(ctx context.Context, documentID string) error {
 	newChunks := make([]domain.Chunk, 0)
 	for _, chunk := range s.chunks {

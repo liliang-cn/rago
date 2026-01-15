@@ -67,7 +67,7 @@ You can also use --text flag to ingest text directly.`,
 			
 			// For Qdrant, we need a separate document store
 			if Cfg.VectorStore.Type == "qdrant" {
-				sqliteStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath)
+				sqliteStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath, Cfg.Sqvect.IndexType)
 				if err != nil {
 					return fmt.Errorf("failed to create document store: %w", err)
 				}
@@ -80,7 +80,7 @@ You can also use --text flag to ingest text directly.`,
 			}
 		} else {
 			// Default to SQLite
-			sqliteStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath)
+			sqliteStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath, Cfg.Sqvect.IndexType)
 			if err != nil {
 				return fmt.Errorf("failed to create vector store: %w", err)
 			}

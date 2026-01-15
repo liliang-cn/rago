@@ -69,7 +69,7 @@ MCP tools provide enhanced functionality for file operations, database queries, 
 			
 			// For Qdrant, we need a separate document store
 			if Cfg.VectorStore.Type == "qdrant" {
-				sqliteStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath)
+				sqliteStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath, Cfg.Sqvect.IndexType)
 				if err != nil {
 					return fmt.Errorf("failed to create document store: %w", err)
 				}
@@ -82,7 +82,7 @@ MCP tools provide enhanced functionality for file operations, database queries, 
 			}
 		} else {
 			// Default to SQLite
-			sqliteStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath)
+			sqliteStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath, Cfg.Sqvect.IndexType)
 			if err != nil {
 				return fmt.Errorf("failed to create vector store: %w", err)
 			}
@@ -458,7 +458,7 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 	}
 
 	// Initialize processors for LLM functionality
-	vectorStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath)
+	vectorStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath, Cfg.Sqvect.IndexType)
 	if err != nil {
 		return fmt.Errorf("failed to create vector store: %w", err)
 	}
