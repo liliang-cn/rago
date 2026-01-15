@@ -99,6 +99,15 @@ func TestStoreWithCollections(t *testing.T) {
 	// Store chunks in different collections
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create document first to satisfy foreign key constraint in sqvect v2
+			docStore := NewDocumentStore(store.GetSqvectStore())
+			for _, chunk := range tt.chunks {
+				_ = docStore.Store(ctx, domain.Document{
+					ID:      chunk.DocumentID,
+					Created: time.Now(),
+				})
+			}
+
 			err := store.Store(ctx, tt.chunks)
 			assert.NoError(t, err, "Should store chunks in collection %s", tt.collection)
 		})
@@ -250,6 +259,13 @@ func TestCollectionMetadataPropagation(t *testing.T) {
 			},
 		},
 	}
+
+	// Create document first to satisfy foreign key constraint in sqvect v2
+	docStore := NewDocumentStore(store.GetSqvectStore())
+	_ = docStore.Store(ctx, domain.Document{
+		ID:      chunk.DocumentID,
+		Created: time.Now(),
+	})
 
 	// Store the chunk
 	err = store.Store(ctx, []domain.Chunk{chunk})
