@@ -710,3 +710,28 @@ func (c *Client) StreamWithContext(ctx context.Context, prompt string, contextDo
 
 	return c.llm.Stream(ctx, fullPrompt, opts, callback)
 }
+
+// Chat methods
+
+// StartChat starts a new chat session
+func (c *Client) StartChat(ctx context.Context, userID string, metadata map[string]interface{}) (*domain.ChatSession, error) {
+	return c.processor.StartChat(ctx, userID, metadata)
+}
+
+// Chat performs a chat interaction with history
+func (c *Client) Chat(ctx context.Context, sessionID string, message string, opts *QueryOptions) (*domain.QueryResponse, error) {
+	req := &domain.QueryRequest{
+		Query:        message,
+		TopK:         opts.TopK,
+		Temperature:  opts.Temperature,
+		MaxTokens:    opts.MaxTokens,
+		ShowSources:  opts.ShowSources,
+		ShowThinking: opts.ShowThinking,
+		Stream:       opts.Stream,
+		ToolsEnabled: opts.ToolsEnabled,
+		AllowedTools: opts.AllowedTools,
+		MaxToolCalls: opts.MaxToolCalls,
+		Filters:      opts.Filters,
+	}
+	return c.processor.Chat(ctx, sessionID, message, req)
+}

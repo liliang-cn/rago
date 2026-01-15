@@ -511,3 +511,7 @@ var waitTrue = true
 func (s *QdrantStore) GetGraphStore() domain.GraphStore {
 	return nil // Graph not supported in Qdrant backend yet
 }
+
+func (s *QdrantStore) GetChatStore() domain.ChatStore {
+	return nil // Chat not supported in Qdrant backend yet
+}

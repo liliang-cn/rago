@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/sqvect/pkg/core"
-	"github.com/liliang-cn/sqvect/pkg/graph"
-	"github.com/liliang-cn/sqvect/pkg/sqvect"
+	"github.com/liliang-cn/sqvect/v2/pkg/core"
+	"github.com/liliang-cn/sqvect/v2/pkg/graph"
+	"github.com/liliang-cn/sqvect/v2/pkg/sqvect"
 )
 
 type SQLiteStore struct {
@@ -57,6 +57,136 @@ func (s *SQLiteStore) GetGraphStore() domain.GraphStore {
 	return &SQLiteGraphStore{
 		graph: s.db.Graph(),
 	}
+}
+
+func (s *SQLiteStore) GetChatStore() domain.ChatStore {
+	return &SQLiteChatStore{
+		store: s.sqvect,
+	}
+}
+
+type SQLiteChatStore struct {
+	store *core.SQLiteStore
+}
+
+func (s *SQLiteChatStore) CreateSession(ctx context.Context, session *domain.ChatSession) error {
+	coreSession := &core.Session{
+		ID:        session.ID,
+		UserID:    session.UserID,
+		Metadata:  session.Metadata,
+		CreatedAt: session.CreatedAt,
+		UpdatedAt: session.UpdatedAt,
+	}
+	return s.store.CreateSession(ctx, coreSession)
+}
+
+func (s *SQLiteChatStore) GetSession(ctx context.Context, id string) (*domain.ChatSession, error) {
+	sess, err := s.store.GetSession(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &domain.ChatSession{
+		ID:        sess.ID,
+		UserID:    sess.UserID,
+		Metadata:  sess.Metadata,
+		CreatedAt: sess.CreatedAt,
+		UpdatedAt: sess.UpdatedAt,
+	}, nil
+}
+
+func (s *SQLiteChatStore) AddMessage(ctx context.Context, msg *domain.ChatMessage) error {
+	var vector []float32
+	if len(msg.Vector) > 0 {
+		vector = make([]float32, len(msg.Vector))
+		for i, v := range msg.Vector {
+			vector[i] = float32(v)
+		}
+	}
+
+	coreMsg := &core.Message{
+		ID:        msg.ID,
+		SessionID: msg.SessionID,
+		Role:      msg.Role,
+		Content:   msg.Content,
+		Vector:    vector,
+		Metadata:  msg.Metadata,
+		CreatedAt: msg.CreatedAt,
+	}
+	return s.store.AddMessage(ctx, coreMsg)
+}
+
+func (s *SQLiteChatStore) GetSessionHistory(ctx context.Context, sessionID string, limit int) ([]*domain.ChatMessage, error) {
+	msgs, err := s.store.GetSessionHistory(ctx, sessionID, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*domain.ChatMessage, len(msgs))
+	for i, msg := range msgs {
+		var vector []float64
+		if len(msg.Vector) > 0 {
+			vector = make([]float64, len(msg.Vector))
+			for i, v := range msg.Vector {
+				vector[i] = float64(v)
+			}
+		}
+
+		result[i] = &domain.ChatMessage{
+			ID:        msg.ID,
+			SessionID: msg.SessionID,
+			Role:      msg.Role,
+			Content:   msg.Content,
+			Vector:    vector,
+			Metadata:  msg.Metadata,
+			CreatedAt: msg.CreatedAt,
+		}
+	}
+	return result, nil
+}
+
+func (s *SQLiteChatStore) SearchChatHistory(ctx context.Context, queryVec []float64, sessionID string, limit int) ([]*domain.ChatMessage, error) {
+	var vector []float32
+	if len(queryVec) > 0 {
+		vector = make([]float32, len(queryVec))
+		for i, v := range queryVec {
+			vector[i] = float32(v)
+		}
+	}
+
+	msgs, err := s.store.SearchChatHistory(ctx, vector, sessionID, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*domain.ChatMessage, len(msgs))
+	for i, msg := range msgs {
+		var msgVector []float64
+		if len(msg.Vector) > 0 {
+			msgVector = make([]float64, len(msg.Vector))
+			for i, v := range msg.Vector {
+				msgVector[i] = float64(v)
+			}
+		}
+
+		result[i] = &domain.ChatMessage{
+			ID:        msg.ID,
+			SessionID: msg.SessionID,
+			Role:      msg.Role,
+			Content:   msg.Content,
+			Vector:    msgVector,
+			Metadata:  msg.Metadata,
+			CreatedAt: msg.CreatedAt,
+		}
+	}
+	return result, nil
+}
+
+func (s *SQLiteChatStore) InitChatSchema(ctx context.Context) error {
+	// The core.SQLiteStore automatically initializes schema if Init is called
+	// But we might want to ensure it explicitly or if there are specific chat tables
+	// core.Init() creates chat tables
+	// We can't call Init again easily, but we can assume it's done in NewSQLiteStore
+	return nil
 }
 
 type SQLiteGraphStore struct {
