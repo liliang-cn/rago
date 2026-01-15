@@ -261,6 +261,39 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 		nil
 }
 
+// IngestBatch ingests multiple documents concurrently
+func (s *Service) IngestBatch(ctx context.Context, reqs []domain.IngestRequest) ([]domain.IngestResponse, error) {
+	var responses []domain.IngestResponse
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	// Limit concurrency
+	sem := make(chan struct{}, 5)
+
+	for i, req := range reqs {
+		wg.Add(1)
+		go func(r domain.IngestRequest, idx int) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			resp, err := s.Ingest(ctx, r)
+			
+			mu.Lock()
+			defer mu.Unlock()
+
+			if err != nil {
+				log.Printf("Failed to ingest item %d (%s): %v", idx, r.FilePath, err)
+			} else {
+				responses = append(responses, resp)
+			}
+		}(req, i)
+	}
+
+	wg.Wait()
+	return responses, nil
+}
+
 // mergeMetadata merges the extracted metadata into the request's metadata map.
 func (s *Service) mergeMetadata(base map[string]interface{}, extracted *domain.ExtractedMetadata) {
 	if extracted.Summary != "" {

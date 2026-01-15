@@ -3,7 +3,6 @@ module github.com/liliang-cn/rago/v2
 go 1.24.0
 
 require (
-	github.com/dslipak/pdf v0.0.2
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
@@ -29,6 +28,7 @@ require (
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.10.0 // indirect
+	github.com/dslipak/pdf v0.0.2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
