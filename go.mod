@@ -8,7 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/liliang-cn/mcp-swagger-server v0.4.0
-	github.com/liliang-cn/sqvect v1.1.0
+	github.com/liliang-cn/sqvect/v2 v2.0.1
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/modelcontextprotocol/go-sdk v1.0.0
 	github.com/openai/openai-go/v3 v3.16.0
