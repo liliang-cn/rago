@@ -80,6 +80,7 @@ type SqvectConfig struct {
 	BatchSize int     `mapstructure:"batch_size"`
 	TopK      int     `mapstructure:"top_k"`
 	Threshold float64 `mapstructure:"threshold"`
+	IndexType string  `mapstructure:"index_type"`
 }
 
 type ChunkerConfig struct {
@@ -222,6 +223,7 @@ func setDefaults() {
 	viper.SetDefault("sqvect.batch_size", 100)
 	viper.SetDefault("sqvect.top_k", 5)
 	viper.SetDefault("sqvect.threshold", 0.0)
+	viper.SetDefault("sqvect.index_type", "hnsw")
 
 	viper.SetDefault("rrf.k", 10)
 	viper.SetDefault("rrf.relevance_threshold", 0.05)
@@ -311,6 +313,9 @@ func bindEnvVars() {
 	if err := viper.BindEnv("sqvect.threshold", "RAGO_SQVECT_THRESHOLD"); err != nil {
 		log.Printf("Warning: failed to bind sqvect.threshold env var: %v", err)
 	}
+	if err := viper.BindEnv("sqvect.index_type", "RAGO_SQVECT_INDEX_TYPE"); err != nil {
+		log.Printf("Warning: failed to bind sqvect.index_type env var: %v", err)
+	}
 
 	if err := viper.BindEnv("chunker.chunk_size", "RAGO_CHUNKER_CHUNK_SIZE"); err != nil {
 		log.Printf("Warning: failed to bind chunker.chunk_size env var: %v", err)
@@ -399,6 +404,11 @@ func (c *Config) Validate() error {
 
 	if c.Sqvect.Threshold < 0 {
 		return fmt.Errorf("threshold must be non-negative: %f", c.Sqvect.Threshold)
+	}
+
+	validIndexTypes := map[string]bool{"hnsw": true, "ivf": true, "flat": true, "": true}
+	if !validIndexTypes[strings.ToLower(c.Sqvect.IndexType)] {
+		return fmt.Errorf("invalid index_type: %s (supported: hnsw, ivf, flat)", c.Sqvect.IndexType)
 	}
 
 	if c.Chunker.ChunkSize <= 0 {

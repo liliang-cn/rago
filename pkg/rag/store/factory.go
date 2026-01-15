@@ -16,14 +16,15 @@ type StoreConfig struct {
 func NewVectorStore(config StoreConfig) (domain.VectorStore, error) {
 	switch config.Type {
 	case "sqlite", "sqvect":
-		var dbPath string
+		var dbPath, indexType string
 		if config.Parameters != nil {
 			dbPath, _ = config.Parameters["db_path"].(string)
+			indexType, _ = config.Parameters["index_type"].(string)
 		}
 		if dbPath == "" {
 			dbPath = "./.rago/data/rag.db"
 		}
-		return NewSQLiteStore(dbPath)
+		return NewSQLiteStore(dbPath, indexType)
 		
 	case "qdrant":
 		var url, collection string

@@ -220,7 +220,7 @@ func TestNewDocumentStoreFor(t *testing.T) {
 	t.Run("SQLiteStore returns DocumentStore", func(t *testing.T) {
 		// Create a SQLiteStore
 		dbPath := filepath.Join(tmpDir, "doc_test.db")
-		vectorStore, err := NewSQLiteStore(dbPath)
+		vectorStore, err := NewSQLiteStore(dbPath, "hnsw")
 		require.NoError(t, err)
 		defer vectorStore.Close()
 
@@ -255,6 +255,14 @@ func (m *mockVectorStore) Search(ctx context.Context, vector []float64, topK int
 }
 
 func (m *mockVectorStore) SearchWithFilters(ctx context.Context, vector []float64, topK int, filters map[string]interface{}) ([]domain.Chunk, error) {
+	return nil, nil
+}
+
+func (m *mockVectorStore) SearchWithReranker(ctx context.Context, vector []float64, queryText string, topK int, strategy string, boost float64) ([]domain.Chunk, error) {
+	return nil, nil
+}
+
+func (m *mockVectorStore) SearchWithDiversity(ctx context.Context, vector []float64, topK int, lambda float32) ([]domain.Chunk, error) {
 	return nil, nil
 }
 

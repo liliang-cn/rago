@@ -18,11 +18,20 @@ type SQLiteStore struct {
 	sqvect *core.SQLiteStore
 }
 
-func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
+func NewSQLiteStore(dbPath string, indexType string) (*SQLiteStore, error) {
 	// Use sqvect v1.0.0's new API
 	config := sqvect.Config{
 		Path:       dbPath,
 		Dimensions: 0, // Auto-detect dimensions
+	}
+
+	switch strings.ToLower(indexType) {
+	case "ivf":
+		config.IndexType = core.IndexTypeIVF
+	case "flat":
+		config.IndexType = core.IndexTypeFlat
+	default:
+		config.IndexType = core.IndexTypeHNSW // Default
 	}
 	
 	db, err := sqvect.Open(config)
@@ -483,6 +492,94 @@ func (s *SQLiteStore) SearchWithFilters(ctx context.Context, vector []float64, t
 
 	// If no filters, use regular search
 	return s.Search(ctx, vector, topK)
+}
+
+func (s *SQLiteStore) SearchWithReranker(ctx context.Context, vector []float64, queryText string, topK int, strategy string, boost float64) ([]domain.Chunk, error) {
+	if len(vector) == 0 {
+		return nil, fmt.Errorf("%w: empty query vector", domain.ErrInvalidInput)
+	}
+
+	// Convert []float64 to []float32 for sqvect
+	queryVector := make([]float32, len(vector))
+	for i, v := range vector {
+		queryVector[i] = float32(v)
+	}
+
+	var reranker core.Reranker
+	switch strings.ToLower(strategy) {
+	case "keyword":
+		reranker = core.NewKeywordMatchReranker(boost)
+	case "rrf":
+		reranker = core.NewReciprocalRankFusionReranker(60)
+	default:
+		return s.Search(ctx, vector, topK)
+	}
+
+	opts := core.RerankOptions{
+		TopK:      topK,
+		Threshold: 0.0,
+	}
+
+	results, err := s.sqvect.SearchWithReranker(ctx, queryVector, queryText, reranker, opts)
+	if err != nil {
+		return nil, fmt.Errorf("%w: search with reranker failed: %v", domain.ErrVectorStoreFailed, err)
+	}
+
+	return s.toDomainChunks(results), nil
+}
+
+func (s *SQLiteStore) SearchWithDiversity(ctx context.Context, vector []float64, topK int, lambda float32) ([]domain.Chunk, error) {
+	if len(vector) == 0 {
+		return nil, fmt.Errorf("%w: empty query vector", domain.ErrInvalidInput)
+	}
+
+	// Convert []float64 to []float32 for sqvect
+	queryVector := make([]float32, len(vector))
+	for i, v := range vector {
+		queryVector[i] = float32(v)
+	}
+
+	opts := core.DiversitySearchOptions{
+		Lambda: lambda,
+		Method: core.DiversityMMR,
+		SearchOptions: core.SearchOptions{
+			TopK: topK,
+		},
+	}
+
+	results, err := s.sqvect.SearchWithDiversity(ctx, queryVector, opts)
+	if err != nil {
+		return nil, fmt.Errorf("%w: search with diversity failed: %v", domain.ErrVectorStoreFailed, err)
+	}
+
+	return s.toDomainChunks(results), nil
+}
+
+func (s *SQLiteStore) toDomainChunks(results []core.ScoredEmbedding) []domain.Chunk {
+	chunks := make([]domain.Chunk, len(results))
+	for i, result := range results {
+		// Convert []float32 back to []float64
+		resultVector := make([]float64, len(result.Vector))
+		for j, v := range result.Vector {
+			resultVector[j] = float64(v)
+		}
+
+		// Convert metadata back to interface{}
+		metadata := make(map[string]interface{})
+		for k, v := range result.Metadata {
+			metadata[k] = v
+		}
+
+		chunks[i] = domain.Chunk{
+			ID:         result.ID,
+			DocumentID: result.DocID,
+			Content:    result.Content,
+			Vector:     resultVector,
+			Score:      float64(result.Score),
+			Metadata:   metadata,
+		}
+	}
+	return chunks
 }
 
 func (s *SQLiteStore) Delete(ctx context.Context, documentID string) error {

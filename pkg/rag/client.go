@@ -50,7 +50,7 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 		// For document store, use SQLite alongside vector stores that don't provide document storage
 		if cfg.VectorStore.Type == "qdrant" {
 			// Qdrant doesn't store full documents, so use SQLite for document storage
-			sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath)
+			sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath, cfg.Sqvect.IndexType)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create document store: %w", err)
 			}
@@ -58,7 +58,7 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 		}
 	} else {
 		// Default to SQLite for backward compatibility
-		sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath)
+		sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath, cfg.Sqvect.IndexType)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create vector store: %w", err)
 		}
@@ -234,6 +234,12 @@ type QueryOptions struct {
 	AllowedTools []string               // Specific tools to allow
 	MaxToolCalls int                    // Maximum tool calls
 	Filters      map[string]interface{} // Metadata filters for document retrieval
+	// Advanced Search Options
+	RerankStrategy  string  // "keyword", "rrf", "diversity"
+	RerankBoost     float64 // For keyword reranker
+	DiversityLambda float32 // For MMR (0-1)
+	EnableACL       bool
+	ACLIDs          []string
 }
 
 // DefaultQueryOptions returns default query options
@@ -264,6 +270,11 @@ func (c *Client) Query(ctx context.Context, query string, opts *QueryOptions) (*
 		AllowedTools: opts.AllowedTools,
 		MaxToolCalls: opts.MaxToolCalls,
 		Filters:      opts.Filters,
+		RerankStrategy:  opts.RerankStrategy,
+		RerankBoost:     opts.RerankBoost,
+		DiversityLambda: opts.DiversityLambda,
+		EnableACL:       opts.EnableACL,
+		ACLIDs:          opts.ACLIDs,
 	}
 
 	resp, err := c.processor.Query(ctx, req)
@@ -737,6 +748,11 @@ func (c *Client) Chat(ctx context.Context, sessionID string, message string, opt
 		AllowedTools: opts.AllowedTools,
 		MaxToolCalls: opts.MaxToolCalls,
 		Filters:      opts.Filters,
+		RerankStrategy:  opts.RerankStrategy,
+		RerankBoost:     opts.RerankBoost,
+		DiversityLambda: opts.DiversityLambda,
+		EnableACL:       opts.EnableACL,
+		ACLIDs:          opts.ACLIDs,
 	}
 	return c.processor.Chat(ctx, sessionID, message, req)
 }

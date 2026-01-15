@@ -76,7 +76,7 @@ var serveCmd = &cobra.Command{
 			
 			// For Qdrant, need separate document store
 			if cfg.VectorStore.Type == "qdrant" {
-				sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath)
+				sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath, cfg.Sqvect.IndexType)
 				if err != nil {
 					return fmt.Errorf("failed to create document store: %w", err)
 				}
@@ -89,7 +89,7 @@ var serveCmd = &cobra.Command{
 			}
 		} else {
 			// Default to SQLite
-			sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath)
+			sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath, cfg.Sqvect.IndexType)
 			if err != nil {
 				return fmt.Errorf("failed to create vector store: %w", err)
 			}

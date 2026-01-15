@@ -66,6 +66,7 @@ var importCmd = &cobra.Command{
 		// Initialize stores
 		vectorStore, err := store.NewSQLiteStore(
 			Cfg.Sqvect.DBPath,
+			Cfg.Sqvect.IndexType,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)

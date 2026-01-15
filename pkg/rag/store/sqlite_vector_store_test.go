@@ -20,7 +20,7 @@ func TestStoreWithCollections(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	dbPath := filepath.Join(tmpDir, "test_collections.db")
-	store, err := NewSQLiteStore(dbPath)
+	store, err := NewSQLiteStore(dbPath, "hnsw")
 	require.NoError(t, err)
 	defer store.Close()
 
@@ -124,7 +124,7 @@ func TestDocumentStoreWithCollections(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	dbPath := filepath.Join(tmpDir, "test_doc_collections.db")
-	sqliteStore, err := NewSQLiteStore(dbPath)
+	sqliteStore, err := NewSQLiteStore(dbPath, "hnsw")
 	require.NoError(t, err)
 	defer sqliteStore.Close()
 
@@ -199,7 +199,7 @@ func TestEnsureCollection(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	dbPath := filepath.Join(tmpDir, "test_ensure.db")
-	store, err := NewSQLiteStore(dbPath)
+	store, err := NewSQLiteStore(dbPath, "hnsw")
 	require.NoError(t, err)
 	defer store.Close()
 
@@ -232,7 +232,7 @@ func TestCollectionMetadataPropagation(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	dbPath := filepath.Join(tmpDir, "test_metadata.db")
-	store, err := NewSQLiteStore(dbPath)
+	store, err := NewSQLiteStore(dbPath, "hnsw")
 	require.NoError(t, err)
 	defer store.Close()
 

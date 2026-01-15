@@ -36,6 +36,12 @@ type QueryRequest struct {
 	AllowedTools   []string               `json:"allowed_tools,omitempty"`
 	MaxToolCalls   int                    `json:"max_tool_calls"`
 	ConversationID string                 `json:"conversation_id,omitempty"`
+	// Advanced Search Options
+	RerankStrategy  string  `json:"rerank_strategy,omitempty"`  // "keyword", "rrf", "diversity"
+	RerankBoost     float64 `json:"rerank_boost,omitempty"`     // For keyword reranker
+	DiversityLambda float32 `json:"diversity_lambda,omitempty"` // For MMR (0-1)
+	EnableACL       bool    `json:"enable_acl,omitempty"`
+	ACLIDs          []string `json:"acl_ids,omitempty"`
 }
 
 type QueryResponse struct {
@@ -264,6 +270,8 @@ type VectorStore interface {
 	Store(ctx context.Context, chunks []Chunk) error
 	Search(ctx context.Context, vector []float64, topK int) ([]Chunk, error)
 	SearchWithFilters(ctx context.Context, vector []float64, topK int, filters map[string]interface{}) ([]Chunk, error)
+	SearchWithReranker(ctx context.Context, vector []float64, queryText string, topK int, strategy string, boost float64) ([]Chunk, error)
+	SearchWithDiversity(ctx context.Context, vector []float64, topK int, lambda float32) ([]Chunk, error)
 	Delete(ctx context.Context, documentID string) error
 	List(ctx context.Context) ([]Document, error)
 	Reset(ctx context.Context) error
