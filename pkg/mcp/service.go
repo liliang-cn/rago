@@ -159,12 +159,23 @@ func (s *Service) Chat(ctx context.Context, message string, opts *ChatOptions) (
 	// Convert to tool definitions for LLM
 	toolDefs := make([]domain.ToolDefinition, 0, len(tools))
 	for _, tool := range tools {
+		// Use the full InputSchema if available
+		var parameters map[string]interface{}
+		if tool.InputSchema != nil && len(tool.InputSchema) > 0 {
+			parameters = tool.InputSchema
+		} else {
+			parameters = map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			}
+		}
+
 		toolDefs = append(toolDefs, domain.ToolDefinition{
 			Type: "function",
 			Function: domain.ToolFunction{
 				Name:        tool.Name,
 				Description: tool.Description,
-				Parameters:  map[string]interface{}{}, // TODO: Add parameter schemas
+				Parameters:  parameters,
 			},
 		})
 	}

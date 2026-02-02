@@ -111,6 +111,11 @@ func GetProviderConfig(config *domain.ProviderConfig) (interface{}, error) {
 
 // GetLLMProviderConfig returns the LLM provider configuration based on default settings
 func GetLLMProviderConfig(config *domain.ProviderConfig, defaultProvider string) (interface{}, error) {
+	return GetLLMProviderConfigWithCustom(config, defaultProvider, nil)
+}
+
+// GetLLMProviderConfigWithCustom returns the LLM provider config with custom providers support
+func GetLLMProviderConfigWithCustom(config *domain.ProviderConfig, defaultProvider string, customProviders map[string]interface{}) (interface{}, error) {
 	switch defaultProvider {
 	case "openai":
 		if config.OpenAI == nil {
@@ -118,6 +123,12 @@ func GetLLMProviderConfig(config *domain.ProviderConfig, defaultProvider string)
 		}
 		return config.OpenAI, nil
 	default:
+		// Check custom providers
+		if customProviders != nil {
+			if providerConfig, exists := customProviders[defaultProvider]; exists {
+				return providerConfig, nil
+			}
+		}
 		return nil, fmt.Errorf("unsupported default LLM provider: %s", defaultProvider)
 	}
 }
@@ -139,9 +150,14 @@ func (f *Factory) CreateLLMPool(ctx context.Context, providerConfigs map[string]
 
 // GetEmbedderProviderConfig returns the embedder provider configuration based on default settings
 func GetEmbedderProviderConfig(config *domain.ProviderConfig, defaultProvider string) (interface{}, error) {
+	return GetEmbedderProviderConfigWithCustom(config, defaultProvider, nil)
+}
+
+// GetEmbedderProviderConfigWithCustom returns the embedder provider config with custom providers support
+func GetEmbedderProviderConfigWithCustom(config *domain.ProviderConfig, defaultProvider string, customProviders map[string]interface{}) (interface{}, error) {
 	// If no specific default embedder is set, use the LLM provider
 	if defaultProvider == "" {
-		return GetLLMProviderConfig(config, defaultProvider)
+		return GetLLMProviderConfigWithCustom(config, defaultProvider, customProviders)
 	}
 
 	switch defaultProvider {
@@ -151,6 +167,12 @@ func GetEmbedderProviderConfig(config *domain.ProviderConfig, defaultProvider st
 		}
 		return config.OpenAI, nil
 	default:
+		// Check custom providers
+		if customProviders != nil {
+			if providerConfig, exists := customProviders[defaultProvider]; exists {
+				return providerConfig, nil
+			}
+		}
 		return nil, fmt.Errorf("unsupported default embedder provider: %s", defaultProvider)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/liliang-cn/rago/v2/pkg/agent"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
@@ -27,6 +28,8 @@ type Client struct {
 	settings    *settings.Service
 	mcpService  *mcp.Service
 	mcpConfig   *mcp.Config
+	agentService *agent.Service
+	agentDBPath  string
 }
 
 // NewClient creates a new RAG client
@@ -335,7 +338,14 @@ func (c *Client) GetStats(ctx context.Context) (*domain.Stats, error) {
 // Close closes the RAG client and releases resources
 func (c *Client) Close() error {
 	var errs []error
-	
+
+	// Close agent service
+	if c.agentService != nil {
+		if err := c.agentService.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	if c.vectorStore != nil {
 		if closer, ok := c.vectorStore.(interface{ Close() error }); ok {
 			if err := closer.Close(); err != nil {
@@ -343,12 +353,12 @@ func (c *Client) Close() error {
 			}
 		}
 	}
-	
+
 	if c.docStore != nil {
 		// Document store typically uses same connection as SQLite vector store
 		// so it's already closed above
 	}
-	
+
 	if len(errs) > 0 {
 		return errs[0]
 	}
@@ -756,3 +766,225 @@ func (c *Client) Chat(ctx context.Context, sessionID string, message string, opt
 	}
 	return c.processor.Chat(ctx, sessionID, message, req)
 }
+
+// ============================================================================
+// Agent Methods - Autonomous AI Agent with Handoffs, Guardrails, Tracing
+// ============================================================================
+
+// AgentOptions configures agent behavior
+type AgentOptions struct {
+	EnableHandoffs   bool                   // Enable agent handoffs
+	EnableGuardrails bool                   // Enable input/output guardrails
+	EnableTracing    bool                   // Enable execution tracing
+	Guardrails       []*agent.Guardrail     // Custom guardrails
+	Handoffs         []agent.HandoffOption  // Handoff configurations
+	SessionID        string                 // Resume existing session
+}
+
+// DefaultAgentOptions returns default agent options
+func DefaultAgentOptions() *AgentOptions {
+	return &AgentOptions{
+		EnableHandoffs:   false,
+		EnableGuardrails: true,
+		EnableTracing:    false,
+		Guardrails: []*agent.Guardrail{
+			agent.ContentModerationGuardrail(),
+			agent.PromptInjectionGuardrail(),
+		},
+	}
+}
+
+// initAgentService initializes the agent service if not already done
+func (c *Client) initAgentService(ctx context.Context) error {
+	if c.agentService != nil {
+		return nil
+	}
+
+	// Determine agent DB path
+	if c.agentDBPath == "" {
+		c.agentDBPath = filepath.Join(filepath.Dir(c.config.Sqvect.DBPath), "agent.db")
+	}
+
+	// Initialize MCP service for agent
+	if err := c.initMCPService(ctx); err != nil {
+		return fmt.Errorf("failed to initialize MCP service for agent: %w", err)
+	}
+
+	// Create MCP tool executor adapter
+	mcpAdapter := &mcpToolAdapter{service: c.mcpService}
+
+	// Create agent service
+	svc, err := agent.NewService(c.llm, mcpAdapter, c.processor, c.agentDBPath)
+	if err != nil {
+		return fmt.Errorf("failed to create agent service: %w", err)
+	}
+
+	c.agentService = svc
+	return nil
+}
+
+// mcpToolAdapter adapts mcp.Service to agent.MCPToolExecutor
+type mcpToolAdapter struct {
+	service *mcp.Service
+}
+
+func (a *mcpToolAdapter) CallTool(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error) {
+	result, err := a.service.CallTool(ctx, toolName, args)
+	if err != nil {
+		return nil, err
+	}
+	if !result.Success {
+		return nil, fmt.Errorf("MCP tool error: %s", result.Error)
+	}
+	return result.Data, nil
+}
+
+func (a *mcpToolAdapter) ListTools() []domain.ToolDefinition {
+	tools := a.service.GetAvailableTools(context.Background())
+	result := make([]domain.ToolDefinition, len(tools))
+	for i, t := range tools {
+		result[i] = domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        t.Name,
+				Description: t.Description,
+				Parameters: map[string]interface{}{
+					"type":       "object",
+					"properties": map[string]interface{}{
+						"arguments": map[string]interface{}{
+							"type":        "object",
+							"description": "Tool arguments",
+						},
+					},
+				},
+			},
+		}
+	}
+	return result
+}
+
+// RunAgent executes an agent with the given goal
+func (c *Client) RunAgent(ctx context.Context, goal string, opts *AgentOptions) (*agent.ExecutionResult, error) {
+	if err := c.initAgentService(ctx); err != nil {
+		return nil, err
+	}
+
+	if opts == nil {
+		opts = DefaultAgentOptions()
+	}
+
+	// Run with session if provided
+	if opts.SessionID != "" {
+		return c.agentService.RunWithSession(ctx, goal, opts.SessionID)
+	}
+
+	return c.agentService.Run(ctx, goal)
+}
+
+// PlanAgent creates a plan for the given goal without executing
+func (c *Client) PlanAgent(ctx context.Context, goal string) (*agent.Plan, error) {
+	if err := c.initAgentService(ctx); err != nil {
+		return nil, err
+	}
+
+	return c.agentService.Plan(ctx, goal)
+}
+
+// ExecuteAgentPlan executes an existing plan
+func (c *Client) ExecuteAgentPlan(ctx context.Context, plan *agent.Plan) error {
+	if err := c.initAgentService(ctx); err != nil {
+		return err
+	}
+
+	return c.agentService.ExecutePlan(ctx, plan)
+}
+
+// GetAgentSession retrieves an agent session by ID
+func (c *Client) GetAgentSession(sessionID string) (*agent.Session, error) {
+	if c.agentService == nil {
+		return nil, fmt.Errorf("agent service not initialized")
+	}
+
+	return c.agentService.GetSession(sessionID)
+}
+
+// ListAgentSessions returns all agent sessions
+func (c *Client) ListAgentSessions(limit int) ([]*agent.Session, error) {
+	if c.agentService == nil {
+		return nil, fmt.Errorf("agent service not initialized")
+	}
+
+	return c.agentService.ListSessions(limit)
+}
+
+// GetAgentPlan retrieves a plan by ID
+func (c *Client) GetAgentPlan(planID string) (*agent.Plan, error) {
+	if c.agentService == nil {
+		return nil, fmt.Errorf("agent service not initialized")
+	}
+
+	return c.agentService.GetPlan(planID)
+}
+
+// GetAgentTracer returns the agent tracer for exporting traces
+func (c *Client) GetAgentTracer() *agent.Tracer {
+	if c.agentService == nil {
+		return nil
+	}
+
+	// This would require exposing tracer from agent.Service
+	// For now, return a new tracer that can read traces
+	return agent.NewTracer()
+}
+
+// CreateAgent creates a custom agent with specific configuration
+func (c *Client) CreateAgent(name, instructions string) (*agent.Agent, error) {
+	if err := c.initAgentService(context.Background()); err != nil {
+		return nil, err
+	}
+
+	// Create agent with custom configuration
+	a := agent.NewAgentWithConfig(name, instructions, nil)
+	return a, nil
+}
+
+// AgentWithHandoffs creates an agent with handoff capabilities
+func (c *Client) AgentWithHandoffs(name, instructions string, handoffs []*agent.Agent) (*agent.Agent, []*agent.Handoff) {
+	primaryAgent := agent.NewAgentWithConfig(name, instructions, nil)
+
+	// Create handoffs from other agents
+	agentHandoffs := make([]*agent.Handoff, len(handoffs))
+	for i, target := range handoffs {
+		agentHandoffs[i] = agent.NewHandoff(target)
+	}
+
+	return primaryAgent, agentHandoffs
+}
+
+// ============================================================================
+// Agent Convenience Methods
+// ============================================================================
+
+// QuickAgent runs a quick agent task with default settings
+func (c *Client) QuickAgent(ctx context.Context, goal string) (string, error) {
+	result, err := c.RunAgent(ctx, goal, DefaultAgentOptions())
+	if err != nil {
+		return "", err
+	}
+
+	if result.FinalResult != nil {
+		return fmt.Sprintf("%v", result.FinalResult), nil
+	}
+
+	return fmt.Sprintf("Completed %d steps in %s", result.StepsDone, result.Duration), nil
+}
+
+// AgentChat runs an agent in chat mode with conversation history
+func (c *Client) AgentChat(ctx context.Context, sessionID, message string) (*agent.ExecutionResult, error) {
+	if err := c.initAgentService(ctx); err != nil {
+		return nil, err
+	}
+
+	return c.agentService.RunWithSession(ctx, message, sessionID)
+}
+

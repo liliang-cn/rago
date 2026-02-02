@@ -51,13 +51,11 @@ func InitializeProviders(ctx context.Context, cfg *config.Config) (domain.Embedd
 
 // InitializeEmbedder initializes embedder service using provider system
 func InitializeEmbedder(ctx context.Context, cfg *config.Config, factory *Factory) (domain.Embedder, error) {
-	// Check if new provider configuration exists
-	if cfg.Providers.ProviderConfigs.OpenAI == nil {
-		return nil, fmt.Errorf("no OpenAI provider configuration found")
+	// Try to get embedder config (with custom providers support)
+	providerConfig, err := GetEmbedderProviderConfigWithCustom(&cfg.Providers.ProviderConfigs, cfg.Providers.DefaultEmbedder, cfg.Providers.Providers)
+	if err != nil {
+		return nil, err
 	}
-
-	providerConfig := cfg.Providers.ProviderConfigs.OpenAI
-	providerConfig.Type = domain.ProviderOpenAI
 
 	provider, err := factory.CreateEmbedderProvider(ctx, providerConfig)
 	if err != nil {
@@ -69,13 +67,11 @@ func InitializeEmbedder(ctx context.Context, cfg *config.Config, factory *Factor
 
 // InitializeLLM initializes LLM service using provider system
 func InitializeLLM(ctx context.Context, cfg *config.Config, factory *Factory) (domain.Generator, error) {
-	// Check if new provider configuration exists
-	if cfg.Providers.ProviderConfigs.OpenAI == nil {
-		return nil, fmt.Errorf("no OpenAI provider configuration found")
+	// Try to get LLM config (with custom providers support)
+	providerConfig, err := GetLLMProviderConfigWithCustom(&cfg.Providers.ProviderConfigs, cfg.Providers.DefaultLLM, cfg.Providers.Providers)
+	if err != nil {
+		return nil, err
 	}
-
-	providerConfig := cfg.Providers.ProviderConfigs.OpenAI
-	providerConfig.Type = domain.ProviderOpenAI
 
 	provider, err := factory.CreateLLMProvider(ctx, providerConfig)
 	if err != nil {
