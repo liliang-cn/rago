@@ -186,8 +186,8 @@ func (g *GlobalLLMService) GetEmbeddingService(ctx context.Context) (domain.Embe
 		return nil, fmt.Errorf("global LLM service not initialized")
 	}
 
-	// Create embedder service using factory
-	embedderConfig, err := providers.GetEmbedderProviderConfig(&g.config.Providers.ProviderConfigs, g.config.Providers.DefaultEmbedder)
+	// Create embedder service using factory (with custom providers support)
+	embedderConfig, err := providers.GetEmbedderProviderConfigWithCustom(&g.config.Providers.ProviderConfigs, g.config.Providers.DefaultEmbedder, g.config.Providers.Providers)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get embedder config: %w", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/liliang-cn/rago/v2/cmd/rago-cli/agent"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/mcp"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/profile"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/rag"
@@ -56,6 +57,7 @@ It provides unified access to:
 		rag.SetSharedVariables(cfg, verbose, quiet, version)
 		mcp.SetSharedVariables(cfg, verbose, quiet)
 		profile.SetSharedVariables(cfg, verbose, quiet)
+		agent.SetSharedVariables(cfg, verbose)
 
 		return nil
 	},
@@ -100,6 +102,9 @@ func init() {
 
 	// Add Profile command
 	RootCmd.AddCommand(profile.ProfileCmd)
+
+	// Add Agent command
+	RootCmd.AddCommand(agent.AgentCmd)
 
 	RootCmd.AddCommand(serveCmd)
 	RootCmd.AddCommand(llmCmd)

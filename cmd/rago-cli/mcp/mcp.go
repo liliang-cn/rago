@@ -17,33 +17,11 @@ import (
 // MCPCmd is the parent command for MCP operations - exported for use in root.go
 var MCPCmd = &cobra.Command{
 	Use:   "mcp",
-	Short: "MCP (Model Context Protocol) management and tool usage",
-	Long: `Manage MCP servers and use MCP tools.
+	Short: "MCP (Model Context Protocol) tool usage",
+	Long: `Use MCP tools directly.
 
 MCP enables rago to connect to external tools and services through the Model Context Protocol.
-Use these commands to start/stop MCP servers, list available tools, and call tools directly.`,
-}
-
-var mcpStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show status of MCP servers and tools",
-	RunE:  runMCPStatus,
-}
-
-var mcpStartCmd = &cobra.Command{
-	Use:   "start [server-name]",
-	Short: "Start MCP server(s)",
-	Long:  "Start one or all MCP servers. If no server name provided, starts all auto-start servers.",
-	Args:  cobra.MaximumNArgs(1),
-	RunE:  runMCPStart,
-}
-
-var mcpStopCmd = &cobra.Command{
-	Use:   "stop [server-name]",
-	Short: "Stop MCP server(s)",
-	Long:  "Stop one or all MCP servers. If no server name provided, stops all servers.",
-	Args:  cobra.MaximumNArgs(1),
-	RunE:  runMCPStop,
+Servers are started on-demand when tools are called.`,
 }
 
 var mcpListCmd = &cobra.Command{
@@ -76,7 +54,7 @@ The AI will only use MCP tools to answer your questions.
 Examples:
   # Single message
   rago mcp chat "Create a table called users with id, name, email columns"
-  
+
   # Interactive mode (no message provided)
   rago mcp chat`,
 	Args: cobra.MaximumNArgs(1),
@@ -85,9 +63,6 @@ Examples:
 
 func init() {
 	// Add subcommands to MCP parent command
-	MCPCmd.AddCommand(mcpStatusCmd)
-	MCPCmd.AddCommand(mcpStartCmd)
-	MCPCmd.AddCommand(mcpStopCmd)
 	MCPCmd.AddCommand(mcpListCmd)
 	MCPCmd.AddCommand(mcpCallCmd)
 	MCPCmd.AddCommand(mcpChatCmd)
@@ -281,183 +256,6 @@ func runMCPChat(cmd *cobra.Command, args []string) error {
 	} else {
 		// Direct response without tools
 		fmt.Printf("💬 **Response:**\n%s\n", result.Content)
-	}
-
-	return nil
-}
-
-func runMCPStatus(cmd *cobra.Command, args []string) error {
-	// Check runtime environments first
-	envStatus := CheckMCPEnvironment()
-	PrintMCPEnvironmentStatus(envStatus)
-
-	if Cfg == nil {
-		var err error
-		Cfg, err = config.Load("")
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-	}
-
-	if !Cfg.MCP.Enabled {
-		fmt.Println("\n❌ MCP is disabled in configuration")
-		fmt.Println("   To enable: Set mcp.enabled = true in rago.toml")
-		return nil
-	}
-
-	fmt.Println("\n⚙️  MCP Configuration")
-	fmt.Println("=" + strings.Repeat("=", 50))
-	fmt.Printf("   Enabled: %v\n", Cfg.MCP.Enabled)
-	fmt.Printf("   Log Level: %s\n", Cfg.MCP.LogLevel)
-	fmt.Printf("   Default Timeout: %v\n", Cfg.MCP.DefaultTimeout)
-	fmt.Printf("   Max Concurrent: %d\n", Cfg.MCP.MaxConcurrentRequests)
-	fmt.Printf("   Health Check Interval: %v\n", Cfg.MCP.HealthCheckInterval)
-
-	// Load server configurations first
-	if err := Cfg.MCP.LoadServersFromJSON(); err != nil {
-		return fmt.Errorf("failed to load server configurations: %w", err)
-	}
-
-	fmt.Printf("\n📊 Servers (%d configured):\n", len(Cfg.MCP.LoadedServers))
-
-	// Test each server by attempting to connect and list tools
-	for _, serverConfig := range Cfg.MCP.LoadedServers {
-		fmt.Printf("   - %s: ", serverConfig.Name)
-
-		// Test server connectivity by trying to start it temporarily
-		toolManager := mcp.NewMCPToolManager(&Cfg.MCP)
-
-		// Create a short timeout context for testing
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-		// Try to start just this server
-		started, _ := toolManager.StartWithFailures(ctx)
-
-		var isRunning bool
-		var toolCount int
-
-		if len(started) > 0 {
-			// Check if this specific server started
-			for _, startedName := range started {
-				if startedName == serverConfig.Name {
-					isRunning = true
-					// Try to list tools to confirm it's working
-					tools := toolManager.ListToolsByServer(serverConfig.Name)
-					toolCount = len(tools)
-					break
-				}
-			}
-		}
-
-		// Clean up immediately
-		toolManager.Close()
-		cancel()
-
-		// Display status
-		if isRunning {
-			fmt.Printf("✅ Running (%d tools)\n", toolCount)
-		} else {
-			fmt.Printf("❌ Stopped/Unavailable\n")
-		}
-
-		fmt.Printf("     Description: %s\n", serverConfig.Description)
-		if len(serverConfig.Command) > 0 {
-			fmt.Printf("     Command: %v\n", serverConfig.Command)
-		}
-		if serverConfig.URL != "" {
-			fmt.Printf("     URL: %s\n", serverConfig.URL)
-		}
-		fmt.Printf("     Type: %s\n", serverConfig.Type)
-		fmt.Printf("     Auto-start: %v\n", serverConfig.AutoStart)
-		fmt.Println()
-	}
-
-	return nil
-}
-
-func runMCPStart(cmd *cobra.Command, args []string) error {
-	if Cfg == nil {
-		var err error
-		Cfg, err = config.Load("")
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-	}
-
-	if !Cfg.MCP.Enabled {
-		return fmt.Errorf("MCP is disabled in configuration")
-	}
-
-	toolManager := mcp.NewMCPToolManager(&Cfg.MCP)
-	defer func() {
-		if err := toolManager.Close(); err != nil {
-			// Only print error if it's not a signal-related termination
-			if !strings.Contains(err.Error(), "signal: killed") {
-				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
-			}
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	if len(args) == 0 {
-		// Start all auto-start servers
-		fmt.Println("🚀 Starting MCP servers...")
-		if err := toolManager.Start(ctx); err != nil {
-			return fmt.Errorf("failed to start MCP servers: %w", err)
-		}
-		fmt.Println("✅ Auto-start MCP servers started successfully")
-	} else {
-		// Start specific server
-		serverName := args[0]
-		fmt.Printf("🚀 Starting MCP server: %s\n", serverName)
-		if err := toolManager.StartServer(ctx, serverName); err != nil {
-			return fmt.Errorf("failed to start server %s: %w", serverName, err)
-		}
-
-		// Show available tools
-		tools := toolManager.ListToolsByServer(serverName)
-		fmt.Printf("✅ Server %s started with %d tools\n", serverName, len(tools))
-	}
-
-	return nil
-}
-
-func runMCPStop(cmd *cobra.Command, args []string) error {
-	if Cfg == nil {
-		var err error
-		Cfg, err = config.Load("")
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-	}
-
-	toolManager := mcp.NewMCPToolManager(&Cfg.MCP)
-	defer func() {
-		if err := toolManager.Close(); err != nil {
-			// Only print error if it's not a signal-related termination
-			if !strings.Contains(err.Error(), "signal: killed") {
-				fmt.Printf("Warning: failed to clean up tool manager: %v\n", err)
-			}
-		}
-	}()
-
-	if len(args) == 0 {
-		// Stop all servers
-		fmt.Println("🛑 Stopping all MCP servers...")
-		if err := toolManager.Close(); err != nil {
-			return fmt.Errorf("failed to stop MCP servers: %w", err)
-		}
-		fmt.Println("✅ All MCP servers stopped")
-	} else {
-		// Stop specific server
-		serverName := args[0]
-		fmt.Printf("🛑 Stopping MCP server: %s\n", serverName)
-		if err := toolManager.StopServer(serverName); err != nil {
-			return fmt.Errorf("failed to stop server %s: %w", serverName, err)
-		}
-		fmt.Printf("✅ Server %s stopped\n", serverName)
 	}
 
 	return nil

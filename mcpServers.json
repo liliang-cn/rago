@@ -1,8 +1,12 @@
 {
   "mcpServers": {
-    "sqlite": {
-      "command": "mcp-sqlite-server",
-      "args": ["./.rago/data"]
+    "web-search": {
+      "command": "mcp-websearch-server",
+      "args": []
+    },
+    "filesystem": {
+      "command": "mcp-filesystem-server",
+      "args": ["./", "./.rago/data"]
     }
   }
 }

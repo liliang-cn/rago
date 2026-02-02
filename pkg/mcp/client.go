@@ -377,7 +377,8 @@ type AgentToolInfo struct {
 	ServerName  string                 // Server that provides this tool
 	ActualName  string                 // Actual tool name on server (without prefix)
 	Description string                 // Tool description
-	Parameters  []string               // List of parameter names
+	Parameters  []string               // List of parameter names (for backward compatibility)
+	InputSchema map[string]interface{} // Full parameter schema for LLM
 }
 
 // GetAvailableTools returns structured information about all available tools
@@ -386,21 +387,24 @@ func (m *Manager) GetAvailableTools(ctx context.Context) []AgentToolInfo {
 	defer m.mutex.RUnlock()
 
 	var tools []AgentToolInfo
-	
+
 	for serverName, client := range m.clients {
 		if client == nil || !client.IsConnected() {
 			continue
 		}
-		
+
 		serverTools := client.GetTools()
 		for toolName, tool := range serverTools {
 			// Extract parameters from InputSchema
 			var params []string
+			var inputSchema map[string]interface{}
+
 			if tool.InputSchema != nil {
 				// Convert InputSchema to map for easier access
 				if schemaBytes, err := json.Marshal(tool.InputSchema); err == nil {
 					var schemaMap map[string]interface{}
 					if err := json.Unmarshal(schemaBytes, &schemaMap); err == nil {
+						inputSchema = schemaMap
 						if props, ok := schemaMap["properties"].(map[string]interface{}); ok {
 							for paramName := range props {
 								params = append(params, paramName)
@@ -409,17 +413,18 @@ func (m *Manager) GetAvailableTools(ctx context.Context) []AgentToolInfo {
 					}
 				}
 			}
-			
+
 			tools = append(tools, AgentToolInfo{
 				Name:        fmt.Sprintf("mcp_%s_%s", serverName, toolName),
 				ServerName:  serverName,
 				ActualName:  toolName,
 				Description: tool.Description,
 				Parameters:  params,
+				InputSchema: inputSchema,
 			})
 		}
 	}
-	
+
 	return tools
 }
 
@@ -484,11 +489,55 @@ func (m *Manager) FindToolProvider(ctx context.Context, toolName string) (*Agent
 
 // CallTool finds the appropriate server and calls the tool
 func (m *Manager) CallTool(ctx context.Context, toolName string, arguments map[string]interface{}) (*ToolResult, error) {
+	// First try to find in already connected clients
 	toolInfo, client, err := m.FindToolProvider(ctx, toolName)
 	if err != nil {
-		return nil, err
+		// Tool not found in connected clients, try to start the server on-demand
+		// Extract server name from tool name (format: mcp_server_tool or server_tool)
+		serverName := m.extractServerNameFromTool(toolName)
+		if serverName == "" {
+			return nil, fmt.Errorf("tool %s not found in any connected MCP server", toolName)
+		}
+
+		// Try to start the server
+		_, startErr := m.StartServer(ctx, serverName)
+		if startErr != nil {
+			return nil, fmt.Errorf("tool %s not found, failed to start server %s: %w", toolName, serverName, startErr)
+		}
+
+		// Try again to find the tool
+		toolInfo, client, err = m.FindToolProvider(ctx, toolName)
+		if err != nil {
+			return nil, fmt.Errorf("tool %s still not found after starting server %s: %w", toolName, serverName, err)
+		}
 	}
-	
+
 	// Call the tool with its actual name (without prefix)
 	return client.CallTool(ctx, toolInfo.ActualName, arguments)
+}
+
+// extractServerNameFromTool extracts server name from tool name
+// Handles formats: "mcp_server_tool", "server_tool", "tool"
+func (m *Manager) extractServerNameFromTool(toolName string) string {
+	// Try mcp_server_tool format first
+	if strings.HasPrefix(toolName, "mcp_") {
+		parts := strings.SplitN(toolName, "_", 3) // mcp_server_tool
+		if len(parts) >= 2 {
+			return parts[1]
+		}
+	}
+
+	// Check if it matches any configured server's tools
+	m.mutex.RLock()
+	loadedServers := m.config.GetLoadedServers()
+	m.mutex.RUnlock()
+
+	for _, serverConfig := range loadedServers {
+		expectedPrefix := fmt.Sprintf("mcp_%s_", serverConfig.Name)
+		if strings.HasPrefix(toolName, expectedPrefix) {
+			return serverConfig.Name
+		}
+	}
+
+	return ""
 }

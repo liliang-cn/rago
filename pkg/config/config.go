@@ -459,12 +459,21 @@ func (c *Config) validateProviderConfig() error {
 		c.Providers.DefaultEmbedder = c.Providers.DefaultLLM
 	}
 
+	// Build list of valid providers (openai + custom providers)
 	validProviders := map[string]bool{"openai": true}
+	for name := range c.Providers.Providers {
+		// Skip known built-in fields
+		if name != "default_llm" && name != "default_embedder" && name != "llm_pool" {
+			validProviders[name] = true
+		}
+	}
+
+	// Check if default providers are valid
 	if !validProviders[c.Providers.DefaultLLM] {
-		return fmt.Errorf("invalid default_llm provider: %s (supported: openai)", c.Providers.DefaultLLM)
+		return fmt.Errorf("invalid default_llm provider: %s", c.Providers.DefaultLLM)
 	}
 	if !validProviders[c.Providers.DefaultEmbedder] {
-		return fmt.Errorf("invalid default_embedder provider: %s (supported: openai)", c.Providers.DefaultEmbedder)
+		return fmt.Errorf("invalid default_embedder provider: %s", c.Providers.DefaultEmbedder)
 	}
 
 	// Validate individual provider configurations only if they're being used
