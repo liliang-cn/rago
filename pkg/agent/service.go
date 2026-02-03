@@ -10,23 +10,25 @@ import (
 // Service is the main agent service that handles planning and execution
 // This matches the interface expected by the CLI in cmd/rago-cli/agent/agent.go
 type Service struct {
-	llmService   domain.Generator
-	mcpService   MCPToolExecutor
-	ragProcessor domain.Processor
-	planner      *Planner
-	executor     *Executor
-	store        *Store
-	agent        *Agent
+	llmService    domain.Generator
+	mcpService    MCPToolExecutor
+	ragProcessor  domain.Processor
+	memoryService domain.MemoryService
+	planner       *Planner
+	executor      *Executor
+	store         *Store
+	agent         *Agent
 }
 
 // NewService creates a new agent service
 // This matches the signature expected by the CLI:
-// agent.NewService(llmService, mcpService, processor, agentDBPath)
+// agent.NewService(llmService, mcpService, processor, agentDBPath, memoryService)
 func NewService(
 	llmService domain.Generator,
 	mcpService MCPToolExecutor,
 	ragProcessor domain.Processor,
 	agentDBPath string,
+	memoryService domain.MemoryService,
 ) (*Service, error) {
 	// Initialize store
 	store, err := NewStore(agentDBPath)
@@ -57,16 +59,17 @@ Available tools include RAG queries, MCP tools, and general LLM reasoning.`,
 	planner := NewPlanner(llmService, tools)
 
 	// Create executor
-	executor := NewExecutor(llmService, nil, mcpService, ragProcessor)
+	executor := NewExecutor(llmService, nil, mcpService, ragProcessor, memoryService)
 
 	return &Service{
-		llmService:   llmService,
-		mcpService:   mcpService,
-		ragProcessor: ragProcessor,
-		planner:      planner,
-		executor:     executor,
-		store:        store,
-		agent:        agent,
+		llmService:    llmService,
+		mcpService:    mcpService,
+		ragProcessor:  ragProcessor,
+		memoryService: memoryService,
+		planner:       planner,
+		executor:      executor,
+		store:         store,
+		agent:         agent,
 	}, nil
 }
 

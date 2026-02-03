@@ -246,7 +246,7 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 
 	agentDBPath := getAgentDBPath()
 	adapter := &mcpToolAdapter{service: mcpService}
-	agentService, err := agent.NewService(llmService, adapter, ragClient.GetProcessor(), agentDBPath)
+	agentService, err := agent.NewService(llmService, adapter, ragClient.GetProcessor(), agentDBPath, nil)
 	if err != nil {
 		mcpService.Close()
 		ragClient.Close()

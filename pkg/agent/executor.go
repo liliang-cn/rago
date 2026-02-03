@@ -21,6 +21,7 @@ type Executor struct {
 	toolExecutor  ToolExecutor
 	mcpService    MCPToolExecutor
 	ragProcessor  domain.Processor
+	memoryService domain.MemoryService
 }
 
 // MCPToolExecutor defines the interface for MCP tool execution
@@ -35,12 +36,14 @@ func NewExecutor(
 	toolExecutor ToolExecutor,
 	mcpService MCPToolExecutor,
 	ragProcessor domain.Processor,
+	memoryService domain.MemoryService,
 ) *Executor {
 	return &Executor{
 		llmService:   llmService,
 		toolExecutor: toolExecutor,
 		mcpService:   mcpService,
 		ragProcessor: ragProcessor,
+		memoryService: memoryService,
 	}
 }
 
@@ -102,7 +105,7 @@ func (e *Executor) ExecutePlan(ctx context.Context, plan *Plan) (*ExecutionResul
 
 	duration := time.Since(startTime)
 
-	return &ExecutionResult{
+	result := &ExecutionResult{
 		PlanID:      plan.ID,
 		SessionID:   plan.SessionID,
 		Success:     stepsFailed == 0,
@@ -112,7 +115,22 @@ func (e *Executor) ExecutePlan(ctx context.Context, plan *Plan) (*ExecutionResul
 		FinalResult: finalResult,
 		Error:       firstError,
 		Duration:    duration.String(),
-	}, nil
+	}
+
+	// Store memories after successful task completion
+	if e.memoryService != nil && plan.Status == PlanStatusCompleted {
+		go func() {
+			// Async execution - don't block the result
+			_ = e.memoryService.StoreIfWorthwhile(context.Background(), &domain.MemoryStoreRequest{
+				SessionID:    plan.SessionID,
+				TaskGoal:     plan.Goal,
+				TaskResult:   formatResultForContent(finalResult),
+				ExecutionLog: e.buildExecutionLog(plan),
+			})
+		}()
+	}
+
+	return result, nil
 }
 
 // ExecuteStep executes a single step
@@ -390,4 +408,29 @@ func (e *Executor) tryMCPTool(ctx context.Context, toolName string, args map[str
 
 	// If it's not a map, just return the result as-is
 	return result, nil
+}
+
+// buildExecutionLog creates a log of the plan execution for memory extraction
+func (e *Executor) buildExecutionLog(plan *Plan) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Goal: %s\n", plan.Goal))
+	sb.WriteString(fmt.Sprintf("Steps: %d\n", len(plan.Steps)))
+
+	for i, step := range plan.Steps {
+		sb.WriteString(fmt.Sprintf("\n[Step %d] %s\n", i+1, step.Description))
+		sb.WriteString(fmt.Sprintf("  Tool: %s\n", step.Tool))
+		sb.WriteString(fmt.Sprintf("  Status: %s\n", step.Status))
+		if step.Error != "" {
+			sb.WriteString(fmt.Sprintf("  Error: %s\n", step.Error))
+		}
+		if step.Result != nil {
+			resultPreview := formatResultForContent(step.Result)
+			if len(resultPreview) > 200 {
+				resultPreview = resultPreview[:200] + "..."
+			}
+			sb.WriteString(fmt.Sprintf("  Result: %s\n", resultPreview))
+		}
+	}
+
+	return sb.String()
 }

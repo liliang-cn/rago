@@ -28,6 +28,7 @@ type Service struct {
 	extractor       *EntityExtractor
 	graphStore      domain.GraphStore
 	chatStore       domain.ChatStore
+	memoryService   domain.MemoryService
 }
 
 func New(
@@ -38,6 +39,7 @@ func New(
 	documentStore domain.DocumentStore,
 	config *config.Config,
 	llmService domain.MetadataExtractor,
+	memoryService domain.MemoryService,
 ) *Service {
 	s := &Service{
 		embedder:      embedder,
@@ -47,6 +49,7 @@ func New(
 		documentStore: documentStore,
 		config:        config,
 		llmService:    llmService,
+		memoryService: memoryService,
 	}
 
 	// Initialize entity extractor
@@ -347,12 +350,23 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 		return domain.QueryResponse{}, fmt.Errorf("%w: empty query", domain.ErrInvalidInput)
 	}
 
+	// Retrieve relevant memory if available
+	var memoryContext string
+	if s.memoryService != nil {
+		var retrievedMems []*domain.MemoryWithScore
+		memoryContext, retrievedMems, _ = s.memoryService.RetrieveAndInject(
+			ctx, req.Query, req.ConversationID,
+		)
+		// Store memories for potential use in response
+		_ = retrievedMems // Will be added to response if needed
+	}
+
 	chunks, err := s.hybridSearch(ctx, req)
 	if err != nil {
 		return domain.QueryResponse{}, err
 	}
 
-	if len(chunks) == 0 {
+	if len(chunks) == 0 && memoryContext == "" {
 		return domain.QueryResponse{
 				Answer:  "很抱歉，我在知识库中找不到相关信息来回答您的问题。",
 				Sources: []domain.Chunk{},
@@ -361,7 +375,7 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 			nil
 	}
 
-	prompt := providers.ComposePrompt(chunks, req.Query)
+	prompt := s.composePromptWithMemory(chunks, memoryContext, req.Query)
 
 	genOpts := &domain.GenerationOptions{
 		Temperature: req.Temperature,
@@ -417,6 +431,45 @@ func (s *Service) StreamQueryWithTools(ctx context.Context, req domain.QueryRequ
 // getAvailableTools - deprecated
 func (s *Service) getAvailableTools(allowedTools []string) []interface{} {
 	return nil
+}
+
+// composePromptWithMemory builds a prompt with RAG context and memory
+func (s *Service) composePromptWithMemory(chunks []domain.Chunk, memoryContext, query string) string {
+	if len(chunks) == 0 && memoryContext == "" {
+		return fmt.Sprintf(`Please answer the user's question: %s
+
+If you need current information (like time, date, weather, file contents, web data, etc.), use the available tools to get accurate and up-to-date information.`, query)
+	}
+
+	var contextParts []string
+
+	// Add memory context first (agent memory)
+	if memoryContext != "" {
+		contextParts = append(contextParts, memoryContext)
+	}
+
+	// Add RAG chunks
+	if len(chunks) > 0 {
+		for i, chunk := range chunks {
+			contextParts = append(contextParts, fmt.Sprintf("[Document %d]\n%s", i+1, chunk.Content))
+		}
+	}
+
+	context := strings.Join(contextParts, "\n\n")
+
+	return fmt.Sprintf(`Please answer the user's question using the following context AND any available tools when needed.
+
+IMPORTANT INSTRUCTIONS:
+1. For questions about current information (time, date, weather, file contents, web data, etc.), always use the appropriate tools to get accurate and up-to-date information.
+2. For questions about stored knowledge, use the provided context documents.
+3. If both context and tools are relevant, combine information from both sources.
+
+Context:
+%s
+
+User Question: %s
+
+Please provide a comprehensive answer using both the context and tools as appropriate.`, context, query)
 }
 
 // buildPromptWithContext builds a prompt with RAG context

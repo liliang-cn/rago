@@ -146,6 +146,7 @@ MCP tools provide enhanced functionality for file operations, database queries, 
 			docStore,
 			Cfg,
 			metadataExtractor,
+			nil, // memoryService
 		)
 
 		// Tools have been removed - use MCP servers instead
@@ -503,6 +504,7 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 		docStore,
 		Cfg,
 		metadataExtractor,
+		nil, // memoryService
 	)
 
 	// Register MCP tools with the processor
