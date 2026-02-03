@@ -138,6 +138,7 @@ var serveCmd = &cobra.Command{
 			docStore,
 			cfg,
 			metadataExtractor,
+			nil, // memoryService
 		)
 
 		// 设置Gin为release模式

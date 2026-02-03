@@ -40,6 +40,7 @@ type MCPToolWrapper struct {
 	serverName string
 	toolName   string
 	tool       *mcp.Tool
+	customTool MCPTool // For local/custom tools like memory
 }
 
 // NewMCPToolWrapper creates a new MCP tool wrapper
@@ -53,18 +54,30 @@ func NewMCPToolWrapper(client *Client, serverName string, tool *mcp.Tool) *MCPTo
 }
 
 func (w *MCPToolWrapper) Name() string {
+	if w.customTool != nil {
+		return w.customTool.Name()
+	}
 	return fmt.Sprintf("mcp_%s_%s", w.serverName, w.toolName)
 }
 
 func (w *MCPToolWrapper) Description() string {
+	if w.customTool != nil {
+		return w.customTool.Description()
+	}
 	return fmt.Sprintf("[MCP:%s] %s", w.serverName, w.tool.Description)
 }
 
 func (w *MCPToolWrapper) ServerName() string {
+	if w.customTool != nil {
+		return w.customTool.ServerName()
+	}
 	return w.serverName
 }
 
 func (w *MCPToolWrapper) Schema() map[string]interface{} {
+	if w.customTool != nil {
+		return w.customTool.Schema()
+	}
 	// Try to convert the actual InputSchema to our format
 	if w.tool.InputSchema != nil {
 		// Use JSON marshaling/unmarshaling to convert any to map[string]interface{}
@@ -90,6 +103,10 @@ func (w *MCPToolWrapper) Schema() map[string]interface{} {
 
 func (w *MCPToolWrapper) Call(ctx context.Context, args map[string]interface{}) (*MCPToolResult, error) {
 	start := time.Now()
+
+	if w.customTool != nil {
+		return w.customTool.Call(ctx, args)
+	}
 
 	result := &MCPToolResult{
 		ServerName: w.serverName,

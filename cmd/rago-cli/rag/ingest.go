@@ -135,6 +135,7 @@ You can also use --text flag to ingest text directly.`,
 			docStore,
 			Cfg,
 			metadataExtractor,
+			nil, // memoryService
 		)
 
 		// Handle text input (not concurrent)

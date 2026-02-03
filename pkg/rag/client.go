@@ -79,6 +79,9 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 	// Initialize chunker
 	chunkerService := chunker.New()
 
+	// Initialize memory service (optional, can be nil)
+	var memoryService domain.MemoryService
+
 	// Initialize processor
 	proc := processor.New(
 		embedder,
@@ -88,6 +91,7 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 		docStore,
 		cfg,
 		metadataExtractor,
+		memoryService,
 	)
 
 	// Initialize settings service
@@ -813,8 +817,8 @@ func (c *Client) initAgentService(ctx context.Context) error {
 	// Create MCP tool executor adapter
 	mcpAdapter := &mcpToolAdapter{service: c.mcpService}
 
-	// Create agent service
-	svc, err := agent.NewService(c.llm, mcpAdapter, c.processor, c.agentDBPath)
+	// Create agent service (memoryService can be nil initially)
+	svc, err := agent.NewService(c.llm, mcpAdapter, c.processor, c.agentDBPath, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create agent service: %w", err)
 	}
