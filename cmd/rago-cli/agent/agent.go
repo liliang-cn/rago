@@ -3,19 +3,26 @@ package agent
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"sync"
 
 	"github.com/liliang-cn/rago/v2/pkg/agent"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/rag"
+	"github.com/liliang-cn/rago/v2/pkg/router"
 	"github.com/liliang-cn/rago/v2/pkg/services"
+	"github.com/liliang-cn/rago/v2/pkg/skills"
 	"github.com/spf13/cobra"
 )
 
 var (
-	Cfg     *config.Config
-	Verbose bool
+	Cfg            *config.Config
+	Verbose        bool
+	skillsService  *skills.Service
+	skillsInitOnce sync.Once
+	skillsInitErr  error
 )
 
 // SetSharedVariables sets the shared variables from the root command
@@ -72,7 +79,7 @@ var planCmd = &cobra.Command{
 		fmt.Printf("Goal: %s\n\n", plan.Goal)
 		fmt.Println("Steps:")
 		for _, step := range plan.Steps {
-			fmt.Printf("  [%d] %s\n  └─ Tool: %s\n", step.ID, step.Description, step.Tool)
+			fmt.Printf("  [%s] %s\n  └─ Tool: %s\n", step.ID, step.Description, step.Tool)
 		}
 
 		return nil
@@ -205,6 +212,38 @@ func (a *mcpToolAdapter) ListTools() []domain.ToolDefinition {
 	return result
 }
 
+// initializeSkills initializes the skills service
+func initializeSkills(ctx context.Context, ragClient *rag.Client) error {
+	skillsInitOnce.Do(func() {
+		// Initialize skills service
+		cfg := skills.DefaultConfig()
+		cfg.AutoLoad = true
+
+		// Create in-memory store for skills persistence
+		skillStore := skills.NewMemoryStore()
+
+		var err error
+		skillsService, err = skills.NewService(cfg)
+		if err != nil {
+			skillsInitErr = fmt.Errorf("failed to create skills service: %w", err)
+			return
+		}
+		skillsService.SetStore(skillStore)
+
+		// Set RAG processor from ragClient
+		if ragClient != nil && ragClient.GetProcessor() != nil {
+			skillsService.SetRAGService(ragClient.GetProcessor())
+		}
+
+		// Auto-load skills
+		if err := skillsService.LoadAll(ctx); err != nil {
+			skillsInitErr = fmt.Errorf("failed to load skills: %w", err)
+			return
+		}
+	})
+	return skillsInitErr
+}
+
 // initAgentServices initializes RAG client and agent service
 func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error) {
 	globalLLM := services.GetGlobalLLMService()
@@ -253,15 +292,62 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 		return nil, nil, fmt.Errorf("failed to init agent service: %w", err)
 	}
 
+	// Initialize Semantic Router for improved intent recognition
+	if embedService != nil {
+		routerCfg := router.DefaultConfig()
+		routerCfg.Threshold = 0.75 // Slightly lower for better coverage
+		routerService, err := router.NewService(embedService, routerCfg)
+		if err == nil {
+			// Register default intents
+			if err := routerService.RegisterDefaultIntents(); err == nil {
+				agentService.SetRouter(routerService)
+				fmt.Printf("✓ Semantic Router initialized with %d intents\n", len(routerService.ListIntents()))
+			} else {
+				fmt.Printf("⚠️  Warning: Failed to register default intents: %v\n", err)
+			}
+		} else {
+			fmt.Printf("⚠️  Warning: Failed to initialize semantic router: %v\n", err)
+		}
+	}
+
+	// Initialize and set skills service
+	if err := initializeSkills(ctx, ragClient); err != nil {
+		fmt.Printf("⚠️  Warning: Failed to initialize skills service: %v\n", err)
+	} else if skillsService != nil {
+		agentService.SetSkillsService(skillsService)
+		allSkills, _ := skillsService.ListSkills(ctx, skills.SkillFilter{})
+		fmt.Printf("✓ Skills service initialized with %d skills\n", len(allSkills))
+	}
+
+	// Display available tools summary
+	mcpTools := mcpService.GetAvailableTools(ctx)
+	skillToolsCount := 0
+	if skillsService != nil {
+		allSkills, _ := skillsService.ListSkills(ctx, skills.SkillFilter{})
+		skillToolsCount = len(allSkills)
+	}
+	// RAG tools (rag_query, rag_ingest) = 2
+	ragToolCount := 2
+	totalTools := len(mcpTools) + skillToolsCount + ragToolCount
+	fmt.Printf("✓ Available tools: %d (MCP: %d, Skills: %d, RAG: %d)\n",
+		totalTools, len(mcpTools), skillToolsCount, ragToolCount)
+
 	return ragClient, agentService, nil
 }
 
 // getAgentDBPath returns the agent database path
 func getAgentDBPath() string {
 	dbPath := Cfg.Sqvect.DBPath
+	// Default path
 	agentDBPath := "./.rago/data/agent.db"
 	if len(dbPath) > 3 {
-		agentDBPath = dbPath + ".agent.db"
+		// Use same directory as main DB but with agent.db filename
+		dir := filepath.Dir(dbPath)
+		if dir == "." || dir == "" {
+			agentDBPath = "agent.db"
+		} else {
+			agentDBPath = filepath.Join(dir, "agent.db")
+		}
 	}
 	return agentDBPath
 }
@@ -277,27 +363,51 @@ func runSimple(ctx context.Context, goal string) error {
 	defer ragClient.Close()
 	defer agentService.Close()
 
+	// Set up progress callback
+	var lastRound int
+	agentService.SetProgressCallback(func(event agent.ProgressEvent) {
+		switch event.Type {
+		case "thinking":
+			if event.Round != lastRound {
+				fmt.Printf("🔄 Round %d: Thinking...\n", event.Round)
+				lastRound = event.Round
+			}
+		case "tool_call":
+			if event.Tool != "" {
+				fmt.Printf("   → %s\n", event.Message)
+			}
+		case "tool_result":
+			fmt.Printf("   %s\n", event.Message)
+		}
+	})
+
 	// Execute
 	result, err := agentService.Run(ctx, goal)
 	if err != nil {
 		return fmt.Errorf("agent execution failed: %w", err)
 	}
 
-	// Fetch plan details for display
-	plan, err := agentService.GetPlan(result.PlanID)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve plan details: %w", err)
-	}
+	// Try to fetch plan details for display (if plan was created)
+	plan, planErr := agentService.GetPlan(result.PlanID)
 
 	// Print Results
 	fmt.Println("\n✅ Results:")
-	for _, step := range plan.Steps {
-		if step.Status == agent.StepCompleted && step.Result != nil {
-			fmt.Printf("\n--- %s ---\n", step.Description)
-			fmt.Println(formatResult(step.Result))
-		} else if step.Status == agent.StepFailed {
-			fmt.Printf("\n❌ --- %s (FAILED) ---\n", step.Description)
-			fmt.Println(step.Error)
+	if planErr == nil && plan != nil {
+		// Display plan steps
+		for _, step := range plan.Steps {
+			if step.Status == agent.StepCompleted && step.Result != nil {
+				fmt.Printf("\n--- %s ---\n", step.Description)
+				fmt.Println(formatResult(step.Result))
+			} else if step.Status == agent.StepFailed {
+				fmt.Printf("\n❌ --- %s (FAILED) ---\n", step.Description)
+				fmt.Println(step.Error)
+			}
+		}
+	} else {
+		// No plan, just show final result
+		if result.FinalResult != nil {
+			fmt.Printf("\n--- Final Result ---\n")
+			fmt.Println(formatResult(result.FinalResult))
 		}
 	}
 

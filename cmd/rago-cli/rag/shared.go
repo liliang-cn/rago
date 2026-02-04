@@ -19,3 +19,8 @@ func SetSharedVariables(cfg *config.Config, verbose, quiet bool, version string)
 	Quiet = quiet
 	Version = version
 }
+
+// GetConfig returns the shared config
+func GetConfig() *config.Config {
+	return Cfg
+}

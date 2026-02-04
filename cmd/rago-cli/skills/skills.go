@@ -1,0 +1,304 @@
+package skills
+
+import (
+	"context"
+	"fmt"
+	"sync"
+
+	"github.com/liliang-cn/rago/v2/cmd/rago-cli/rag"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
+	ragstore "github.com/liliang-cn/rago/v2/pkg/rag/store"
+	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
+	"github.com/liliang-cn/rago/v2/pkg/services"
+	"github.com/liliang-cn/rago/v2/pkg/skills"
+	"github.com/spf13/cobra"
+)
+
+var (
+	skillsService *skills.Service
+	ragProcessor  *processor.Service
+	initOnce      sync.Once
+	initErr       error
+)
+
+// initializeSkills initializes the skills service and RAG processor
+func initializeSkills(cmd *cobra.Command) error {
+	initOnce.Do(func() {
+		ctx := context.Background()
+
+		// Initialize skills service
+		cfg := skills.DefaultConfig()
+		cfg.AutoLoad = true // Auto-load skills on initialization
+
+		// Create in-memory store for skills persistence
+		skillStore := skills.NewMemoryStore()
+
+		var err error
+		skillsService, err = skills.NewService(cfg)
+		if err != nil {
+			initErr = fmt.Errorf("failed to create skills service: %w", err)
+			return
+		}
+		skillsService.SetStore(skillStore)
+
+		// Initialize RAG processor for skill execution (if config is available)
+		ragCfg := rag.GetConfig()
+		if ragCfg != nil {
+			// Initialize vector store
+			vectorStore, err := ragstore.NewSQLiteStore(ragCfg.Sqvect.DBPath, ragCfg.Sqvect.IndexType)
+			if err != nil {
+				initErr = fmt.Errorf("failed to create vector store: %w", err)
+				return
+			}
+			docStore := ragstore.NewDocumentStore(vectorStore.GetSqvectStore())
+
+			// Get embedder service
+			embedService, err := services.GetGlobalEmbeddingService(ctx)
+			if err != nil {
+				initErr = fmt.Errorf("failed to get embedder service: %w", err)
+				return
+			}
+
+			// Get LLM service (optional, for full RAG)
+			var generator domain.Generator = nil
+			poolService := services.GetGlobalPoolService()
+			if poolService != nil && poolService.IsInitialized() {
+				llmService, err := poolService.GetLLMService()
+				if err == nil {
+					generator = llmService
+				}
+			}
+
+			chunkerService := chunker.New()
+
+			// Create processor
+			ragProcessor = processor.New(
+				embedService,
+				generator,
+				chunkerService,
+				vectorStore,
+				docStore,
+				ragCfg,
+				nil, // metadata extractor
+				nil, // memory service
+			)
+
+			skillsService.SetRAGService(ragProcessor)
+		}
+
+		// Auto-load skills
+		if err := skillsService.LoadAll(ctx); err != nil {
+			initErr = fmt.Errorf("failed to load skills: %w", err)
+			return
+		}
+	})
+	return initErr
+}
+
+// Cmd represents the skills command
+var Cmd = &cobra.Command{
+	Use:   "skills",
+	Short: "Skills management - load, list, and execute Claude Skills",
+	Long: `Manage Claude Skills - folders of instructions, scripts, and resources
+that agents can discover and use to do things more accurately and efficiently.
+
+Skills follow the Claude Skills standard with SKILL.md files containing
+YAML frontmatter for metadata.`,
+}
+
+func init() {
+	Cmd.AddCommand(listCmd)
+	Cmd.AddCommand(showCmd)
+	Cmd.AddCommand(runCmd)
+	Cmd.AddCommand(loadCmd)
+}
+
+// listCmd lists available skills
+var listCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all available skills",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := initializeSkills(cmd); err != nil {
+			return err
+		}
+
+		allSkills, err := skillsService.ListSkills(cmd.Context(), skills.SkillFilter{})
+		if err != nil {
+			return fmt.Errorf("failed to list skills: %w", err)
+		}
+
+		if len(allSkills) == 0 {
+			fmt.Println("No skills loaded. Use 'rago skills load' to load skills.")
+			return nil
+		}
+
+		fmt.Printf("Found %d skills:\n\n", len(allSkills))
+		for _, skill := range allSkills {
+			status := "enabled"
+			if !skill.Enabled {
+				status = "disabled"
+			}
+			fmt.Printf("  /%s [%s]\n", skill.Name, status)
+			if skill.Description != "" {
+				fmt.Printf("    %s\n", skill.Description)
+			}
+			if skill.Category != "" {
+				fmt.Printf("    Category: %s\n", skill.Category)
+			}
+			fmt.Println()
+		}
+
+		return nil
+	},
+}
+
+// showCmd shows details of a specific skill
+var showCmd = &cobra.Command{
+	Use:   "show [skill-id]",
+	Short: "Show details of a specific skill",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := initializeSkills(cmd); err != nil {
+			return err
+		}
+
+		skillID := args[0]
+		skill, err := skillsService.GetSkill(cmd.Context(), skillID)
+		if err != nil {
+			return fmt.Errorf("skill not found: %s", skillID)
+		}
+
+		fmt.Printf("Skill: %s\n", skill.Name)
+		fmt.Printf("ID: %s\n", skill.ID)
+		if skill.Description != "" {
+			fmt.Printf("Description: %s\n", skill.Description)
+		}
+		if skill.Version != "" {
+			fmt.Printf("Version: %s\n", skill.Version)
+		}
+		if skill.Author != "" {
+			fmt.Printf("Author: %s\n", skill.Author)
+		}
+		if skill.Category != "" {
+			fmt.Printf("Category: %s\n", skill.Category)
+		}
+		if len(skill.Tags) > 0 {
+			fmt.Printf("Tags: %v\n", skill.Tags)
+		}
+		if skill.Command != "" {
+			fmt.Printf("Command: %s\n", skill.Command)
+		}
+		if skill.Path != "" {
+			fmt.Printf("Path: %s\n", skill.Path)
+		}
+
+		if len(skill.Variables) > 0 {
+			fmt.Printf("\nVariables:\n")
+			for _, v := range skill.Variables {
+				required := ""
+				if v.Required {
+					required = " (required)"
+				}
+				fmt.Printf("  %s%s: %s\n", v.Name, required, v.Description)
+			}
+		}
+
+		if len(skill.Steps) > 0 {
+			fmt.Printf("\nSteps:\n")
+			for i, step := range skill.Steps {
+				fmt.Printf("  %d. %s\n", i+1, step.Title)
+			}
+		}
+
+		return nil
+	},
+}
+
+// runCmd executes a skill
+var runCmd = &cobra.Command{
+	Use:   "run [skill-id] [--var key=value...]",
+	Short: "Execute a skill",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := initializeSkills(cmd); err != nil {
+			return err
+		}
+
+		skillID := args[0]
+
+		// Parse variables
+		variables, _ := cmd.Flags().GetStringArray("var")
+		varMap := make(map[string]interface{})
+		for _, v := range variables {
+			// Simple key=value parsing
+			parts := splitAt(v, '=', 2)
+			if len(parts) == 2 {
+				varMap[parts[0]] = parts[1]
+			}
+		}
+
+		req := &skills.ExecutionRequest{
+			SkillID:     skillID,
+			Variables:   varMap,
+			Interactive: true,
+		}
+
+		result, err := skillsService.Execute(cmd.Context(), req)
+		if err != nil {
+			return fmt.Errorf("execution failed: %w", err)
+		}
+
+		fmt.Printf("Skill: %s\n", result.SkillID)
+		if result.Output != "" {
+			fmt.Printf("Output:\n%s\n", result.Output)
+		}
+		fmt.Printf("Duration: %v\n", result.Duration)
+
+		return nil
+	},
+}
+
+func init() {
+	runCmd.Flags().StringArray("var", []string{}, "Variables in format key=value")
+}
+
+// loadCmd loads skills from configured paths
+var loadCmd = &cobra.Command{
+	Use:   "load",
+	Short: "Load skills from configured paths",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := initializeSkills(cmd); err != nil {
+			return err
+		}
+
+		err := skillsService.LoadAll(cmd.Context())
+		if err != nil {
+			return fmt.Errorf("failed to load skills: %w", err)
+		}
+
+		allSkills, _ := skillsService.ListSkills(cmd.Context(), skills.SkillFilter{})
+		fmt.Printf("Loaded %d skills\n", len(allSkills))
+
+		return nil
+	},
+}
+
+func splitAt(s string, sep rune, limit int) []string {
+	var result []string
+	current := ""
+	count := 0
+
+	for _, c := range s {
+		if c == sep && count < limit-1 {
+			result = append(result, current)
+			current = ""
+			count++
+		} else {
+			current += string(c)
+		}
+	}
+	result = append(result, current)
+
+	return result
+}

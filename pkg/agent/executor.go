@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/skills"
 )
 
 // ToolExecutor executes tool calls
@@ -23,6 +24,7 @@ type Executor struct {
 	mcpService    MCPToolExecutor
 	ragProcessor  domain.Processor
 	memoryService domain.MemoryService
+	skillsService *skills.Service
 }
 
 // MCPToolExecutor defines the interface for MCP tool execution
@@ -40,12 +42,18 @@ func NewExecutor(
 	memoryService domain.MemoryService,
 ) *Executor {
 	return &Executor{
-		llmService:   llmService,
-		toolExecutor: toolExecutor,
-		mcpService:   mcpService,
-		ragProcessor: ragProcessor,
-		memoryService: memoryService,
+		llmService:    llmService,
+		toolExecutor:  toolExecutor,
+		mcpService:    mcpService,
+		ragProcessor:  ragProcessor,
+		memoryService:  memoryService,
+		skillsService: nil,
 	}
+}
+
+// SetSkillsService sets the skills service
+func (e *Executor) SetSkillsService(skillsService *skills.Service) {
+	e.skillsService = skillsService
 }
 
 // ExecutePlan executes a plan step by step
@@ -240,6 +248,15 @@ func (e *Executor) executeTool(ctx context.Context, toolName string, args map[st
 		args = make(map[string]interface{})
 	}
 
+	// Check if it's a skill tool (starts with "skill_")
+	if strings.HasPrefix(toolName, "skill_") {
+		result, err := e.trySkillTool(ctx, toolName, args)
+		if err == nil {
+			return result, nil
+		}
+		return nil, err
+	}
+
 	// Try RAG processor first (for rag_query, rag_ingest, etc.)
 	if e.ragProcessor != nil {
 		result, err := e.tryRAGTool(ctx, toolName, args)
@@ -417,6 +434,41 @@ func (e *Executor) tryMCPTool(ctx context.Context, toolName string, args map[str
 
 	// If it's not a map, just return the result as-is
 	return result, nil
+}
+
+// trySkillTool attempts to execute a skill tool
+func (e *Executor) trySkillTool(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error) {
+	if e.skillsService == nil {
+		return nil, fmt.Errorf("skills service not available")
+	}
+
+	// Extract skill ID from tool name (remove "skill_" prefix)
+	skillID := strings.TrimPrefix(toolName, "skill_")
+
+	// Convert args to variables format for skills service
+	variables := make(map[string]interface{})
+	for k, v := range args {
+		variables[k] = v
+	}
+
+	req := &skills.ExecutionRequest{
+		SkillID:     skillID,
+		Variables:   variables,
+		Interactive: false,
+		Context:     nil,
+	}
+
+	result, err := e.skillsService.Execute(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("skill execution failed: %w", err)
+	}
+
+	if !result.Success {
+		return nil, fmt.Errorf("skill execution failed: %s", result.Error)
+	}
+
+	// Return the output as the result
+	return result.Output, nil
 }
 
 // buildExecutionLog creates a log of the plan execution for memory extraction

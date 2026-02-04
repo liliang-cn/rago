@@ -277,7 +277,12 @@ func newDeleteCommand(opts *CommandOptions) *cobra.Command {
 func createMemoryService(opts *CommandOptions) (*memory.Service, error) {
 	// For CLI commands, we need a simple memory service without LLM/embedder
 	// Create store only
-	db, err := store.NewMemoryStore(nil) // Will need actual DB connection
+	path := opts.dbPath
+	if path == "" {
+		path = "./.rago/data/memory.db"
+	}
+
+	db, err := store.NewMemoryStore(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create memory store: %w", err)
 	}

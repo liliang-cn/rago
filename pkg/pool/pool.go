@@ -98,8 +98,8 @@ func NewPool(config PoolConfig) (*Pool, error) {
 		}
 	}
 
-	// 启动健康检查
-	go pool.healthCheckLoop()
+	// Don't start health check loop - let clients be always available
+	// go pool.healthCheckLoop()
 
 	return pool, nil
 }
@@ -273,7 +273,8 @@ func (p *Pool) selectByCapability(healthy []*clientWrapper, minCapability int) *
 
 // healthCheckLoop 健康检查循环
 func (p *Pool) healthCheckLoop() {
-	ticker := time.NewTicker(30 * time.Second)
+	// Less frequent health checks to avoid interference
+	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -286,13 +287,25 @@ func (p *Pool) checkHealth() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	for _, w := range p.clients {
-		// 简单的健康检查：调用一个最小请求
+		// Skip health check if there are active requests - don't interrupt ongoing work
+		if atomic.LoadInt32(&w.activeRequests) > 0 {
+			// If it's working, mark it healthy
+			w.healthy = true
+			w.lastHealthCheck = time.Now()
+			continue
+		}
+
+		// Only check health when idle - use longer timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		err := w.client.Health(ctx)
-		w.healthy = err == nil
+		cancel()
+
+		if err != nil {
+			w.healthy = false
+		} else {
+			w.healthy = true
+		}
 		w.lastHealthCheck = time.Now()
 	}
 }

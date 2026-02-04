@@ -4,292 +4,129 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/rag"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/pool"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
+	"github.com/liliang-cn/rago/v2/pkg/rag"
 )
 
 func main() {
 	ctx := context.Background()
 
-	fmt.Println("=== RAGO v2 Advanced Features Test ===")
-
-	// Setup client (same as basic example)
-	client := setupClient(ctx)
-	defer client.Close()
-
-	// Test 1: Profile Management
-	fmt.Println("\n--- Test 1: Profile Management ---")
-	testProfileManagement(ctx, client)
-
-	// Test 2: LLM Settings Management
-	fmt.Println("\n--- Test 2: LLM Settings Management ---")
-	testLLMSettings(ctx, client)
-
-	// Test 3: MCP Integration
-	fmt.Println("\n--- Test 3: MCP Integration ---")
-	testMCPIntegration(ctx, client)
-
-	// Test 4: Enhanced RAG Operations
-	fmt.Println("\n--- Test 4: Enhanced RAG Operations ---")
-	testEnhancedRAG(ctx, client)
-
-	fmt.Println("\n=== Advanced Features Test Completed ===")
-}
-
-func setupClient(ctx context.Context) *rag.Client {
-	// Configuration setup
+	// 1. Initialize Configuration
 	cfg := &config.Config{}
-	cfg.Providers.DefaultLLM = "openai"
-	cfg.Providers.ProviderConfigs = domain.ProviderConfig{
-		OpenAI: &domain.OpenAIProviderConfig{
-			BaseURL:        "http://localhost:11434/v1",
-			APIKey:         "ollama",
-			LLMModel:       "qwen3",
-			EmbeddingModel: "nomic-embed-text",
-		},
-	}
-	cfg.Sqvect.DBPath = "./data/rag.db"
-	cfg.Sqvect.TopK = 5
-	cfg.Sqvect.Threshold = 0.0
-	cfg.MCP.Enabled = true
-	cfg.MCP.ServersConfigPath = "mcpServers.json"
 
-	// Create provider factory
+	provider := pool.Provider{
+		Name:           "openai",
+		BaseURL:        "http://localhost:11434/v1", // Ollama
+		Key:            "ollama",
+		ModelName:      "qwen2.5-coder:14b",
+		MaxConcurrency: 10,
+	}
+
+	cfg.Sqvect.DBPath = "./data/rag_advanced.db"
+	cfg.Chunker.ChunkSize = 500
+	cfg.Chunker.Overlap = 50
+
+	// 2. Initialize Components
 	factory := providers.NewFactory()
+	
+	provConfig := &domain.OpenAIProviderConfig{
+		BaseProviderConfig: domain.BaseProviderConfig{
+			Timeout: 30 * time.Second,
+		},
+		BaseURL:        provider.BaseURL,
+		APIKey:         provider.Key,
+		LLMModel:       provider.ModelName,
+		EmbeddingModel: "nomic-embed-text",
+	}
 
 	// Create providers using factory
-	embedder, err := factory.CreateEmbedderProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
+	embedder, err := factory.CreateEmbedderProvider(ctx, provConfig)
 	if err != nil {
-		log.Fatalf("Failed to create embedder: %v", err)
+		log.Fatalf("Failed to create Embedder provider: %v", err)
 	}
 
-	llm, err := factory.CreateLLMProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
+	llm, err := factory.CreateLLMProvider(ctx, provConfig)
 	if err != nil {
-		log.Fatalf("Failed to create LLM: %v", err)
+		log.Fatalf("Failed to create LLM provider: %v", err)
 	}
 
+	// 3. Initialize Client with Advanced Options
+	// (Assuming we might want to customize the metadata extractor later)
 	client, err := rag.NewClient(cfg, embedder, llm, nil)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		log.Fatalf("Failed to create RAG client: %v", err)
 	}
+	defer client.Close()
 
-	return client
-}
+	// 4. Advanced Ingestion: Adding Metadata
+	fmt.Println("Ingesting with metadata...")
 
-func testProfileManagement(ctx context.Context, client *rag.Client) {
-	// List existing profiles
-	profiles, err := client.ListProfiles()
-	if err != nil {
-		log.Printf("Failed to list profiles: %v", err)
-		return
-	}
-
-	fmt.Printf("Existing profiles: %d\n", len(profiles))
-	for _, profile := range profiles {
-		status := ""
-		if profile.IsActive {
-			status = " [ACTIVE]"
-		}
-		fmt.Printf("  - %s: %s%s\n", profile.Name, profile.Description, status)
-	}
-
-	// Create a new profile
-	newProfile, err := client.CreateProfile("test-profile", "Test profile for advanced features")
-	if err != nil {
-		log.Printf("Failed to create profile: %v", err)
-		return
-	}
-	fmt.Printf("Created new profile: %s (ID: %s)\n", newProfile.Name, newProfile.ID)
-
-	// Update the profile
-	err = client.UpdateProfile(newProfile.ID, map[string]interface{}{
-		"description": "Updated test profile",
-		"metadata": map[string]string{
-			"environment": "test",
-			"version":     "1.0",
-		},
-	})
-	if err != nil {
-		log.Printf("Failed to update profile: %v", err)
-		return
-	}
-	fmt.Printf("Updated profile: %s\n", newProfile.ID)
-
-	// Get the updated profile
-	updatedProfile, err := client.GetProfile(newProfile.ID)
-	if err != nil {
-		log.Printf("Failed to get profile: %v", err)
-		return
-	}
-	fmt.Printf("Retrieved profile: %s - %s\n", updatedProfile.Name, updatedProfile.Description)
-}
-
-func testLLMSettings(ctx context.Context, client *rag.Client) {
-	// Get current LLM model
-	currentModel, err := client.GetLLMModel()
-	if err != nil {
-		log.Printf("Failed to get current LLM model: %v", err)
-		return
-	}
-	fmt.Printf("Current LLM model: %s\n", currentModel)
-
-	// Get LLM settings
-	llmSettings, err := client.GetLLMSettings()
-	if err != nil {
-		log.Printf("LLM settings not available (expected for new profile): %v", err)
-	} else {
-		fmt.Printf("LLM settings found: %+v\n", llmSettings)
-	}
-
-	// Try to update LLM model (this might not work if no settings exist)
-	err = client.UpdateLLMModel("qwen3")
-	if err != nil {
-		log.Printf("Failed to update LLM model (expected): %v", err)
-	} else {
-		fmt.Printf("Successfully updated LLM model\n")
-	}
-}
-
-func testMCPIntegration(ctx context.Context, client *rag.Client) {
-	// Get MCP status
-	status, err := client.GetMCPStatus(ctx)
-	if err != nil {
-		log.Printf("Failed to get MCP status: %v", err)
-		return
-	}
-
-	// Display MCP status in a readable format
-	if statusMap, ok := status.(map[string]interface{}); ok {
-		fmt.Printf("MCP Enabled: %v\n", statusMap["enabled"])
-		fmt.Printf("Message: %s\n", statusMap["message"])
-
-		if servers, ok := statusMap["servers"].([]interface{}); ok {
-			fmt.Printf("MCP Servers (%d):\n", len(servers))
-			for i, server := range servers {
-				if serverMap, ok := server.(map[string]interface{}); ok {
-					name := serverMap["name"]
-					description := serverMap["description"]
-					running := serverMap["running"]
-					toolCount := serverMap["tool_count"]
-
-					statusStr := "Stopped"
-					if running.(bool) {
-						statusStr = "Running"
-					}
-
-					fmt.Printf("  %d. %s: %s (%d tools)\n", i+1, name, statusStr, toolCount)
-					fmt.Printf("     Description: %s\n", description)
-				}
-			}
-		}
-	} else {
-		fmt.Printf("MCP Status: %+v\n", status)
-	}
-
-	// List available tools
-	tools, err := client.ListTools(ctx)
-	if err != nil {
-		log.Printf("Failed to list MCP tools: %v", err)
-		return
-	}
-
-	fmt.Printf("Available MCP tools: %d\n", len(tools))
-	for i, tool := range tools {
-		if toolMap, ok := tool.(map[string]interface{}); ok {
-			fmt.Printf("  %d. %s: %s (from %s)\n",
-				i+1,
-				toolMap["name"],
-				toolMap["description"],
-				toolMap["server"])
-		}
-	}
-
-	// Try to call a simple tool (if available)
-	if len(tools) > 0 {
-		if toolMap, ok := tools[0].(map[string]interface{}); ok {
-			toolName := toolMap["name"].(string)
-			fmt.Printf("Attempting to call tool: %s\n", toolName)
-
-			result, err := client.CallTool(ctx, toolName, map[string]interface{}{
-				"test": "value",
-			})
-			if err != nil {
-				log.Printf("Failed to call tool %s: %v", toolName, err)
-			} else {
-				fmt.Printf("Tool result: %+v\n", result)
-			}
-		}
-	}
-}
-
-func testEnhancedRAG(ctx context.Context, client *rag.Client) {
-	// Ingest text with metadata
-	text := "RAGO supports advanced features like profile management and MCP integration."
+	docContent := `RAGO supports advanced metadata filtering. 
+This allows users to query specific subsets of documents based on tags, dates, or other attributes.
+Metadata is stored alongside vectors in the SQLite database.`
+	
 	metadata := map[string]interface{}{
-		"type":     "documentation",
-		"section":  "advanced-features",
-		"priority": "high",
-		"tags":     []string{"rago", "features", "advanced"},
+		"category": "documentation",
+		"topic":    "metadata",
+		"version":  "2.0",
+		"author":   "RAGO Team",
 	}
 
-	resp, err := client.IngestTextWithMetadata(ctx, text, "advanced-features.txt", metadata, rag.DefaultIngestOptions())
+	ingestOpts := &rag.IngestOptions{
+		Metadata:  metadata,
+	}
+
+	result, err := client.IngestText(ctx, docContent, "metadata_guide.md", ingestOpts)
 	if err != nil {
-		log.Printf("Failed to ingest text with metadata: %v", err)
-		return
+		log.Fatalf("Ingestion failed: %v", err)
 	}
-	fmt.Printf("Ingested text with metadata: %s\n", resp.DocumentID)
+	fmt.Printf("Ingested document ID: %s with %d chunks\n", result.DocumentID, result.ChunkCount)
 
-	// Query with enhanced options
-	opts := &rag.QueryOptions{
-		TopK:         3,
-		Temperature:  0.5,
-		MaxTokens:    500,
-		ShowSources:  true,
-		ShowThinking: true,
+	// 5. Advanced Query: Using Filters
+	fmt.Println("\nQuerying with filters...")
+
+	query := "How does metadata filtering work?"
+	
+	// Create query options with filters
+	queryOpts := &rag.QueryOptions{
+		TopK:        3,
+		Temperature: 0.1,
+		ShowSources: true,
 		Filters: map[string]interface{}{
-			"type": "documentation",
+			"category": "documentation",
+			"topic":    "metadata",
 		},
 	}
 
-	queryResp, err := client.Query(ctx, "What advanced features does RAGO support?", opts)
+	answer, err := client.Query(ctx, query, queryOpts)
 	if err != nil {
-		log.Printf("Failed to query: %v", err)
-		return
+		log.Fatalf("Query failed: %v", err)
 	}
 
-	fmt.Printf("Query Response:\n")
-	fmt.Printf("Answer: %s\n", queryResp.Answer)
-	fmt.Printf("Sources: %d\n", len(queryResp.Sources))
-
-	for i, source := range queryResp.Sources {
-		fmt.Printf("  Source %d: Score=%.2f\n", i+1, source.Score)
-		if len(source.Content) > 100 {
-			fmt.Printf("    Content: %s...\n", source.Content[:100])
-		} else {
-			fmt.Printf("    Content: %s\n", source.Content)
-		}
-	}
-
-	// Test profile-based operations
-	profiles, _ := client.ListProfiles()
-	if len(profiles) > 1 {
-		// Try using a different profile (simplified implementation)
-		otherProfile := profiles[0]
-		if otherProfile.IsActive {
-			if len(profiles) > 1 {
-				otherProfile = profiles[1]
+	fmt.Printf("Question: %s\n", query)
+	fmt.Printf("Answer: %s\n", answer.Answer)
+	
+	fmt.Println("\nSources found (filtered):")
+	for i, src := range answer.Sources {
+		source := "unknown"
+		if src.Metadata != nil {
+			if s, ok := src.Metadata["source"].(string); ok {
+				source = s
 			}
 		}
-
-		fmt.Printf("Querying with profile: %s\n", otherProfile.Name)
-		profileResp, err := client.QueryWithProfile(ctx, otherProfile.ID, "What is RAGO?", rag.DefaultQueryOptions())
-		if err != nil {
-			log.Printf("Profile-based query not fully implemented: %v", err)
-		} else {
-			fmt.Printf("Profile query result: %s\n", profileResp.Answer)
-		}
+		fmt.Printf("[%d] %s (Score: %.4f)\n    Metadata: %v\n", i+1, source, src.Score, src.Metadata)
 	}
+
+	// 6. Demonstrate Stats
+	stats, err := client.GetStats(ctx)
+	if err == nil {
+		fmt.Printf("\nSystem Stats:\n  Documents: %d\n  Chunks: %d\n", stats.TotalDocuments, stats.TotalChunks)
+	}
+
+	fmt.Println("\nAdvanced features example completed successfully!")
 }

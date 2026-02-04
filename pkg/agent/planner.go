@@ -10,20 +10,41 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/router"
 )
 
-// Planner generates execution plans from goals using an LLM
+// RouterService is the interface for semantic routing
+type RouterService interface {
+	RecognizeIntent(ctx context.Context, query string) (*router.IntentRecognitionResult, error)
+}
+
+// Planner generates execution plans from goals using semantic router + LLM
 type Planner struct {
 	llmService domain.Generator
 	tools      []domain.ToolDefinition
+	router     RouterService // Optional: semantic router for fast intent recognition
 }
 
-// NewPlanner creates a new planner
+// NewPlanner creates a new planner without semantic router
 func NewPlanner(llmService domain.Generator, tools []domain.ToolDefinition) *Planner {
 	return &Planner{
 		llmService: llmService,
 		tools:      tools,
 	}
+}
+
+// NewPlannerWithRouter creates a new planner with semantic router support
+func NewPlannerWithRouter(llmService domain.Generator, tools []domain.ToolDefinition, routerService RouterService) *Planner {
+	return &Planner{
+		llmService: llmService,
+		tools:      tools,
+		router:     routerService,
+	}
+}
+
+// SetRouter sets or updates the semantic router
+func (p *Planner) SetRouter(routerService RouterService) {
+	p.router = routerService
 }
 
 // PlanRequest represents a planning request
@@ -51,7 +72,7 @@ type PlanResponse struct {
 // Plan generates an execution plan for the given goal
 func (p *Planner) Plan(ctx context.Context, goal string, session *Session) (*Plan, error) {
 	// Step 1: Intent Recognition with context
-	intent, err := p.recognizeIntent(ctx, goal, session)
+	intent, err := p.RecognizeIntent(ctx, goal, session)
 	if err != nil {
 		// Fall back to planning without intent context
 		intent = &IntentRecognitionResult{
@@ -422,11 +443,33 @@ func containsHelper(s, substr string) bool {
 }
 
 // ============================================================================
-// Intent Recognition - LLM-based intent analysis (Step 1)
+// Intent Recognition - Semantic Router + LLM-based intent analysis (Step 1)
 // ============================================================================
 
-// recognizeIntent performs LLM-based intent recognition on the goal
-func (p *Planner) recognizeIntent(ctx context.Context, goal string, session *Session) (*IntentRecognitionResult, error) {
+// RecognizeIntent performs intent recognition using semantic router (fast) with LLM fallback
+func (p *Planner) RecognizeIntent(ctx context.Context, goal string, session *Session) (*IntentRecognitionResult, error) {
+	// Try semantic router first (fast, vector-based)
+	if p.router != nil {
+		routerResult, err := p.router.RecognizeIntent(ctx, goal)
+		if err == nil && routerResult.Confidence >= 0.75 {
+			// Good semantic match - use it directly
+			return &IntentRecognitionResult{
+				IntentType:    routerResult.IntentType,
+				TargetFile:    routerResult.TargetFile,
+				Topic:         routerResult.Topic,
+				Requirements:  routerResult.Requirements,
+				Confidence:    routerResult.Confidence,
+			}, nil
+		}
+		// Low confidence or error - fall through to LLM
+	}
+
+	// Fall back to LLM-based intent recognition
+	return p.llmIntentRecognition(ctx, goal, session)
+}
+
+// llmIntentRecognition performs LLM-based intent recognition as fallback
+func (p *Planner) llmIntentRecognition(ctx context.Context, goal string, session *Session) (*IntentRecognitionResult, error) {
 	// Build intent recognition prompt
 	prompt := p.buildIntentRecognitionPrompt(goal, session)
 

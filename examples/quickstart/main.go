@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/rag"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
+	"github.com/liliang-cn/rago/v2/pkg/pool"
 )
 
 func main() {
@@ -48,15 +50,18 @@ func main() {
 func setupClient(ctx context.Context) *rag.Client {
 	// Complete configuration with all features
 	cfg := &config.Config{}
-	cfg.Providers.DefaultLLM = "openai"
-	cfg.Providers.ProviderConfigs = domain.ProviderConfig{
-		OpenAI: &domain.OpenAIProviderConfig{
-			BaseURL:        "http://localhost:11434/v1",
-			APIKey:         "ollama",
-			LLMModel:       "qwen3",
-			EmbeddingModel: "nomic-embed-text",
-		},
+
+	provider := pool.Provider{
+		Name:           "openai",
+		BaseURL:        "http://localhost:11434/v1",
+		Key:            "ollama",
+		ModelName:      "qwen3",
+		MaxConcurrency: 10,
 	}
+
+	cfg.LLMPool.Providers = []pool.Provider{provider}
+	cfg.EmbeddingPool.Providers = []pool.Provider{provider}
+
 	cfg.Sqvect.DBPath = "./data/rag.db"
 	cfg.Sqvect.TopK = 5
 	cfg.Sqvect.Threshold = 0.0
@@ -65,8 +70,18 @@ func setupClient(ctx context.Context) *rag.Client {
 
 	// Create providers
 	factory := providers.NewFactory()
-	embedder, _ := factory.CreateEmbedderProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
-	llm, _ := factory.CreateLLMProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
+	provConfig := &domain.OpenAIProviderConfig{
+		BaseProviderConfig: domain.BaseProviderConfig{
+			Timeout: 30 * time.Second,
+		},
+		BaseURL:        provider.BaseURL,
+		APIKey:         provider.Key,
+		LLMModel:       provider.ModelName,
+		EmbeddingModel: "nomic-embed-text",
+	}
+
+	embedder, _ := factory.CreateEmbedderProvider(ctx, provConfig)
+	llm, _ := factory.CreateLLMProvider(ctx, provConfig)
 
 	// Create client
 	client, _ := rag.NewClient(cfg, embedder, llm, nil)

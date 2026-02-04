@@ -51,8 +51,10 @@ func New(
 		memoryService: memoryService,
 	}
 
-	// Initialize entity extractor
-	s.extractor = NewEntityExtractor(generator)
+	// Initialize entity extractor (only if generator is available)
+	if generator != nil {
+		s.extractor = NewEntityExtractor(generator)
+	}
 
 	// Get graph store if available
 	if vectorStore != nil {
@@ -161,7 +163,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 	}
 
 	// GraphRAG Extraction
-	if s.graphStore != nil {
+	if s.graphStore != nil && s.extractor != nil {
 		log.Println("Starting GraphRAG extraction (concurrent)...")
 
 		// Concurrency control (limit to 3 concurrent LLM calls to avoid rate limits/freezing)
