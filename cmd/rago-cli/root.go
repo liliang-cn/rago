@@ -8,6 +8,7 @@ import (
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/mcp"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/profile"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/rag"
+	"github.com/liliang-cn/rago/v2/cmd/rago-cli/skills"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/spf13/cobra"
@@ -105,6 +106,9 @@ func init() {
 
 	// Add Agent command
 	RootCmd.AddCommand(agent.AgentCmd)
+
+	// Add Skills command
+	RootCmd.AddCommand(skills.Cmd)
 
 	RootCmd.AddCommand(serveCmd)
 	RootCmd.AddCommand(llmCmd)

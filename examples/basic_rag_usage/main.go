@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/pool"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
 	"github.com/liliang-cn/rago/v2/pkg/rag"
 )
@@ -16,194 +16,111 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// Load configuration (can be empty for defaults)
-	cfg, err := config.Load("")
-	if err != nil {
-		log.Printf("Failed to load config: %v", err)
-		// Create minimal config for demo
-		apiKey := getEnvOrDefault("RAGO_OPENAI_API_KEY", "")  // Empty for local services
-		cfg = &config.Config{
-			Server: config.ServerConfig{
-				Port: 7127,
-				Host: "0.0.0.0",
-			},
-			Sqvect: config.SqvectConfig{
-				DBPath:    "./test_rag.db",  // Use local file for demo
-				MaxConns:  10,
-				BatchSize: 100,
-				TopK:      5,
-				Threshold: 0.0,
-			},
-			Chunker: config.ChunkerConfig{
-				ChunkSize: 500,
-				Overlap:   50,
-				Method:    "sentence",
-			},
-			Ingest: config.IngestConfig{
-				MetadataExtraction: config.MetadataExtractionConfig{
-					Enable: true,
-				},
-			},
-			Providers: config.ProvidersConfig{
-				DefaultLLM:     "openai",
-				DefaultEmbedder: "openai",
-				ProviderConfigs: domain.ProviderConfig{
-					OpenAI: &domain.OpenAIProviderConfig{
-						BaseProviderConfig: domain.BaseProviderConfig{
-							Type:    domain.ProviderOpenAI,
-							Timeout: 30 * time.Second,
-						},
-						BaseURL:        getEnvOrDefault("RAGO_OPENAI_BASE_URL", "http://localhost:11434/v1"),
-						APIKey:         apiKey,
-						LLMModel:       getEnvOrDefault("RAGO_OPENAI_LLM_MODEL", "qwen3"),
-						EmbeddingModel: getEnvOrDefault("RAGO_OPENAI_EMBEDDING_MODEL", "nomic-embed-text"),
-					},
-				},
-			},
-		}
+	// 1. Initialize Configuration
+	// We'll create a default config instead of loading from file for this example
+	cfg := &config.Config{}
+
+	// Configure providers via pool settings
+	// Note: In a real app, you'd use config.LLMPool.Providers list
+	provider := pool.Provider{
+		Name:           "openai",
+		BaseURL:        "http://localhost:11434/v1", // Ollama
+		Key:            "ollama",
+		ModelName:      "qwen2.5-coder:14b",
+		MaxConcurrency: 10,
 	}
 
-	// The configuration is already set up above, either from file or fallback
+	cfg.LLMPool.Providers = []pool.Provider{provider}
+	cfg.EmbeddingPool.Providers = []pool.Provider{provider}
 
+	cfg.Sqvect.DBPath = "./data/rag.db"
+	cfg.Chunker.ChunkSize = 500
+	cfg.Chunker.Overlap = 50
+
+	// 2. Initialize Components
 	// Create providers using factory
 	factory := providers.NewFactory()
-
-	llm, err := factory.CreateLLMProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
-	if err != nil {
-		log.Fatalf("Failed to create LLM: %v", err)
-	}
-
-	embedder, err := factory.CreateEmbedderProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
-	if err != nil {
-		log.Fatalf("Failed to create embedder: %v", err)
+	
+	// Manually map to provider config for factory
+	provConfig := &domain.OpenAIProviderConfig{
+		BaseProviderConfig: domain.BaseProviderConfig{
+			Timeout: 30 * time.Second,
+		},
+		BaseURL:        provider.BaseURL,
+		APIKey:         provider.Key,
+		LLMModel:       provider.ModelName,
+		EmbeddingModel: "nomic-embed-text", // Hardcoded default for example
 	}
 	
-	// Cast LLM to MetadataExtractor for GraphRAG
-	var extractor domain.MetadataExtractor
-	if e, ok := llm.(domain.MetadataExtractor); ok {
-		extractor = e
+	llm, err := factory.CreateLLMProvider(ctx, provConfig)
+	if err != nil {
+		log.Fatalf("Failed to create LLM provider: %v", err)
 	}
 
-	// Create RAG client
-	client, err := rag.NewClient(cfg, embedder, llm, extractor)
+	embedder, err := factory.CreateEmbedderProvider(ctx, provConfig)
+	if err != nil {
+		log.Fatalf("Failed to create Embedder provider: %v", err)
+	}
+
+	// 3. Initialize RAG Client
+	client, err := rag.NewClient(cfg, embedder, llm, nil)
 	if err != nil {
 		log.Fatalf("Failed to create RAG client: %v", err)
 	}
 	defer client.Close()
 
-	// Example 1: Ingest a text file
-	fmt.Println("=== Example 1: Ingesting text ===")
-	if len(os.Args) > 1 {
-		filePath := os.Args[1]
-		resp, err := client.IngestFile(ctx, filePath, rag.DefaultIngestOptions())
-		if err != nil {
-			log.Printf("Failed to ingest file: %v", err)
-		} else {
-			fmt.Printf("Successfully ingested file: %s\n", filePath)
-			fmt.Printf("Document ID: %s\n", resp.DocumentID)
-			fmt.Printf("Chunks created: %d\n", resp.ChunkCount)
-		}
-	} else {
-		// Ingest some sample text if no file provided
-		sampleText := `RAGO (Retrieval-Augmented Generation Offline) is a local RAG system.
-It provides document ingestion, semantic search, and context-enhanced Q&A.
-The system uses SQLite for vector storage and supports multiple LLM providers.
-Key features include smart chunking, metadata extraction, and MCP tool integration.`
-
-		resp, err := client.IngestText(ctx, sampleText, "sample-document", rag.DefaultIngestOptions())
-		if err != nil {
-			log.Printf("Failed to ingest text: %v", err)
-		} else {
-			fmt.Printf("Successfully ingested sample text\n")
-			fmt.Printf("Document ID: %s\n", resp.DocumentID)
-			fmt.Printf("Chunks created: %d\n", resp.ChunkCount)
-		}
+	// 4. Ingest Documents
+	fmt.Println("Ingesting documents...")
+	
+	// Create sample documents
+	docs := []struct {
+		Name    string
+		Content string
+	}{
+		{
+			Name: "rago_intro.txt",
+			Content: `RAGO is a lightweight RAG (Retrieval-Augmented Generation) system written in Go.
+It provides a modular architecture for building LLM applications with context.
+Key features include support for multiple vector stores (SQLite, Qdrant), 
+various LLM providers (OpenAI, Ollama), and an MCP (Model Context Protocol) implementation.`,
+		},
+		{
+			Name: "go_concurrency.txt",
+			Content: `Go's concurrency model is based on goroutines and channels.
+Goroutines are lightweight threads managed by the Go runtime.
+Channels provide a way for goroutines to communicate and synchronize execution.
+The 'select' statement allows waiting on multiple channel operations.`,
+		},
 	}
 
-	// Example 2: Query the knowledge base
-	fmt.Println("\n=== Example 2: Querying knowledge base ===")
-	queries := []string{
-		"What is RAGO?",
-		"What are the key features of RAGO?",
-		"How does RAGO work?",
-	}
-
-	for _, query := range queries {
-		fmt.Printf("\nQuery: %s\n", query)
-		resp, err := client.Query(ctx, query, rag.DefaultQueryOptions())
+	for _, doc := range docs {
+		result, err := client.IngestText(ctx, doc.Content, doc.Name, rag.DefaultIngestOptions())
 		if err != nil {
-			log.Printf("Failed to query: %v", err)
+			log.Printf("Failed to ingest %s: %v", doc.Name, err)
 			continue
 		}
-
-		fmt.Printf("Answer: %s\n", resp.Answer)
-		fmt.Printf("Sources found: %d\n", len(resp.Sources))
-
-		// Show source information
-		for i, source := range resp.Sources {
-			fmt.Printf("  Source %d: Score=%.2f, Content preview: %.100s...\n",
-				i+1, source.Score, source.Content)
-		}
+		fmt.Printf("Ingested %s: %d chunks, document ID: %s\n", doc.Name, result.ChunkCount, result.DocumentID)
 	}
 
-	// Example 3: List documents and get stats
-	fmt.Println("\n=== Example 3: Document management ===")
-
-	// List all documents
-	docs, err := client.ListDocuments(ctx)
+	// 5. Query Knowledge Base
+	fmt.Println("\nQuerying knowledge base...")
+	
+	query := "What are the key features of RAGO?"
+	answer, err := client.Query(ctx, query, rag.DefaultQueryOptions())
 	if err != nil {
-		log.Printf("Failed to list documents: %v", err)
-	} else {
-		fmt.Printf("Total documents in store: %d\n", len(docs))
-		for i, doc := range docs {
-			fmt.Printf("  Document %d: ID=%s, Path=%s, Created=%s\n",
-				i+1, doc.ID, doc.Path, doc.Created.Format("2006-01-02 15:04:05"))
-		}
+		log.Fatalf("Query failed: %v", err)
 	}
 
-	// Get statistics
-	stats, err := client.GetStats(ctx)
-	if err != nil {
-		log.Printf("Failed to get stats: %v", err)
-	} else {
-		fmt.Printf("\nStatistics:\n")
-		fmt.Printf("  Total documents: %d\n", stats.TotalDocuments)
-		fmt.Printf("  Total chunks: %d\n", stats.TotalChunks)
-	}
+	fmt.Printf("Question: %s\n", query)
+	fmt.Printf("Answer: %s\n", answer.Answer)
+	fmt.Printf("Sources used: %d\n", len(answer.Sources))
 
-	// Example 4: Check MCP Status
-	fmt.Println("\n=== Example 4: MCP Status ===")
-	mcpStatus, err := client.GetMCPStatus(ctx)
-	if err != nil {
-		log.Printf("Failed to get MCP status: %v", err)
-	} else {
-		if statusMap, ok := mcpStatus.(map[string]interface{}); ok {
-			fmt.Printf("MCP Enabled: %v\n", statusMap["enabled"])
-			fmt.Printf("Message: %s\n", statusMap["message"])
-
-			if servers, ok := statusMap["servers"].([]interface{}); ok {
-				fmt.Printf("MCP Servers (%d):\n", len(servers))
-				for i, server := range servers {
-					if serverMap, ok := server.(map[string]interface{}); ok {
-						name := serverMap["name"]
-						description := serverMap["description"]
-						running := serverMap["running"]
-						toolCount := serverMap["tool_count"]
-
-						fmt.Printf("  %d. %s: %v (%d tools)\n", i+1, name, running, toolCount)
-						fmt.Printf("     Description: %s\n", description)
-					}
-				}
-			}
-		}
-	}
-
-	fmt.Println("\n=== Examples completed successfully! ===")
+	fmt.Println("\nBasic RAG usage example completed successfully!")
 }
 
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+func min(a, b int) int {
+	if a < b {
+		return a
 	}
-	return defaultValue
+	return b
 }

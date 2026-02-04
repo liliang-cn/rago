@@ -218,6 +218,7 @@ func createSimpleTestService() *Service {
 		&SimpleDocumentStore{},
 		cfg,
 		&SimpleMetadataExtractor{},
+		nil, // memoryService - not needed for basic tests
 	)
 }
 
@@ -401,8 +402,7 @@ func TestProcessorService_WithMetadataExtraction(t *testing.T) {
 	cfg := &config.Config{
 		Ingest: config.IngestConfig{
 			MetadataExtraction: config.MetadataExtractionConfig{
-				Enable:   true,
-				LLMModel: "test-model",
+				Enable: true,
 			},
 		},
 		Chunker: config.ChunkerConfig{
@@ -428,6 +428,7 @@ func TestProcessorService_WithMetadataExtraction(t *testing.T) {
 				}, nil
 			},
 		},
+		nil, // memoryService
 	)
 
 	ctx := context.Background()

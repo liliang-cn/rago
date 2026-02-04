@@ -4,38 +4,41 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
-	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/llm"
+	"github.com/liliang-cn/rago/v2/pkg/pool"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
 )
 
 func main() {
 	ctx := context.Background()
 
-	// Load configuration
-	cfg, err := config.Load("")
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+	// 1. Initialize Configuration
+
+	// Create provider config
+	provider := pool.Provider{
+		Name:           "openai",
+		BaseURL:        "http://localhost:11434/v1", // Ollama
+		Key:            "ollama",
+		ModelName:      "qwen2.5-coder:14b",
+		MaxConcurrency: 10,
 	}
 
-	// Configure OpenAI-compatible provider
-	cfg.Providers.ProviderConfigs.OpenAI = &domain.OpenAIProviderConfig{
-		BaseProviderConfig: domain.BaseProviderConfig{
-			Type:    domain.ProviderOpenAI,
-			Timeout: 30 * 1000000000, // 30 seconds
-		},
-		BaseURL:        getEnvOrDefault("RAGO_OPENAI_BASE_URL", "http://localhost:11434/v1"),
-		APIKey:         getEnvOrDefault("RAGO_OPENAI_API_KEY", "ollama"),
-		LLMModel:       getEnvOrDefault("RAGO_OPENAI_LLM_MODEL", "qwen3"),
-		EmbeddingModel: getEnvOrDefault("RAGO_OPENAI_EMBEDDING_MODEL", "nomic-embed-text"),
-	}
+	fmt.Printf("Provider: %s\n", "openai")
+	fmt.Printf("Model: %s\n", provider.ModelName)
 
-	// Create LLM provider using factory
+	// 2. Initialize Provider
 	factory := providers.NewFactory()
-	llmProvider, err := factory.CreateLLMProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
+	llmProvider, err := factory.CreateLLMProvider(ctx, &domain.OpenAIProviderConfig{
+		BaseProviderConfig: domain.BaseProviderConfig{
+			Timeout: 30_000_000_000, // 30 seconds in nanoseconds
+		},
+		BaseURL:        provider.BaseURL,
+		APIKey:         provider.Key,
+		LLMModel:       provider.ModelName,
+		EmbeddingModel: "nomic-embed-text",
+	})
 	if err != nil {
 		log.Fatalf("Failed to create LLM provider: %v", err)
 	}
@@ -224,11 +227,4 @@ func main() {
 	fmt.Printf("Provider type: %s\n", llmService.ProviderType())
 
 	fmt.Println("\n=== LLM Service Examples completed successfully! ===")
-}
-
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

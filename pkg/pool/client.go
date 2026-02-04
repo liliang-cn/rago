@@ -225,7 +225,7 @@ func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Messag
 
 	resp, err := c.doRequest(ctx, "/chat/completions", reqBody)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("request failed (model=%s): %w", c.modelName, err)
 	}
 
 	var result struct {
@@ -239,11 +239,11 @@ func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Messag
 	}
 
 	if err := json.Unmarshal(resp, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+		return nil, fmt.Errorf("failed to parse response (model=%s): %w", c.modelName, err)
 	}
 
 	if len(result.Choices) == 0 {
-		return nil, fmt.Errorf("no choices in response")
+		return nil, fmt.Errorf("no choices in response (model=%s)", c.modelName)
 	}
 
 	choice := result.Choices[0]
@@ -484,9 +484,18 @@ func (c *Client) embedSingle(ctx context.Context, text string) ([]float64, error
 
 // Health 健康检查
 func (c *Client) Health(ctx context.Context) error {
-	// 简单检查：发起一个最小embedding请求
-	_, err := c.embedSingle(ctx, "health")
-	return err
+	// Check if this is an embedding model by trying a simple Generate first
+	// If Generate fails, try embedding
+	_, err := c.Generate(ctx, "hi", &domain.GenerationOptions{MaxTokens: 1})
+	if err != nil {
+		// If Generate fails, this might be an embedding-only model
+		// Try embedding as fallback
+		_, embedErr := c.embedSingle(ctx, "health")
+		if embedErr != nil {
+			return fmt.Errorf("both generate and embed failed: generate=%v, embed=%w", err, embedErr)
+		}
+	}
+	return nil
 }
 
 // Close 关闭client

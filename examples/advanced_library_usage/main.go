@@ -11,26 +11,19 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
 	"github.com/liliang-cn/rago/v2/pkg/rag"
+	"github.com/liliang-cn/rago/v2/pkg/pool"
 )
 
-// This example demonstrates the "Industrial-Grade" capabilities of the RAGO library:
-// 1. Concurrent Batch Ingestion
-// 2. GraphRAG (Automatic Entity Extraction)
-// 3. Stateful Chat Memory with Semantic Recall
-// 4. Advanced Search (Reranking & Diversity)
-
 func main() {
-	// 1. Setup Context with Timeout for safety
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
+	ctx := context.Background()
 
-	// 2. Configuration: Minimal but Powerful
-	// We configure it to use a local DB and OpenAI-compatible provider (e.g., Ollama)
+	// 1. Configure RAGO
+	// Using struct initialization for complete control
 	cfg := &config.Config{
 		Sqvect: config.SqvectConfig{
-			DBPath:    "./industrial_demo.db",
-			IndexType: "hnsw", // Use Hierarchical Navigable Small World index for speed
-			TopK:      10,
+			DBPath:    "./data/library_usage.db",
+			TopK:      5,
+			Threshold: 0.3,
 		},
 		Chunker: config.ChunkerConfig{
 			ChunkSize: 500,
@@ -39,141 +32,120 @@ func main() {
 		},
 		Ingest: config.IngestConfig{
 			MetadataExtraction: config.MetadataExtractionConfig{
-				Enable:   true, // Enable GraphRAG entity extraction
-				LLMModel: "qwen3",
-			},
-		},
-		Providers: config.ProvidersConfig{
-			DefaultLLM: "openai",
-			ProviderConfigs: domain.ProviderConfig{
-				OpenAI: &domain.OpenAIProviderConfig{
-					BaseProviderConfig: domain.BaseProviderConfig{
-						Type:    domain.ProviderOpenAI,
-						Timeout: 60 * time.Second,
-					},
-					// Adjust these for your environment (e.g., real OpenAI key or local Ollama)
-					BaseURL:        getEnvOrDefault("RAGO_OPENAI_BASE_URL", "http://localhost:11434/v1"),
-					APIKey:         getEnvOrDefault("RAGO_OPENAI_API_KEY", "ollama"),
-					LLMModel:       getEnvOrDefault("RAGO_OPENAI_LLM_MODEL", "qwen3"),
-					EmbeddingModel: getEnvOrDefault("RAGO_OPENAI_EMBEDDING_MODEL", "nomic-embed-text"),
-				},
+				Enable: true,
 			},
 		},
 	}
+	
+	// Create provider config for pool
+	provider := pool.Provider{
+		Name:           "openai",
+		BaseURL:        "http://localhost:11434/v1", // Ollama
+		Key:            "ollama",
+		ModelName:      "qwen2.5-coder:14b",
+		MaxConcurrency: 10,
+	}
 
-	// 3. Initialize Providers
+	cfg.LLMPool.Providers = []pool.Provider{provider}
+	cfg.EmbeddingPool.Providers = []pool.Provider{provider}
+
+	// 2. Initialize Providers
 	factory := providers.NewFactory()
-	llm, err := factory.CreateLLMProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
-	if err != nil {
-		log.Fatalf("Failed to create LLM: %v", err)
-	}
-	embedder, err := factory.CreateEmbedderProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
-	if err != nil {
-		log.Fatalf("Failed to create Embedder: %v", err)
+
+	provConfig := &domain.OpenAIProviderConfig{
+		BaseProviderConfig: domain.BaseProviderConfig{
+			Timeout: 30 * time.Second,
+		},
+		BaseURL:        provider.BaseURL,
+		APIKey:         provider.Key,
+		LLMModel:       provider.ModelName,
+		EmbeddingModel: "nomic-embed-text",
 	}
 
-	// 4. Create the Industrial RAG Client
-	// Note: We pass 'llm' as the MetadataExtractor for GraphRAG
-	client, err := rag.NewClient(cfg, embedder, llm, llm.(domain.MetadataExtractor))
+	llm, _ := factory.CreateLLMProvider(ctx, provConfig)
+	embedder, _ := factory.CreateEmbedderProvider(ctx, provConfig)
+
+	// 3. Initialize Client
+	// For advanced usage, we might want custom metadata extractor or other services
+	client, err := rag.NewClient(cfg, embedder, llm, nil) // Using default metadata extractor (LLM-based)
 	if err != nil {
-		log.Fatalf("Failed to create RAG client: %v", err)
+		log.Fatalf("Failed to create client: %v", err)
 	}
 	defer client.Close()
 
-	fmt.Println("🚀 RAGO Client Initialized")
-
-	// =========================================================================
-	// Feature 1: High-Throughput Batch Ingestion with GraphRAG
-	// =========================================================================
-	fmt.Println("\n📚 Ingesting Documents (Batch + Graph Extraction)...")
+	// 4. Advanced Ingestion with Custom Options
+	fmt.Println("Ingesting documents...")
 	
-	// Simulate multiple documents
-	docs := []domain.IngestRequest{
-		{
-			Content:   "Project Alpha is led by Alice. It focuses on quantum computing research.",
-			ChunkSize: 500,
-			Metadata:  map[string]interface{}{"source": "internal_memo_1.txt", "category": "research"},
-		},
-		{
-			Content:   "Bob manages the budget for Project Alpha. The deadline is Q4 2025.",
-			ChunkSize: 500,
-			Metadata:  map[string]interface{}{"source": "email_archive.txt", "category": "finance"},
-		},
-		{
-			Content:   "Charlie is the lead engineer for the new Quantum Chip prototype.",
-			ChunkSize: 500,
-			Metadata:  map[string]interface{}{"source": "hr_records.txt", "category": "personnel"},
-		},
+	files := []string{"docs/LIBRARY_USAGE.md", "README.md"}
+	for _, file := range files {
+		// Read file content (simulated)
+		content, err := os.ReadFile(file)
+		if err != nil {
+			log.Printf("Skipping %s: %v", file, err)
+			continue
+		}
+
+		// Use advanced options
+		opts := &rag.IngestOptions{
+			Metadata: map[string]interface{}{
+				"source":   "repo",
+				"filetype": "markdown",
+				"priority": "high",
+			},
+		}
+
+		resp, err := client.IngestText(ctx, string(content), file, opts)
+		if err != nil {
+			log.Printf("Failed to ingest %s: %v", file, err)
+			continue
+		}
+		fmt.Printf("Ingested %s: %d chunks, document ID: %s\n", file, resp.ChunkCount, resp.DocumentID)
 	}
 
-	// This runs concurrently with semaphore control to prevent overloading the LLM
-	ingestResponses, err := client.IngestBatch(ctx, docs)
-	if err != nil {
-		log.Printf("Batch ingestion warning: %v", err)
-	}
-	fmt.Printf("✅ Processed %d documents.\n", len(ingestResponses))
+	// 5. Advanced Querying with Filters
+	fmt.Println("\nQuerying knowledge base...")
 
-	// =========================================================================
-	// Feature 2: Advanced Search (Reranking & Diversity)
-	// =========================================================================
-	fmt.Println("\n🔍 Performing Advanced Search (Hybrid + Rerank + Diversity)...")
-
-	query := "Who is working on Project Alpha?"
+	query := "How do I use the library in my Go project?"
 	
-	// Option A: Keyword Reranking (Boost results containing specific keywords)
-	rerankOpts := &rag.QueryOptions{
-		TopK:           5,
-		RerankStrategy: "keyword", // or "rrf"
-		RerankBoost:    2.0,       // Boost factor
+	// Advanced query options
+	queryOpts := &rag.QueryOptions{
+		TopK:        3,
+		Temperature: 0.1, // More deterministic
+		MaxTokens:   500,
+		ShowSources: true,
+		Filters: map[string]interface{}{
+			"filetype": "markdown", // Filter by metadata
+		},
 	}
-	resp, _ := client.Query(ctx, query, rerankOpts)
-	fmt.Printf("🔎 Keyword Rerank Answer: %s\n", resp.Answer)
 
-	// Option B: Diversity Search (MMR) to avoid repetitive results
-	divOpts := &rag.QueryOptions{
-		TopK:            5,
-		DiversityLambda: 0.7, // 0.7 = balance between relevance and diversity
-	}
-	respDiv, _ := client.Query(ctx, query, divOpts)
-	fmt.Printf("🌈 Diversity Search Answer: %s\n", respDiv.Answer)
-
-	// =========================================================================
-	// Feature 3: Stateful Chat with Semantic Memory
-	// =========================================================================
-	fmt.Println("\n💬 Starting Stateful Chat Session...")
-
-	// Create a persistent session
-	session, err := client.StartChat(ctx, "user_007", map[string]interface{}{
-		"department": "security",
-	})
+	result, err := client.Query(ctx, query, queryOpts)
 	if err != nil {
-		log.Fatalf("Failed to start chat: %v", err)
+		log.Fatalf("Query failed: %v", err)
 	}
-	fmt.Printf("🔹 Session ID: %s\n", session.ID)
 
-	// Turn 1: Ask a question
-	// RAGO automatically embeds this query and stores it in history
-	fmt.Println("👤 User: Who manages the budget?")
-	chatResp1, _ := client.Chat(ctx, session.ID, "Who manages the budget?", rag.DefaultQueryOptions())
-	fmt.Printf("🤖 AI: %s\n", chatResp1.Answer)
-
-	// Turn 2: Ask a follow-up (Implicit Context)
-	// "When is it due?" refers to the budget/project mentioned in history
-	// RAGO retrieves recent history + semantic matches from long-term memory
-	fmt.Println("👤 User: When is it due?")
-	chatResp2, _ := client.Chat(ctx, session.ID, "When is it due?", rag.DefaultQueryOptions())
-	fmt.Printf("🤖 AI: %s\n", chatResp2.Answer)
-
-	// Cleanup
-	fmt.Println("\n🧹 Cleaning up...")
-	client.Reset(ctx)
-	os.Remove("./industrial_demo.db")
-	fmt.Println("✨ Done.")
-}
-
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	fmt.Printf("\nQuestion: %s\n", query)
+	fmt.Printf("Answer: %s\n", result.Answer)
+	
+	fmt.Println("\nSources:")
+	for i, source := range result.Sources {
+		src := "unknown"
+		if source.Metadata != nil {
+			if s, ok := source.Metadata["source"].(string); ok {
+				src = s
+			}
+		}
+		fmt.Printf("[%d] %s (Score: %.4f)\n", i+1, src, source.Score)
+		// Print snippet if needed
+		if len(source.Content) > 100 {
+			fmt.Printf("    %s...\n", source.Content[:100])
+		} else {
+			fmt.Printf("    %s\n", source.Content)
+		}
 	}
-	return defaultValue
+
+	// 6. Get statistics
+	stats, err := client.GetStats(ctx)
+	if err == nil {
+		fmt.Printf("\nTotal chunks in system: %d\n", stats.TotalChunks)
+	}
 }

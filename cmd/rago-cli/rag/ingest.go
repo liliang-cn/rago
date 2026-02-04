@@ -120,10 +120,9 @@ You can also use --text flag to ingest text directly.`,
 		var metadataExtractor domain.MetadataExtractor
 		if extractor, ok := embedService.(domain.MetadataExtractor); ok {
 			metadataExtractor = extractor
-		} else {
-			// Fallback: create a default metadata extractor
-			return fmt.Errorf("embedder service does not implement MetadataExtractor interface")
 		}
+		// If embedder doesn't implement MetadataExtractor, we can still proceed without it
+		// The processor will handle nil metadata extractor gracefully
 
 		chunkerService := chunker.New()
 
