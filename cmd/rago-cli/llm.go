@@ -35,20 +35,10 @@ var llmChatCmd = &cobra.Command{
 
 		ctx := context.Background()
 
-		// Use the global cfg which is of type *config.Config
-		if cfg == nil {
-			return fmt.Errorf("configuration not loaded")
-		}
-
-		// Override provider if specified
-		if llmProvider != "" {
-			cfg.Providers.DefaultLLM = llmProvider
-		}
-
-		// Get global LLM service
-		llmService, err := services.GetGlobalLLM()
-		if err != nil {
-			return fmt.Errorf("failed to get global LLM service: %w", err)
+		// Get global pool service
+		poolService := services.GetGlobalPoolService()
+		if !poolService.IsInitialized() {
+			return fmt.Errorf("pool service not initialized")
 		}
 
 		// Create generation options
@@ -62,17 +52,15 @@ var llmChatCmd = &cobra.Command{
 
 		// Execute generation (streaming or non-streaming)
 		if llmStream {
-			// Stream the response
-			err = llmService.Stream(ctx, message, opts, func(chunk string) {
+			err := poolService.Stream(ctx, message, opts, func(chunk string) {
 				fmt.Print(chunk)
 			})
 			if err != nil {
 				return fmt.Errorf("streaming generation failed: %w", err)
 			}
-			fmt.Println() // Add newline after streaming completes
+			fmt.Println()
 		} else {
-			// Non-streaming response
-			resp, err := llmService.Generate(ctx, message, opts)
+			resp, err := poolService.Generate(ctx, message, opts)
 			if err != nil {
 				return fmt.Errorf("generation failed: %w", err)
 			}
@@ -88,24 +76,23 @@ var llmListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List available LLM models",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Use the global cfg which is of type *config.Config
 		if cfg == nil {
 			return fmt.Errorf("configuration not loaded")
 		}
 
-		fmt.Println("🤖 Available LLM Providers and Models")
-		fmt.Println("=====================================")
+		fmt.Println("🤖 Available LLM Providers")
+		fmt.Println("==========================")
 
-		// List OpenAI provider if configured (compatible with all OpenAI-format LLMs)
-		if cfg.Providers.ProviderConfigs.OpenAI != nil {
-			fmt.Printf("\n📦 OpenAI (Compatible Format)\n")
-			fmt.Printf("   URL: %s\n", cfg.Providers.ProviderConfigs.OpenAI.BaseURL)
-			fmt.Printf("   LLM Model: %s\n", cfg.Providers.ProviderConfigs.OpenAI.LLMModel)
-			fmt.Printf("   Embedding Model: %s\n", cfg.Providers.ProviderConfigs.OpenAI.EmbeddingModel)
+		// List LLM pool providers
+		for _, p := range cfg.LLMPool.Providers {
+			fmt.Printf("\n📦 %s\n", p.Name)
+			fmt.Printf("   URL: %s\n", p.BaseURL)
+			fmt.Printf("   Model: %s\n", p.ModelName)
+			fmt.Printf("   Capability: %d/5\n", p.Capability)
+			fmt.Printf("   Max Concurrency: %d\n", p.MaxConcurrency)
 		}
 
-		fmt.Printf("\n⭐ Default LLM Provider: %s\n", cfg.Providers.DefaultLLM)
-		fmt.Printf("⭐ Default Embedder Provider: %s\n", cfg.Providers.DefaultEmbedder)
+		fmt.Printf("\n⚙️  Strategy: %s\n", cfg.LLMPool.Strategy)
 
 		return nil
 	},

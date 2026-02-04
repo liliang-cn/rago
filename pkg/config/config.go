@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -8,19 +9,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	"github.com/liliang-cn/rago/v2/pkg/pool"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Server      ServerConfig       `mapstructure:"server"`
-	Providers   ProvidersConfig    `mapstructure:"providers"`
-	Sqvect      SqvectConfig       `mapstructure:"sqvect"`
-	Chunker     ChunkerConfig      `mapstructure:"chunker"`
-	Ingest      IngestConfig       `mapstructure:"ingest"`
-	MCP         mcp.Config         `mapstructure:"mcp"`
-	VectorStore *VectorStoreConfig `mapstructure:"vector_store"`
+	Server       ServerConfig    `mapstructure:"server"`
+	LLMPool      pool.PoolConfig `mapstructure:"llm_pool"`
+	EmbeddingPool pool.PoolConfig `mapstructure:"embedding_pool"`
+	Sqvect       SqvectConfig    `mapstructure:"sqvect"`
+	Chunker      ChunkerConfig   `mapstructure:"chunker"`
+	Ingest       IngestConfig    `mapstructure:"ingest"`
+	MCP          mcp.Config      `mapstructure:"mcp"`
+	VectorStore  *VectorStoreConfig `mapstructure:"vector_store"`
 }
 
 // VectorStoreConfig configures the vector storage backend
@@ -29,42 +31,12 @@ type VectorStoreConfig struct {
 	Parameters map[string]interface{} `mapstructure:"parameters"`
 }
 
-
-type ProvidersConfig struct {
-	// The default provider to use for LLM operations
-	DefaultLLM string `mapstructure:"default_llm"`
-	// The default provider to use for embedding operations
-	DefaultEmbedder string `mapstructure:"default_embedder"`
-	// Provider configurations (legacy structure for backward compatibility)
-	ProviderConfigs domain.ProviderConfig `mapstructure:",squash"`
-	// Dynamic provider configurations keyed by name
-	Providers map[string]interface{} `mapstructure:",remain"`
-	// LLM Pool configuration
-	LLMPool *LLMPoolConfig `mapstructure:"llm_pool"`
-}
-
-type LLMPoolConfig struct {
-	// Enable LLM pool
-	Enabled bool `mapstructure:"enabled"`
-	// List of provider names to include in the pool
-	Providers []string `mapstructure:"providers"`
-	// Load balancing strategy: round_robin, random, least_load, failover
-	Strategy string `mapstructure:"strategy"`
-	// Health check interval (e.g., "30s", "1m")
-	HealthCheckInterval string `mapstructure:"health_check_interval"`
-	// Maximum retry attempts
-	MaxRetries int `mapstructure:"max_retries"`
-	// Delay between retries (e.g., "1s", "500ms")
-	RetryDelay string `mapstructure:"retry_delay"`
-}
-
 type IngestConfig struct {
 	MetadataExtraction MetadataExtractionConfig `mapstructure:"metadata_extraction"`
 }
 
 type MetadataExtractionConfig struct {
-	Enable   bool   `mapstructure:"enable"`
-	LLMModel string `mapstructure:"llm_model"`
+	Enable bool `mapstructure:"enable"`
 }
 
 type ServerConfig struct {
@@ -100,22 +72,15 @@ func Load(configPath string) (*Config, error) {
 		var configFound bool
 		homeDir, _ := os.UserHomeDir()
 
-		// Priority order:
-		// 1. ./rago.toml (current directory)
-		// 2. ./.rago/rago.toml (current directory .rago folder)
-		// 3. ~/.rago/rago.toml (user home directory)
-
 		configPaths := []string{
-			"rago.toml",                         // Current directory
-			filepath.Join(".rago", "rago.toml"), // Current .rago directory
+			"rago.toml",
+			filepath.Join(".rago", "rago.toml"),
 		}
 
-		// Add home directory path if available
 		if homeDir != "" {
 			configPaths = append(configPaths, filepath.Join(homeDir, ".rago", "rago.toml"))
 		}
 
-		// Try each path in order
 		for _, path := range configPaths {
 			if _, err := os.Stat(path); err == nil {
 				viper.SetConfigFile(path)
@@ -124,7 +89,6 @@ func Load(configPath string) (*Config, error) {
 			}
 		}
 
-		// If no config found, use default path (will use built-in defaults)
 		if !configFound {
 			if homeDir != "" {
 				viper.SetConfigFile(filepath.Join(homeDir, ".rago", "rago.toml"))
@@ -137,12 +101,8 @@ func Load(configPath string) (*Config, error) {
 	setDefaults()
 	bindEnvVars()
 
-	// Try to read config file, but don't fail if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
-		// Config file not found is OK - we'll use defaults
-		// Only return error for actual read/parse errors
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			// Check if it's any kind of "file not found" error
 			errStr := err.Error()
 			if !strings.Contains(errStr, "no such file") &&
 				!strings.Contains(errStr, "cannot find the file") &&
@@ -150,22 +110,52 @@ func Load(configPath string) (*Config, error) {
 				return nil, fmt.Errorf("failed to read config file: %w", err)
 			}
 		}
-		// Config file not found - that's OK, we'll use defaults
 	}
 
 	if err := viper.Unmarshal(config); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	// Auto-configure metadata extraction LLM model if not set
-	if config.Ingest.MetadataExtraction.Enable && config.Ingest.MetadataExtraction.LLMModel == "" {
-		config.Ingest.MetadataExtraction.LLMModel = config.getDefaultLLMModel()
+	// 手动处理provider数组（mapstructure无法正确解析嵌套的自定义类型数组）
+	// 使用UnmarshalKey来正确解析
+	if viper.IsSet("llm_pool.providers") {
+		var llmPool struct {
+			Enabled   bool
+			Strategy  string
+			Providers []interface{}
+		}
+		if err := viper.UnmarshalKey("llm_pool", &llmPool); err != nil {
+			return nil, fmt.Errorf("failed to parse llm_pool: %w", err)
+		}
+		config.LLMPool.Enabled = llmPool.Enabled
+		config.LLMPool.Strategy = pool.SelectionStrategy(llmPool.Strategy)
+
+		// 解析providers
+		if err := unmarshalProviders(llmPool.Providers, &config.LLMPool.Providers); err != nil {
+			return nil, fmt.Errorf("failed to parse llm_pool.providers: %w", err)
+		}
+	}
+	if viper.IsSet("embedding_pool.providers") {
+		var embeddingPool struct {
+			Enabled   bool
+			Strategy  string
+			Providers []interface{}
+		}
+		if err := viper.UnmarshalKey("embedding_pool", &embeddingPool); err != nil {
+			return nil, fmt.Errorf("failed to parse embedding_pool: %w", err)
+		}
+		config.EmbeddingPool.Enabled = embeddingPool.Enabled
+		config.EmbeddingPool.Strategy = pool.SelectionStrategy(embeddingPool.Strategy)
+
+		// 解析providers
+		if err := unmarshalProviders(embeddingPool.Providers, &config.EmbeddingPool.Providers); err != nil {
+			return nil, fmt.Errorf("failed to parse embedding_pool.providers: %w", err)
+		}
 	}
 
 	// Initialize MCP config if not properly loaded
 	if config.MCP.DefaultTimeout == 0 {
 		defaultMCP := mcp.DefaultConfig()
-		// Apply defaults without copying the mutex
 		if config.MCP.LogLevel == "" {
 			config.MCP.LogLevel = defaultMCP.LogLevel
 		}
@@ -188,10 +178,7 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to load MCP servers from JSON: %w", err)
 	}
 
-	// Resolve database path with priority
 	config.resolveDatabasePath()
-	
-	// Expand home directory paths
 	config.expandPaths()
 
 	if err := config.Validate(); err != nil {
@@ -203,20 +190,17 @@ func Load(configPath string) (*Config, error) {
 
 func setDefaults() {
 	viper.SetDefault("server.port", 7127)
-	viper.SetDefault("server.host", "0.0.0.0") // 支持局域网访问
+	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.enable_ui", false)
 	viper.SetDefault("server.cors_origins", []string{"*"})
 
-	// Provider defaults
-	viper.SetDefault("providers.default_llm", "openai")
-	viper.SetDefault("providers.default_embedder", "") // Will default to same as default_llm
+	// LLM Pool defaults - 不设置具体provider，让配置文件决定
+	viper.SetDefault("llm_pool.enabled", true)
+	viper.SetDefault("llm_pool.strategy", "round_robin")
 
-	// OpenAI provider defaults (compatible with all OpenAI-format LLMs)
-	viper.SetDefault("providers.openai.type", "openai")
-	viper.SetDefault("providers.openai.base_url", "http://localhost:11434/v1") // Default to local LLM
-	viper.SetDefault("providers.openai.embedding_model", "text-embedding-ada-002")
-	viper.SetDefault("providers.openai.llm_model", "gpt-3.5-turbo")
-	viper.SetDefault("providers.openai.timeout", "30s")
+	// Embedding Pool defaults
+	viper.SetDefault("embedding_pool.enabled", true)
+	viper.SetDefault("embedding_pool.strategy", "round_robin")
 
 	viper.SetDefault("sqvect.db_path", "~/.rago/data/rag.db")
 	viper.SetDefault("sqvect.max_conns", 10)
@@ -225,18 +209,11 @@ func setDefaults() {
 	viper.SetDefault("sqvect.threshold", 0.0)
 	viper.SetDefault("sqvect.index_type", "hnsw")
 
-	viper.SetDefault("rrf.k", 10)
-	viper.SetDefault("rrf.relevance_threshold", 0.05)
-
 	viper.SetDefault("chunker.chunk_size", 500)
 	viper.SetDefault("chunker.overlap", 50)
 	viper.SetDefault("chunker.method", "sentence")
 
 	viper.SetDefault("ingest.metadata_extraction.enable", false)
-	// Note: llm_model will be auto-configured to use default LLM if not set
-
-	
-	// Tools have been removed - use MCP servers instead
 
 	// MCP configuration defaults
 	mcpConfig := mcp.DefaultConfig()
@@ -259,64 +236,9 @@ func bindEnvVars() {
 	if err := viper.BindEnv("server.host", "RAGO_SERVER_HOST"); err != nil {
 		log.Printf("Warning: failed to bind server.host env var: %v", err)
 	}
-	if err := viper.BindEnv("server.enable_ui", "RAGO_SERVER_ENABLE_UI"); err != nil {
-		log.Printf("Warning: failed to bind server.enable_ui env var: %v", err)
-	}
-
-	// Provider environment variables
-	if err := viper.BindEnv("providers.default_llm", "RAGO_PROVIDERS_DEFAULT_LLM"); err != nil {
-		log.Printf("Warning: failed to bind providers.default_llm env var: %v", err)
-	}
-	if err := viper.BindEnv("providers.default_embedder", "RAGO_PROVIDERS_DEFAULT_EMBEDDER"); err != nil {
-		log.Printf("Warning: failed to bind providers.default_embedder env var: %v", err)
-	}
-
-	
-	// OpenAI provider environment variables
-	if err := viper.BindEnv("providers.openai.api_key", "RAGO_OPENAI_API_KEY"); err != nil {
-		log.Printf("Warning: failed to bind providers.openai.api_key env var: %v", err)
-	}
-	if err := viper.BindEnv("providers.openai.base_url", "RAGO_OPENAI_BASE_URL"); err != nil {
-		log.Printf("Warning: failed to bind providers.openai.base_url env var: %v", err)
-	}
-	if err := viper.BindEnv("providers.openai.embedding_model", "RAGO_OPENAI_EMBEDDING_MODEL"); err != nil {
-		log.Printf("Warning: failed to bind providers.openai.embedding_model env var: %v", err)
-	}
-	if err := viper.BindEnv("providers.openai.llm_model", "RAGO_OPENAI_LLM_MODEL"); err != nil {
-		log.Printf("Warning: failed to bind providers.openai.llm_model env var: %v", err)
-	}
-	if err := viper.BindEnv("providers.openai.organization", "RAGO_OPENAI_ORGANIZATION"); err != nil {
-		log.Printf("Warning: failed to bind providers.openai.organization env var: %v", err)
-	}
-	if err := viper.BindEnv("providers.openai.project", "RAGO_OPENAI_PROJECT"); err != nil {
-		log.Printf("Warning: failed to bind providers.openai.project env var: %v", err)
-	}
-	if err := viper.BindEnv("providers.openai.timeout", "RAGO_OPENAI_TIMEOUT"); err != nil {
-		log.Printf("Warning: failed to bind providers.openai.timeout env var: %v", err)
-	}
-
 	if err := viper.BindEnv("sqvect.db_path", "RAGO_SQVECT_DB_PATH"); err != nil {
 		log.Printf("Warning: failed to bind sqvect.db_path env var: %v", err)
 	}
-	if err := viper.BindEnv("sqvect.vector_dim", "RAGO_SQVECT_VECTOR_DIM"); err != nil {
-		log.Printf("Warning: failed to bind sqvect.vector_dim env var: %v", err)
-	}
-	if err := viper.BindEnv("sqvect.max_conns", "RAGO_SQVECT_MAX_CONNS"); err != nil {
-		log.Printf("Warning: failed to bind sqvect.max_conns env var: %v", err)
-	}
-	if err := viper.BindEnv("sqvect.batch_size", "RAGO_SQVECT_BATCH_SIZE"); err != nil {
-		log.Printf("Warning: failed to bind sqvect.batch_size env var: %v", err)
-	}
-	if err := viper.BindEnv("sqvect.top_k", "RAGO_SQVECT_TOP_K"); err != nil {
-		log.Printf("Warning: failed to bind sqvect.top_k env var: %v", err)
-	}
-	if err := viper.BindEnv("sqvect.threshold", "RAGO_SQVECT_THRESHOLD"); err != nil {
-		log.Printf("Warning: failed to bind sqvect.threshold env var: %v", err)
-	}
-	if err := viper.BindEnv("sqvect.index_type", "RAGO_SQVECT_INDEX_TYPE"); err != nil {
-		log.Printf("Warning: failed to bind sqvect.index_type env var: %v", err)
-	}
-
 	if err := viper.BindEnv("chunker.chunk_size", "RAGO_CHUNKER_CHUNK_SIZE"); err != nil {
 		log.Printf("Warning: failed to bind chunker.chunk_size env var: %v", err)
 	}
@@ -326,40 +248,9 @@ func bindEnvVars() {
 	if err := viper.BindEnv("chunker.method", "RAGO_CHUNKER_METHOD"); err != nil {
 		log.Printf("Warning: failed to bind chunker.method env var: %v", err)
 	}
-
 	if err := viper.BindEnv("ingest.metadata_extraction.enable", "RAGO_INGEST_METADATA_EXTRACTION_ENABLE"); err != nil {
 		log.Printf("Warning: failed to bind ingest.metadata_extraction.enable env var: %v", err)
 	}
-	if err := viper.BindEnv("ingest.metadata_extraction.llm_model", "RAGO_INGEST_METADATA_EXTRACTION_LLM_MODEL"); err != nil {
-		log.Printf("Warning: failed to bind ingest.metadata_extraction.llm_model env var: %v", err)
-	}
-
-	// Tools environment variables
-	if err := viper.BindEnv("tools.enabled", "RAGO_TOOLS_ENABLED"); err != nil {
-		log.Printf("Warning: failed to bind tools.enabled env var: %v", err)
-	}
-	if err := viper.BindEnv("tools.max_concurrent_calls", "RAGO_TOOLS_MAX_CONCURRENT_CALLS"); err != nil {
-		log.Printf("Warning: failed to bind tools.max_concurrent_calls env var: %v", err)
-	}
-	if err := viper.BindEnv("tools.call_timeout", "RAGO_TOOLS_CALL_TIMEOUT"); err != nil {
-		log.Printf("Warning: failed to bind tools.call_timeout env var: %v", err)
-	}
-	if err := viper.BindEnv("tools.security_level", "RAGO_TOOLS_SECURITY_LEVEL"); err != nil {
-		log.Printf("Warning: failed to bind tools.security_level env var: %v", err)
-	}
-	if err := viper.BindEnv("tools.log_level", "RAGO_TOOLS_LOG_LEVEL"); err != nil {
-		log.Printf("Warning: failed to bind tools.log_level env var: %v", err)
-	}
-
-	// Plugin environment variables
-	if err := viper.BindEnv("tools.plugins.enabled", "RAGO_TOOLS_PLUGINS_ENABLED"); err != nil {
-		log.Printf("Warning: failed to bind tools.plugins.enabled env var: %v", err)
-	}
-	if err := viper.BindEnv("tools.plugins.auto_load", "RAGO_TOOLS_PLUGINS_AUTO_LOAD"); err != nil {
-		log.Printf("Warning: failed to bind tools.plugins.auto_load env var: %v", err)
-	}
-
-	// MCP environment variables
 	if err := viper.BindEnv("mcp.enabled", "RAGO_MCP_ENABLED"); err != nil {
 		log.Printf("Warning: failed to bind mcp.enabled env var: %v", err)
 	}
@@ -384,14 +275,6 @@ func (c *Config) Validate() error {
 
 	if c.Server.Host == "" {
 		return fmt.Errorf("server host cannot be empty")
-	}
-
-	// Validate provider configurations only if they exist
-	if c.Providers.DefaultLLM != "" || c.Providers.DefaultEmbedder != "" ||
-		c.Providers.ProviderConfigs.OpenAI != nil {
-		if err := c.validateProviderConfig(); err != nil {
-			return fmt.Errorf("invalid provider configuration: %w", err)
-		}
 	}
 
 	if c.Sqvect.DBPath == "" {
@@ -424,11 +307,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid chunker method: %s", c.Chunker.Method)
 	}
 
-	if c.Ingest.MetadataExtraction.Enable && c.Ingest.MetadataExtraction.LLMModel == "" {
-		return fmt.Errorf("llm_model for metadata extraction should be auto-configured but is still empty")
-	}
-
-
 	// Validate MCP configuration
 	if err := c.validateMCPConfig(); err != nil {
 		return fmt.Errorf("invalid MCP configuration: %w", err)
@@ -436,82 +314,6 @@ func (c *Config) Validate() error {
 
 	return nil
 }
-
-// getDefaultLLMModel returns the appropriate LLM model based on configuration
-func (c *Config) getDefaultLLMModel() string {
-	// Use new provider system if available
-	if c.Providers.ProviderConfigs.OpenAI != nil {
-		return c.Providers.ProviderConfigs.OpenAI.LLMModel
-	}
-
-	// Final fallback
-	return "gpt-3.5-turbo"
-}
-
-// validateProviderConfig validates the new provider configuration
-func (c *Config) validateProviderConfig() error {
-	// Validate default provider settings
-	if c.Providers.DefaultLLM == "" {
-		return fmt.Errorf("default_llm cannot be empty")
-	}
-	// If default_embedder is not set, use the same as default_llm
-	if c.Providers.DefaultEmbedder == "" {
-		c.Providers.DefaultEmbedder = c.Providers.DefaultLLM
-	}
-
-	// Build list of valid providers (openai + custom providers)
-	validProviders := map[string]bool{"openai": true}
-	for name := range c.Providers.Providers {
-		// Skip known built-in fields
-		if name != "default_llm" && name != "default_embedder" && name != "llm_pool" {
-			validProviders[name] = true
-		}
-	}
-
-	// Check if default providers are valid
-	if !validProviders[c.Providers.DefaultLLM] {
-		return fmt.Errorf("invalid default_llm provider: %s", c.Providers.DefaultLLM)
-	}
-	if !validProviders[c.Providers.DefaultEmbedder] {
-		return fmt.Errorf("invalid default_embedder provider: %s", c.Providers.DefaultEmbedder)
-	}
-
-	// Validate individual provider configurations only if they're being used
-	if c.Providers.ProviderConfigs.OpenAI != nil {
-		// Only validate if openai is being used
-		if c.Providers.DefaultLLM == "openai" || c.Providers.DefaultEmbedder == "openai" {
-			if err := c.validateOpenAIProviderConfig(c.Providers.ProviderConfigs.OpenAI); err != nil {
-				return fmt.Errorf("invalid openai provider config: %w", err)
-			}
-		}
-	}
-
-	// Ensure the default providers have corresponding configurations
-	if c.Providers.DefaultLLM == "openai" || c.Providers.DefaultEmbedder == "openai" {
-		if c.Providers.ProviderConfigs.OpenAI == nil {
-			return fmt.Errorf("openai provider configuration is required when using openai as default provider")
-		}
-	}
-
-	return nil
-}
-
-
-// validateOpenAIProviderConfig validates OpenAI provider configuration
-func (c *Config) validateOpenAIProviderConfig(config *domain.OpenAIProviderConfig) error {
-	// API key is optional - let the provider handle authentication
-	if config.EmbeddingModel == "" {
-		return fmt.Errorf("embedding_model cannot be empty")
-	}
-	if config.LLMModel == "" {
-		return fmt.Errorf("llm_model cannot be empty")
-	}
-	if config.Timeout <= 0 {
-		return fmt.Errorf("timeout must be positive: %v", config.Timeout)
-	}
-	return nil
-}
-
 
 func GetEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
@@ -538,10 +340,9 @@ func GetEnvOrDefaultBool(key string, defaultValue bool) bool {
 	return defaultValue
 }
 
-// validateMCPConfig validates the MCP configuration
 func (c *Config) validateMCPConfig() error {
 	if !c.MCP.Enabled {
-		return nil // Skip validation if MCP is disabled
+		return nil
 	}
 
 	if c.MCP.DefaultTimeout <= 0 {
@@ -566,7 +367,6 @@ func (c *Config) validateMCPConfig() error {
 		return fmt.Errorf("invalid log_level: %s (must be debug, info, warn, or error)", c.MCP.LogLevel)
 	}
 
-	// Validate server file paths
 	for i, serverFile := range c.MCP.Servers {
 		if serverFile == "" {
 			return fmt.Errorf("empty server config file path at index %d", i)
@@ -576,38 +376,25 @@ func (c *Config) validateMCPConfig() error {
 	return nil
 }
 
-// resolveDatabasePath resolves the database path with the following priority:
-// 1. If explicitly set in config file (not the default), use it
-// 2. Check if ./.rago/data/rag.db exists, use it  
-// 3. Otherwise, use ~/.rago/data/rag.db (default)
 func (c *Config) resolveDatabasePath() {
-	// If DBPath is already set and it's not the default, keep it
-	// (user explicitly configured it)
 	if c.Sqvect.DBPath != "" && c.Sqvect.DBPath != "~/.rago/data/rag.db" {
 		return
 	}
-	
-	// Check if ./.rago/data/rag.db exists (existing local database)
+
 	localDBPath := "./.rago/data/rag.db"
 	if _, err := os.Stat(localDBPath); err == nil {
 		c.Sqvect.DBPath = localDBPath
 		return
 	}
-	
-	// Default to ~/.rago/data/rag.db
-	// This will be used for new installations or when no local database exists
+
 	c.Sqvect.DBPath = "~/.rago/data/rag.db"
 }
 
-// expandPaths expands ~ to home directory in file paths
 func (c *Config) expandPaths() {
 	c.Sqvect.DBPath = expandHomePath(c.Sqvect.DBPath)
-
-	// Ensure directories exist for default paths
 	ensureParentDir(c.Sqvect.DBPath)
 }
 
-// expandHomePath expands ~ to home directory
 func expandHomePath(path string) string {
 	if path == "" {
 		return path
@@ -616,7 +403,6 @@ func expandHomePath(path string) string {
 	if strings.HasPrefix(path, "~/") {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			// Fallback to original path if can't get home directory
 			return path
 		}
 		return filepath.Join(homeDir, path[2:])
@@ -625,7 +411,6 @@ func expandHomePath(path string) string {
 	return path
 }
 
-// ensureParentDir creates the parent directory if it doesn't exist
 func ensureParentDir(filePath string) {
 	if filePath == "" {
 		return
@@ -634,8 +419,26 @@ func ensureParentDir(filePath string) {
 	dir := filepath.Dir(filePath)
 	if dir != "." && dir != "/" {
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			// Log the error but don't fail configuration loading
 			log.Printf("Warning: failed to create directory %s: %v", dir, err)
 		}
 	}
+}
+
+// unmarshalProviders 将viper读取的provider数组解析为Provider结构体
+func unmarshalProviders(raw interface{}, target *[]pool.Provider) error {
+	if raw == nil {
+		return nil
+	}
+
+	// 转换为JSON再解析（绕过mapstructure的限制）
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return fmt.Errorf("failed to marshal providers: %w", err)
+	}
+
+	if err := json.Unmarshal(data, target); err != nil {
+		return fmt.Errorf("failed to unmarshal providers: %w", err)
+	}
+
+	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -118,16 +119,19 @@ func (e *Executor) ExecutePlan(ctx context.Context, plan *Plan) (*ExecutionResul
 	}
 
 	// Store memories after successful task completion
-	if e.memoryService != nil && plan.Status == PlanStatusCompleted {
-		go func() {
-			// Async execution - don't block the result
-			_ = e.memoryService.StoreIfWorthwhile(context.Background(), &domain.MemoryStoreRequest{
-				SessionID:    plan.SessionID,
-				TaskGoal:     plan.Goal,
-				TaskResult:   formatResultForContent(finalResult),
-				ExecutionLog: e.buildExecutionLog(plan),
-			})
-		}()
+	if e.memoryService != nil {
+		log.Println("[Agent] Analyzing task for long-term memory storage...")
+		err := e.memoryService.StoreIfWorthwhile(context.Background(), &domain.MemoryStoreRequest{
+			SessionID:    plan.SessionID,
+			TaskGoal:     plan.Goal,
+			TaskResult:   formatResultForContent(finalResult),
+			ExecutionLog: e.buildExecutionLog(plan),
+		})
+		if err != nil {
+			log.Printf("[Agent] Warning: memory storage failed: %v", err)
+		} else {
+			log.Println("[Agent] Memory analysis completed.")
+		}
 	}
 
 	return result, nil
@@ -238,8 +242,13 @@ func (e *Executor) executeTool(ctx context.Context, toolName string, args map[st
 
 	// Try RAG processor first (for rag_query, rag_ingest, etc.)
 	if e.ragProcessor != nil {
-		if result, err := e.tryRAGTool(ctx, toolName, args); err == nil {
+		result, err := e.tryRAGTool(ctx, toolName, args)
+		if err == nil {
 			return result, nil
+		}
+		// If error is NOT "not a RAG tool", it means we found the tool but it failed
+		if !strings.Contains(err.Error(), "not a RAG tool") {
+			return nil, err
 		}
 	}
 

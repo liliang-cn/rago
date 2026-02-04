@@ -79,9 +79,6 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 	// Initialize chunker
 	chunkerService := chunker.New()
 
-	// Initialize memory service (optional, can be nil)
-	var memoryService domain.MemoryService
-
 	// Initialize processor
 	proc := processor.New(
 		embedder,
@@ -91,7 +88,6 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 		docStore,
 		cfg,
 		metadataExtractor,
-		memoryService,
 	)
 
 	// Initialize settings service
@@ -452,16 +448,17 @@ func (c *Client) updateConfigFromActiveProfile() error {
 	}
 
 	// Get LLM settings for the active profile
-	// Use the first provider from LLM pool
-	if len(c.config.LLMPool.Providers) > 0 {
-		providerName := c.config.LLMPool.Providers[0].Name
-		llmSettings, err := c.settings.GetLLMSettingsForActiveProfile(providerName)
+	if c.config.Providers.DefaultLLM == "openai" {
+		llmSettings, err := c.settings.GetLLMSettingsForActiveProfile("openai")
 		if err == nil && llmSettings != nil {
-			if llmSettings.Temperature != nil {
-				// Note: Temperature settings would need to be applied at generation time
-			}
-			if llmSettings.MaxTokens != nil {
-				// Note: MaxTokens settings would need to be applied at generation time
+			// Update config with profile-specific LLM settings
+			if c.config.Providers.ProviderConfigs.OpenAI != nil {
+				if llmSettings.Temperature != nil {
+					// Note: Temperature settings would need to be applied at generation time
+				}
+				if llmSettings.MaxTokens != nil {
+					// Note: MaxTokens settings would need to be applied at generation time
+				}
 			}
 		}
 	}
@@ -510,10 +507,9 @@ func (c *Client) UpdateLLMSettings(llmSettings *settings.LLMSettings) error {
 // GetLLMSettings retrieves LLM settings from the active profile
 func (c *Client) GetLLMSettings() (*settings.LLMSettings, error) {
 	// Get LLM settings for the active profile and default provider
-	// Use the first provider from LLM pool
-	providerName := "openai"
-	if len(c.config.LLMPool.Providers) > 0 {
-		providerName = c.config.LLMPool.Providers[0].Name
+	providerName := c.config.Providers.DefaultLLM
+	if providerName == "" {
+		providerName = "openai"
 	}
 
 	return c.settings.GetLLMSettingsForActiveProfile(providerName)
@@ -548,8 +544,8 @@ func (c *Client) GetLLMModel() (string, error) {
 	}
 
 	// Fallback to config
-	if len(c.config.LLMPool.Providers) > 0 {
-		return c.config.LLMPool.Providers[0].ModelName, nil
+	if c.config.Providers.ProviderConfigs.OpenAI != nil {
+		return c.config.Providers.ProviderConfigs.OpenAI.LLMModel, nil
 	}
 	return "", fmt.Errorf("no LLM model configured")
 }
@@ -817,8 +813,8 @@ func (c *Client) initAgentService(ctx context.Context) error {
 	// Create MCP tool executor adapter
 	mcpAdapter := &mcpToolAdapter{service: c.mcpService}
 
-	// Create agent service (memoryService can be nil initially)
-	svc, err := agent.NewService(c.llm, mcpAdapter, c.processor, c.agentDBPath, nil)
+	// Create agent service
+	svc, err := agent.NewService(c.llm, mcpAdapter, c.processor, c.agentDBPath)
 	if err != nil {
 		return fmt.Errorf("failed to create agent service: %w", err)
 	}
@@ -992,3 +988,32 @@ func (c *Client) AgentChat(ctx context.Context, sessionID, message string) (*age
 	return c.agentService.RunWithSession(ctx, message, sessionID)
 }
 
+// Close closes the RAG client and releases resources
+func (c *Client) Close() error {
+	var errs []error
+
+	// Close agent service
+	if c.agentService != nil {
+		if err := c.agentService.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if c.vectorStore != nil {
+		if closer, ok := c.vectorStore.(interface{ Close() error }); ok {
+			if err := closer.Close(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+
+	if c.docStore != nil {
+		// Document store typically uses same connection as SQLite vector store
+		// so it's already closed above
+	}
+
+	if len(errs) > 0 {
+		return errs[0]
+	}
+	return nil
+}

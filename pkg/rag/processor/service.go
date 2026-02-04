@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/providers"
 )
 
 type Service struct {
@@ -92,7 +91,8 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 	// Automatic metadata extraction
 	if s.config.Ingest.MetadataExtraction.Enable {
 		log.Println("Enhanced metadata extraction enabled, calling LLM...")
-		extracted, err := s.llmService.ExtractMetadata(ctx, content, s.config.Ingest.MetadataExtraction.LLMModel)
+		// Use default model from pool
+		extracted, err := s.llmService.ExtractMetadata(ctx, content, "")
 		if err != nil {
 			log.Printf("Warning: metadata extraction failed, proceeding without it. Error: %v", err)
 		} else {
@@ -521,7 +521,7 @@ func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, call
 		return nil
 	}
 
-	prompt := providers.ComposePrompt(chunks, req.Query)
+	prompt := composePrompt(chunks, req.Query)
 
 	genOpts := &domain.GenerationOptions{
 		Temperature: req.Temperature,
@@ -1025,6 +1025,27 @@ func (s *Service) buildChatPrompt(query string, recent []*domain.ChatMessage, re
 	sb.WriteString("\nAssistant:")
 
 	return sb.String()
+}
+
+// composePrompt creates a RAG prompt from document chunks and user query
+func composePrompt(chunks []domain.Chunk, query string) string {
+	if len(chunks) == 0 {
+		return fmt.Sprintf("Please answer the following question:\n\n%s", query)
+	}
+
+	var promptBuilder strings.Builder
+
+	promptBuilder.WriteString("Based on the following document content, please answer the user's question. If the documents do not contain relevant information, please indicate that you cannot find an answer from the provided documents.\n\n")
+	promptBuilder.WriteString("Document Content:\n")
+
+	for i, chunk := range chunks {
+		promptBuilder.WriteString(fmt.Sprintf("[Document Fragment %d]\n%s\n\n", i+1, chunk.Content))
+	}
+
+	promptBuilder.WriteString(fmt.Sprintf("User Question: %s\n\n", query))
+	promptBuilder.WriteString("Please provide a detailed and accurate answer based on the document content:")
+
+	return promptBuilder.String()
 }
 
 

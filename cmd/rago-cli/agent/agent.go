@@ -277,27 +277,19 @@ func runSimple(ctx context.Context, goal string) error {
 	defer ragClient.Close()
 	defer agentService.Close()
 
-	// Plan
-	fmt.Println("📋 Planning...")
-	plan, err := agentService.Plan(ctx, goal)
-	if err != nil {
-		return fmt.Errorf("planning failed: %w", err)
-	}
-
-	// Print plan steps
-	fmt.Println("\nPlan:")
-	for _, step := range plan.Steps {
-		fmt.Printf("  %d. %s [%s]\n", step.ID, step.Description, step.Tool)
-	}
-	fmt.Println()
-
 	// Execute
-	fmt.Println("⚡ Executing...")
-	if err := agentService.ExecutePlan(ctx, plan); err != nil {
-		return fmt.Errorf("execution failed: %w", err)
+	result, err := agentService.Run(ctx, goal)
+	if err != nil {
+		return fmt.Errorf("agent execution failed: %w", err)
 	}
 
-	// Print results
+	// Fetch plan details for display
+	plan, err := agentService.GetPlan(result.PlanID)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve plan details: %w", err)
+	}
+
+	// Print Results
 	fmt.Println("\n✅ Results:")
 	for _, step := range plan.Steps {
 		if step.Status == agent.StepCompleted && step.Result != nil {
