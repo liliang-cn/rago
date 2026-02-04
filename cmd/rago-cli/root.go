@@ -46,11 +46,11 @@ It provides unified access to:
 			cfg.Sqvect.DBPath = dbPath
 		}
 
-		// Initialize global LLM service
-		globalLLMService := services.GetGlobalLLMService()
+		// Initialize global pool service
+		globalPoolService := services.GetGlobalPoolService()
 		ctx := context.Background()
-		if err := globalLLMService.Initialize(ctx, cfg); err != nil {
-			return fmt.Errorf("failed to initialize global LLM service: %w", err)
+		if err := globalPoolService.Initialize(ctx, cfg); err != nil {
+			return fmt.Errorf("failed to initialize global pool service: %w", err)
 		}
 
 		// Pass shared variables to all packages

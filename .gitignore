@@ -1,78 +1,8 @@
-# Binaries
-/build/
-/dist/
-/bin/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-
-# Test binary, built with `go test -c`
-*.test
-
-# Output of the go coverage tool
-*.out
-coverage.html
-
-# Go workspace file
-go.work
-
-# Dependency directories
-/vendor/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Application specific
-/data/
-*.sqlite
-*.db
-
-# Logs
-*.log
-
-# Config files (keep example configs)
-rago.toml
-!rago.example.toml
-
-# Temporary files
-*.tmp
-*.temp
-
-# Docker
-.dockerignore
-
-# Node modules (if adding frontend)
 node_modules/
-
-# Environment variables
-.env
-.env.local
-
-# Backup files
-*.bak
-
-# Profile files
-*.prof
-*.pprof
-
-.claude/
-.prompt/
-web/node_modules/
+bin/
 
 rago.toml
+
+.DS_Store
 
 .rago/
-
-rago-cli
-
-qdrant_storage

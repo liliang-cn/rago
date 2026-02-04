@@ -9,7 +9,7 @@ import (
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	mcppkg "github.com/liliang-cn/rago/v2/pkg/mcp"
-	"github.com/liliang-cn/rago/v2/pkg/providers"
+	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/spf13/cobra"
 )
 
@@ -43,11 +43,10 @@ Examples:
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(mcpChatTimeout)*time.Second)
 		defer cancel()
 
-		// Initialize LLM service
-		factory := providers.NewFactory()
-		llmSvc, err := providers.InitializeLLM(ctx, Cfg, factory)
+		// Get LLM service from pool
+		llmSvc, err := services.GetGlobalLLM()
 		if err != nil {
-			return fmt.Errorf("failed to initialize LLM service: %w", err)
+			return fmt.Errorf("failed to get LLM service: %w", err)
 		}
 
 		// Initialize MCP service with actual implementation
@@ -61,11 +60,6 @@ Examples:
 			if mcpChatVerbose {
 				fmt.Printf("⚠️  Warning: Failed to load MCP servers: %v\n", err)
 			}
-		}
-
-		// Load server configurations
-		if err := mcpConfig.LoadServersFromJSON(); err != nil {
-			return fmt.Errorf("failed to load server configurations: %w", err)
 		}
 
 		if mcpChatVerbose {
@@ -90,10 +84,6 @@ Examples:
 		if mcpChatVerbose {
 			fmt.Printf("🔧 Available MCP tools: %d\n", len(llmTools))
 			for _, tool := range llmTools {
-				// Debug: print the structure
-				if len(llmTools) > 0 && len(llmTools) < 5 {
-					fmt.Printf("  Tool structure: %+v\n", tool)
-				}
 				if funcMap, ok := tool["function"].(map[string]interface{}); ok {
 					if nameField, ok := funcMap["name"].(string); ok {
 						fmt.Printf("  - %s\n", nameField)
@@ -106,13 +96,11 @@ Examples:
 		// Convert to domain.ToolDefinition format
 		var toolDefs []domain.ToolDefinition
 		for _, tool := range llmTools {
-			// Tools are in OpenAI format: {"type": "function", "function": {...}}
 			funcMap, ok := tool["function"].(map[string]interface{})
 			if !ok {
 				continue
 			}
 
-			// Get name from function
 			name, ok := funcMap["name"].(string)
 			if !ok || name == "" {
 				continue
@@ -143,7 +131,6 @@ Examples:
 		fmt.Println("🤖 MCP Chat")
 		fmt.Println("===========")
 		fmt.Printf("📝 Task: %s\n", prompt)
-		fmt.Printf("🧠 Model: %s\n", mcpChatModel)
 		fmt.Printf("🔧 Available tools: %d\n", len(toolDefs))
 		fmt.Println("\n⏳ Processing...")
 

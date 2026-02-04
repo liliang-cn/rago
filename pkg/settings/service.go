@@ -339,15 +339,15 @@ func (s *Service) GetProfileWithSettings(profileID string) (*ProfileWithSettings
 // InitializeProviderSettings creates default LLM settings for all configured providers
 func (s *Service) InitializeProviderSettings(profileID string) error {
 	// Get available providers from config
-	providers := []string{}
-	
-	// Add providers based on config
-	if s.config.Providers.ProviderConfigs.OpenAI != nil {
-		providers = append(providers, "openai")
+	providerNames := []string{}
+
+	// Add providers from LLM pool config
+	for _, p := range s.config.LLMPool.Providers {
+		providerNames = append(providerNames, p.Name)
 	}
 
 	// Create default settings for each provider if they don't exist
-	for _, providerName := range providers {
+	for _, providerName := range providerNames {
 		_, err := s.storage.GetLLMSettings(profileID, providerName)
 		if err != nil {
 			// Settings don't exist, create defaults

@@ -28,6 +28,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/llm"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
+	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
 	pkgStore "github.com/liliang-cn/rago/v2/pkg/store"
@@ -121,11 +122,22 @@ var serveCmd = &cobra.Command{
 			}
 		}
 
-		// Initialize services using shared provider system
+		// Initialize services using shared pool system
 		ctx := context.Background()
-		embedService, llmService, metadataExtractor, err := initializeProviders(ctx, cfg)
+		llmService, err := services.GetGlobalLLM()
 		if err != nil {
-			return fmt.Errorf("failed to initialize providers: %w", err)
+			return fmt.Errorf("failed to get LLM service: %w", err)
+		}
+
+		embedService, err := services.GetGlobalEmbeddingService(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get embedder service: %w", err)
+		}
+
+		// Create metadata extractor from LLM service if it implements the interface
+		var metadataExtractor domain.MetadataExtractor
+		if extractor, ok := llmService.(domain.MetadataExtractor); ok {
+			metadataExtractor = extractor
 		}
 
 		chunkerService := chunker.New()

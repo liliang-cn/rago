@@ -12,7 +12,7 @@ import (
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/providers"
+	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/liliang-cn/rago/v2/pkg/settings"
 	"github.com/liliang-cn/rago/v2/pkg/store"
 	"github.com/spf13/cobra"
@@ -694,29 +694,74 @@ func setupLLMService(_ string) error {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Initialize real LLM provider using the existing provider system
-	ctx := context.Background()
-
-	// Create provider factory
-	factory := providers.NewFactory()
-
-	// Only support OpenAI format (all local LLMs are compatible with OpenAI API)
-	if cfg.Providers.ProviderConfigs.OpenAI == nil {
-		return fmt.Errorf("OpenAI provider not configured")
-	}
-
-	// Create the LLM provider using OpenAI format
-	provider, err := factory.CreateLLMProvider(ctx, cfg.Providers.ProviderConfigs.OpenAI)
+	// Get LLM service from pool
+	llmService, err := services.GetGlobalLLM()
 	if err != nil {
-		return fmt.Errorf("failed to create LLM provider: %w", err)
+		return fmt.Errorf("failed to get LLM service: %w", err)
 	}
+
+	// Wrap generator as LLMProvider
+	llmProviderWrapper := &llmProviderWrapper{Generator: llmService}
 
 	// Set components for settings service
-	if err := settingSvc.SetComponents(db, provider); err != nil {
+	if err := settingSvc.SetComponents(db, llmProviderWrapper); err != nil {
 		return fmt.Errorf("failed to set components: %w", err)
 	}
 
 	return nil
+}
+
+// llmProviderWrapper wraps a Generator to implement LLMProvider interface
+type llmProviderWrapper struct {
+	domain.Generator
+}
+
+func (w *llmProviderWrapper) ProviderType() domain.ProviderType {
+	return domain.ProviderType("pool")
+}
+
+func (w *llmProviderWrapper) Health(ctx context.Context) error {
+	// Simple health check - try a minimal generation
+	_, err := w.Generate(ctx, "health", &domain.GenerationOptions{MaxTokens: 1})
+	return err
+}
+
+func (w *llmProviderWrapper) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
+	// Use a simple prompt to extract metadata
+	prompt := fmt.Sprintf(`Extract structured metadata from the following content. Return JSON:
+{
+  "summary": "brief summary",
+  "keywords": ["keyword1", "keyword2"],
+  "document_type": "article|report|email|code|other",
+  "entities": {"person": [], "location": [], "organization": []}
+}
+
+Content:
+%s`, content)
+
+	result, err := w.Generate(ctx, prompt, &domain.GenerationOptions{Temperature: 0.1})
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the JSON response
+	var metadata domain.ExtractedMetadata
+	if err := json.Unmarshal([]byte(result), &metadata); err != nil {
+		// If parsing fails, return basic metadata
+		return &domain.ExtractedMetadata{
+			Summary:  content[:min(len(content), 200)] + "...",
+			Keywords: []string{},
+		}, nil
+	}
+
+	return &metadata, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // mockLLMProvider is a simple mock provider for testing purposes
