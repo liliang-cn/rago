@@ -5,13 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	"github.com/liliang-cn/rago/v2/pkg/memory"
 	"github.com/liliang-cn/rago/v2/pkg/router"
+	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
+	"github.com/liliang-cn/rago/v2/pkg/store"
 )
 
 // ProgressEvent 进度事件
@@ -909,6 +916,168 @@ func (s *Service) ListPlans(sessionID string, limit int) ([]*Plan, error) {
 // Close closes the service and releases resources
 func (s *Service) Close() error {
 	return s.store.Close()
+}
+
+// ========================================
+// Simplified API
+// ========================================
+
+// AgentConfig holds configuration for New()
+type AgentConfig struct {
+	Name        string
+	SystemPrompt string
+	DBPath      string
+	MemoryDBPath string
+	EnableMCP    bool
+	EnableMemory bool
+	EnableRouter bool
+	ProgressCb   ProgressCallback
+}
+
+// New creates an agent service with simplified configuration.
+// It automatically initializes LLM, Embedding, MCP, Memory, and Router services from rago.toml.
+//
+// Example:
+//
+//	svc, err := agent.New(&agent.AgentConfig{
+//	    Name: "my-agent",
+//	    EnableMCP: true,
+//	    EnableMemory: true,
+//	})
+//	result, _ := svc.Run(ctx, "Hello!")
+func New(cfg *AgentConfig) (*Service, error) {
+	if cfg == nil || cfg.Name == "" {
+		return nil, fmt.Errorf("agent name is required")
+	}
+
+	// Load config
+	ragoCfg, err := config.Load("")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Initialize global pool
+	globalPool := services.GetGlobalPoolService()
+	if err := globalPool.Initialize(context.Background(), ragoCfg); err != nil {
+		return nil, fmt.Errorf("failed to initialize pool: %w", err)
+	}
+
+	// Get LLM service
+	llmSvc, err := globalPool.GetLLMService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get LLM: %w", err)
+	}
+
+	// Get Embedding service
+	embedSvc, err := globalPool.GetEmbeddingService(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get embedder: %w", err)
+	}
+
+	// MCP service
+	var mcpSvc *mcp.Service
+	var mcpAdapter MCPToolExecutor
+	if cfg.EnableMCP {
+		mcpSvc, err = mcp.NewService(&ragoCfg.MCP, llmSvc)
+		if err == nil {
+			mcpSvc.StartServers(context.Background(), nil)
+			mcpAdapter = &mcpToolAdapter{service: mcpSvc}
+		}
+	}
+
+	// Memory service
+	var memSvc domain.MemoryService
+	memDBPath := cfg.MemoryDBPath
+	if memDBPath == "" {
+		homeDir, _ := os.UserHomeDir()
+		memDBPath = filepath.Join(homeDir, ".rago", "data", "memory.db")
+	}
+	if cfg.EnableMemory {
+		memStore, err := store.NewMemoryStore(memDBPath)
+		if err == nil {
+			_ = memStore.InitSchema(context.Background())
+			memSvc = memory.NewService(memStore, llmSvc, embedSvc, memory.DefaultConfig())
+		}
+	}
+
+	// Router service
+	var routerSvc *router.Service
+	if cfg.EnableRouter {
+		routerSvc, err = router.NewService(embedSvc, router.DefaultConfig())
+		if err == nil {
+			_ = routerSvc.RegisterDefaultIntents()
+		}
+	}
+
+	// Agent DB path
+	agentDBPath := cfg.DBPath
+	if agentDBPath == "" {
+		homeDir, _ := os.UserHomeDir()
+		agentDBPath = filepath.Join(homeDir, ".rago", "data", cfg.Name+".db")
+	}
+
+	// Create agent service
+	svc, err := NewService(llmSvc, mcpAdapter, nil, agentDBPath, memSvc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create agent: %w", err)
+	}
+
+	// Set router
+	if routerSvc != nil {
+		svc.SetRouter(routerSvc)
+	}
+
+	// Set progress callback
+	if cfg.ProgressCb != nil {
+		svc.SetProgressCallback(cfg.ProgressCb)
+	}
+
+	return svc, nil
+}
+
+// mcpToolAdapter wraps mcp.Service to implement MCPToolExecutor
+type mcpToolAdapter struct {
+	service *mcp.Service
+}
+
+func (a *mcpToolAdapter) CallTool(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error) {
+	result, err := a.service.CallTool(ctx, toolName, args)
+	if err != nil {
+		return nil, err
+	}
+	if !result.Success {
+		return nil, fmt.Errorf("MCP tool error: %s", result.Error)
+	}
+	return result.Data, nil
+}
+
+func (a *mcpToolAdapter) ListTools() []domain.ToolDefinition {
+	tools := a.service.GetAvailableTools(context.Background())
+	result := make([]domain.ToolDefinition, 0, len(tools))
+
+	for _, t := range tools {
+		params := t.InputSchema
+		if params == nil {
+			params = map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{
+					"args": map[string]interface{}{
+						"description": "arguments",
+						"type":        "object",
+					},
+				},
+			}
+		}
+		result = append(result, domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        t.Name,
+				Description: t.Description,
+				Parameters:  params,
+			},
+		})
+	}
+	return result
 }
 
 // collectAvailableTools collects tools from all available sources
