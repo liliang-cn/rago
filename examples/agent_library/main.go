@@ -1,10 +1,9 @@
-// Package main shows how to use the rago agent library
+// Package main shows how to use the rago agent library with memory
 package main
 
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/liliang-cn/rago/v2/pkg/agent"
 )
@@ -12,20 +11,17 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// Create agent - that's all you need!
-	svc, err := agent.New(&agent.AgentConfig{
-		Name: "my-agent",
+	// Create agent
+	svc, _ := agent.New(&agent.AgentConfig{
+		Name: "assistant",
 	})
-	if err != nil {
-		log.Fatal(err)
-	}
 	defer svc.Close()
 
-	// Ask a question
-	result, err := svc.Run(ctx, "What is 2+2?")
-	if err != nil {
-		log.Fatal(err)
-	}
+	// Chat with auto-generated session ID (UUID)
+	sessionID := "chat-001"
+
+	svc.RunWithSession(ctx, "My name is Alice", sessionID)
+	result, _ := svc.RunWithSession(ctx, "What's my name?", sessionID)
 
 	fmt.Printf("Answer: %v\n", result.FinalResult)
 }

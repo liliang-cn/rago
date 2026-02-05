@@ -206,7 +206,7 @@ func (s *Store) SaveSession(session *Session) error {
 	now := time.Now()
 	session.UpdatedAt = now
 
-	_, err = s.db.Exec(`
+	res, err := s.db.Exec(`
 		INSERT OR REPLACE INTO sessions
 		(id, agent_id, messages, context, metadata, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -215,6 +215,8 @@ func (s *Store) SaveSession(session *Session) error {
 	if err != nil {
 		return fmt.Errorf("failed to save session: %w", err)
 	}
+
+	_, _ = res.RowsAffected()
 
 	return nil
 }
@@ -271,11 +273,15 @@ func (s *Store) ListSessions(limit int) ([]*Session, error) {
 		SELECT id, agent_id, messages, context, metadata, created_at, updated_at
 		FROM sessions ORDER BY updated_at DESC
 	`
+	var rows *sql.Rows
+	var err error
+
 	if limit > 0 {
 		query += " LIMIT ?"
+		rows, err = s.db.Query(query, limit)
+	} else {
+		rows, err = s.db.Query(query)
 	}
-
-	rows, err := s.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list sessions: %w", err)
 	}
