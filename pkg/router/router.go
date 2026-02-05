@@ -52,6 +52,7 @@ func New(embedder domain.Embedder, cfg *Config) (*Router, error) {
 		adapter,
 		semanticrouter.WithThreshold(cfg.Threshold),
 		semanticrouter.WithTopK(cfg.TopK),
+		semanticrouter.WithCacheEmbeddings(true), // Enable embedding cache
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create semantic router: %w", err)
