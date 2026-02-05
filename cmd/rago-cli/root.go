@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/agent"
+	"github.com/liliang-cn/rago/v2/cmd/rago-cli/gateway"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/mcp"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/profile"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/rag"
@@ -106,6 +107,10 @@ func init() {
 
 	// Add Agent command
 	RootCmd.AddCommand(agent.AgentCmd)
+
+	// Add Gateway command
+	gateway.SetSharedVariables(cfg, verbose)
+	RootCmd.AddCommand(gateway.GatewayCmd)
 
 	// Add Skills command
 	RootCmd.AddCommand(skills.Cmd)
