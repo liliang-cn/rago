@@ -61,19 +61,17 @@ var GatewayCmd = &cobra.Command{
 	Short: "Run an interactive AI gateway with multi-agent support",
 	Long: `Gateway mode runs an async AI reception desk with multi-agent support.
 
-Features:
-  - Multiple named agents sharing LLM pool
-  - Concurrent request processing
-  - Independent conversation history per agent
-  - Agent switch/create commands
+Each agent runs in its own goroutine:
+- Agents never block each other
+- Agents never block the main process
+- Switch agents anytime, even while they're processing
 
 Commands:
   /agent list           - List all agents
   /agent new <name>     - Create new agent
   /agent switch <name>  - Switch to agent
-  /agent current        - Show current agent
   /status               - Show status
-  /cancel               - Cancel current task
+  /cancel <agent>       - Cancel agent's current task
   /quit                 - Exit`,
 	RunE: runGateway,
 }
@@ -88,27 +86,27 @@ func SetSharedVariables(c *config.Config, v bool) {
 }
 
 // ========================================
-// Request/Response System
+// Agent Request/Response
 // ========================================
 
-type Request struct {
-	ID      string
-	AgentID string
-	Query   string
-	Ctx     context.Context
-	Cancel  context.CancelFunc
-	ReplyCh chan *Response
+type AgentRequest struct {
+	ID        string
+	Query     string
+	Ctx       context.Context
+	Cancel    context.CancelFunc
+	Timestamp time.Time
 }
 
-type Response struct {
-	AgentID string
-	Content string
-	Error   error
-	Done    bool
+type AgentResponse struct {
+	RequestID string
+	AgentName string
+	Content   string
+	Error     error
+	Done      bool
 }
 
 // ========================================
-// Agent Instance
+// Agent Instance - Runs in own goroutine
 // ========================================
 
 type AgentInstance struct {
@@ -116,45 +114,107 @@ type AgentInstance struct {
 	Name       string
 	SystemPrompt string
 	Service    *agent.Service
-	History    []domain.Message
-	CreatedAt  time.Time
+	requestCh  chan *AgentRequest
+	running    atomic.Bool
+	currentReq atomic.Value // *AgentRequest
+	createdAt  time.Time
 	mu         sync.RWMutex
 }
 
-func (a *AgentInstance) AddMessage(msg domain.Message) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.History = append(a.History, msg)
+func (a *AgentInstance) Start(ctx context.Context) {
+	a.running.Store(true)
+	go a.run(ctx)
 }
 
-func (a *AgentInstance) GetHistory() []domain.Message {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return append([]domain.Message{}, a.History...)
+func (a *AgentInstance) run(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case req, ok := <-a.requestCh:
+			if !ok {
+				return
+			}
+			if req == nil {
+				continue
+			}
+
+			a.currentReq.Store(req)
+			fmt.Println(styles.dim.Render(fmt.Sprintf("[%s processing %s]", a.Name, req.ID)))
+
+			// Run agent - this blocks but only this agent's goroutine
+			result, err := a.Service.Run(req.Ctx, req.Query)
+
+			resp := &AgentResponse{
+				RequestID: req.ID,
+				AgentName: a.Name,
+				Done:      true,
+			}
+
+			if err != nil {
+				resp.Error = err
+			} else if result.FinalResult != nil {
+				if str, ok := result.FinalResult.(string); ok {
+					resp.Content = str
+				} else {
+					resp.Content = fmt.Sprintf("%v", result.FinalResult)
+				}
+			} else {
+				resp.Content = "Done"
+			}
+
+			// Send response to gateway
+			globalResponseCh <- resp
+
+			a.currentReq.Store((*AgentRequest)(nil))
+		}
+	}
 }
 
-func (a *AgentInstance) SetHistory(history []domain.Message) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.History = history
+func (a *AgentInstance) Submit(req *AgentRequest) error {
+	select {
+	case a.requestCh <- req:
+		return nil
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("agent %s request channel full", a.Name)
+	}
 }
+
+func (a *AgentInstance) Cancel() bool {
+	if req := a.currentReq.Load(); req != nil {
+		if r, ok := req.(*AgentRequest); ok && r != nil && r.Cancel != nil {
+			r.Cancel()
+			return true
+		}
+	}
+	return false
+}
+
+func (a *AgentInstance) IsProcessing() bool {
+	return a.currentReq.Load() != nil
+}
+
+func (a *AgentInstance) Stop() {
+	a.running.Store(false)
+	close(a.requestCh)
+}
+
+// Global response channel - all agents send responses here
+var globalResponseCh = make(chan *AgentResponse, 100)
 
 // ========================================
-// Agent Manager
+// Shared Services
 // ========================================
 
-type AgentManager struct {
-	agents      map[string]*AgentInstance
-	currentID   atomic.Value // string
-	llmPool     *services.GlobalPoolService
-	mcpService  *mcp.Service
+type SharedServices struct {
+	llmPool      *services.GlobalPoolService
+	mcpService   *mcp.Service
 	embedService domain.Embedder
-	memoryService domain.MemoryService
-	routerService *router.Service
-	mu          sync.RWMutex
+	memorySvc    domain.MemoryService
+	routerSvc    *router.Service
 }
 
-func NewAgentManager(ctx context.Context, cfg *config.Config) (*AgentManager, error) {
+func initSharedServices(ctx context.Context, cfg *config.Config) (*SharedServices, error) {
 	globalPool := services.GetGlobalPoolService()
 
 	llmSvc, err := globalPool.GetLLMService()
@@ -167,7 +227,7 @@ func NewAgentManager(ctx context.Context, cfg *config.Config) (*AgentManager, er
 		return nil, fmt.Errorf("failed to get embedder: %w", err)
 	}
 
-	// MCP service (shared by all agents)
+	// MCP service (shared)
 	mcpSvc, err := mcp.NewService(&cfg.MCP, llmSvc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MCP service: %w", err)
@@ -194,52 +254,82 @@ func NewAgentManager(ctx context.Context, cfg *config.Config) (*AgentManager, er
 		routerSvc = rs
 	}
 
-	am := &AgentManager{
-		agents:       make(map[string]*AgentInstance),
+	return &SharedServices{
 		llmPool:      globalPool,
 		mcpService:   mcpSvc,
 		embedService: embedSvc,
-		memoryService: memSvc,
-		routerService: routerSvc,
-	}
-
-	// Create default agent
-	if _, err := am.CreateAgent(ctx, "default", "You are a helpful AI assistant."); err != nil {
-		return nil, err
-	}
-	// Set default as current
-	am.currentID.Store("default")
-
-	return am, nil
+		memorySvc:    memSvc,
+		routerSvc:    routerSvc,
+	}, nil
 }
 
-func (am *AgentManager) CreateAgent(ctx context.Context, name, systemPrompt string) (*AgentInstance, error) {
-	am.mu.Lock()
-	defer am.mu.Unlock()
+// ========================================
+// Gateway
+// ========================================
 
-	if _, exists := am.agents[name]; exists {
+type Gateway struct {
+	agents     map[string]*AgentInstance
+	currentID  atomic.Value // string
+	shared     *SharedServices
+	running    atomic.Bool
+	mu         sync.RWMutex
+	ctx        context.Context
+	cancelFunc context.CancelFunc
+}
+
+func NewGateway(ctx context.Context, cfg *config.Config) (*Gateway, error) {
+	shared, err := initSharedServices(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	gwCtx, gwCancel := context.WithCancel(ctx)
+
+	gw := &Gateway{
+		agents:     make(map[string]*AgentInstance),
+		shared:     shared,
+		ctx:        gwCtx,
+		cancelFunc: gwCancel,
+	}
+	gw.running.Store(true)
+
+	// Start response listener
+	go gw.responseListener()
+
+	// Create default agent
+	if _, err := gw.CreateAgent("default", "You are a helpful AI assistant."); err != nil {
+		return nil, err
+	}
+
+	return gw, nil
+}
+
+func (gw *Gateway) CreateAgent(name, systemPrompt string) (*AgentInstance, error) {
+	gw.mu.Lock()
+	defer gw.mu.Unlock()
+
+	if _, exists := gw.agents[name]; exists {
 		return nil, fmt.Errorf("agent %s already exists", name)
 	}
 
-	// Create agent service (each gets its own instance)
-	llmSvc, err := am.llmPool.GetLLMService()
+	// Create agent service
+	llmSvc, err := gw.shared.llmPool.GetLLMService()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM: %w", err)
 	}
 
-	mcpAdapter := &mcpToolAdapter{service: am.mcpService}
+	mcpAdapter := &mcpToolAdapter{service: gw.shared.mcpService}
 
 	homeDir, _ := os.UserHomeDir()
 	agentDBPath := filepath.Join(homeDir, ".rago", "data", fmt.Sprintf("agent_%s.db", name))
 
-	agentSvc, err := agent.NewService(llmSvc, mcpAdapter, nil, agentDBPath, am.memoryService)
+	agentSvc, err := agent.NewService(llmSvc, mcpAdapter, nil, agentDBPath, gw.shared.memorySvc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent: %w", err)
 	}
 
-	// Set router
-	if am.routerService != nil {
-		agentSvc.SetRouter(am.routerService)
+	if gw.shared.routerSvc != nil {
+		agentSvc.SetRouter(gw.shared.routerSvc)
 	}
 
 	inst := &AgentInstance{
@@ -247,189 +337,114 @@ func (am *AgentManager) CreateAgent(ctx context.Context, name, systemPrompt stri
 		Name:         name,
 		SystemPrompt: systemPrompt,
 		Service:      agentSvc,
-		History:      []domain.Message{},
-		CreatedAt:    time.Now(),
+		requestCh:    make(chan *AgentRequest, 10),
+		createdAt:    time.Now(),
 	}
 
-	am.agents[name] = inst
+	gw.agents[name] = inst
+
+	// Start agent goroutine
+	inst.Start(gw.ctx)
+
 	return inst, nil
 }
 
-func (am *AgentManager) GetAgent(name string) (*AgentInstance, bool) {
-	am.mu.RLock()
-	defer am.mu.RUnlock()
-	a, ok := am.agents[name]
+func (gw *Gateway) GetAgent(name string) (*AgentInstance, bool) {
+	gw.mu.RLock()
+	defer gw.mu.RUnlock()
+	a, ok := gw.agents[name]
 	return a, ok
 }
 
-func (am *AgentManager) ListAgents() []*AgentInstance {
-	am.mu.RLock()
-	defer am.mu.RUnlock()
+func (gw *Gateway) ListAgents() []*AgentInstance {
+	gw.mu.RLock()
+	defer gw.mu.RUnlock()
 
-	result := make([]*AgentInstance, 0, len(am.agents))
-	for _, a := range am.agents {
+	result := make([]*AgentInstance, 0, len(gw.agents))
+	for _, a := range gw.agents {
 		result = append(result, a)
 	}
 	return result
 }
 
-func (am *AgentManager) SetCurrent(name string) error {
-	am.mu.RLock()
-	_, ok := am.agents[name]
-	am.mu.RUnlock()
+func (gw *Gateway) SetCurrent(name string) error {
+	gw.mu.RLock()
+	_, ok := gw.agents[name]
+	gw.mu.RUnlock()
 
 	if !ok {
 		return fmt.Errorf("agent %s not found", name)
 	}
 
-	am.currentID.Store(name)
+	gw.currentID.Store(name)
 	return nil
 }
 
-func (am *AgentManager) GetCurrent() *AgentInstance {
-	name := am.currentID.Load()
+func (gw *Gateway) GetCurrent() *AgentInstance {
+	name := gw.currentID.Load()
 	if name == nil || name == "" {
 		return nil
 	}
 
 	agentName := name.(string)
-	if a, ok := am.GetAgent(agentName); ok {
+	if a, ok := gw.GetAgent(agentName); ok {
 		return a
 	}
 	return nil
 }
 
-// ========================================
-// Gateway Service
-// ========================================
-
-type Gateway struct {
-	agentMgr    *AgentManager
-	requestCh   chan *Request
-	activeReqs  atomic.Value // map[string]*Request
-	running     atomic.Bool
-	workerCount int
-}
-
-func NewGateway(ctx context.Context, cfg *config.Config) (*Gateway, error) {
-	agentMgr, err := NewAgentManager(ctx, cfg)
-	if err != nil {
-		return nil, err
+func (gw *Gateway) Submit(ctx context.Context, query string) error {
+	current := gw.GetCurrent()
+	if current == nil {
+		return fmt.Errorf("no current agent")
 	}
 
-	workerCount := 3 // Allow concurrent processing
-	gw := &Gateway{
-		agentMgr:    agentMgr,
-		requestCh:   make(chan *Request, 50),
-		workerCount: workerCount,
-	}
-	gw.running.Store(true)
-	gw.activeReqs.Store(make(map[string]*Request))
-
-	// Start worker pool
-	for i := 0; i < workerCount; i++ {
-		go gw.worker(ctx, i)
-	}
-	// Start response listener
-	go gw.responseListener(ctx)
-
-	return gw, nil
-}
-
-func (gw *Gateway) worker(ctx context.Context, workerID int) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case req := <-gw.requestCh:
-			if req == nil {
-				return
-			}
-			gw.processRequest(req, workerID)
-		}
-	}
-}
-
-func (gw *Gateway) processRequest(req *Request, workerID int) {
-	agentInst := gw.agentMgr.GetCurrent()
-	if agentInst == nil {
-		resp := &Response{
-			Error: fmt.Errorf("no active agent"),
-			Done:  true,
-		}
-		req.ReplyCh <- resp
-		return
-	}
-
-	req.AgentID = agentInst.ID
-	fmt.Println(styles.dim.Render(fmt.Sprintf("[Worker %d → %s: %s]", workerID, agentInst.Name, req.ID)))
-
-	result, err := agentInst.Service.Run(req.Ctx, req.Query)
-
-	resp := &Response{AgentID: agentInst.ID}
-	if err != nil {
-		resp.Error = err
-	} else if result.FinalResult != nil {
-		if str, ok := result.FinalResult.(string); ok {
-			resp.Content = str
-		} else {
-			resp.Content = fmt.Sprintf("%v", result.FinalResult)
-		}
-	} else {
-		resp.Content = "Done"
-	}
-	resp.Done = true
-
-	select {
-	case req.ReplyCh <- resp:
-	case <-req.Ctx.Done():
-	}
-}
-
-func (gw *Gateway) Submit(ctx context.Context, query string) (*Request, error) {
 	reqCtx, cancel := context.WithCancel(ctx)
 
-	req := &Request{
-		ID:      fmt.Sprintf("req_%d", time.Now().UnixNano()),
-		Query:   query,
-		Ctx:     reqCtx,
-		Cancel:  cancel,
-		ReplyCh: make(chan *Response, 1),
+	req := &AgentRequest{
+		ID:        fmt.Sprintf("req_%d", time.Now().UnixNano()),
+		Query:     query,
+		Ctx:       reqCtx,
+		Cancel:    cancel,
+		Timestamp: time.Now(),
 	}
 
-	// Add to active requests
-	active := gw.activeReqs.Load().(map[string]*Request)
-	newActive := make(map[string]*Request)
-	for k, v := range active {
-		newActive[k] = v
-	}
-	newActive[req.ID] = req
-	gw.activeReqs.Store(newActive)
+	return current.Submit(req)
+}
 
-	select {
-	case gw.requestCh <- req:
-		return req, nil
-	case <-ctx.Done():
-		cancel()
-		return nil, ctx.Err()
+func (gw *Gateway) CancelAgent(name string) bool {
+	gw.mu.RLock()
+	agent, ok := gw.agents[name]
+	gw.mu.RUnlock()
+
+	if !ok {
+		return false
+	}
+	return agent.Cancel()
+}
+
+func (gw *Gateway) responseListener() {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-gw.ctx.Done():
+			return
+		case resp := <-globalResponseCh:
+			gw.printResponse(resp)
+		case <-ticker.C:
+			// Periodic check if needed
+		}
 	}
 }
 
-func (gw *Gateway) CancelCurrent() bool {
-	active := gw.activeReqs.Load().(map[string]*Request)
-	cancelled := false
-	for _, req := range active {
-		req.Cancel()
-		cancelled = true
+func (gw *Gateway) printResponse(resp *AgentResponse) {
+	if resp.Error != nil {
+		fmt.Println(styles.error.Render(fmt.Sprintf("[%s] Error: %v", resp.AgentName, resp.Error)))
+	} else if resp.Content != "" {
+		fmt.Printf("%s %s\n", styles.agent.Render("["+resp.AgentName+"]:"), styles.response.Render(resp.Content))
 	}
-	// Clear active requests
-	gw.activeReqs.Store(make(map[string]*Request))
-	return cancelled
-}
-
-func (gw *Gateway) GetActiveCount() int {
-	active := gw.activeReqs.Load().(map[string]*Request)
-	return len(active)
 }
 
 // ========================================
@@ -437,14 +452,13 @@ func (gw *Gateway) GetActiveCount() int {
 // ========================================
 
 func (gw *Gateway) Run(ctx context.Context) error {
-	fmt.Println(styles.header.Render("╔══════════════════════════════════════════════════╗"))
-	fmt.Println(styles.header.Render("║" + styles.title.Render("           RAGO GATEWAY - MULTI-AGENT            ") + "║"))
-	fmt.Println(styles.header.Render("╚══════════════════════════════════════════════════╝"))
+	fmt.Println(styles.header.Render("╔════════════════════════════════════════════════════════════╗"))
+	fmt.Println(styles.header.Render("║" + styles.title.Render("          RAGO GATEWAY - MULTI-AGENT (PER-AGENT GOROUTINE)      ") + "║"))
+	fmt.Println(styles.header.Render("╚════════════════════════════════════════════════════════════╝"))
 	fmt.Println()
 	gw.printAgentInfo()
 	fmt.Println(styles.muted.Render("Type /help for commands"))
 
-	// Input loop
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for gw.running.Load() {
@@ -468,12 +482,11 @@ func (gw *Gateway) Run(ctx context.Context) error {
 				continue
 			}
 
-			// Submit request
-			req, err := gw.Submit(ctx, input)
-			if err != nil {
+			// Submit to current agent (non-blocking!)
+			if err := gw.Submit(ctx, input); err != nil {
 				fmt.Println(styles.error.Render(fmt.Sprintf("Error: %v", err)))
 			} else {
-				fmt.Println(styles.dim.Render(fmt.Sprintf("[→ %s queued]", req.ID)))
+				fmt.Println(styles.dim.Render("[→ Sent to agent]"))
 			}
 		}
 	}
@@ -481,72 +494,30 @@ func (gw *Gateway) Run(ctx context.Context) error {
 }
 
 func (gw *Gateway) buildPrompt() string {
-	current := gw.agentMgr.GetCurrent()
+	current := gw.GetCurrent()
 	if current == nil {
 		return styles.prompt.Render("> ")
 	}
-	activeCount := gw.GetActiveCount()
+
 	status := ""
-	if activeCount > 0 {
-		status = styles.dim.Render(fmt.Sprintf("[%d running]", activeCount))
+	if current.IsProcessing() {
+		status = styles.warning.Render("[busy]")
+	} else {
+		status = styles.success.Render("[idle]")
 	}
+
 	return fmt.Sprintf("%s %s> ", styles.agent.Render(current.Name+":"), status)
 }
 
 func (gw *Gateway) printAgentInfo() {
-	current := gw.agentMgr.GetCurrent()
+	agents := gw.ListAgents()
+	current := gw.GetCurrent()
+
+	fmt.Printf("Agents: %d | ", len(agents))
 	if current != nil {
-		fmt.Printf("Current: %s | Workers: %d\n", styles.agent.Render(current.Name), gw.workerCount)
+		fmt.Printf("Current: %s", styles.agent.Render(current.Name))
 	}
-}
-
-func (gw *Gateway) responseListener(ctx context.Context) {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			active := gw.activeReqs.Load().(map[string]*Request)
-
-			for id, req := range active {
-				select {
-				case resp := <-req.ReplyCh:
-					gw.printResponse(resp)
-					// Remove from active
-					newActive := make(map[string]*Request)
-					for k, v := range active {
-						if k != id {
-							newActive[k] = v
-						}
-					}
-					gw.activeReqs.Store(newActive)
-					return // One per tick
-				default:
-				}
-			}
-		}
-	}
-}
-
-func (gw *Gateway) printResponse(resp *Response) {
-	agentName := "unknown"
-	if resp.AgentID != "" {
-		for _, a := range gw.agentMgr.ListAgents() {
-			if a.ID == resp.AgentID {
-				agentName = a.Name
-				break
-			}
-		}
-	}
-
-	if resp.Error != nil {
-		fmt.Println(styles.error.Render(fmt.Sprintf("[%s] Error: %v", agentName, resp.Error)))
-	} else if resp.Content != "" {
-		fmt.Printf("%s %s\n", styles.agent.Render("["+agentName+"]:"), styles.response.Render(resp.Content))
-	}
+	fmt.Println()
 }
 
 func (gw *Gateway) handleCommand(ctx context.Context, input string) bool {
@@ -561,26 +532,30 @@ func (gw *Gateway) handleCommand(ctx context.Context, input string) bool {
 	switch cmd {
 	case "/quit", "/exit", "/q":
 		gw.running.Store(false)
+		gw.cancelFunc()
 		fmt.Println(styles.success.Render("Goodbye!"))
 		os.Exit(0)
 		return true
 
 	case "/cancel", "/c":
-		if gw.CancelCurrent() {
-			fmt.Println(styles.warning.Render("[All requests cancelled]"))
+		if len(args) > 0 {
+			if gw.CancelAgent(args[0]) {
+				fmt.Println(styles.warning.Render(fmt.Sprintf("[%s cancelled]", args[0])))
+			} else {
+				fmt.Println(styles.dim.Render(fmt.Sprintf("[Agent %s not found or idle]", args[0])))
+			}
 		} else {
-			fmt.Println(styles.dim.Render("[No active requests]"))
+			current := gw.GetCurrent()
+			if current != nil && current.Cancel() {
+				fmt.Println(styles.warning.Render(fmt.Sprintf("[%s cancelled]", current.Name)))
+			} else {
+				fmt.Println(styles.dim.Render("[No active task]"))
+			}
 		}
 		return true
 
 	case "/status", "/s":
-		activeCount := gw.GetActiveCount()
-		if activeCount > 0 {
-			fmt.Println(styles.warning.Render(fmt.Sprintf("[%d requests processing]", activeCount)))
-		} else {
-			fmt.Println(styles.success.Render("[Idle]"))
-		}
-		gw.printAgentInfo()
+		gw.printStatus()
 		return true
 
 	case "/agent", "/a":
@@ -594,6 +569,27 @@ func (gw *Gateway) handleCommand(ctx context.Context, input string) bool {
 	default:
 		return false
 	}
+}
+
+func (gw *Gateway) printStatus() {
+	agents := gw.ListAgents()
+	current := gw.GetCurrent()
+
+	fmt.Println(styles.header.Render("\nStatus:"))
+	for _, a := range agents {
+		prefix := "  "
+		if current != nil && current.Name == a.Name {
+			prefix = styles.success.Render("* ")
+		}
+
+		status := styles.success.Render("idle")
+		if a.IsProcessing() {
+			status = styles.warning.Render("busy")
+		}
+
+		fmt.Printf("%s%s: %s\n", prefix, styles.agent.Render(a.Name), status)
+	}
+	fmt.Println()
 }
 
 func (gw *Gateway) handleAgentCommand(ctx context.Context, args []string) {
@@ -618,12 +614,12 @@ func (gw *Gateway) handleAgentCommand(ctx context.Context, args []string) {
 		if len(args) > 2 {
 			prompt = strings.Join(args[2:], " ")
 		}
-		inst, err := gw.agentMgr.CreateAgent(ctx, name, prompt)
+		_, err := gw.CreateAgent(name, prompt)
 		if err != nil {
 			fmt.Println(styles.error.Render(fmt.Sprintf("Failed: %v", err)))
 			return
 		}
-		fmt.Println(styles.success.Render(fmt.Sprintf("[Agent '%s' created: %s]", name, inst.ID)))
+		fmt.Println(styles.success.Render(fmt.Sprintf("[Agent '%s' created (goroutine started)]", name)))
 
 	case "switch", "use", "s":
 		if len(args) < 2 {
@@ -631,43 +627,48 @@ func (gw *Gateway) handleAgentCommand(ctx context.Context, args []string) {
 			return
 		}
 		name := args[1]
-		if err := gw.agentMgr.SetCurrent(name); err != nil {
+		if err := gw.SetCurrent(name); err != nil {
 			fmt.Println(styles.error.Render(fmt.Sprintf("Failed: %v", err)))
 			return
 		}
-		fmt.Println(styles.success.Render(fmt.Sprintf("[Switched to agent '%s']", name)))
+		fmt.Println(styles.success.Render(fmt.Sprintf("[Switched to '%s']", name)))
 
 	case "current", "curr":
-		current := gw.agentMgr.GetCurrent()
+		current := gw.GetCurrent()
 		if current == nil {
 			fmt.Println(styles.dim.Render("[No current agent]"))
 		} else {
-			fmt.Printf("Current: %s (ID: %s, Messages: %d)\n",
+			status := "idle"
+			if current.IsProcessing() {
+				status = "busy"
+			}
+			fmt.Printf("Current: %s | Status: %s\n",
 				styles.agent.Render(current.Name),
-				current.ID,
-				len(current.History))
+				status)
 		}
 
 	default:
-		fmt.Println(styles.error.Render(fmt.Sprintf("Unknown agent command: %s", subCmd)))
+		fmt.Println(styles.error.Render(fmt.Sprintf("Unknown command: %s", subCmd)))
 	}
 }
 
 func (gw *Gateway) printAgentList() {
-	agents := gw.agentMgr.ListAgents()
-	current := gw.agentMgr.GetCurrent()
+	agents := gw.ListAgents()
+	current := gw.GetCurrent()
 
 	fmt.Println(styles.header.Render("\nAgents:"))
 	for _, a := range agents {
 		prefix := "  "
-		if current != nil && current.ID == a.ID {
+		if current != nil && current.Name == a.Name {
 			prefix = styles.success.Render("* ")
 		}
-		fmt.Printf("%s%s (%s) - %d messages\n",
-			prefix,
-			styles.agent.Render(a.Name),
-			a.ID[:8]+"...",
-			len(a.History))
+
+		status := styles.success.Render("idle")
+		if a.IsProcessing() {
+			status = styles.warning.Render("busy")
+		}
+
+		fmt.Printf("%s%s: %s\n", prefix, styles.agent.Render(a.Name), status)
 	}
 	fmt.Println()
 }
@@ -675,17 +676,19 @@ func (gw *Gateway) printAgentList() {
 func printHelp() {
 	fmt.Println(styles.header.Render("\nCommands:"))
 	fmt.Println("  /help, /h, ?              - Show this help")
-	fmt.Println("  /status, /s                - Show status")
-	fmt.Println("  /cancel, /c                - Cancel all requests")
+	fmt.Println("  /status, /s                - Show all agents status")
+	fmt.Println("  /cancel [agent]            - Cancel agent's task")
 	fmt.Println()
 	fmt.Println(styles.header.Render("Agent Commands:"))
 	fmt.Println("  /agent list, /a ls         - List all agents")
-	fmt.Println("  /agent new <name> [prompt] - Create new agent")
+	fmt.Println("  /agent new <name> [prompt] - Create new agent (new goroutine)")
 	fmt.Println("  /agent switch <name>       - Switch to agent")
 	fmt.Println("  /agent current             - Show current agent")
 	fmt.Println()
 	fmt.Println(styles.header.Render("Other:"))
 	fmt.Println("  /quit, /q                  - Exit gateway")
+	fmt.Println()
+	fmt.Println(styles.muted.Render("Each agent runs in its own goroutine - they never block each other!"))
 	fmt.Println()
 }
 
@@ -759,6 +762,7 @@ func runGateway(cmd *cobra.Command, args []string) error {
 	go func() {
 		<-sigChan
 		gw.running.Store(false)
+		gw.cancelFunc()
 		fmt.Println("\n" + styles.success.Render("Shutting down..."))
 		os.Exit(0)
 	}()
