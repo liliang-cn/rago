@@ -101,6 +101,7 @@ type Gateway struct {
 	agentService *agent.Service
 	requestCh    chan *Request
 	currentTask  atomic.Value // *Request
+	activeReqs   atomic.Value // map[string]*Request
 	running      atomic.Bool
 	mu           sync.RWMutex
 }
@@ -117,9 +118,12 @@ func NewGateway(ctx context.Context, cfg *config.Config) (*Gateway, error) {
 		requestCh:    make(chan *Request, 10),
 	}
 	gw.running.Store(true)
+	gw.activeReqs.Store(make(map[string]*Request))
 
 	// Start worker goroutine
 	go gw.worker(ctx)
+	// Start response listener
+	go gw.responseListener(ctx)
 
 	return gw, nil
 }
@@ -144,11 +148,14 @@ func (gw *Gateway) worker(ctx context.Context) {
 }
 
 func (gw *Gateway) processRequest(req *Request) {
+	fmt.Println(styles.dim.Render(fmt.Sprintf("[%s processing...]", req.ID)))
+
 	result, err := gw.agentService.Run(req.Ctx, req.Query)
 
 	resp := &Response{}
 	if err != nil {
 		resp.Error = err
+		fmt.Println(styles.error.Render(fmt.Sprintf("[%s error: %v]", req.ID, err)))
 	} else if result.FinalResult != nil {
 		if str, ok := result.FinalResult.(string); ok {
 			resp.Content = str
@@ -162,7 +169,9 @@ func (gw *Gateway) processRequest(req *Request) {
 
 	select {
 	case req.ReplyCh <- resp:
+		fmt.Println(styles.dim.Render(fmt.Sprintf("[%s response sent]", req.ID)))
 	case <-req.Ctx.Done():
+		fmt.Println(styles.dim.Render(fmt.Sprintf("[%s cancelled]", req.ID)))
 	}
 }
 
@@ -186,6 +195,15 @@ func (gw *Gateway) Submit(ctx context.Context, query string) (*Request, error) {
 	}
 
 	gw.currentTask.Store(req)
+
+	// Add to active requests
+	active := gw.activeReqs.Load().(map[string]*Request)
+	newActive := make(map[string]*Request)
+	for k, v := range active {
+		newActive[k] = v
+	}
+	newActive[req.ID] = req
+	gw.activeReqs.Store(newActive)
 
 	select {
 	case gw.requestCh <- req:
@@ -220,9 +238,6 @@ func (gw *Gateway) Run(ctx context.Context) error {
 	fmt.Println(styles.header.Render("═══════════════════════════════════════"))
 	fmt.Println()
 	fmt.Println(styles.muted.Render("Worker running. Type your message or /help."))
-
-	// Response listener
-	go gw.responseListener(ctx)
 
 	// Input loop (non-blocking)
 	scanner := bufio.NewScanner(os.Stdin)
@@ -261,8 +276,6 @@ func (gw *Gateway) Run(ctx context.Context) error {
 }
 
 func (gw *Gateway) responseListener(ctx context.Context) {
-	// Track active requests for responses
-	activeReqs := make(map[string]*Request)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -271,24 +284,27 @@ func (gw *Gateway) responseListener(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			gw.mu.RLock()
-			if current := gw.currentTask.Load(); current != nil {
-				if req, ok := current.(*Request); ok && req != nil {
-					activeReqs[req.ID] = req
-				}
-			}
-			gw.mu.RUnlock()
+			active := gw.activeReqs.Load().(map[string]*Request)
 
 			// Check for responses
-			for id, req := range activeReqs {
+			for id, req := range active {
 				select {
 				case resp := <-req.ReplyCh:
+					fmt.Println(styles.dim.Render(fmt.Sprintf("[listener got response for %s]", id)))
 					if resp.Error != nil {
 						fmt.Println(styles.error.Render(fmt.Sprintf("Error: %v", resp.Error)))
 					} else if resp.Content != "" {
 						fmt.Println(styles.response.Render(resp.Content))
 					}
-					delete(activeReqs, id)
+					// Remove from active
+					newActive := make(map[string]*Request)
+					for k, v := range active {
+						if k != id {
+							newActive[k] = v
+						}
+					}
+					gw.activeReqs.Store(newActive)
+					return // Process one response per tick to avoid map issues
 				default:
 					// No response yet
 				}

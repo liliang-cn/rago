@@ -60,6 +60,7 @@ It provides unified access to:
 		mcp.SetSharedVariables(cfg, verbose, quiet)
 		profile.SetSharedVariables(cfg, verbose, quiet)
 		agent.SetSharedVariables(cfg, verbose)
+		gateway.SetSharedVariables(cfg, verbose)
 
 		return nil
 	},
@@ -109,7 +110,6 @@ func init() {
 	RootCmd.AddCommand(agent.AgentCmd)
 
 	// Add Gateway command
-	gateway.SetSharedVariables(cfg, verbose)
 	RootCmd.AddCommand(gateway.GatewayCmd)
 
 	// Add Skills command
