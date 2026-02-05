@@ -454,6 +454,30 @@ func (s *Service) RegisterDefaultIntents() error {
 			Metadata: map[string]string{"category": "planning"},
 		},
 
+		// ========== Memory ==========
+		{
+			Name: "memory_save",
+			Utterances: []string{
+				"remember", "save to memory", "memorize", "keep in mind",
+				"my favorite", "i prefer", "i like", "preference is",
+				"don't forget", "store this",
+			},
+			Metadata: map[string]string{"category": "memory", "priority": "high"},
+		},
+		{
+			Name: "memory_recall",
+			Utterances: []string{
+				"what is my favorite", "what do i prefer", "what do you remember",
+				"recall", "what did i say", "do you remember", "from memory",
+				"what are my preferences", "my settings",
+				"favorite color", "favorite food", "my favorite",
+				"what color do i like", "what food do i like",
+				"remember my preference", "what did i tell you",
+				"retrieve from memory", "search memory",
+			},
+			Metadata: map[string]string{"category": "memory", "priority": "high"},
+		},
+
 		// ========== General / Chat ==========
 		{
 			Name: "general_qa",
@@ -499,6 +523,9 @@ func (s *Service) RegisterDefaultIntents() error {
 		"web_search": "web-search.search",
 		"web_scrape": "web-search.scrape",
 		"web_fetch":  "web-search.fetch",
+		// Memory
+		"memory_save":   "memory.save",
+		"memory_recall": "memory.recall",
 	}
 
 	return s.RegisterIntentBatch(defaultIntents, toolMappings)

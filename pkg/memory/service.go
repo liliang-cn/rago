@@ -32,7 +32,7 @@ type Config struct {
 // DefaultConfig returns default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		MinScore:    0.7,
+		MinScore:    0.01, // Very low threshold - cosine similarity can be low for short texts
 		MaxMemories: 5,
 	}
 }

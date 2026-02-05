@@ -3,17 +3,20 @@ package agent
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 
 	"github.com/liliang-cn/rago/v2/pkg/agent"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/memory"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/rag"
 	"github.com/liliang-cn/rago/v2/pkg/router"
 	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
+	"github.com/liliang-cn/rago/v2/pkg/store"
 	"github.com/spf13/cobra"
 )
 
@@ -244,6 +247,68 @@ func initializeSkills(ctx context.Context, ragClient *rag.Client) error {
 	return skillsInitErr
 }
 
+// convertMCPToSkills converts MCP servers to skills (optional auto-conversion)
+func convertMCPToSkills(ctx context.Context, mcpService *mcp.Service) error {
+	// Check if auto-conversion is enabled via environment variable
+	autoConvert := os.Getenv("RAGO_AUTO_CONVERT_MCP") == "true"
+	if !autoConvert {
+		return nil
+	}
+
+	fmt.Println("🔄 Auto-converting MCP servers to Skills...")
+
+	// Create converter config
+	convCfg := mcp.DefaultConverterConfig()
+	homeDir, _ := os.UserHomeDir()
+	skillsDir := filepath.Join(homeDir, ".rago", "skills")
+	convCfg.OutputDir = skillsDir
+
+	// Create converter
+	converter, err := mcp.NewConverter(convCfg, mcpService)
+	if err != nil {
+		return fmt.Errorf("failed to create converter: %w", err)
+	}
+
+	// Convert all servers
+	skills, err := converter.ConvertAllServers(ctx)
+	if err != nil {
+		fmt.Printf("⚠️  Some conversions failed: %v\n", err)
+	}
+
+	// Re-initialize skills service to load new skills
+	if skillsService != nil && len(skills) > 0 {
+		_ = skillsService.LoadAll(ctx)
+		fmt.Printf("✓ Converted %d MCP servers to Skills\n", len(skills))
+	}
+
+	return nil
+}
+
+// initializeMemoryService initializes the memory service for long-term agent memory
+func initializeMemoryService(ctx context.Context, llmService domain.Generator, embedService domain.Embedder) (domain.MemoryService, error) {
+	if embedService == nil {
+		return nil, nil // Embedder required
+	}
+
+	// Create memory store
+	homeDir, _ := os.UserHomeDir()
+	memDBPath := filepath.Join(homeDir, ".rago", "data", "memory.db")
+	memStore, err := store.NewMemoryStore(memDBPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create memory store: %w", err)
+	}
+
+	// Initialize schema
+	if err := memStore.InitSchema(ctx); err != nil {
+		return nil, fmt.Errorf("failed to init memory schema: %w", err)
+	}
+
+	// Create memory service
+	memSvc := memory.NewService(memStore, llmService, embedService, memory.DefaultConfig())
+
+	return memSvc, nil
+}
+
 // initAgentServices initializes RAG client and agent service
 func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error) {
 	globalLLM := services.GetGlobalLLMService()
@@ -283,9 +348,22 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 		fmt.Printf("⚠️  Warning: Some MCP servers failed to start: %v\n", err)
 	}
 
+	// Auto-convert MCP servers to Skills if enabled
+	if err := convertMCPToSkills(ctx, mcpService); err != nil {
+		fmt.Printf("⚠️  Warning: MCP to Skills conversion failed: %v\n", err)
+	}
+
+	// Initialize Memory Service for long-term agent memory
+	memoryService, err := initializeMemoryService(ctx, llmService, embedService)
+	if err != nil {
+		fmt.Printf("⚠️  Warning: Failed to initialize memory service: %v\n", err)
+	} else if memoryService != nil {
+		fmt.Printf("✓ Memory service initialized\n")
+	}
+
 	agentDBPath := getAgentDBPath()
 	adapter := &mcpToolAdapter{service: mcpService}
-	agentService, err := agent.NewService(llmService, adapter, ragClient.GetProcessor(), agentDBPath, nil)
+	agentService, err := agent.NewService(llmService, adapter, ragClient.GetProcessor(), agentDBPath, memoryService)
 	if err != nil {
 		mcpService.Close()
 		ragClient.Close()

@@ -61,10 +61,37 @@ func (s *MemoryStore) InitSchema(ctx context.Context) error {
 
 // Store saves a new memory using Hindsight
 func (s *MemoryStore) Store(ctx context.Context, memory *Memory) error {
+	// Determine bank ID
+	bankID := memory.SessionID
+	if bankID == "" {
+		bankID = "default"
+	}
+
+	// Ensure bank exists before storing memories
+	banks := s.sys.ListBanks()
+	bankExists := false
+	for _, b := range banks {
+		if b.ID == bankID {
+			bankExists = true
+			break
+		}
+	}
+
+	// Create bank if it doesn't exist
+	if !bankExists {
+		defaultBank := hindsight.NewBank(bankID, "User Memory Bank")
+		defaultBank.Skepticism = 3
+		defaultBank.Literalism = 3
+		defaultBank.Empathy = 3
+		if err := s.sys.CreateBank(ctx, defaultBank); err != nil {
+			return fmt.Errorf("failed to create bank: %w", err)
+		}
+	}
+
 	// Map to hindsight.Memory
 	hMem := &hindsight.Memory{
 		ID:         memory.ID,
-		BankID:     memory.SessionID, // Mapping SessionID to BankID
+		BankID:     bankID,
 		Type:       hindsight.MemoryType(memory.Type),
 		Content:    memory.Content,
 		Vector:     toFloat32(memory.Vector),
@@ -73,22 +100,14 @@ func (s *MemoryStore) Store(ctx context.Context, memory *Memory) error {
 		CreatedAt:  memory.CreatedAt,
 	}
 
-	// If session/bank doesn't exist, we might need to create it?
-	// Hindsight usually handles this or we treat it as global if BankID is empty.
-	// If SessionID is empty, it goes to default bank?
-	if hMem.BankID == "" {
-		hMem.BankID = "global"
-	}
-	
-	// Ensure bank exists (optional, depending on Hindsight strictness)
-	// We'll just try to retain.
-	
 	return s.sys.Retain(ctx, hMem)
 }
 
 // Search performs vector search using Hindsight Recall
 func (s *MemoryStore) Search(ctx context.Context, vector []float64, topK int, minScore float64) ([]*MemoryWithScore, error) {
+	// Search in the "default" bank where memories are stored
 	req := &hindsight.RecallRequest{
+		BankID:      "default",
 		QueryVector: toFloat32(vector),
 		TopK:        topK,
 		Strategy:    hindsight.DefaultStrategy(), // Uses default TEMPR fusion

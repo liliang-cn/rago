@@ -205,15 +205,29 @@ func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error
 	// Step 2: Intent Recognition (for context, not routing)
 	intent, _ := s.recognizeIntent(runCtx, goal, session)
 
-	// Step 3: Get memory context
+	// Step 3: RAG Query - get relevant documents from knowledge base
+	var ragContext string
+	if s.ragProcessor != nil {
+		s.emitProgress("thinking", "🔍 Searching knowledge base...", 0, "")
+		var err error
+		ragContext, err = s.performRAGQuery(runCtx, goal)
+		if err != nil {
+			// Log but don't fail - RAG is optional
+			log.Printf("[Agent] RAG query failed: %v", err)
+		} else if ragContext != "" {
+			s.emitProgress("tool_result", fmt.Sprintf("✓ Found %d relevant documents", countDocuments(ragContext)), 0, "")
+		}
+	}
+
+	// Step 4: Get memory context
 	var memoryContext string
 	var memoryMemories []*domain.MemoryWithScore
 	if s.memoryService != nil {
 		memoryContext, memoryMemories, _ = s.memoryService.RetrieveAndInject(runCtx, goal, session.GetID())
 	}
 
-	// Step 4: Let LLM decide and execute
-	finalResult, err := s.executeWithLLM(runCtx, goal, intent, availableTools, memoryContext)
+	// Step 5: Let LLM decide and execute (with RAG context)
+	finalResult, err := s.executeWithLLM(runCtx, goal, intent, availableTools, memoryContext, ragContext)
 	if err != nil {
 		return nil, err
 	}
@@ -240,8 +254,8 @@ func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error
 
 		s.emitProgress("tool_result", fmt.Sprintf("⚠ Verification: %s - Retrying...", reason), 0, "")
 		if verifyAttempt < maxVerifyRetries {
-			// Retry with correction prompt
-			currentResult, err = s.executeWithLLM(runCtx, fmt.Sprintf("%s\n\nPrevious attempt was incomplete. Please ensure: %s", goal, reason), intent, availableTools, memoryContext)
+			// Retry with correction prompt (reuse the same RAG context)
+			currentResult, err = s.executeWithLLM(runCtx, fmt.Sprintf("%s\n\nPrevious attempt was incomplete. Please ensure: %s", goal, reason), intent, availableTools, memoryContext, ragContext)
 			if err != nil {
 				break
 			}
@@ -308,6 +322,50 @@ func (s *Service) collectAllAvailableTools(ctx context.Context) []domain.ToolDef
 		})
 	}
 
+	// Add Memory tools
+	if s.memoryService != nil {
+		tools = append(tools, domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        "memory.save",
+				Description: "Save information to long-term memory for future reference",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"content": map[string]interface{}{
+							"type":        "string",
+							"description": "The information to remember",
+						},
+						"type": map[string]interface{}{
+							"type":        "string",
+							"description": "Type of memory (fact, preference, skill, pattern)",
+							"enum":        []string{"fact", "preference", "skill", "pattern", "context"},
+						},
+					},
+					"required": []string{"content"},
+				},
+			},
+		})
+
+		tools = append(tools, domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        "memory.recall",
+				Description: "Recall information from long-term memory",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"query": map[string]interface{}{
+							"type":        "string",
+							"description": "The query to search memory for",
+						},
+					},
+					"required": []string{"query"},
+				},
+			},
+		})
+	}
+
 	return tools
 }
 
@@ -316,15 +374,27 @@ func (s *Service) buildSystemPrompt() string {
 	systemCtx := s.buildSystemContext()
 
 	var sb strings.Builder
-	sb.WriteString("You are a helpful assistant with access to various tools. Use tools when helpful. After using tools, provide a clear summary of what was done.\n\n")
+	sb.WriteString(`You are a helpful assistant with access to various tools.
+
+IMPORTANT - Tool Response Guidelines:
+- After using tools, provide a clear text response to summarize what was done
+- For memory/save operations: respond with a brief confirmation like "I've saved that to memory" and STOP - do not call memory.save again
+- For memory/recall operations: report what you found and respond to the user's question
+- NEVER repeat the same tool call with the same arguments
+- If a tool succeeds, move to the next step or provide a final answer
+
+`)
 	sb.WriteString(systemCtx.FormatForPrompt())
 
 	return sb.String()
 }
 
 // executeWithLLM lets LLM decide which tool to use and executes with multi-round support
-func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *IntentRecognitionResult, tools []domain.ToolDefinition, memoryContext string) (interface{}, error) {
+func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *IntentRecognitionResult, tools []domain.ToolDefinition, memoryContext string, ragContext string) (interface{}, error) {
 	const maxRounds = 10 // Maximum rounds to prevent infinite loops
+
+	// Track tool calls to detect duplicates
+	prevToolCalls := make(map[string]int)
 
 	// Build system message with context
 	systemMsg := s.buildSystemPrompt()
@@ -333,6 +403,11 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 	messages := []domain.Message{
 		{Role: "system", Content: systemMsg},
 		{Role: "user", Content: goal},
+	}
+
+	// Add RAG context if available
+	if ragContext != "" {
+		messages[len(messages)-1].Content += "\n\n--- Relevant documents from knowledge base ---\n" + ragContext + "\n--- End of documents ---"
 	}
 
 	// Add memory context if available
@@ -363,6 +438,18 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 
 		// If LLM made tool calls, execute them and continue the conversation
 		if len(result.ToolCalls) > 0 {
+
+			// Check for duplicate tool calls (same tool, same arguments)
+			for _, tc := range result.ToolCalls {
+				// Create a simple key for the tool call
+				callKey := fmt.Sprintf("%s:%v", tc.Function.Name, tc.Function.Arguments)
+				prevToolCalls[callKey]++
+				if prevToolCalls[callKey] > 1 {
+					// Duplicate call detected - force stop
+					log.Printf("[Agent] Duplicate tool call detected: %s, stopping", callKey)
+					return "The task has been completed. The information has been saved to memory.", nil
+				}
+			}
 
 			// Execute tools and collect results
 			s.emitProgress("tool_call", fmt.Sprintf("Calling %d tool(s)", len(result.ToolCalls)), round+1, "")
@@ -528,6 +615,50 @@ func (s *Service) executeToolCalls(ctx context.Context, toolCalls []domain.ToolC
 			}
 			err = ragErr
 			toolType = "rag"
+		} else if tc.Function.Name == "memory.save" && s.memoryService != nil {
+			content, _ := tc.Function.Arguments["content"].(string)
+			memType := "preference"
+			if t, ok := tc.Function.Arguments["type"].(string); ok {
+				memType = t
+			}
+			err = s.memoryService.Add(ctx, &domain.Memory{
+				Type:       domain.MemoryType(memType),
+				Content:    content,
+				Importance: 0.8,
+				Metadata: map[string]interface{}{
+					"source": "tool_call",
+				},
+			})
+			if err == nil {
+				result = fmt.Sprintf("Saved to memory: %s", content)
+			}
+			toolType = "memory"
+		} else if tc.Function.Name == "memory.recall" && s.memoryService != nil {
+			query, _ := tc.Function.Arguments["query"].(string)
+			memories, memErr := s.memoryService.Search(ctx, query, 5)
+			if memErr == nil {
+				if len(memories) == 0 {
+					// Fallback: list all recent memories
+					allMems, _, listErr := s.memoryService.List(ctx, 10, 0)
+					if listErr == nil && len(allMems) > 0 {
+						var memResults []string
+						for _, m := range allMems {
+							memResults = append(memResults, fmt.Sprintf("- [%s] %s", m.Type, m.Content))
+						}
+						result = fmt.Sprintf("Recent memories:\n%s", strings.Join(memResults, "\n"))
+					} else {
+						result = "No relevant memories found"
+					}
+				} else {
+					var memResults []string
+					for _, m := range memories {
+						memResults = append(memResults, fmt.Sprintf("- [%s: %.2f] %s", m.Type, m.Score, m.Content))
+					}
+					result = fmt.Sprintf("Found %d memories:\n%s", len(memories), strings.Join(memResults, "\n"))
+				}
+			}
+			err = memErr
+			toolType = "memory"
 		} else {
 			err = fmt.Errorf("unknown tool: %s", tc.Function.Name)
 		}
@@ -916,7 +1047,49 @@ func (s *Service) executeLLMToolCalls(ctx context.Context, toolCalls []domain.To
 	var results []interface{}
 
 	for _, tc := range toolCalls {
-		log.Printf("[Agent] Calling MCP tool: %s", tc.Function.Name)
+		log.Printf("[Agent] Calling tool: %s", tc.Function.Name)
+
+		// Handle memory tools
+		if tc.Function.Name == "memory.save" {
+			content, _ := tc.Function.Arguments["content"].(string)
+			memType := "preference"
+			if t, ok := tc.Function.Arguments["type"].(string); ok {
+				memType = t
+			}
+			err := s.memoryService.Add(ctx, &domain.Memory{
+				Type:       domain.MemoryType(memType),
+				Content:    content,
+				Importance: 0.8,
+				Metadata: map[string]interface{}{
+					"source": "tool_call",
+				},
+			})
+			if err != nil {
+				results = append(results, fmt.Sprintf("Failed to save memory: %v", err))
+			} else {
+				results = append(results, fmt.Sprintf("Saved to memory: %s", content))
+			}
+			continue
+		}
+
+		if tc.Function.Name == "memory.recall" {
+			query, _ := tc.Function.Arguments["query"].(string)
+			memories, err := s.memoryService.Search(ctx, query, 5)
+			if err != nil {
+				results = append(results, fmt.Sprintf("Memory search failed: %v", err))
+			} else if len(memories) == 0 {
+				results = append(results, "No relevant memories found")
+			} else {
+				var memResults []string
+				for _, m := range memories {
+					memResults = append(memResults, fmt.Sprintf("- [%s: %.2f] %s", m.Type, m.Score, m.Content))
+				}
+				results = append(results, fmt.Sprintf("Found %d memories:\n%s", len(memories), strings.Join(memResults, "\n")))
+			}
+			continue
+		}
+
+		// Handle MCP tools
 		result, err := s.mcpService.CallTool(ctx, tc.Function.Name, tc.Function.Arguments)
 		if err != nil {
 			return nil, fmt.Errorf("tool call failed: %w", err)
@@ -935,6 +1108,34 @@ func (s *Service) executeLLMToolCalls(ctx context.Context, toolCalls []domain.To
 func (s *Service) finalizeExecution(ctx context.Context, session *Session, goal string, intent *IntentRecognitionResult, memoryMemories []*domain.MemoryWithScore, ragResult string, finalResult interface{}) (*ExecutionResult, error) {
 	// Store to memory after completion
 	if s.memoryService != nil {
+		// Auto-store for explicit memory request patterns
+		goalLower := strings.ToLower(goal)
+		if strings.HasPrefix(goalLower, "remember:") ||
+			strings.HasPrefix(goalLower, "save to memory") ||
+			strings.HasPrefix(goalLower, "my favorite") ||
+			strings.HasPrefix(goalLower, "i prefer") ||
+			strings.Contains(goalLower, "preference is") {
+
+			// Direct storage for explicit memory requests
+			content := goal
+			if strings.HasPrefix(goalLower, "remember:") {
+				content = strings.TrimSpace(goal[len("remember:"):])
+			} else if strings.HasPrefix(goalLower, "save to memory") {
+				content = strings.TrimSpace(goal[len("save to memory"):])
+			}
+
+			_ = s.memoryService.Add(ctx, &domain.Memory{
+				Type:       domain.MemoryTypePreference,
+				Content:    content,
+				Importance: 0.8,
+				Metadata: map[string]interface{}{
+					"source": "user_direct",
+				},
+			})
+			log.Printf("[Agent] Stored to memory: %s", content)
+		}
+
+		// LLM-based extraction for complex memories
 		_ = s.memoryService.StoreIfWorthwhile(ctx, &domain.MemoryStoreRequest{
 			SessionID:    session.GetID(),
 			TaskGoal:     goal,
@@ -959,4 +1160,65 @@ func (s *Service) finalizeExecution(ctx context.Context, session *Session, goal 
 		FinalResult: finalResult,
 		Duration:    "completed",
 	}, nil
+}
+
+// performRAGQuery performs a RAG query to get relevant documents
+func (s *Service) performRAGQuery(ctx context.Context, query string) (string, error) {
+	if s.ragProcessor == nil {
+		return "", nil
+	}
+
+	// Use the RAG processor to query
+	request := domain.QueryRequest{
+		Query:        query,
+		TopK:         5, // Get top 5 results
+		Temperature:  0.3,
+		ShowThinking: false,
+		ShowSources:  true,
+	}
+
+	results, err := s.ragProcessor.Query(ctx, request)
+	if err != nil {
+		return "", err
+	}
+
+	// Format results as context
+	if results.Answer == "" && len(results.Sources) == 0 {
+		return "", nil
+	}
+
+	var context strings.Builder
+	context.WriteString("## Relevant Documents\n\n")
+
+	// Add answer if available
+	if results.Answer != "" {
+		context.WriteString(fmt.Sprintf("**Answer:** %s\n\n", results.Answer))
+	}
+
+	// Add sources
+	for i, source := range results.Sources {
+		context.WriteString(fmt.Sprintf("### Document %d\n", i+1))
+		if source.DocumentID != "" {
+			context.WriteString(fmt.Sprintf("**Source:** %s\n", source.DocumentID))
+		}
+		if source.Score > 0 {
+			context.WriteString(fmt.Sprintf("**Score:** %.2f\n", source.Score))
+		}
+		if source.Content != "" {
+			context.WriteString(fmt.Sprintf("**Content:** %s\n", source.Content))
+		}
+		context.WriteString("\n---\n\n")
+	}
+
+	return context.String(), nil
+}
+
+// countDocuments counts the number of documents in RAG context
+func countDocuments(ragContext string) int {
+	if ragContext == "" {
+		return 0
+	}
+	// Count "### Document" occurrences
+	count := strings.Count(ragContext, "### Document")
+	return count
 }
