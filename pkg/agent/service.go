@@ -863,6 +863,13 @@ func (s *Service) RunWithSession(ctx context.Context, goal, sessionID string) (*
 		session = NewSessionWithID(sessionID, s.agent.ID())
 	}
 
+	// Add user message to session
+	userMsg := domain.Message{
+		Role:    "user",
+		Content: goal,
+	}
+	session.AddMessage(userMsg)
+
 	// Generate plan
 	plan, err := s.planner.PlanWithFallback(ctx, goal, session)
 	if err != nil {
@@ -878,6 +885,16 @@ func (s *Service) RunWithSession(ctx context.Context, goal, sessionID string) (*
 	result, err := s.executor.ExecutePlan(ctx, plan)
 	if err != nil {
 		return nil, fmt.Errorf("execution failed: %w", err)
+	}
+
+	// Add assistant response to session
+	if result.FinalResult != nil {
+		assistantContent := fmt.Sprintf("%v", result.FinalResult)
+		assistantMsg := domain.Message{
+			Role:    "assistant",
+			Content: assistantContent,
+		}
+		session.AddMessage(assistantMsg)
 	}
 
 	// Save updated plan
