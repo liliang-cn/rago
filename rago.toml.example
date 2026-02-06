@@ -5,12 +5,6 @@
 # Defaults to the directory containing this file if not set
 # home = "~/.rago"
 
-[server]
-port = 7127
-host = "0.0.0.0"       # Set to "127.0.0.1" for local access only
-enable_ui = true       # Enable the Web UI
-cors_origins = ["*"]   # Allowed CORS origins
-
 [llm_pool]
 enabled = true
 strategy = "round_robin" # round_robin, random, least_load, capability, failover
