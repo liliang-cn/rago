@@ -105,7 +105,6 @@ func init() {
 	// Add Skills command
 	RootCmd.AddCommand(skills.Cmd)
 
-	RootCmd.AddCommand(serveCmd)
 	RootCmd.AddCommand(llmCmd)
 	RootCmd.AddCommand(statusCmd)
 }
