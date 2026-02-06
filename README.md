@@ -104,10 +104,12 @@ RAGO provides a powerful CLI for management, but is optimized for library usage:
 
 ## 📚 Documentation & Examples
 
-*   **[Agent Skills Integration](./examples/skills_integration/)**: Connecting custom tools.
-*   **[Session Compaction](./examples/compact_session/)**: Managing long-term agent context.
-*   **[Hybrid RAG System](./examples/advanced_library_usage/)**: Building the knowledge base.
 *   **[Quickstart Guide](./examples/quickstart/)**: Basic setup for Go apps.
+*   **[Advanced RAG](./examples/advanced_rag/)**: Building the knowledge base with metadata and filters.
+*   **[Agent Usage](./examples/agent_usage/)**: Creating autonomous agents with planning and execution.
+*   **[Skills Integration](./examples/skills_integration/)**: Connecting custom tools and Claude skills.
+*   **[Session Compaction](./examples/compact_session/)**: Managing long-term agent context.
+*   **[Intent Routing](./examples/intent_routing/)**: Semantic routing and intent recognition.
 
 ## 📄 License
 MIT License - Copyright (c) 2024-2025 RAGO Authors.

@@ -157,8 +157,7 @@ var serveCmd = &cobra.Command{
 		gin.SetMode(gin.ReleaseMode)
 
 		// Initialize usage service with data directory from config
-		usageDataDir := ".rago/data"
-		usageService, err := usage.NewServiceWithDataDir(cfg, usageDataDir)
+		usageService, err := usage.NewServiceWithDataDir(cfg, cfg.DataDir())
 		if err != nil {
 			return fmt.Errorf("failed to initialize usage service: %w", err)
 		}
@@ -172,7 +171,7 @@ var serveCmd = &cobra.Command{
 		trackedProcessor := usage.NewTrackedRAGProcessor(processorService, usageService)
 
 		// Initialize conversation store
-		dbPath := filepath.Join(usageDataDir, "conversations.db")
+		dbPath := filepath.Join(cfg.DataDir(), "conversations.db")
 		db, err := sql.Open("sqlite3", dbPath)
 		if err != nil {
 			return fmt.Errorf("failed to open conversation database: %w", err)

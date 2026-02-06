@@ -13,6 +13,7 @@ import (
 )
 
 func main() {
+
 	ctx := context.Background()
 
 	// Load config
@@ -27,15 +28,14 @@ func main() {
 		log.Fatalf("Failed to initialize pool: %v", err)
 	}
 
-	// Create agent service with simplified API
+	// Create agent service
 	homeDir, _ := os.UserHomeDir()
-	agentDBPath := filepath.Join(homeDir, ".rago", "data", "test_compact.db")
-	
-	// Ensure directory exists
+	agentDBPath := filepath.Join(homeDir, ".rago", "data", "compact_session.db")
+
 	os.MkdirAll(filepath.Dir(agentDBPath), 0755)
 
 	svc, err := agent.New(&agent.AgentConfig{
-		Name:   "compact-test-agent",
+		Name:   "compact-session-agent",
 		DBPath: agentDBPath,
 	})
 	if err != nil {
@@ -70,10 +70,12 @@ func main() {
 
 	// Verify the summary is used in a new prompt
 	fmt.Println("--- Verifying Summary Usage ---")
-	
+
 	res3, err := svc.RunWithSession(ctx, "Based on what we've discussed, what do you know about me?", sessionID)
 	if err != nil {
 		log.Fatalf("Chat failed: %v", err)
 	}
 	fmt.Printf("Agent: %v\n", res3.FinalResult)
+
+	fmt.Println("\nSession compaction example completed successfully!")
 }

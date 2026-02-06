@@ -6,14 +6,15 @@ import (
 	"log"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/rag"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/providers"
 	"github.com/liliang-cn/rago/v2/pkg/pool"
+	"github.com/liliang-cn/rago/v2/pkg/providers"
+	"github.com/liliang-cn/rago/v2/pkg/rag"
 )
 
 func main() {
+
 	ctx := context.Background()
 
 	fmt.Println("🚀 RAGO v2 Quickstart - All Features Demo")
@@ -207,10 +208,10 @@ func demonstrateAdvancedFeatures(ctx context.Context, client *rag.Client) {
 
 	// Enhanced query with filters
 	opts := &rag.QueryOptions{
-		TopK:         3,
-		Temperature:  0.5,
-		MaxTokens:    300,
-		ShowSources:  true,
+		TopK:        3,
+		Temperature: 0.5,
+		MaxTokens:   300,
+		ShowSources: true,
 		Filters: map[string]interface{}{
 			"type": "demonstration",
 		},

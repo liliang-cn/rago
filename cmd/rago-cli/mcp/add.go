@@ -90,19 +90,19 @@ func runMCPAdd(cmd *cobra.Command, args []string) error {
 	command := args[1]
 
 	// Determine the mcpServers.json file path
+	// 1. Check if local mcpServers.json exists
 	configFile := "./mcpServers.json"
-	if len(Cfg.MCP.Servers) > 0 {
-		configFile = Cfg.MCP.Servers[0]
-	}
-
-	// Also check ~/.rago/ directory
-	homeDir, _ := os.UserHomeDir()
-	homeConfig := filepath.Join(homeDir, ".rago", "mcpServers.json")
-
-	// Check if file exists in current directory, otherwise use home directory
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		if _, err := os.Stat(homeConfig); err == nil {
-			configFile = homeConfig
+		// 2. Use unified path from config
+		configFile = Cfg.MCPServersPath()
+		
+		// 3. Fallback to old ~/.rago/mcpServers.json if it exists but unified doesn't
+		if _, err := os.Stat(configFile); os.IsNotExist(err) {
+			homeDir, _ := os.UserHomeDir()
+			oldHomeConfig := filepath.Join(homeDir, ".rago", "mcpServers.json")
+			if _, err := os.Stat(oldHomeConfig); err == nil {
+				configFile = oldHomeConfig
+			}
 		}
 	}
 
@@ -184,19 +184,19 @@ func runMCPRemove(cmd *cobra.Command, args []string) error {
 	serverName := args[0]
 
 	// Determine the mcpServers.json file path
+	// 1. Check if local mcpServers.json exists
 	configFile := "./mcpServers.json"
-	if len(Cfg.MCP.Servers) > 0 {
-		configFile = Cfg.MCP.Servers[0]
-	}
-
-	// Also check ~/.rago/ directory
-	homeDir, _ := os.UserHomeDir()
-	homeConfig := filepath.Join(homeDir, ".rago", "mcpServers.json")
-
-	// Check if file exists in current directory, otherwise use home directory
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		if _, err := os.Stat(homeConfig); err == nil {
-			configFile = homeConfig
+		// 2. Use unified path from config
+		configFile = Cfg.MCPServersPath()
+		
+		// 3. Fallback to old ~/.rago/mcpServers.json if it exists but unified doesn't
+		if _, err := os.Stat(configFile); os.IsNotExist(err) {
+			homeDir, _ := os.UserHomeDir()
+			oldHomeConfig := filepath.Join(homeDir, ".rago", "mcpServers.json")
+			if _, err := os.Stat(oldHomeConfig); err == nil {
+				configFile = oldHomeConfig
+			}
 		}
 	}
 

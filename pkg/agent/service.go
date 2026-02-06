@@ -1247,8 +1247,7 @@ func New(cfg *AgentConfig) (*Service, error) {
 	var memSvc domain.MemoryService
 	memDBPath := cfg.MemoryDBPath
 	if memDBPath == "" {
-		homeDir, _ := os.UserHomeDir()
-		memDBPath = filepath.Join(homeDir, ".rago", "data", "memory.db")
+		memDBPath = filepath.Join(ragoCfg.DataDir(), "memory.db")
 	}
 	if cfg.EnableMemory {
 		memStore, err := store.NewMemoryStore(memDBPath)
@@ -1275,8 +1274,7 @@ func New(cfg *AgentConfig) (*Service, error) {
 	var ragProcessor domain.Processor
 	if cfg.EnableRAG {
 		// Create RAG stores
-		homeDir, _ := os.UserHomeDir()
-		ragStorePath := filepath.Join(homeDir, ".rago", "data", cfg.Name+"_rag.db")
+		ragStorePath := filepath.Join(ragoCfg.DataDir(), cfg.Name+"_rag.db")
 		vectorStore, _ := ragstore.NewVectorStore(ragstore.StoreConfig{
 			Type: "sqlite",
 			Parameters: map[string]interface{}{
@@ -1303,6 +1301,8 @@ func New(cfg *AgentConfig) (*Service, error) {
 	var skillsSvc *skills.Service
 	if cfg.EnableSkills {
 		skillsCfg := skills.DefaultConfig()
+		skillsCfg.Paths = []string{ragoCfg.SkillsDir()}
+		skillsCfg.DBPath = filepath.Join(ragoCfg.DataDir(), "skills.db")
 		skillsSvc, err = skills.NewService(skillsCfg)
 		if err == nil {
 			_ = skillsSvc.LoadAll(context.Background())
@@ -1312,8 +1312,7 @@ func New(cfg *AgentConfig) (*Service, error) {
 	// Agent DB path
 	agentDBPath := cfg.DBPath
 	if agentDBPath == "" {
-		homeDir, _ := os.UserHomeDir()
-		agentDBPath = filepath.Join(homeDir, ".rago", "data", cfg.Name+".db")
+		agentDBPath = filepath.Join(ragoCfg.DataDir(), cfg.Name+".db")
 	}
 
 	// Create agent service
@@ -1334,7 +1333,7 @@ func New(cfg *AgentConfig) (*Service, error) {
 		// Load custom intents if provided or from default path
 		intentPaths := cfg.IntentPaths
 		if len(intentPaths) == 0 {
-			intentPaths = []string{".intents"}
+			intentPaths = []string{ragoCfg.IntentsDir()}
 		}
 		_ = svc.Router.LoadIntentsFromPaths(intentPaths)
 	}

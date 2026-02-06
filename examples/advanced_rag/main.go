@@ -4,24 +4,23 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/pool"
 	"github.com/liliang-cn/rago/v2/pkg/providers"
 	"github.com/liliang-cn/rago/v2/pkg/rag"
-	"github.com/liliang-cn/rago/v2/pkg/pool"
 )
 
 func main() {
+
 	ctx := context.Background()
 
 	// 1. Configure RAGO
-	// Using struct initialization for complete control
 	cfg := &config.Config{
 		Sqvect: config.SqvectConfig{
-			DBPath:    "./data/library_usage.db",
+			DBPath:    "./data/advanced_rag.db",
 			TopK:      5,
 			Threshold: 0.3,
 		},
@@ -36,11 +35,10 @@ func main() {
 			},
 		},
 	}
-	
-	// Create provider config for pool
+
 	provider := pool.Provider{
 		Name:           "openai",
-		BaseURL:        "http://localhost:11434/v1", // Ollama
+		BaseURL:        "http://localhost:11434/v1",
 		Key:            "ollama",
 		ModelName:      "qwen2.5-coder:14b",
 		MaxConcurrency: 10,
@@ -66,55 +64,62 @@ func main() {
 	embedder, _ := factory.CreateEmbedderProvider(ctx, provConfig)
 
 	// 3. Initialize Client
-	// For advanced usage, we might want custom metadata extractor or other services
-	client, err := rag.NewClient(cfg, embedder, llm, nil) // Using default metadata extractor (LLM-based)
+	client, err := rag.NewClient(cfg, embedder, llm, nil)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 	defer client.Close()
 
 	// 4. Advanced Ingestion with Custom Options
-	fmt.Println("Ingesting documents...")
-	
-	files := []string{"docs/LIBRARY_USAGE.md", "README.md"}
-	for _, file := range files {
-		// Read file content (simulated)
-		content, err := os.ReadFile(file)
-		if err != nil {
-			log.Printf("Skipping %s: %v", file, err)
-			continue
-		}
+	fmt.Println("Ingesting sample documents...")
 
-		// Use advanced options
+	docs := []struct {
+		name    string
+		content string
+	}{
+		{
+			name: "rago_intro.txt",
+			content: `RAGO is an Autonomous Agent & RAG Library for Go.
+It enables you to build autonomous agents with "hands" (MCP Tools & Skills),
+"brains" (Planning & Reasoning), and "memory" (Vector RAG & GraphRAG).`,
+		},
+		{
+			name: "features.txt",
+			content: `RAGO supports multiple LLM providers (OpenAI, Ollama, DeepSeek),
+hybrid RAG (Vector + Knowledge Graph), and MCP tools integration.
+It's designed to be the intelligence layer of your application.`,
+		},
+	}
+
+	for _, doc := range docs {
 		opts := &rag.IngestOptions{
 			Metadata: map[string]interface{}{
-				"source":   "repo",
-				"filetype": "markdown",
+				"source":   "example",
+				"filetype": "text",
 				"priority": "high",
 			},
 		}
 
-		resp, err := client.IngestText(ctx, string(content), file, opts)
+		resp, err := client.IngestText(ctx, doc.content, doc.name, opts)
 		if err != nil {
-			log.Printf("Failed to ingest %s: %v", file, err)
+			log.Printf("Failed to ingest %s: %v", doc.name, err)
 			continue
 		}
-		fmt.Printf("Ingested %s: %d chunks, document ID: %s\n", file, resp.ChunkCount, resp.DocumentID)
+		fmt.Printf("Ingested %s: %d chunks, document ID: %s\n", doc.name, resp.ChunkCount, resp.DocumentID)
 	}
 
 	// 5. Advanced Querying with Filters
 	fmt.Println("\nQuerying knowledge base...")
 
-	query := "How do I use the library in my Go project?"
-	
-	// Advanced query options
+	query := "What are the main features of RAGO?"
+
 	queryOpts := &rag.QueryOptions{
 		TopK:        3,
-		Temperature: 0.1, // More deterministic
+		Temperature: 0.1,
 		MaxTokens:   500,
 		ShowSources: true,
 		Filters: map[string]interface{}{
-			"filetype": "markdown", // Filter by metadata
+			"priority": "high",
 		},
 	}
 
@@ -125,7 +130,7 @@ func main() {
 
 	fmt.Printf("\nQuestion: %s\n", query)
 	fmt.Printf("Answer: %s\n", result.Answer)
-	
+
 	fmt.Println("\nSources:")
 	for i, source := range result.Sources {
 		src := "unknown"
@@ -135,7 +140,6 @@ func main() {
 			}
 		}
 		fmt.Printf("[%d] %s (Score: %.4f)\n", i+1, src, source.Score)
-		// Print snippet if needed
 		if len(source.Content) > 100 {
 			fmt.Printf("    %s...\n", source.Content[:100])
 		} else {
@@ -148,4 +152,6 @@ func main() {
 	if err == nil {
 		fmt.Printf("\nTotal chunks in system: %d\n", stats.TotalChunks)
 	}
+
+	fmt.Println("\nAdvanced RAG example completed successfully!")
 }
