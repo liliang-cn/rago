@@ -35,14 +35,14 @@ var mcpAddCmd = &cobra.Command{
 The server will be added to mcpServers.json and can be used immediately.
 
 Examples:
-  # Add a stdio server
+  # Add a Node.js server via npx
   rago mcp add filesystem "npx -y @modelcontextprotocol/server-filesystem /path/to/allowed"
 
-  # Add with description
-  rago mcp add my-server "python server.py" --desc "My custom server"
+  # Add a Python server via uvx
+  rago mcp add fetch "uvx mcp-server-fetch"
 
-  # Add HTTP server
-  rago mcp add http-server "" --url http://localhost:3000/mcp`,
+  # Add with specific arguments
+  rago mcp add my-server "python server.py" --arg "--debug" --desc "My custom server"`,
 	Args: cobra.MinimumNArgs(2),
 	RunE: runMCPAdd,
 }

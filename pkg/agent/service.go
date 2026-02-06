@@ -53,6 +53,8 @@ type Service struct {
 	progressCb       ProgressCallback
 	currentSessionID string // Auto-generated UUID for Chat() method
 	sessionMu        sync.RWMutex
+	memorySaveMu     sync.RWMutex
+	memorySavedInRun bool
 
 	// Public access to underlying services
 	LLM    domain.Generator
@@ -298,6 +300,8 @@ func (s *Service) ExecutePlan(ctx context.Context, plan *Plan) (*ExecutionResult
 // 2. Intent Recognition
 // 3. Let LLM match intent to tools and execute
 func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error) {
+	s.resetRunMemorySaved()
+
 	// Create cancellable context for this run
 	runCtx, cancel := context.WithCancel(ctx)
 
@@ -407,7 +411,7 @@ func (s *Service) collectAllAvailableTools(ctx context.Context) []domain.ToolDef
 		skillsList, _ := s.skillsService.ListSkills(ctx, skills.SkillFilter{})
 		for _, sk := range skillsList {
 			tools = append(tools, domain.ToolDefinition{
-				Type:     "function",
+				Type: "function",
 				Function: domain.ToolFunction{
 					Name:        sk.ID,
 					Description: sk.Description,
@@ -420,7 +424,7 @@ func (s *Service) collectAllAvailableTools(ctx context.Context) []domain.ToolDef
 	// RAG tools
 	if s.ragProcessor != nil {
 		tools = append(tools, domain.ToolDefinition{
-			Type:     "function",
+			Type: "function",
 			Function: domain.ToolFunction{
 				Name:        "rag_query",
 				Description: "Search knowledge base for information",
@@ -731,6 +735,7 @@ func (s *Service) executeToolCalls(ctx context.Context, toolCalls []domain.ToolC
 			err = ragErr
 			toolType = "rag"
 		} else if tc.Function.Name == "memory.save" && s.memoryService != nil {
+			s.markRunMemorySaved()
 			content, _ := tc.Function.Arguments["content"].(string)
 			memType := "preference"
 			if t, ok := tc.Function.Arguments["type"].(string); ok {
@@ -829,6 +834,24 @@ func (s *Service) formatToolResults(results []ToolExecutionResult) string {
 	}
 
 	return sb.String()
+}
+
+func (s *Service) resetRunMemorySaved() {
+	s.memorySaveMu.Lock()
+	s.memorySavedInRun = false
+	s.memorySaveMu.Unlock()
+}
+
+func (s *Service) markRunMemorySaved() {
+	s.memorySaveMu.Lock()
+	s.memorySavedInRun = true
+	s.memorySaveMu.Unlock()
+}
+
+func (s *Service) hasRunMemorySaved() bool {
+	s.memorySaveMu.RLock()
+	defer s.memorySaveMu.RUnlock()
+	return s.memorySavedInRun
 }
 
 // isMCPTool checks if a tool name is from MCP
@@ -965,6 +988,8 @@ func (s *Service) executeSkills(ctx context.Context, intent *IntentRecognitionRe
 
 // RunWithSession executes a goal with an existing session ID
 func (s *Service) RunWithSession(ctx context.Context, goal, sessionID string) (*ExecutionResult, error) {
+	s.resetRunMemorySaved()
+
 	// Load or create session
 	session, err := s.store.GetSession(sessionID)
 	if err != nil {
@@ -1078,6 +1103,42 @@ func (s *Service) ResetSession() {
 	s.currentSessionID = uuid.New().String()
 }
 
+// CompactSession summarizes a session into key points
+func (s *Service) CompactSession(ctx context.Context, sessionID string) (string, error) {
+	// Load session
+	session, err := s.store.GetSession(sessionID)
+	if err != nil {
+		return "", fmt.Errorf("failed to load session: %w", err)
+	}
+
+	messages := session.GetMessages()
+	if len(messages) == 0 {
+		return "", nil
+	}
+
+	// Check if llmService supports Compact
+	llmSvc, ok := s.llmService.(interface {
+		Compact(ctx context.Context, messages []domain.Message) (string, error)
+	})
+	if !ok {
+		return "", fmt.Errorf("underlying LLM service does not support Compact")
+	}
+
+	// Generate summary
+	summary, err := llmSvc.Compact(ctx, messages)
+	if err != nil {
+		return "", fmt.Errorf("failed to compact session: %w", err)
+	}
+
+	// Update session
+	session.SetSummary(summary)
+	if err := s.store.SaveSession(session); err != nil {
+		return "", fmt.Errorf("failed to save session summary: %w", err)
+	}
+
+	return summary, nil
+}
+
 // Execute executes a plan by ID and returns the result
 func (s *Service) Execute(ctx context.Context, planID string) (*ExecutionResult, error) {
 	plan, err := s.GetPlan(planID)
@@ -1125,6 +1186,9 @@ type AgentConfig struct {
 	EnableMemory bool
 	EnableRAG    bool
 	EnableRouter bool
+	EnableSkills bool
+	IntentPaths  []string
+	RouterThreshold float64
 	ProgressCb   ProgressCallback
 }
 
@@ -1197,7 +1261,11 @@ func New(cfg *AgentConfig) (*Service, error) {
 	// Router service
 	var routerSvc *router.Service
 	if cfg.EnableRouter {
-		routerSvc, err = router.NewService(embedSvc, router.DefaultConfig())
+		routerCfg := router.DefaultConfig()
+		if cfg.RouterThreshold > 0 {
+			routerCfg.Threshold = cfg.RouterThreshold
+		}
+		routerSvc, err = router.NewService(embedSvc, routerCfg)
 		if err == nil {
 			_ = routerSvc.RegisterDefaultIntents()
 		}
@@ -1231,6 +1299,16 @@ func New(cfg *AgentConfig) (*Service, error) {
 		}
 	}
 
+	// Skills service
+	var skillsSvc *skills.Service
+	if cfg.EnableSkills {
+		skillsCfg := skills.DefaultConfig()
+		skillsSvc, err = skills.NewService(skillsCfg)
+		if err == nil {
+			_ = skillsSvc.LoadAll(context.Background())
+		}
+	}
+
 	// Agent DB path
 	agentDBPath := cfg.DBPath
 	if agentDBPath == "" {
@@ -1244,9 +1322,21 @@ func New(cfg *AgentConfig) (*Service, error) {
 		return nil, fmt.Errorf("failed to create agent: %w", err)
 	}
 
+	// Set skills service
+	if skillsSvc != nil {
+		svc.SetSkillsService(skillsSvc)
+	}
+
 	// Set router
 	if routerSvc != nil {
 		svc.SetRouter(routerSvc)
+
+		// Load custom intents if provided or from default path
+		intentPaths := cfg.IntentPaths
+		if len(intentPaths) == 0 {
+			intentPaths = []string{".intents"}
+		}
+		_ = svc.Router.LoadIntentsFromPaths(intentPaths)
 	}
 
 	// Set progress callback
@@ -1281,7 +1371,7 @@ func (a *mcpToolAdapter) ListTools() []domain.ToolDefinition {
 		params := t.InputSchema
 		if params == nil {
 			params = map[string]interface{}{
-				"type":       "object",
+				"type": "object",
 				"properties": map[string]interface{}{
 					"args": map[string]interface{}{
 						"description": "arguments",
@@ -1442,6 +1532,7 @@ func (s *Service) executeLLMToolCalls(ctx context.Context, toolCalls []domain.To
 
 		// Handle memory tools
 		if tc.Function.Name == "memory.save" {
+			s.markRunMemorySaved()
 			content, _ := tc.Function.Arguments["content"].(string)
 			memType := "preference"
 			if t, ok := tc.Function.Arguments["type"].(string); ok {
@@ -1507,30 +1598,32 @@ func (s *Service) finalizeExecution(ctx context.Context, session *Session, goal 
 			strings.HasPrefix(goalLower, "i prefer") ||
 			strings.Contains(goalLower, "preference is") {
 
-			// Direct storage for explicit memory requests
-			content := goal
-			if strings.HasPrefix(goalLower, "remember:") {
-				content = strings.TrimSpace(goal[len("remember:"):])
-			} else if strings.HasPrefix(goalLower, "save to memory") {
-				content = strings.TrimSpace(goal[len("save to memory"):])
-			}
+			if !s.hasRunMemorySaved() {
+				// Direct storage for explicit memory requests
+				content := goal
+				if strings.HasPrefix(goalLower, "remember:") {
+					content = strings.TrimSpace(goal[len("remember:"):])
+				} else if strings.HasPrefix(goalLower, "save to memory") {
+					content = strings.TrimSpace(goal[len("save to memory"):])
+				}
 
-			_ = s.memoryService.Add(ctx, &domain.Memory{
-				Type:       domain.MemoryTypePreference,
-				Content:    content,
-				Importance: 0.8,
-				Metadata: map[string]interface{}{
-					"source": "user_direct",
-				},
-			})
-			log.Printf("[Agent] Stored to memory: %s", content)
+				_ = s.memoryService.Add(ctx, &domain.Memory{
+					Type:       domain.MemoryTypePreference,
+					Content:    content,
+					Importance: 0.8,
+					Metadata: map[string]interface{}{
+						"source": "user_direct",
+					},
+				})
+				log.Printf("[Agent] Stored to memory: %s", content)
+			}
 		}
 
 		// LLM-based extraction for complex memories
 		_ = s.memoryService.StoreIfWorthwhile(ctx, &domain.MemoryStoreRequest{
-			SessionID:    session.GetID(),
-			TaskGoal:     goal,
-			TaskResult:  formatResultForContent(finalResult),
+			SessionID:  session.GetID(),
+			TaskGoal:   goal,
+			TaskResult: formatResultForContent(finalResult),
 			ExecutionLog: fmt.Sprintf("Intent: %s\nMemory: %d items\nRAG: %d chars",
 				intent.IntentType, len(memoryMemories), len(ragResult)),
 		})

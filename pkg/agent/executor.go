@@ -380,31 +380,46 @@ func (e *Executor) executeLLM(ctx context.Context, args map[string]interface{}, 
 
 // buildPromptWithContext builds a prompt including session context
 func (e *Executor) buildPromptWithContext(prompt string, session *Session) string {
-	if session == nil || len(session.GetMessages()) == 0 {
+	if session == nil {
 		return prompt
-	}
-
-	// Get recent messages (exclude the last one since it's the current user query)
-	messages := session.GetMessages()
-	messageCount := len(messages)
-	if messageCount <= 1 {
-		return prompt
-	}
-
-	// Get last N messages for context (up to 10)
-	historyLimit := 10
-	startIdx := 0
-	if messageCount > historyLimit {
-		startIdx = messageCount - historyLimit
 	}
 
 	var sb strings.Builder
-	sb.WriteString("Previous conversation:\n")
-	for i := startIdx; i < messageCount-1; i++ {
-		msg := messages[i]
-		sb.WriteString(fmt.Sprintf("%s: %s\n", msg.Role, msg.Content))
+
+	// Add summary if available
+	if session.Summary != "" {
+		sb.WriteString("Conversation Summary:\n")
+		sb.WriteString(session.Summary)
+		sb.WriteString("\n\n")
 	}
-	sb.WriteString("\nCurrent request:\n")
+
+	messages := session.GetMessages()
+	messageCount := len(messages)
+
+	// If we have messages, add recent ones for context
+	if messageCount > 0 {
+		// Get last N messages for context (up to 10)
+		historyLimit := 10
+		startIdx := 0
+		if messageCount > historyLimit {
+			startIdx = messageCount - historyLimit
+		}
+
+		sb.WriteString("Recent conversation history:\n")
+		// Exclude the last message if it's identical to the current prompt to avoid duplication
+		endIdx := messageCount
+		if messageCount > 0 && messages[messageCount-1].Content == prompt {
+			endIdx = messageCount - 1
+		}
+
+		for i := startIdx; i < endIdx; i++ {
+			msg := messages[i]
+			sb.WriteString(fmt.Sprintf("%s: %s\n", msg.Role, msg.Content))
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("Current Task:\n")
 	sb.WriteString(prompt)
 
 	return sb.String()

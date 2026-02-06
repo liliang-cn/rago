@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
@@ -205,6 +206,17 @@ func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStore
 
 // Add directly adds a memory
 func (s *Service) Add(ctx context.Context, memory *domain.Memory) error {
+	if memory.ID == "" {
+		memory.ID = uuid.New().String()
+	}
+	now := time.Now()
+	if memory.CreatedAt.IsZero() {
+		memory.CreatedAt = now
+	}
+	if memory.UpdatedAt.IsZero() {
+		memory.UpdatedAt = now
+	}
+
 	// Generate embedding if not provided
 	if len(memory.Vector) == 0 && s.embedder != nil {
 		vector, err := s.embedder.Embed(ctx, memory.Content)
@@ -216,17 +228,17 @@ func (s *Service) Add(ctx context.Context, memory *domain.Memory) error {
 
 	// Convert to store memory
 	storeMem := &store.Memory{
-		ID:          memory.ID,
-		SessionID:   memory.SessionID,
-		Type:        string(memory.Type),
-		Content:     memory.Content,
-		Vector:      memory.Vector,
-		Importance:  memory.Importance,
-		AccessCount: memory.AccessCount,
+		ID:           memory.ID,
+		SessionID:    memory.SessionID,
+		Type:         string(memory.Type),
+		Content:      memory.Content,
+		Vector:       memory.Vector,
+		Importance:   memory.Importance,
+		AccessCount:  memory.AccessCount,
 		LastAccessed: memory.LastAccessed,
-		Metadata:    memory.Metadata,
-		CreatedAt:   memory.CreatedAt,
-		UpdatedAt:   memory.UpdatedAt,
+		Metadata:     memory.Metadata,
+		CreatedAt:    memory.CreatedAt,
+		UpdatedAt:    memory.UpdatedAt,
 	}
 
 	return s.store.Store(ctx, storeMem)
@@ -287,13 +299,14 @@ Return JSON with: content (string), importance (number if changed).
 	}
 
 	// 3. Update memory
+	oldContent := storeMem.Content
 	storeMem.Content = update.Content
 	if update.Importance > 0 {
 		storeMem.Importance = update.Importance
 	}
 
 	// Re-embed if content changed
-	if update.Content != storeMem.Content && s.embedder != nil {
+	if update.Content != oldContent && s.embedder != nil {
 		if vector, err := s.embedder.Embed(ctx, update.Content); err == nil {
 			storeMem.Vector = vector
 		}
@@ -457,17 +470,17 @@ func toDomainMemory(sm *store.Memory) *domain.Memory {
 		return nil
 	}
 	return &domain.Memory{
-		ID:          sm.ID,
-		SessionID:   sm.SessionID,
-		Type:        domain.MemoryType(sm.Type),
-		Content:     sm.Content,
-		Vector:      sm.Vector,
-		Importance:  sm.Importance,
-		AccessCount: sm.AccessCount,
+		ID:           sm.ID,
+		SessionID:    sm.SessionID,
+		Type:         domain.MemoryType(sm.Type),
+		Content:      sm.Content,
+		Vector:       sm.Vector,
+		Importance:   sm.Importance,
+		AccessCount:  sm.AccessCount,
 		LastAccessed: sm.LastAccessed,
-		Metadata:    sm.Metadata,
-		CreatedAt:   sm.CreatedAt,
-		UpdatedAt:   sm.UpdatedAt,
+		Metadata:     sm.Metadata,
+		CreatedAt:    sm.CreatedAt,
+		UpdatedAt:    sm.UpdatedAt,
 	}
 }
 

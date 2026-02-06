@@ -5,9 +5,7 @@ import (
 	"fmt"
 
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/agent"
-	"github.com/liliang-cn/rago/v2/cmd/rago-cli/gateway"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/mcp"
-	"github.com/liliang-cn/rago/v2/cmd/rago-cli/profile"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/rag"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/skills"
 	"github.com/liliang-cn/rago/v2/pkg/config"
@@ -58,9 +56,7 @@ It provides unified access to:
 		// Pass shared variables to all packages
 		rag.SetSharedVariables(cfg, verbose, quiet, version)
 		mcp.SetSharedVariables(cfg, verbose, quiet)
-		profile.SetSharedVariables(cfg, verbose, quiet)
 		agent.SetSharedVariables(cfg, verbose)
-		gateway.SetSharedVariables(cfg, verbose)
 
 		return nil
 	},
@@ -103,14 +99,8 @@ func init() {
 	// Add MCP parent command from mcp package
 	RootCmd.AddCommand(mcp.MCPCmd)
 
-	// Add Profile command
-	RootCmd.AddCommand(profile.ProfileCmd)
-
 	// Add Agent command
 	RootCmd.AddCommand(agent.AgentCmd)
-
-	// Add Gateway command
-	RootCmd.AddCommand(gateway.GatewayCmd)
 
 	// Add Skills command
 	RootCmd.AddCommand(skills.Cmd)
