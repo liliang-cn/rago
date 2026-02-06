@@ -11,31 +11,34 @@ host = "0.0.0.0"       # Set to "127.0.0.1" for local access only
 enable_ui = true       # Enable the Web UI
 cors_origins = ["*"]   # Allowed CORS origins
 
-[providers]
-default_llm = "openai"
-default_embedder = "openai"
+[llm_pool]
+enabled = true
+strategy = "round_robin" # round_robin, random, least_load, capability, failover
 
-# OpenAI-compatible provider (Ollama, DeepSeek, LMStudio, etc.)
-[providers.openai]
-type = "openai"
+[[llm_pool.providers]]
+name = "qwen3"
 base_url = "http://localhost:11434/v1"  # Default Ollama URL
-api_key = "ollama"                      # Not needed for Ollama but required by some providers
-llm_model = "qwen3:8b"                # Your preferred LLM model
-embedding_model = "nomic-embed-text"    # Your preferred embedding model
-timeout = "60s"                         # Request timeout
+key = ""                                # API Key if required
+model_name = "qwen3:8b"                 # LLM model name
+max_concurrency = 5                     # Maximum concurrent requests
+capability = 4                          # Capability level (1-5)
 
-# Multi-LLM Pool configuration (Optional)
-# [providers.llm_pool]
-# enabled = false
-# providers = ["openai", "other_provider"]
-# strategy = "round_robin"               # round_robin, random, least_load, failover
-# health_check_interval = "30s"
-# max_retries = 2
+[embedding_pool]
+enabled = true
+strategy = "round_robin"
+
+[[embedding_pool.providers]]
+name = "qwen3-embedding"
+base_url = "http://localhost:11434/v1"
+key = ""
+model_name = "qwen3-embedding:8b"
+max_concurrency = 10
+capability = 4
 
 [sqvect]
 top_k = 5                       # Number of relevant chunks to retrieve
 threshold = 0.5                 # Similarity threshold (0.0 to 1.0)
-index_type = "hnsw"             # Vector index type: hnsw, ivf, or flat
+index_type = "flat"             # Vector index type: hnsw, ivf, or flat
 
 [chunker]
 chunk_size = 500                # Number of characters per chunk
@@ -44,12 +47,12 @@ method = "sentence"             # Chunking method: sentence, paragraph, or token
 
 [ingest]
 [ingest.metadata_extraction]
-enable = false                  # Extract metadata (tags, summary) during ingestion (slower, requires LLM)
-llm_model = "qwen3:8b"        # Model to use for metadata extraction (defaults to default_llm)
+enable = false                  # Extract metadata during ingestion (requires LLM)
 
 [mcp]
 enabled = true                  # Enable Model Context Protocol (MCP) tools
 log_level = "info"
-default_timeout = "30s"
+default_timeout = "5m"
 max_concurrent_requests = 10
 health_check_interval = "60s"
+# Note: System automatically looks for mcpServers.json in your RAGO home directory
