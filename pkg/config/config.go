@@ -75,6 +75,7 @@ func Load(configPath string) (*Config, error) {
 
 		configPaths := []string{
 			"rago.toml",
+			filepath.Join("config", "rago.toml"),
 			filepath.Join(".rago", "rago.toml"),
 			filepath.Join(".rago", "config", "rago.toml"),
 		}
@@ -118,6 +119,28 @@ func Load(configPath string) (*Config, error) {
 	if err := viper.Unmarshal(config); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+
+	// 1. Determine Home directory smartly if it's still the default
+	defaultHome := "~/.rago"
+	if config.Home == "" || config.Home == defaultHome {
+		// Priority 1: Check if ./.rago exists
+		if _, err := os.Stat(".rago"); err == nil {
+			config.Home = ".rago"
+		} else {
+			// Priority 2: Use the directory where rago.toml was found
+			configFile := viper.ConfigFileUsed()
+			if configFile != "" {
+				absConfig, _ := filepath.Abs(configFile)
+				config.Home = filepath.Dir(absConfig)
+			} else {
+				// Priority 3: Fallback to default
+				config.Home = defaultHome
+			}
+		}
+	}
+
+	// 2. Expand Home path now that we've determined it
+	config.Home = expandHomePath(config.Home)
 
 	// 手动处理provider数组（mapstructure无法正确解析嵌套的自定义类型数组）
 	// 使用UnmarshalKey来正确解析
@@ -176,14 +199,15 @@ func Load(configPath string) (*Config, error) {
 		}
 	}
 
-	// Load MCP servers from external JSON file if specified
+	// Resolve all paths before loading MCP JSON
+	config.resolveDatabasePath()
 	config.resolveMCPServerPaths()
+	config.expandPaths()
+
+	// Load MCP servers from external JSON file if specified
 	if err := config.MCP.LoadServersFromJSON(); err != nil {
 		return nil, fmt.Errorf("failed to load MCP servers from JSON: %w", err)
 	}
-
-	config.resolveDatabasePath()
-	config.expandPaths()
 
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
