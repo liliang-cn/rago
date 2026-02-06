@@ -1979,24 +1979,84 @@ $ rago rag reset --confirm</code></pre>
                         <div class="example-header" data-en="HTTP API Usage" data-cn="HTTP API 使用">
                             HTTP API Usage
                         </div>
+                        <div class="example-description" data-en="The built-in HTTP server has been removed in v2.20.0 to focus on CLI and library usage. RAGO is now designed to be embedded into your own Go applications."
+                             data-cn="v2.20.0 版本已移除内置 HTTP 服务器，专注于 CLI 和库的使用。RAGO 现在设计为嵌入到您的 Go 应用程序中。">
+                            The built-in HTTP server has been removed in v2.20.0 to focus on CLI and library usage. RAGO is now designed to be embedded into your own Go applications.
+                        </div>
                         <div class="code-block">
                             <button class="copy-button" onclick="copyCode(this)">Copy</button>
-                            <pre><code># Start API server with UI
-$ rago serve --port 7127 --ui
+                            <pre><code>// Example: Embedding RAGO in your own Gin server
+func main() {
+    // Load RAGO config
+    cfg, _ := config.Load("./rago.toml")
+    
+    // Initialize services
+    globalPool := services.GetGlobalPoolService()
+    globalPool.Initialize(context.Background(), cfg)
+    
+    // Your custom API handler
+    r := gin.Default()
+    r.POST("/query", func(c *gin.Context) {
+        // Use RAGO services directly
+        llmSvc, _ := globalPool.GetLLMService()
+        resp, _ := llmSvc.Generate(c, prompt, nil)
+        c.JSON(200, gin.H{"response": resp})
+    })
+    r.Run(":8080")
+}</code></pre>
+                        </div>
+                    </div>
+                </div>
 
-# RAG Operations
-curl -X POST http://localhost:7127/api/ingest \
-  -H "Content-Type: application/json" \
-  -d '{"file_path": "document.pdf"}'
+                <!-- Go Library Example -->
+                <div id="library-example" class="example-panel">
+                    <div class="example-card">
+                        <div class="example-header" data-en="Go Library Usage" data-cn="Go 库使用">
+                            Go Library Usage
+                        </div>
+                        <div class="code-block">
+                            <button class="copy-button" onclick="copyCode(this)">Copy</button>
+                            <pre><code class="language-go">package main
 
-curl -X POST http://localhost:7127/api/query \
-  -H "Content-Type: application/json" \
-  -d '{"query": "summarize", "top_k": 5, "show_sources": true}'
+import (
+    "context"
+    "fmt"
+    "github.com/liliang-cn/rago/v2/pkg/agent"
+    "github.com/liliang-cn/rago/v2/pkg/config"
+)
 
-# Agent Operations  
-curl -X POST http://localhost:7127/api/agents \
-  -H "Content-Type: application/json" \
-  -d '{"name": "research-agent", "description": "Market research automation"}'
+func main() {
+    ctx := context.Background()
+
+    // 1. Load configuration (Auto-detects Home directory)
+    // Supports ./rago.toml, ~/.rago/rago.toml, or RAGO_HOME env
+    cfg, err := config.Load("") 
+    if err != nil {
+        panic(err)
+    }
+
+    // 2. Create Agent Service
+    // Automatically loads skills, intents, and tools from Home directory
+    agentSvc, err := agent.New(&agent.AgentConfig{
+        Name:         "my-assistant",
+        EnableMCP:    true,
+        EnableSkills: true,
+    })
+    if err != nil {
+        panic(err)
+    }
+
+    // 3. Run Agent
+    result, err := agentSvc.Run(ctx, "Analyze the project structure and summarize key components")
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Printf("Result: %s\n", result.FinalResult)
+}</code></pre>
+                        </div>
+                    </div>
+                </div>
 
 curl -X POST http://localhost:7127/api/agents/research-agent/execute \
   -H "Content-Type: application/json" \
