@@ -62,104 +62,65 @@ type ChunkerConfig struct {
 	Method    string `mapstructure:"method"`
 }
 
-
 func Load(configPath string) (*Config, error) {
 	config := &Config{}
 
+	// 1. Determine the source of truth for Home
+	home := os.Getenv("RAGO_HOME")
+	if home == "" {
+		home = "~/.rago"
+	}
+	home = expandHomePath(home)
+
+	// 2. Set config file path
 	if configPath != "" {
-		viper.SetConfigFile(configPath)
+		absPath, _ := filepath.Abs(configPath)
+		viper.SetConfigFile(absPath)
+		// If user provides a config file, its directory becomes the Home
+		home = filepath.Dir(absPath)
 	} else {
-		// Try multiple locations in order of preference
-		var configFound bool
-		homeDir, _ := os.UserHomeDir()
-
-		configPaths := []string{
-			"rago.toml",
-			filepath.Join("config", "rago.toml"),
-			filepath.Join(".rago", "rago.toml"),
-			filepath.Join(".rago", "config", "rago.toml"),
-		}
-
-		if homeDir != "" {
-			configPaths = append(configPaths, filepath.Join(homeDir, ".rago", "rago.toml"))
-			configPaths = append(configPaths, filepath.Join(homeDir, ".rago", "config", "rago.toml"))
-		}
-
-		for _, path := range configPaths {
-			if _, err := os.Stat(path); err == nil {
-				viper.SetConfigFile(path)
-				configFound = true
-				break
-			}
-		}
-
-		if !configFound {
-			if homeDir != "" {
-				viper.SetConfigFile(filepath.Join(homeDir, ".rago", "rago.toml"))
-			} else {
-				viper.SetConfigFile("rago.toml")
-			}
+		// Check local directory for rago.toml, otherwise use Home
+		if _, err := os.Stat("rago.toml"); err == nil {
+			abs, _ := filepath.Abs("rago.toml")
+			viper.SetConfigFile(abs)
+			home = filepath.Dir(abs)
+		} else {
+			viper.SetConfigFile(filepath.Join(home, "rago.toml"))
 		}
 	}
 
 	setDefaults()
 	bindEnvVars()
 
+	// 3. Read config
 	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			errStr := err.Error()
-			if !strings.Contains(errStr, "no such file") &&
-				!strings.Contains(errStr, "cannot find the file") &&
-				!strings.Contains(errStr, "not found") {
-				return nil, fmt.Errorf("failed to read config file: %w", err)
-			}
+		if configPath != "" {
+			return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
 		}
+		// If default config doesn't exist, we continue with defaults
 	}
 
 	if err := viper.Unmarshal(config); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	// 1. Determine Home directory smartly if it's still the default
-	defaultHome := "~/.rago"
-	if config.Home == "" || config.Home == defaultHome {
-		// Priority 1: Check if ./.rago exists
-		if _, err := os.Stat(".rago"); err == nil {
-			config.Home = ".rago"
-		} else {
-			// Priority 2: Use the directory where rago.toml was found
-			configFile := viper.ConfigFileUsed()
-			if configFile != "" {
-				absConfig, _ := filepath.Abs(configFile)
-				config.Home = filepath.Dir(absConfig)
-			} else {
-				// Priority 3: Fallback to default
-				config.Home = defaultHome
-			}
-		}
+	// 4. Finalize Home
+	if config.Home == "" {
+		config.Home = home
 	}
-
-	// 2. Expand Home path now that we've determined it
 	config.Home = expandHomePath(config.Home)
 
-	// 手动处理provider数组（mapstructure无法正确解析嵌套的自定义类型数组）
-	// 使用UnmarshalKey来正确解析
+	// 手动处理provider数组
 	if viper.IsSet("llm_pool.providers") {
 		var llmPool struct {
 			Enabled   bool
 			Strategy  string
 			Providers []interface{}
 		}
-		if err := viper.UnmarshalKey("llm_pool", &llmPool); err != nil {
-			return nil, fmt.Errorf("failed to parse llm_pool: %w", err)
-		}
+		viper.UnmarshalKey("llm_pool", &llmPool)
 		config.LLMPool.Enabled = llmPool.Enabled
 		config.LLMPool.Strategy = pool.SelectionStrategy(llmPool.Strategy)
-
-		// 解析providers
-		if err := unmarshalProviders(llmPool.Providers, &config.LLMPool.Providers); err != nil {
-			return nil, fmt.Errorf("failed to parse llm_pool.providers: %w", err)
-		}
+		unmarshalProviders(llmPool.Providers, &config.LLMPool.Providers)
 	}
 	if viper.IsSet("embedding_pool.providers") {
 		var embeddingPool struct {
@@ -167,46 +128,32 @@ func Load(configPath string) (*Config, error) {
 			Strategy  string
 			Providers []interface{}
 		}
-		if err := viper.UnmarshalKey("embedding_pool", &embeddingPool); err != nil {
-			return nil, fmt.Errorf("failed to parse embedding_pool: %w", err)
-		}
+		viper.UnmarshalKey("embedding_pool", &embeddingPool)
 		config.EmbeddingPool.Enabled = embeddingPool.Enabled
 		config.EmbeddingPool.Strategy = pool.SelectionStrategy(embeddingPool.Strategy)
-
-		// 解析providers
-		if err := unmarshalProviders(embeddingPool.Providers, &config.EmbeddingPool.Providers); err != nil {
-			return nil, fmt.Errorf("failed to parse embedding_pool.providers: %w", err)
-		}
+		unmarshalProviders(embeddingPool.Providers, &config.EmbeddingPool.Providers)
 	}
 
-	// Initialize MCP config if not properly loaded
+	// Initialize MCP
 	if config.MCP.DefaultTimeout == 0 {
 		defaultMCP := mcp.DefaultConfig()
-		if config.MCP.LogLevel == "" {
-			config.MCP.LogLevel = defaultMCP.LogLevel
-		}
-		if config.MCP.DefaultTimeout == 0 {
-			config.MCP.DefaultTimeout = defaultMCP.DefaultTimeout
-		}
-		if config.MCP.MaxConcurrentRequests == 0 {
-			config.MCP.MaxConcurrentRequests = defaultMCP.MaxConcurrentRequests
-		}
-		if config.MCP.HealthCheckInterval == 0 {
-			config.MCP.HealthCheckInterval = defaultMCP.HealthCheckInterval
-		}
-		if !config.MCP.Enabled && defaultMCP.Enabled {
-			config.MCP.Enabled = defaultMCP.Enabled
-		}
+		config.MCP.LogLevel = defaultMCP.LogLevel
+		config.MCP.DefaultTimeout = defaultMCP.DefaultTimeout
+		config.MCP.MaxConcurrentRequests = defaultMCP.MaxConcurrentRequests
+		config.MCP.HealthCheckInterval = defaultMCP.HealthCheckInterval
+		config.MCP.Enabled = defaultMCP.Enabled
 	}
 
-	// Resolve all paths before loading MCP JSON
+	// Unify all paths under Home
 	config.resolveDatabasePath()
 	config.resolveMCPServerPaths()
 	config.expandPaths()
 
-	// Load MCP servers from external JSON file if specified
+	// Load MCP servers
 	if err := config.MCP.LoadServersFromJSON(); err != nil {
-		return nil, fmt.Errorf("failed to load MCP servers from JSON: %w", err)
+		if config.MCP.Enabled && len(config.MCP.Servers) > 0 {
+			log.Printf("Warning: failed to load MCP servers: %v", err)
+		}
 	}
 
 	if err := config.Validate(); err != nil {
@@ -217,41 +164,34 @@ func Load(configPath string) (*Config, error) {
 }
 
 func (c *Config) resolveMCPServerPaths() {
-	unifiedPath := c.MCPServersPath()
+	// MCP server config is Home/mcpServers.json
+	unifiedPath := filepath.Join(c.Home, "mcpServers.json")
 	
-	// Add unified path if not already present
-	found := false
-	for _, s := range c.MCP.Servers {
-		if s == unifiedPath {
-			found = true
-			break
+	if _, err := os.Stat(unifiedPath); err == nil {
+		found := false
+		for _, s := range c.MCP.Servers {
+			if s == unifiedPath {
+				found = true
+				break
+			}
 		}
-	}
-	
-	if !found {
-		// Prefer local mcpServers.json if it exists, otherwise use unified
-		if _, err := os.Stat("mcpServers.json"); err != nil {
-			c.MCP.Servers = append(c.MCP.Servers, unifiedPath)
+		if !found {
+			c.MCP.Servers = append([]string{unifiedPath}, c.MCP.Servers...)
 		}
 	}
 }
 
 func setDefaults() {
-	viper.SetDefault("home", "~/.rago")
 	viper.SetDefault("server.port", 7127)
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.enable_ui", false)
 	viper.SetDefault("server.cors_origins", []string{"*"})
 
-	// LLM Pool defaults - 不设置具体provider，让配置文件决定
 	viper.SetDefault("llm_pool.enabled", true)
 	viper.SetDefault("llm_pool.strategy", "round_robin")
-
-	// Embedding Pool defaults
 	viper.SetDefault("embedding_pool.enabled", true)
 	viper.SetDefault("embedding_pool.strategy", "round_robin")
 
-	viper.SetDefault("sqvect.db_path", "") // Will be derived from Home if empty
 	viper.SetDefault("sqvect.max_conns", 10)
 	viper.SetDefault("sqvect.batch_size", 100)
 	viper.SetDefault("sqvect.top_k", 5)
@@ -264,15 +204,13 @@ func setDefaults() {
 
 	viper.SetDefault("ingest.metadata_extraction.enable", false)
 
-	// MCP configuration defaults
 	mcpConfig := mcp.DefaultConfig()
 	viper.SetDefault("mcp.enabled", mcpConfig.Enabled)
 	viper.SetDefault("mcp.log_level", mcpConfig.LogLevel)
 	viper.SetDefault("mcp.default_timeout", mcpConfig.DefaultTimeout)
 	viper.SetDefault("mcp.max_concurrent_requests", mcpConfig.MaxConcurrentRequests)
 	viper.SetDefault("mcp.health_check_interval", mcpConfig.HealthCheckInterval)
-	viper.SetDefault("mcp.servers_config_path", mcpConfig.ServersConfigPath)
-	viper.SetDefault("mcp.servers", mcpConfig.Servers)
+	viper.SetDefault("mcp.servers", []string{})
 }
 
 func bindEnvVars() {
@@ -340,14 +278,9 @@ func (c *Config) WorkspaceDir() string {
 	return filepath.Join(c.Home, "workspace")
 }
 
-// ConfigDir returns the path to the config directory
-func (c *Config) ConfigDir() string {
-	return filepath.Join(c.Home, "config")
-}
-
 // MCPServersPath returns the path to the MCP servers configuration file
 func (c *Config) MCPServersPath() string {
-	return filepath.Join(c.ConfigDir(), "mcpServers.json")
+	return filepath.Join(c.Home, "mcpServers.json")
 }
 
 func (c *Config) Validate() error {

@@ -1,14 +1,9 @@
 # RAGO (Retrieval-Augmented Generation Offline) Configuration Example
-# This file can be placed at:
-# 1. ./rago.toml
-# 2. ./.rago/rago.toml
-# 3. ./.rago/config/rago.toml
-# 4. ~/.rago/rago.toml
-# 5. ~/.rago/config/rago.toml
+# Place this file in your project root or ~/.rago/rago.toml
 
 # RAGO Home directory - unified path for all data, skills, and intents
-# All paths (data, skills, intents) will be relative to this if not absolute
-home = "~/.rago"
+# Defaults to the directory containing this file if not set
+# home = "~/.rago"
 
 [server]
 port = 7127
@@ -60,5 +55,5 @@ default_timeout = "30s"
 max_concurrent_requests = 10
 health_check_interval = "60s"
 # Path to MCP server configurations (JSON format)
-# If relative, searched in current directory, home/, and home/config/
-servers = ["./mcpServers.json", "~/.rago/config/mcpServers.json", "~/.rago/mcpServers.json"]
+# Automatically looks for mcpServers.json in your RAGO home directory
+servers = ["./mcpServers.json"]
