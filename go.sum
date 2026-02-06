@@ -111,6 +111,8 @@ github.com/liliang-cn/pipeit v0.1.0 h1:ZU5hkL5SXr6vHtn/gcJBX9i55l0HM4rVsYTfxqn5M
 github.com/liliang-cn/pipeit v0.1.0/go.mod h1:ghxqa1CKTztR5me4vl8srIYQhfv89tc37SnocoXv4/E=
 github.com/liliang-cn/skills-go v1.1.0 h1:HsQsNOSM25O05XnpED+Q6Ojl5WaUSXTaGFimk9aN1Hk=
 github.com/liliang-cn/skills-go v1.1.0/go.mod h1:xOJlzYFFvI/4Ks7FigZMA62hJa+LMcqh0mN/CKSaG5E=
+github.com/liliang-cn/sqvect/v2 v2.3.1 h1:Z86A/VY6B8B7GVj3F5h2UcFnDHdkBgUfm0QFAevf47w=
+github.com/liliang-cn/sqvect/v2 v2.3.1/go.mod h1:u1V9w556jpEdG6uUocGiwzJP7DaWznuEurwLQ94dTCM=
 github.com/lucasb-eyer/go-colorful v1.2.0 h1:1nnpGOrhyZZuNyfu1QjKiUICQ74+3FNCN69Aj6K7nkY=
 github.com/lucasb-eyer/go-colorful v1.2.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
