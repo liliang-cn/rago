@@ -78,6 +78,19 @@ svc, _ := agent.New(&agent.AgentConfig{
 go get github.com/liliang-cn/rago/v2
 ```
 
+## ⚙️ 配置
+
+RAGO 会按以下顺序自动查找配置文件：
+1.  `./rago.toml` (当前目录)
+2.  `~/.rago/rago.toml`
+3.  `~/.rago/config/rago.toml` (推荐)
+
+您可以从 `rago.toml.example` 复制模板开始配置：
+```bash
+mkdir -p ~/.rago/config
+cp rago.toml.example ~/.rago/config/rago.toml
+```
+
 ## 🏗️ 架构设计
 
 RAGO 旨在成为您应用程序的 **智能层（Intelligence Layer）**：

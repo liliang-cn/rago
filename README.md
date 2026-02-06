@@ -87,6 +87,19 @@ Powered by the **Hindsight** system, the agent reflects on its own performance t
 go get github.com/liliang-cn/rago/v2
 ```
 
+## ⚙️ Configuration
+
+RAGO automatically looks for a configuration file in the following order:
+1.  `./rago.toml` (Current directory)
+2.  `~/.rago/rago.toml`
+3.  `~/.rago/config/rago.toml` (Recommended)
+
+You can copy the template from `rago.toml.example` to get started:
+```bash
+mkdir -p ~/.rago/config
+cp rago.toml.example ~/.rago/config/rago.toml
+```
+
 ## 🏗️ Architecture for Integrators
 
 RAGO is designed to be the **Intelligence Layer** of your application:
