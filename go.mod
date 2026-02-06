@@ -26,9 +26,6 @@ require (
 	modernc.org/sqlite v1.38.2
 )
 
-// Use local sqvect during development
-replace github.com/liliang-cn/sqvect/v2 => /Users/liliang/Things/AI/base/sqvect
-
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
