@@ -41,6 +41,9 @@ test:
 	@echo "Running Go tests..."
 	@go test ./... -v
 
+# Alias for CI
+check: test
+
 # Clean build artifacts and databases
 clean:
 	@echo "Cleaning build artifacts..."
