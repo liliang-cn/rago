@@ -439,14 +439,35 @@ func (s *Service) collectAllAvailableTools(ctx context.Context) []domain.ToolDef
 				},
 			},
 		})
-	}
+
+
+		tools = append(tools, domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        "rag_ingest",
+				Description: "Ingest a document into the RAG system",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"content": map[string]interface{}{
+							"type":        "string",
+							"description": "The document content",
+						},
+						"file_path": map[string]interface{}{
+							"type":        "string",
+							"description": "Path to the document file",
+						},
+					},
+				},
+			},
+		})	}
 
 	// Add Memory tools
 	if s.memoryService != nil {
 		tools = append(tools, domain.ToolDefinition{
 			Type: "function",
 			Function: domain.ToolFunction{
-				Name:        "memory.save",
+				Name:        "memory_save",
 				Description: "Save information to long-term memory for future reference",
 				Parameters: map[string]interface{}{
 					"type": "object",
@@ -469,7 +490,7 @@ func (s *Service) collectAllAvailableTools(ctx context.Context) []domain.ToolDef
 		tools = append(tools, domain.ToolDefinition{
 			Type: "function",
 			Function: domain.ToolFunction{
-				Name:        "memory.recall",
+				Name:        "memory_recall",
 				Description: "Recall information from long-term memory",
 				Parameters: map[string]interface{}{
 					"type": "object",
@@ -497,9 +518,9 @@ func (s *Service) buildSystemPrompt() string {
 
 IMPORTANT - Tool Response Guidelines:
 - After using tools, provide a clear text response to summarize what was done
-- For memory/save operations: respond with a brief confirmation like "I've saved that to memory" and STOP - do not call memory.save again
+- For memory/save operations: respond with a brief confirmation like "I've saved that to memory" and STOP - do not call memory_save again
 - For memory/recall operations: report what you found and respond to the user's question
-- NEVER repeat the same tool call with the same arguments
+- NEVER repeat the same tool call with the same arguments. If you already have the information, provide the final answer.
 - If a tool succeeds, move to the next step or provide a final answer
 
 `)
@@ -584,16 +605,24 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 
 			// Add assistant's response (tool calls) to conversation history
 			messages = append(messages, domain.Message{
-				Role:    "assistant",
-				Content: result.Content,
+				Role:      "assistant",
+				Content:   result.Content,
+				ReasoningContent: result.ReasoningContent,
+				ToolCalls: result.ToolCalls,
 			})
 
-			// Add tool results as a new user message for the LLM to process
-			toolResultMsg := fmt.Sprintf("Tool execution results:\n%s", s.formatToolResults(toolResults))
-			messages = append(messages, domain.Message{
-				Role:    "user",
-				Content: toolResultMsg,
-			})
+			// Add tool results using Role: tool
+			for _, tr := range toolResults {
+				resStr := fmt.Sprintf("%v", tr.Result)
+				if s, ok := tr.Result.(string); ok {
+					resStr = s
+				}
+				messages = append(messages, domain.Message{
+					Role:       "tool",
+					Content:    resStr,
+					ToolCallID: tr.ToolCallID,
+				})
+			}
 
 			continue
 		}
@@ -734,7 +763,18 @@ func (s *Service) executeToolCalls(ctx context.Context, toolCalls []domain.ToolC
 			}
 			err = ragErr
 			toolType = "rag"
-		} else if tc.Function.Name == "memory.save" && s.memoryService != nil {
+		} else if tc.Function.Name == "rag_ingest" && s.ragProcessor != nil {
+			content, _ := tc.Function.Arguments["content"].(string)
+			filePath, _ := tc.Function.Arguments["file_path"].(string)
+			_, err = s.ragProcessor.Ingest(ctx, domain.IngestRequest{
+				Content:  content,
+				FilePath: filePath,
+			})
+			if err == nil {
+				result = "Successfully ingested document"
+			}
+			toolType = "rag"
+		} else if tc.Function.Name == "memory_save" && s.memoryService != nil {
 			s.markRunMemorySaved()
 			content, _ := tc.Function.Arguments["content"].(string)
 			memType := "preference"
@@ -753,7 +793,7 @@ func (s *Service) executeToolCalls(ctx context.Context, toolCalls []domain.ToolC
 				result = fmt.Sprintf("Saved to memory: %s", content)
 			}
 			toolType = "memory"
-		} else if tc.Function.Name == "memory.recall" && s.memoryService != nil {
+		} else if tc.Function.Name == "memory_recall" && s.memoryService != nil {
 			query, _ := tc.Function.Arguments["query"].(string)
 			memories, memErr := s.memoryService.Search(ctx, query, 5)
 			if memErr == nil {
@@ -791,9 +831,10 @@ func (s *Service) executeToolCalls(ctx context.Context, toolCalls []domain.ToolC
 		s.emitProgress("tool_result", fmt.Sprintf("✓ %s Done", toolDesc), 0, toolName)
 
 		results = append(results, ToolExecutionResult{
-			ToolName: tc.Function.Name,
-			ToolType: toolType,
-			Result:   result,
+			ToolCallID: tc.ID,
+			ToolName:   tc.Function.Name,
+			ToolType:   toolType,
+			Result:     result,
 		})
 	}
 
@@ -802,9 +843,10 @@ func (s *Service) executeToolCalls(ctx context.Context, toolCalls []domain.ToolC
 
 // ToolExecutionResult represents the result of a single tool execution
 type ToolExecutionResult struct {
-	ToolName string      `json:"tool_name"`
-	ToolType string      `json:"tool_type"`
-	Result   interface{} `json:"result"`
+	ToolCallID string      `json:"tool_call_id"`
+	ToolName   string      `json:"tool_name"`
+	ToolType   string      `json:"tool_type"`
+	Result     interface{} `json:"result"`
 }
 
 // formatToolResults formats tool execution results for LLM consumption
@@ -817,8 +859,8 @@ func (s *Service) formatToolResults(results []ToolExecutionResult) string {
 		// Format result based on type
 		switch v := r.Result.(type) {
 		case string:
-			if len(v) > 500 {
-				sb.WriteString(fmt.Sprintf("Result: %s...\n", v[:500]))
+			if len(v) > 5000 {
+				sb.WriteString(fmt.Sprintf("Result: %s...\n", v[:5000]))
 			} else {
 				sb.WriteString(fmt.Sprintf("Result: %s\n", v))
 			}
@@ -1530,7 +1572,7 @@ func (s *Service) executeLLMToolCalls(ctx context.Context, toolCalls []domain.To
 		log.Printf("[Agent] Calling tool: %s", tc.Function.Name)
 
 		// Handle memory tools
-		if tc.Function.Name == "memory.save" {
+		if tc.Function.Name == "memory_save" {
 			s.markRunMemorySaved()
 			content, _ := tc.Function.Arguments["content"].(string)
 			memType := "preference"
@@ -1553,7 +1595,7 @@ func (s *Service) executeLLMToolCalls(ctx context.Context, toolCalls []domain.To
 			continue
 		}
 
-		if tc.Function.Name == "memory.recall" {
+		if tc.Function.Name == "memory_recall" {
 			query, _ := tc.Function.Arguments["query"].(string)
 			memories, err := s.memoryService.Search(ctx, query, 5)
 			if err != nil {

@@ -119,6 +119,7 @@ type IntentResult struct {
 type Message struct {
 	Role       string     `json:"role"` // user, assistant, tool
 	Content    string     `json:"content"`
+	ReasoningContent string `json:"reasoning_content,omitempty"` 
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
 }
@@ -170,6 +171,7 @@ type FunctionCall struct {
 // GenerationResult represents the result of LLM generation with potential tool calls
 type GenerationResult struct {
 	Content   string     `json:"content"`
+	ReasoningContent string `json:"reasoning_content,omitempty"` 
 	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
 	Finished  bool       `json:"finished"`
 }

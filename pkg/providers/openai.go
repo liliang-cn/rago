@@ -59,7 +59,7 @@ func toOpenAIMessages(messages []domain.Message) ([]openai.ChatCompletionMessage
 		case "system":
 			openAIMessages[i] = openai.SystemMessage(msg.Content)
 		case "tool":
-			openAIMessages[i] = openai.ToolMessage(msg.Content, msg.ToolCallID)
+			openAIMessages[i] = openai.ToolMessage(msg.ToolCallID, msg.Content)
 		case "assistant":
 			assistantMsg := openai.ChatCompletionMessage{
 				Role:    "assistant",
