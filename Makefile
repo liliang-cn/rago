@@ -10,7 +10,7 @@ all: help
 
 # Help target - shows all available commands
 help:
-	@echo "RAGO - Simple Commands"
+	@echo "RAGO - AI Agent SDK designed for Go developers"
 	@echo "====================="
 	@echo ""
 	@echo "  dev         - Start development mode (runs backend directly)"
@@ -28,13 +28,13 @@ dev:
 
 # Build the application
 build: backend
-	@echo "✅ Build complete! Run with: ./rago-cli serve --port 7127"
 
 # Build only the backend (Go binary)
 backend:
 	@echo "Building rago version $(GIT_TAG)..."
-	@go build $(LDFLAGS) -o rago-cli ./cmd/rago-cli
-	@echo "✅ Backend binary built: rago-cli"
+	@mkdir -p bin
+	@go build $(LDFLAGS) -o bin/rago-cli ./cmd/rago-cli
+	@echo "✅ Backend binary built: bin/rago-cli"
 
 # Run all tests
 test:
@@ -47,7 +47,7 @@ check: test
 # Clean build artifacts and databases
 clean:
 	@echo "Cleaning build artifacts..."
-	@rm -f rago-cli
+	@rm -rf bin/
 	@echo "Cleaning databases..."
 	@rm -rf .rago/data/*.db
 

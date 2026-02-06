@@ -79,13 +79,25 @@ func Load(configPath string) (*Config, error) {
 		// If user provides a config file, its directory becomes the Home
 		home = filepath.Dir(absPath)
 	} else {
-		// Check local directory for rago.toml, otherwise use Home
+		// Check order:
+		// 1. ./rago.toml
+		// 2. ~/.rago/rago.toml
+		// 3. ~/.rago/config/rago.toml
 		if _, err := os.Stat("rago.toml"); err == nil {
 			abs, _ := filepath.Abs("rago.toml")
 			viper.SetConfigFile(abs)
 			home = filepath.Dir(abs)
 		} else {
-			viper.SetConfigFile(filepath.Join(home, "rago.toml"))
+			p1 := filepath.Join(home, "rago.toml")
+			p2 := filepath.Join(home, "config", "rago.toml")
+			if _, err := os.Stat(p1); err == nil {
+				viper.SetConfigFile(p1)
+			} else if _, err := os.Stat(p2); err == nil {
+				viper.SetConfigFile(p2)
+			} else {
+				// Fallback to default path
+				viper.SetConfigFile(p1)
+			}
 		}
 	}
 
