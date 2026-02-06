@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -118,28 +117,7 @@ func (c *Config) GetLoadedServers() []ServerConfig {
 
 // loadServerFile loads a single server configuration file
 func (c *Config) loadServerFile(serverFile string) error {
-	// Resolve path - check current directory first, then ~/.rago/
 	configPath := serverFile
-	if !filepath.IsAbs(configPath) {
-		// Try current directory first
-		if _, err := os.Stat(configPath); err != nil {
-			// Try ~/.rago/ and ~/.rago/config/ directories
-			homeDir, err := os.UserHomeDir()
-			if err == nil {
-				// 1. ~/.rago/mcpServers.json
-				ragoPath := filepath.Join(homeDir, ".rago", configPath)
-				if _, err := os.Stat(ragoPath); err == nil {
-					configPath = ragoPath
-				} else {
-					// 2. ~/.rago/config/mcpServers.json
-					configPathSub := filepath.Join(homeDir, ".rago", "config", configPath)
-					if _, err := os.Stat(configPathSub); err == nil {
-						configPath = configPathSub
-					}
-				}
-			}
-		}
-	}
 
 	// Read the JSON file
 	data, err := os.ReadFile(configPath)
