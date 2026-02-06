@@ -3,6 +3,7 @@ package skills
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync"
 
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/rag"
@@ -31,6 +32,13 @@ func initializeSkills(cmd *cobra.Command) error {
 		cfg := skills.DefaultConfig()
 		cfg.AutoLoad = true // Auto-load skills on initialization
 
+		// Initialize RAG processor for skill execution (if config is available)
+		ragCfg := rag.GetConfig()
+		if ragCfg != nil {
+			cfg.Paths = []string{ragCfg.SkillsDir()}
+			cfg.DBPath = filepath.Join(ragCfg.DataDir(), "skills.db")
+		}
+
 		// Create in-memory store for skills persistence
 		skillStore := skills.NewMemoryStore()
 
@@ -42,8 +50,6 @@ func initializeSkills(cmd *cobra.Command) error {
 		}
 		skillsService.SetStore(skillStore)
 
-		// Initialize RAG processor for skill execution (if config is available)
-		ragCfg := rag.GetConfig()
 		if ragCfg != nil {
 			// Initialize vector store
 			vectorStore, err := ragstore.NewSQLiteStore(ragCfg.Sqvect.DBPath, ragCfg.Sqvect.IndexType)

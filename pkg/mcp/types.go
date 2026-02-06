@@ -123,12 +123,19 @@ func (c *Config) loadServerFile(serverFile string) error {
 	if !filepath.IsAbs(configPath) {
 		// Try current directory first
 		if _, err := os.Stat(configPath); err != nil {
-			// Try ~/.rago/ directory
+			// Try ~/.rago/ and ~/.rago/config/ directories
 			homeDir, err := os.UserHomeDir()
 			if err == nil {
+				// 1. ~/.rago/mcpServers.json
 				ragoPath := filepath.Join(homeDir, ".rago", configPath)
 				if _, err := os.Stat(ragoPath); err == nil {
 					configPath = ragoPath
+				} else {
+					// 2. ~/.rago/config/mcpServers.json
+					configPathSub := filepath.Join(homeDir, ".rago", "config", configPath)
+					if _, err := os.Stat(configPathSub); err == nil {
+						configPath = configPathSub
+					}
 				}
 			}
 		}

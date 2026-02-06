@@ -313,6 +313,8 @@ func initializeSkills(ctx context.Context, ragClient *rag.Client) error {
 		// Initialize skills service
 		cfg := skills.DefaultConfig()
 		cfg.AutoLoad = true
+		cfg.Paths = []string{Cfg.SkillsDir()}
+		cfg.DBPath = filepath.Join(Cfg.DataDir(), "skills.db")
 
 		// Create in-memory store for skills persistence
 		skillStore := skills.NewMemoryStore()
@@ -351,9 +353,7 @@ func convertMCPToSkills(ctx context.Context, mcpService *mcp.Service) error {
 
 	// Create converter config
 	convCfg := mcp.DefaultConverterConfig()
-	homeDir, _ := os.UserHomeDir()
-	skillsDir := filepath.Join(homeDir, ".rago", "skills")
-	convCfg.OutputDir = skillsDir
+	convCfg.OutputDir = Cfg.SkillsDir()
 
 	// Create converter
 	converter, err := mcp.NewConverter(convCfg, mcpService)
@@ -383,8 +383,7 @@ func initializeMemoryService(ctx context.Context, llmService domain.Generator, e
 	}
 
 	// Create memory store
-	homeDir, _ := os.UserHomeDir()
-	memDBPath := filepath.Join(homeDir, ".rago", "data", "memory.db")
+	memDBPath := filepath.Join(Cfg.DataDir(), "memory.db")
 	memStore, err := store.NewMemoryStore(memDBPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create memory store: %w", err)
@@ -507,19 +506,8 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 
 // getAgentDBPath returns the agent database path
 func getAgentDBPath() string {
-	dbPath := Cfg.Sqvect.DBPath
-	// Default path
-	agentDBPath := "./.rago/data/agent.db"
-	if len(dbPath) > 3 {
-		// Use same directory as main DB but with agent.db filename
-		dir := filepath.Dir(dbPath)
-		if dir == "." || dir == "" {
-			agentDBPath = "agent.db"
-		} else {
-			agentDBPath = filepath.Join(dir, "agent.db")
-		}
-	}
-	return agentDBPath
+	// Use Cfg.DataDir() for agent database
+	return filepath.Join(Cfg.DataDir(), "agent.db")
 }
 
 // runSimple runs the agent with simple text output

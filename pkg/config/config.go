@@ -15,6 +15,7 @@ import (
 )
 
 type Config struct {
+	Home         string          `mapstructure:"home"`
 	Server       ServerConfig    `mapstructure:"server"`
 	LLMPool      pool.PoolConfig `mapstructure:"llm_pool"`
 	EmbeddingPool pool.PoolConfig `mapstructure:"embedding_pool"`
@@ -75,10 +76,12 @@ func Load(configPath string) (*Config, error) {
 		configPaths := []string{
 			"rago.toml",
 			filepath.Join(".rago", "rago.toml"),
+			filepath.Join(".rago", "config", "rago.toml"),
 		}
 
 		if homeDir != "" {
 			configPaths = append(configPaths, filepath.Join(homeDir, ".rago", "rago.toml"))
+			configPaths = append(configPaths, filepath.Join(homeDir, ".rago", "config", "rago.toml"))
 		}
 
 		for _, path := range configPaths {
@@ -174,6 +177,7 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	// Load MCP servers from external JSON file if specified
+	config.resolveMCPServerPaths()
 	if err := config.MCP.LoadServersFromJSON(); err != nil {
 		return nil, fmt.Errorf("failed to load MCP servers from JSON: %w", err)
 	}
@@ -188,7 +192,28 @@ func Load(configPath string) (*Config, error) {
 	return config, nil
 }
 
+func (c *Config) resolveMCPServerPaths() {
+	unifiedPath := c.MCPServersPath()
+	
+	// Add unified path if not already present
+	found := false
+	for _, s := range c.MCP.Servers {
+		if s == unifiedPath {
+			found = true
+			break
+		}
+	}
+	
+	if !found {
+		// Prefer local mcpServers.json if it exists, otherwise use unified
+		if _, err := os.Stat("mcpServers.json"); err != nil {
+			c.MCP.Servers = append(c.MCP.Servers, unifiedPath)
+		}
+	}
+}
+
 func setDefaults() {
+	viper.SetDefault("home", "~/.rago")
 	viper.SetDefault("server.port", 7127)
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.enable_ui", false)
@@ -202,7 +227,7 @@ func setDefaults() {
 	viper.SetDefault("embedding_pool.enabled", true)
 	viper.SetDefault("embedding_pool.strategy", "round_robin")
 
-	viper.SetDefault("sqvect.db_path", "~/.rago/data/rag.db")
+	viper.SetDefault("sqvect.db_path", "") // Will be derived from Home if empty
 	viper.SetDefault("sqvect.max_conns", 10)
 	viper.SetDefault("sqvect.batch_size", 100)
 	viper.SetDefault("sqvect.top_k", 5)
@@ -230,6 +255,9 @@ func bindEnvVars() {
 	viper.SetEnvPrefix("RAGO")
 	viper.AutomaticEnv()
 
+	if err := viper.BindEnv("home", "RAGO_HOME"); err != nil {
+		log.Printf("Warning: failed to bind home env var: %v", err)
+	}
 	if err := viper.BindEnv("server.port", "RAGO_SERVER_PORT"); err != nil {
 		log.Printf("Warning: failed to bind server.port env var: %v", err)
 	}
@@ -266,6 +294,36 @@ func bindEnvVars() {
 	if err := viper.BindEnv("mcp.health_check_interval", "RAGO_MCP_HEALTH_CHECK_INTERVAL"); err != nil {
 		log.Printf("Warning: failed to bind mcp.health_check_interval env var: %v", err)
 	}
+}
+
+// DataDir returns the path to the data directory
+func (c *Config) DataDir() string {
+	return filepath.Join(c.Home, "data")
+}
+
+// SkillsDir returns the path to the skills directory
+func (c *Config) SkillsDir() string {
+	return filepath.Join(c.Home, "skills")
+}
+
+// IntentsDir returns the path to the intents directory
+func (c *Config) IntentsDir() string {
+	return filepath.Join(c.Home, "intents")
+}
+
+// WorkspaceDir returns the path to the workspace directory
+func (c *Config) WorkspaceDir() string {
+	return filepath.Join(c.Home, "workspace")
+}
+
+// ConfigDir returns the path to the config directory
+func (c *Config) ConfigDir() string {
+	return filepath.Join(c.Home, "config")
+}
+
+// MCPServersPath returns the path to the MCP servers configuration file
+func (c *Config) MCPServersPath() string {
+	return filepath.Join(c.ConfigDir(), "mcpServers.json")
 }
 
 func (c *Config) Validate() error {
@@ -377,20 +435,15 @@ func (c *Config) validateMCPConfig() error {
 }
 
 func (c *Config) resolveDatabasePath() {
-	if c.Sqvect.DBPath != "" && c.Sqvect.DBPath != "~/.rago/data/rag.db" {
+	if c.Sqvect.DBPath != "" {
 		return
 	}
 
-	localDBPath := "./.rago/data/rag.db"
-	if _, err := os.Stat(localDBPath); err == nil {
-		c.Sqvect.DBPath = localDBPath
-		return
-	}
-
-	c.Sqvect.DBPath = "~/.rago/data/rag.db"
+	c.Sqvect.DBPath = filepath.Join(c.DataDir(), "rag.db")
 }
 
 func (c *Config) expandPaths() {
+	c.Home = expandHomePath(c.Home)
 	c.Sqvect.DBPath = expandHomePath(c.Sqvect.DBPath)
 	ensureParentDir(c.Sqvect.DBPath)
 }

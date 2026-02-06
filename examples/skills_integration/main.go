@@ -14,6 +14,7 @@ import (
 )
 
 func main() {
+
 	ctx := context.Background()
 
 	// Load config
@@ -28,14 +29,13 @@ func main() {
 		log.Fatalf("Failed to initialize pool: %v", err)
 	}
 
-	// Create agent service with simplified API
+	// Create agent service
 	homeDir, _ := os.UserHomeDir()
-	agentDBPath := filepath.Join(homeDir, ".rago", "data", "test_skills.db")
+	agentDBPath := filepath.Join(homeDir, ".rago", "data", "skills_integration.db")
 	os.MkdirAll(filepath.Dir(agentDBPath), 0755)
 
-	// NEW: Simply set EnableSkills to true
 	svc, err := agent.New(&agent.AgentConfig{
-		Name:         "skills-test-agent",
+		Name:         "skills-integration-agent",
 		DBPath:       agentDBPath,
 		EnableSkills: true,
 	})
@@ -44,22 +44,25 @@ func main() {
 	}
 	defer svc.Close()
 
-	fmt.Println("--- Available Skills ---")
-	// You can still access the service via svc.Skills if needed
+	fmt.Println("--- Skills Integration Demo ---")
+	// List available skills
 	if svc.Skills != nil {
 		skillsList, _ := svc.Skills.ListSkills(ctx, skills.SkillFilter{})
+		fmt.Printf("Found %d skills:\n", len(skillsList))
 		for _, sk := range skillsList {
 			fmt.Printf("- %s: %s\n", sk.ID, sk.Description)
 		}
 	}
 	fmt.Println()
 
-	// Run a goal that should trigger the test-skill
-	fmt.Println("--- Running Goal: Greet Bob ---")
-	res, err := svc.Run(ctx, "Please use the test-skill to greet Bob.")
+	// Run a goal
+	fmt.Println("--- Running Goal: What can you help me with? ---")
+	res, err := svc.Run(ctx, "What skills do you have available?")
 	if err != nil {
 		log.Fatalf("Run failed: %v", err)
 	}
 
 	fmt.Printf("\nFinal Result: %v\n", res.FinalResult)
+
+	fmt.Println("\nSkills integration example completed successfully!")
 }

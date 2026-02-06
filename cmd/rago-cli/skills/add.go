@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/liliang-cn/rago/v2/cmd/rago-cli/rag"
 	"github.com/spf13/cobra"
 )
 
@@ -140,12 +141,17 @@ func runRemove(cmd *cobra.Command, args []string) error {
 
 // getDefaultSkillsPaths returns the default skills paths
 func getDefaultSkillsPaths() []string {
-	homeDir, _ := os.UserHomeDir()
-	return []string{
-		".skills",
-		filepath.Join(".rago", "skills"),
-		filepath.Join(homeDir, ".rago", "skills"),
+	paths := []string{".skills"}
+
+	if cfg := rag.GetConfig(); cfg != nil {
+		paths = append(paths, cfg.SkillsDir())
+	} else {
+		homeDir, _ := os.UserHomeDir()
+		paths = append(paths, filepath.Join(".rago", "skills"))
+		paths = append(paths, filepath.Join(homeDir, ".rago", "skills"))
 	}
+
+	return paths
 }
 
 // sanitizeSkillName sanitizes the skill name
@@ -204,11 +210,16 @@ func isWritablePath(path string) bool {
 // findSkillDirectory finds the directory for a given skill name
 func findSkillDirectory(skillName string) (string, error) {
 	// Check common paths
-	homeDir, _ := os.UserHomeDir()
 	paths := []string{
 		filepath.Join(".skills", skillName),
-		filepath.Join("./.rago/skills", skillName),
-		filepath.Join(homeDir, ".rago/skills", skillName),
+	}
+
+	if cfg := rag.GetConfig(); cfg != nil {
+		paths = append(paths, filepath.Join(cfg.SkillsDir(), skillName))
+	} else {
+		homeDir, _ := os.UserHomeDir()
+		paths = append(paths, filepath.Join("./.rago/skills", skillName))
+		paths = append(paths, filepath.Join(homeDir, ".rago/skills", skillName))
 	}
 
 	for _, p := range paths {
@@ -217,5 +228,5 @@ func findSkillDirectory(skillName string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("skill not found: %s (checked in .skills, ./.rago/skills, ~/.rago/skills)", skillName)
+	return "", fmt.Errorf("skill not found: %s (checked in %s)", skillName, strings.Join(paths, ", "))
 }
