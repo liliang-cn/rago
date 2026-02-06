@@ -44,6 +44,7 @@ type Step struct {
 	Result      interface{}            `json:"result,omitempty"`
 	Error       string                 `json:"error,omitempty"`
 	DependsOn   []string               `json:"depends_on,omitempty"` // IDs of steps this step depends on
+	OutputFile  string                 `json:"output_file,omitempty"`  // Write result to this file
 	StartedAt   *time.Time             `json:"started_at,omitempty"`
 	CompletedAt *time.Time            `json:"completed_at,omitempty"`
 }

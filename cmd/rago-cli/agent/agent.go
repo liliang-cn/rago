@@ -55,6 +55,50 @@ var runCmd = &cobra.Command{
 	},
 }
 
+// executeCmd executes an existing plan by ID
+var executeCmd = &cobra.Command{
+	Use:   "execute [plan-id]",
+	Short: "Execute an existing plan",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		planID := args[0]
+		ctx := context.Background()
+
+		_, agentService, err := initAgentServices(ctx)
+		if err != nil {
+			return err
+		}
+		defer agentService.Close()
+
+		// Get the plan
+		plan, err := agentService.GetPlan(planID)
+		if err != nil {
+			return fmt.Errorf("plan not found: %w", err)
+		}
+
+		fmt.Printf("🎯 Executing Plan: %s\n", plan.ID)
+		fmt.Printf("📋 Goal: %s\n\n", plan.Goal)
+
+		// Execute the plan
+		result, err := agentService.ExecutePlan(ctx, plan)
+		if err != nil {
+			return fmt.Errorf("execution failed: %w", err)
+		}
+
+		// Print result
+		fmt.Println("\n--- Results ---")
+		if result.FinalResult != nil {
+			fmt.Printf("\n--- Final Result ---\n%v\n", result.FinalResult)
+		}
+		if result.Duration != "" {
+			fmt.Printf("Duration: %s\n", result.Duration)
+		}
+		fmt.Printf("Steps: %d done, %d failed\n", result.StepsDone, result.StepsFailed)
+
+		return nil
+	},
+}
+
 // planCmd creates a plan without executing
 var planCmd = &cobra.Command{
 	Use:   "plan [goal]",
@@ -156,9 +200,57 @@ var sessionGetCmd = &cobra.Command{
 	},
 }
 
+// reviseCmd revises an existing plan
+var reviseCmd = &cobra.Command{
+	Use:   "revise [plan-id] [instruction]",
+	Short: "Revise an existing plan with natural language",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		planID := args[0]
+		instruction := args[1]
+		ctx := context.Background()
+
+		_, agentService, err := initAgentServices(ctx)
+		if err != nil {
+			return err
+		}
+		defer agentService.Close()
+
+		// Get the original plan
+		plan, err := agentService.GetPlan(planID)
+		if err != nil {
+			return fmt.Errorf("plan not found: %w", err)
+		}
+
+		fmt.Printf("📋 Original Plan: %s\n\n", plan.Goal)
+		fmt.Println("Steps:")
+		for i, step := range plan.Steps {
+			fmt.Printf("  %d. [%s] %s\n", i+1, step.Tool, step.Description)
+		}
+
+		// Revise the plan
+		fmt.Printf("\n✏️  Revising with: %s\n\n", instruction)
+		revised, err := agentService.RevisePlan(ctx, plan, instruction)
+		if err != nil {
+			return fmt.Errorf("revision failed: %w", err)
+		}
+
+		fmt.Printf("📋 Revised Plan ID: %s\n", revised.ID)
+		fmt.Printf("Goal: %s\n\n", revised.Goal)
+		fmt.Println("Revised Steps:")
+		for i, step := range revised.Steps {
+			fmt.Printf("  %d. [%s] %s\n", i+1, step.Tool, step.Description)
+		}
+
+		return nil
+	},
+}
+
 func init() {
 	AgentCmd.AddCommand(runCmd)
 	AgentCmd.AddCommand(planCmd)
+	AgentCmd.AddCommand(executeCmd)
+	AgentCmd.AddCommand(reviseCmd)
 	AgentCmd.AddCommand(sessionCmd)
 	sessionCmd.AddCommand(sessionListCmd)
 	sessionCmd.AddCommand(sessionGetCmd)

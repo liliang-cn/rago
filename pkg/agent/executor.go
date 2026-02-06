@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -57,7 +59,7 @@ func (e *Executor) SetSkillsService(skillsService *skills.Service) {
 }
 
 // ExecutePlan executes a plan step by step
-func (e *Executor) ExecutePlan(ctx context.Context, plan *Plan) (*ExecutionResult, error) {
+func (e *Executor) ExecutePlan(ctx context.Context, plan *Plan, session *Session) (*ExecutionResult, error) {
 	startTime := time.Now()
 	plan.Status = PlanStatusRunning
 
@@ -81,7 +83,7 @@ func (e *Executor) ExecutePlan(ctx context.Context, plan *Plan) (*ExecutionResul
 		}
 
 		// Execute the step
-		result, err := e.ExecuteStep(ctx, step, plan)
+		result, err := e.ExecuteStep(ctx, step, plan, session)
 		if err != nil {
 			step.Status = StepStatusFailed
 			step.Error = err.Error()
@@ -146,7 +148,7 @@ func (e *Executor) ExecutePlan(ctx context.Context, plan *Plan) (*ExecutionResul
 }
 
 // ExecuteStep executes a single step
-func (e *Executor) ExecuteStep(ctx context.Context, step *Step, plan *Plan) (interface{}, error) {
+func (e *Executor) ExecuteStep(ctx context.Context, step *Step, plan *Plan, session *Session) (interface{}, error) {
 	step.Status = StepStatusRunning
 	startTime := time.Now()
 	step.StartedAt = &startTime
@@ -155,9 +157,16 @@ func (e *Executor) ExecuteStep(ctx context.Context, step *Step, plan *Plan) (int
 	args := e.preprocessArguments(step, plan)
 
 	// Route to appropriate executor based on tool name
-	result, err := e.executeTool(ctx, step.Tool, args, plan)
+	result, err := e.executeTool(ctx, step.Tool, args, plan, session)
 	if err != nil {
 		return nil, fmt.Errorf("tool execution failed: %w", err)
+	}
+
+	// Write result to file if OutputFile is specified
+	if step.OutputFile != "" && result != nil {
+		if err := e.writeResultToFile(step.OutputFile, result); err != nil {
+			return nil, fmt.Errorf("failed to write to file %s: %w", step.OutputFile, err)
+		}
 	}
 
 	return result, nil
@@ -242,7 +251,7 @@ func isFileWriteTool(toolName string) bool {
 }
 
 // executeTool routes the tool call to the appropriate executor
-func (e *Executor) executeTool(ctx context.Context, toolName string, args map[string]interface{}, plan *Plan) (interface{}, error) {
+func (e *Executor) executeTool(ctx context.Context, toolName string, args map[string]interface{}, plan *Plan, session *Session) (interface{}, error) {
 	// Normalize args to ensure we have a valid map
 	if args == nil {
 		args = make(map[string]interface{})
@@ -285,7 +294,7 @@ func (e *Executor) executeTool(ctx context.Context, toolName string, args map[st
 
 	// Fall back to LLM for general reasoning
 	if toolName == "llm" || toolName == "generate" {
-		return e.executeLLM(ctx, args, plan)
+		return e.executeLLM(ctx, args, plan, session)
 	}
 
 	return nil, fmt.Errorf("unknown tool: %s", toolName)
@@ -335,7 +344,7 @@ func (e *Executor) tryRAGTool(ctx context.Context, toolName string, args map[str
 // tryMCPTool attempts to execute an MCP tool
 
 // executeLLM executes a general LLM call
-func (e *Executor) executeLLM(ctx context.Context, args map[string]interface{}, plan *Plan) (interface{}, error) {
+func (e *Executor) executeLLM(ctx context.Context, args map[string]interface{}, plan *Plan, session *Session) (interface{}, error) {
 	prompt, ok := args["prompt"].(string)
 	if !ok || prompt == "" {
 		// Fall back to using the goal or step description
@@ -346,6 +355,9 @@ func (e *Executor) executeLLM(ctx context.Context, args map[string]interface{}, 
 			return nil, fmt.Errorf("missing 'prompt' argument")
 		}
 	}
+
+	// Build prompt with session context
+	fullPrompt := e.buildPromptWithContext(prompt, session)
 
 	opts := &domain.GenerationOptions{
 		Temperature: 0.7,
@@ -358,12 +370,44 @@ func (e *Executor) executeLLM(ctx context.Context, args map[string]interface{}, 
 		opts.MaxTokens = int(maxTokens)
 	}
 
-	result, err := e.llmService.Generate(ctx, prompt, opts)
+	result, err := e.llmService.Generate(ctx, fullPrompt, opts)
 	if err != nil {
 		return nil, fmt.Errorf("LLM generation failed: %w", err)
 	}
 
 	return result, nil
+}
+
+// buildPromptWithContext builds a prompt including session context
+func (e *Executor) buildPromptWithContext(prompt string, session *Session) string {
+	if session == nil || len(session.GetMessages()) == 0 {
+		return prompt
+	}
+
+	// Get recent messages (exclude the last one since it's the current user query)
+	messages := session.GetMessages()
+	messageCount := len(messages)
+	if messageCount <= 1 {
+		return prompt
+	}
+
+	// Get last N messages for context (up to 10)
+	historyLimit := 10
+	startIdx := 0
+	if messageCount > historyLimit {
+		startIdx = messageCount - historyLimit
+	}
+
+	var sb strings.Builder
+	sb.WriteString("Previous conversation:\n")
+	for i := startIdx; i < messageCount-1; i++ {
+		msg := messages[i]
+		sb.WriteString(fmt.Sprintf("%s: %s\n", msg.Role, msg.Content))
+	}
+	sb.WriteString("\nCurrent request:\n")
+	sb.WriteString(prompt)
+
+	return sb.String()
 }
 
 // dependenciesSatisfied checks if all dependencies for a step are satisfied
@@ -494,4 +538,25 @@ func (e *Executor) buildExecutionLog(plan *Plan) string {
 	}
 
 	return sb.String()
+}
+
+// writeResultToFile writes the result content to a file
+func (e *Executor) writeResultToFile(filePath string, result interface{}) error {
+	content := formatResultForContent(result)
+
+	// Create directory if needed
+	dir := filepath.Dir(filePath)
+	if dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
+	// Write to file
+	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	log.Printf("[Agent] ✅ Wrote result to %s (%d bytes)\n", filePath, len(content))
+	return nil
 }

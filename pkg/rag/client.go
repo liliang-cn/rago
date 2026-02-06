@@ -900,7 +900,8 @@ func (c *Client) ExecuteAgentPlan(ctx context.Context, plan *agent.Plan) error {
 		return err
 	}
 
-	return c.agentService.ExecutePlan(ctx, plan)
+	_, err := c.agentService.ExecutePlan(ctx, plan)
+	return err
 }
 
 // GetAgentSession retrieves an agent session by ID

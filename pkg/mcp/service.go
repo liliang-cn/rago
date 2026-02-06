@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
+	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
@@ -13,6 +15,14 @@ type Service struct {
 	manager       *Manager
 	llm           domain.Generator
 	mcpConfig     *Config
+	conversations map[string]*Conversation
+	convMu        sync.RWMutex
+}
+
+// Conversation represents a chat conversation with history
+type Conversation struct {
+	ID       string
+	Messages []domain.Message
 }
 
 // NewService creates a new MCP service
@@ -26,9 +36,10 @@ func NewService(mcpConfig *Config, llm domain.Generator) (*Service, error) {
 	manager := NewManager(mcpConfig)
 
 	return &Service{
-		manager:   manager,
-		llm:       llm,
-		mcpConfig: mcpConfig,
+		manager:       manager,
+		llm:           llm,
+		mcpConfig:     mcpConfig,
+		conversations: make(map[string]*Conversation),
 	}, nil
 }
 
@@ -133,8 +144,8 @@ func DefaultChatOptions() *ChatOptions {
 	}
 }
 
-// Chat performs an MCP-enabled chat interaction
-func (s *Service) Chat(ctx context.Context, message string, opts *ChatOptions) (*ChatResponse, error) {
+// ChatSingle performs a single MCP chat interaction (no memory)
+func (s *Service) ChatSingle(ctx context.Context, message string, opts *ChatOptions) (*ChatResponse, error) {
 	if opts == nil {
 		opts = DefaultChatOptions()
 	}
@@ -240,6 +251,181 @@ func (s *Service) Chat(ctx context.Context, message string, opts *ChatOptions) (
 		Message:   result.Content,
 		ToolCalls: executedCalls,
 	}, nil
+}
+
+// ============================================
+// Chat API with Memory
+// ============================================
+
+// Chat sends a message with conversation history (auto UUID session)
+func (s *Service) Chat(ctx context.Context, message string) (*ChatResponse, error) {
+	s.convMu.Lock()
+	if len(s.conversations) == 0 {
+		conv := &Conversation{
+			ID:       uuid.New().String(),
+			Messages: []domain.Message{},
+		}
+		s.conversations[conv.ID] = conv
+	}
+	var convID string
+	for id := range s.conversations {
+		convID = id
+		break
+	}
+	s.convMu.Unlock()
+
+	return s.ChatWithID(ctx, convID, message, nil)
+}
+
+// ChatWithID sends a message to a specific conversation
+func (s *Service) ChatWithID(ctx context.Context, convID, message string, opts *ChatOptions) (*ChatResponse, error) {
+	s.convMu.Lock()
+	conv, exists := s.conversations[convID]
+	if !exists {
+		conv = &Conversation{
+			ID:       convID,
+			Messages: []domain.Message{},
+		}
+		s.conversations[convID] = conv
+	}
+	s.convMu.Unlock()
+
+	if opts == nil {
+		opts = DefaultChatOptions()
+	}
+
+	// Add user message
+	conv.Messages = append(conv.Messages, domain.Message{
+		Role:    "user",
+		Content: message,
+	})
+
+	// Get tools
+	tools := s.manager.GetAvailableTools(ctx)
+	if len(opts.AllowedServers) > 0 {
+		filtered := []AgentToolInfo{}
+		for _, tool := range tools {
+			for _, allowed := range opts.AllowedServers {
+				if tool.ServerName == allowed {
+					filtered = append(filtered, tool)
+					break
+				}
+			}
+		}
+		tools = filtered
+	}
+
+	// Convert to tool definitions
+	toolDefs := make([]domain.ToolDefinition, 0, len(tools))
+	for _, tool := range tools {
+		var parameters map[string]interface{}
+		if tool.InputSchema != nil && len(tool.InputSchema) > 0 {
+			parameters = tool.InputSchema
+		} else {
+			parameters = map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			}
+		}
+		toolDefs = append(toolDefs, domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        tool.Name,
+				Description: tool.Description,
+				Parameters:  parameters,
+			},
+		})
+	}
+
+	// Build messages with history
+	messages := make([]domain.Message, len(conv.Messages))
+	copy(messages, conv.Messages)
+
+	// Add system prompt if provided
+	if opts.SystemPrompt != "" {
+		messages = append([]domain.Message{
+			{Role: "system", Content: opts.SystemPrompt},
+		}, messages...)
+	}
+
+	// Generate
+	genOpts := &domain.GenerationOptions{
+		Temperature: opts.Temperature,
+		MaxTokens:   opts.MaxTokens,
+	}
+
+	result, err := s.llm.GenerateWithTools(ctx, messages, toolDefs, genOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate: %w", err)
+	}
+
+	// Execute tool calls
+	var executedCalls []ExecutedToolCall
+	if len(result.ToolCalls) > 0 && opts.MaxToolCalls > 0 {
+		for i, call := range result.ToolCalls {
+			if i >= opts.MaxToolCalls {
+				break
+			}
+			toolResult, err := s.manager.CallTool(ctx, call.Function.Name, call.Function.Arguments)
+			executed := ExecutedToolCall{
+				ToolName:  call.Function.Name,
+				Arguments: call.Function.Arguments,
+				Success:   toolResult != nil && toolResult.Success,
+			}
+			if err != nil {
+				executed.Error = err.Error()
+			} else if toolResult != nil {
+				executed.Result = toolResult.Data
+			}
+			executedCalls = append(executedCalls, executed)
+		}
+	}
+
+	// Add assistant response to conversation
+	conv.Messages = append(conv.Messages, domain.Message{
+		Role:    "assistant",
+		Content: result.Content,
+	})
+
+	return &ChatResponse{
+		Message:   result.Content,
+		ToolCalls: executedCalls,
+	}, nil
+}
+
+// CurrentConversationID returns the current conversation ID
+func (s *Service) CurrentConversationID() string {
+	s.convMu.RLock()
+	defer s.convMu.RUnlock()
+	for id := range s.conversations {
+		return id
+	}
+	return ""
+}
+
+// ResetConversation clears current conversation and starts a new one
+func (s *Service) ResetConversation() string {
+	s.convMu.Lock()
+	defer s.convMu.Unlock()
+	s.conversations = make(map[string]*Conversation)
+	convID := uuid.New().String()
+	s.conversations[convID] = &Conversation{
+		ID:       convID,
+		Messages: []domain.Message{},
+	}
+	return convID
+}
+
+// GetConversationMessages returns all messages in a conversation
+func (s *Service) GetConversationMessages(convID string) []domain.Message {
+	s.convMu.RLock()
+	defer s.convMu.RUnlock()
+	if conv, exists := s.conversations[convID]; exists {
+		messages := make([]domain.Message, len(conv.Messages))
+		copy(messages, conv.Messages)
+		return messages
+	}
+	return nil
 }
 
 // ChatResponse represents a chat response with potential tool calls
