@@ -15,7 +15,6 @@ import (
 
 var (
 	cfgFile string
-	dbPath  string
 	verbose bool
 	quiet   bool
 	cfg     *config.Config
@@ -24,12 +23,14 @@ var (
 
 var RootCmd = &cobra.Command{
 	Use:   "rago",
-	Short: "RAGO - AI Development Platform for Go",
-	Long: `RAGO is a comprehensive AI development platform for Go developers.
-It provides unified access to:
-  • LLM - Language model operations (generation, chat, streaming)
-  • RAG - Retrieval-augmented generation (ingestion, search, Q&A)
-  • Tools - External tool integration via MCP protocol`,
+	Short: "RAGO - AI Agent SDK & CLI for Go developers",
+	Long: `RAGO is a modular AI development platform that empowers Go applications with:
+  • Agent  - Autonomous planning and execution with multi-turn reasoning
+  • RAG    - Hybrid retrieval using Vector search and Knowledge Graphs
+  • LLM    - Unified API for Ollama, OpenAI, DeepSeek, and more
+  • MCP    - Standardized tool integration via Model Context Protocol
+  • Skills - Expert capabilities via Claude-compatible markdown skills
+  • Status - Real-time monitoring of provider health and system status`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip config loading for commands that don't need existing config
 		if cmd.Name() == "version" {
@@ -40,10 +41,6 @@ It provides unified access to:
 		cfg, err = config.Load(cfgFile)
 		if err != nil {
 			return fmt.Errorf("failed to load configuration: %w", err)
-		}
-
-		if dbPath != "" {
-			cfg.Sqvect.DBPath = dbPath
 		}
 
 		// Initialize global pool service
@@ -86,8 +83,7 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
-	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "configuration file path (default: ./rago.toml or ~/.rago/rago.toml)")
-	RootCmd.PersistentFlags().StringVar(&dbPath, "db-path", "", "database path (overrides config)")
+	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "configuration file path (default: ./rago.toml or ~/.rago/config/rago.toml)")
 	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose logging output")
 	RootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "quiet mode")
 

@@ -16,7 +16,7 @@ The project uses a `Makefile` to manage common tasks.
 - **Dependencies:** `make deps` (Go mod + npm install)
 - **Development:** `make dev` (Builds web + starts backend on port 7127)
 - **Frontend Dev:** `make frontend-dev` (Starts Vite dev server on port 5555)
-- **Full Build:** `make build` (Produces `rago-cli` binary with embedded UI)
+- **Full Build:** `make build` (Produces `rago` binary with embedded UI)
 - **Testing:** `make test` (Runs Go tests)
 - **Clean:** `make clean` (Removes binaries, web dist, and local databases)
 

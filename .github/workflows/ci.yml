@@ -36,5 +36,10 @@ jobs:
       - name: Run checks (lint, unit tests)
         run: make check
 
-      - name: Build
+      - name: Build (Native)
         run: make build
+
+      - name: Build (Cross-platform)
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o bin/rago-linux-amd64 ./cmd/rago-cli
+          GOOS=darwin GOARCH=arm64 go build -o bin/rago-darwin-arm64 ./cmd/rago-cli
