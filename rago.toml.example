@@ -33,7 +33,6 @@ timeout = "60s"                         # Request timeout
 # max_retries = 2
 
 [sqvect]
-# db_path = "~/.rago/data/rag.db" # Database file path (derived from home/data/rag.db if not set)
 top_k = 5                       # Number of relevant chunks to retrieve
 threshold = 0.5                 # Similarity threshold (0.0 to 1.0)
 index_type = "hnsw"             # Vector index type: hnsw, ivf, or flat
@@ -54,6 +53,3 @@ log_level = "info"
 default_timeout = "30s"
 max_concurrent_requests = 10
 health_check_interval = "60s"
-# Path to MCP server configurations (JSON format)
-# Automatically looks for mcpServers.json in your RAGO home directory
-servers = ["./mcpServers.json"]
