@@ -381,6 +381,41 @@ func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error
 		}
 	}
 
+	// Add messages to session before saving
+	session.AddMessage(domain.Message{
+		Role:    "user",
+		Content: goal,
+	})
+	if currentResult != nil {
+		session.AddMessage(domain.Message{
+			Role:    "assistant",
+			Content: fmt.Sprintf("%v", currentResult),
+		})
+	}
+
+	// Create a simple plan to track this execution
+	now := time.Now()
+	plan := &Plan{
+		ID:        uuid.New().String(),
+		SessionID: session.GetID(),
+		Goal:      goal,
+		Status:    StatusCompleted,
+		CreatedAt: now,
+		UpdatedAt: now,
+		Steps: []Step{
+			{
+				ID:          uuid.New().String(),
+				Description: goal,
+				Tool:        "llm",
+				Status:      StepCompleted,
+				Result:      currentResult,
+			},
+		},
+	}
+	if err := s.store.SavePlan(plan); err != nil {
+		log.Printf("[Agent] Failed to save plan: %v", err)
+	}
+
 	return s.finalizeExecution(runCtx, session, goal, intent, memoryMemories, "", currentResult)
 }
 

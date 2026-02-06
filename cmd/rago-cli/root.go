@@ -33,7 +33,7 @@ var RootCmd = &cobra.Command{
   • Status - Real-time monitoring of provider health and system status`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip config loading for commands that don't need existing config
-		if cmd.Name() == "version" {
+		if cmd.Name() == "version" || cmd.Name() == "init" {
 			return nil
 		}
 

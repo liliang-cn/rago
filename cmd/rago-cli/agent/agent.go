@@ -99,24 +99,28 @@ var executeCmd = &cobra.Command{
 	},
 }
 
-// planCmd creates a plan without executing
+// planCmd is the parent command for plan operations
 var planCmd = &cobra.Command{
-	Use:   "plan [goal]",
+	Use:   "plan",
+	Short: "Plan operations",
+}
+
+var planCreateCmd = &cobra.Command{
+	Use:   "create [goal]",
 	Short: "Create an agent plan (without execution)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		goal := args[0]
 		ctx := context.Background()
 
-		ragClient, agentService, err := initAgentServices(ctx)
+		_, agentService, err := initAgentServices(ctx)
 		if err != nil {
 			return err
 		}
-		defer ragClient.Close()
 		defer agentService.Close()
 
-		// Use library's PlanAgent method
-		plan, err := ragClient.PlanAgent(ctx, goal)
+		// Use agent service's Plan method
+		plan, err := agentService.Plan(ctx, goal)
 		if err != nil {
 			return fmt.Errorf("planning failed: %w", err)
 		}
@@ -127,6 +131,80 @@ var planCmd = &cobra.Command{
 		fmt.Println("Steps:")
 		for _, step := range plan.Steps {
 			fmt.Printf("  [%s] %s\n  └─ Tool: %s\n", step.ID, step.Description, step.Tool)
+		}
+
+		return nil
+	},
+}
+
+var planListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List agent plans",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := context.Background()
+
+		_, agentService, err := initAgentServices(ctx)
+		if err != nil {
+			return err
+		}
+		defer agentService.Close()
+
+		plans, err := agentService.ListPlans("", 20)
+		if err != nil {
+			return fmt.Errorf("failed to list plans: %w", err)
+		}
+
+		if len(plans) == 0 {
+			fmt.Println("No plans found")
+			return nil
+		}
+
+		fmt.Println("Agent Plans:")
+		for _, p := range plans {
+			fmt.Printf("  [%s] %s\n", p.ID, p.Goal)
+			fmt.Printf("     Status: %s | Steps: %d | Created: %s\n",
+				p.Status, len(p.Steps), p.CreatedAt.Format("2006-01-02 15:04"))
+		}
+
+		return nil
+	},
+}
+
+var planGetCmd = &cobra.Command{
+	Use:   "get [plan-id]",
+	Short: "Get plan details",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		planID := args[0]
+		ctx := context.Background()
+
+		_, agentService, err := initAgentServices(ctx)
+		if err != nil {
+			return err
+		}
+		defer agentService.Close()
+
+		plan, err := agentService.GetPlan(planID)
+		if err != nil {
+			return fmt.Errorf("plan not found: %w", err)
+		}
+
+		fmt.Printf("📋 Plan ID: %s\n", plan.ID)
+		fmt.Printf("Goal: %s\n", plan.Goal)
+		fmt.Printf("Status: %s\n", plan.Status)
+		fmt.Printf("Created: %s\n", plan.CreatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Printf("\nSteps:\n")
+		for i, step := range plan.Steps {
+			status := "✓"
+			if step.Status != "completed" {
+				status = "✗"
+			}
+			fmt.Printf("  %d. [%s] %s\n", i+1, status, step.Description)
+			fmt.Printf("     Tool: %s\n", step.Tool)
+			if step.Error != "" {
+				fmt.Printf("     Error: %s\n", step.Error)
+			}
 		}
 
 		return nil
@@ -146,13 +224,13 @@ var sessionListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 
-		ragClient, _, err := initAgentServices(ctx)
+		_, agentService, err := initAgentServices(ctx)
 		if err != nil {
 			return err
 		}
-		defer ragClient.Close()
+		defer agentService.Close()
 
-		sessions, err := ragClient.ListAgentSessions(20)
+		sessions, err := agentService.ListSessions(20)
 		if err != nil {
 			return fmt.Errorf("failed to list sessions: %w", err)
 		}
@@ -164,7 +242,7 @@ var sessionListCmd = &cobra.Command{
 
 		fmt.Println("Agent Sessions:")
 		for _, s := range sessions {
-			fmt.Printf("  [%s] %s - %d messages\n", s.ID, s.CreatedAt.Format("2006-01-02 15:04"), len(s.Messages))
+			fmt.Printf("  [%s] %s - %d messages\n", s.ID, s.CreatedAt.Format("2006-01-02 15:04"), len(s.GetMessages()))
 		}
 
 		return nil
@@ -179,22 +257,21 @@ var sessionGetCmd = &cobra.Command{
 		sessionID := args[0]
 
 		ctx := context.Background()
-		ragClient, _, err := initAgentServices(ctx)
+		_, agentService, err := initAgentServices(ctx)
 		if err != nil {
 			return err
 		}
-		defer ragClient.Close()
+		defer agentService.Close()
 
-		session, err := ragClient.GetAgentSession(sessionID)
+		session, err := agentService.GetSession(sessionID)
 		if err != nil {
 			return fmt.Errorf("failed to get session: %w", err)
 		}
 
-		fmt.Printf("Session ID: %s\n", session.ID)
-		fmt.Printf("Agent ID: %s\n", session.AgentID)
+		fmt.Printf("Session ID: %s\n", session.GetID())
 		fmt.Printf("Created: %s\n", session.CreatedAt.Format("2006-01-02 15:04:05"))
 		fmt.Printf("Updated: %s\n", session.UpdatedAt.Format("2006-01-02 15:04:05"))
-		fmt.Printf("Messages: %d\n", len(session.Messages))
+		fmt.Printf("Messages: %d\n", len(session.GetMessages()))
 
 		return nil
 	},
@@ -249,6 +326,9 @@ var reviseCmd = &cobra.Command{
 func init() {
 	AgentCmd.AddCommand(runCmd)
 	AgentCmd.AddCommand(planCmd)
+	planCmd.AddCommand(planCreateCmd)
+	planCmd.AddCommand(planListCmd)
+	planCmd.AddCommand(planGetCmd)
 	AgentCmd.AddCommand(executeCmd)
 	AgentCmd.AddCommand(reviseCmd)
 	AgentCmd.AddCommand(sessionCmd)
@@ -408,21 +488,32 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 		return nil, nil, fmt.Errorf("failed to get LLM service: %w", err)
 	}
 
-	embedService, err := globalLLM.GetEmbeddingService(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get embedder service: %w", err)
+	// Embedding service is optional for agent (RAG features)
+	var embedService domain.Embedder
+	if e, err := globalLLM.GetEmbeddingService(ctx); err == nil {
+		embedService = e
+	} else {
+		fmt.Printf("⚠️  Embedding service not available, RAG features disabled\n")
 	}
 
 	var metadataExtractor domain.MetadataExtractor
 	if ext, ok := llmService.(domain.MetadataExtractor); ok {
 		metadataExtractor = ext
-	} else if ext, ok := embedService.(domain.MetadataExtractor); ok {
-		metadataExtractor = ext
+	} else if embedService != nil {
+		if ext, ok := embedService.(domain.MetadataExtractor); ok {
+			metadataExtractor = ext
+		}
 	}
 
-	ragClient, err := rag.NewClient(Cfg, embedService, llmService, metadataExtractor)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to init RAG client: %w", err)
+	// Only create RAG client if embedding service is available
+	var ragClient *rag.Client
+	if embedService != nil {
+		ragClient, err = rag.NewClient(Cfg, embedService, llmService, metadataExtractor)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to init RAG client: %w", err)
+		}
+	} else {
+		fmt.Printf("⚠️  RAG client not initialized (no embedding service)\n")
 	}
 
 	// Initialize MCP service (stdio servers are started on-demand)
@@ -454,10 +545,19 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 
 	agentDBPath := getAgentDBPath()
 	adapter := &mcpToolAdapter{service: mcpService}
-	agentService, err := agent.NewService(llmService, adapter, ragClient.GetProcessor(), agentDBPath, memoryService)
+
+	// Get RAG processor (nil if RAG is not available)
+	var processor domain.Processor
+	if ragClient != nil {
+		processor = ragClient.GetProcessor()
+	}
+
+	agentService, err := agent.NewService(llmService, adapter, processor, agentDBPath, memoryService)
 	if err != nil {
 		mcpService.Close()
-		ragClient.Close()
+		if ragClient != nil {
+			ragClient.Close()
+		}
 		return nil, nil, fmt.Errorf("failed to init agent service: %w", err)
 	}
 
@@ -495,8 +595,11 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 		allSkills, _ := skillsService.ListSkills(ctx, skills.SkillFilter{})
 		skillToolsCount = len(allSkills)
 	}
-	// RAG tools (rag_query, rag_ingest) = 2
-	ragToolCount := 2
+	// RAG tools (rag_query, rag_ingest) = 2, only available if RAG client is initialized
+	ragToolCount := 0
+	if ragClient != nil {
+		ragToolCount = 2
+	}
 	totalTools := len(mcpTools) + skillToolsCount + ragToolCount
 	fmt.Printf("✓ Available tools: %d (MCP: %d, Skills: %d, RAG: %d)\n",
 		totalTools, len(mcpTools), skillToolsCount, ragToolCount)
@@ -518,7 +621,9 @@ func runSimple(ctx context.Context, goal string) error {
 	if err != nil {
 		return err
 	}
-	defer ragClient.Close()
+	if ragClient != nil {
+		defer ragClient.Close()
+	}
 	defer agentService.Close()
 
 	// Set up progress callback

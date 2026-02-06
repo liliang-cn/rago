@@ -7,6 +7,7 @@ import (
 
 	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var statusCmd = &cobra.Command{
@@ -19,6 +20,14 @@ var statusCmd = &cobra.Command{
 func runStatus(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Show config location
+	fmt.Printf("📁 Config: %s\n", viper.ConfigFileUsed())
+	if cfg != nil {
+		fmt.Printf("📁 Home: %s\n", cfg.Home)
+		fmt.Printf("📁 MCP Servers: %s\n", cfg.MCPServersPath())
+	}
+	fmt.Println()
 
 	poolService := services.GetGlobalPoolService()
 	if !poolService.IsInitialized() {

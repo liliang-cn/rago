@@ -143,27 +143,41 @@ func (s *Store) GetPlan(id string) (*Plan, error) {
 	return &plan, nil
 }
 
-// ListPlans retrieves plans by session ID
+// ListPlans retrieves plans by session ID, or all plans if sessionID is empty
 func (s *Store) ListPlans(sessionID string, limit int) ([]*Plan, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	query := `
-		SELECT id, goal, session_id, steps, status, reasoning, error, created_at, updated_at
-		FROM plans WHERE session_id = ?
-		ORDER BY created_at DESC
-	`
-	if limit > 0 {
-		query += " LIMIT ?"
-	}
-
+	var query string
 	var rows *sql.Rows
 	var err error
-	if limit > 0 {
-		rows, err = s.db.Query(query, sessionID, limit)
+
+	if sessionID != "" {
+		query = `
+			SELECT id, goal, session_id, steps, status, reasoning, error, created_at, updated_at
+			FROM plans WHERE session_id = ?
+			ORDER BY created_at DESC
+		`
+		if limit > 0 {
+			query += " LIMIT ?"
+			rows, err = s.db.Query(query, sessionID, limit)
+		} else {
+			rows, err = s.db.Query(query, sessionID)
+		}
 	} else {
-		rows, err = s.db.Query(query, sessionID)
+		query = `
+			SELECT id, goal, session_id, steps, status, reasoning, error, created_at, updated_at
+			FROM plans
+			ORDER BY created_at DESC
+		`
+		if limit > 0 {
+			query += " LIMIT ?"
+			rows, err = s.db.Query(query, limit)
+		} else {
+			rows, err = s.db.Query(query)
+		}
 	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to list plans: %w", err)
 	}

@@ -2,7 +2,9 @@ package mcp
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -57,8 +59,8 @@ func DefaultConfig() Config {
 		DefaultTimeout:        30 * time.Second,
 		MaxConcurrentRequests: 10,
 		HealthCheckInterval:   60 * time.Second,
-		Servers:               []string{"./mcpServers.json"}, // Default to mcpServers.json in current directory
-		ServersConfigPath:     "",                            // Deprecated
+		Servers:               []string{}, // Empty by default, resolved by resolveMCPServerPaths()
+		ServersConfigPath:     "",         // Deprecated
 		LoadedServers:         []ServerConfig{},
 	}
 }
@@ -90,6 +92,11 @@ func (c *Config) LoadServersFromJSON() error {
 	// Load from new Servers array
 	for _, serverFile := range c.Servers {
 		if err := c.loadServerFile(serverFile); err != nil {
+			// Skip files that don't exist, fail on other errors
+			if errors.Is(err, os.ErrNotExist) {
+				log.Printf("MCP config file not found, skipping: %s", serverFile)
+				continue
+			}
 			return fmt.Errorf("failed to load server file %s: %w", serverFile, err)
 		}
 	}
@@ -97,7 +104,11 @@ func (c *Config) LoadServersFromJSON() error {
 	// Backward compatibility: also load from ServersConfigPath if set
 	if c.ServersConfigPath != "" {
 		if err := c.loadServerFile(c.ServersConfigPath); err != nil {
-			return fmt.Errorf("failed to load server file %s: %w", c.ServersConfigPath, err)
+			if errors.Is(err, os.ErrNotExist) {
+				log.Printf("MCP config file not found, skipping: %s", c.ServersConfigPath)
+			} else {
+				return fmt.Errorf("failed to load server file %s: %w", c.ServersConfigPath, err)
+			}
 		}
 	}
 

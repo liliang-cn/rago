@@ -178,18 +178,26 @@ func Load(configPath string) (*Config, error) {
 func (c *Config) resolveMCPServerPaths() {
 	// MCP server config is Home/mcpServers.json
 	unifiedPath := filepath.Join(c.Home, "mcpServers.json")
-	
-	if _, err := os.Stat(unifiedPath); err == nil {
-		found := false
-		for _, s := range c.MCP.Servers {
-			if s == unifiedPath {
-				found = true
-				break
-			}
+
+	// Remove legacy ./mcpServers.json path (current directory) if present
+	filtered := make([]string, 0, len(c.MCP.Servers))
+	for _, s := range c.MCP.Servers {
+		if s != "./mcpServers.json" {
+			filtered = append(filtered, s)
 		}
-		if !found {
-			c.MCP.Servers = append([]string{unifiedPath}, c.MCP.Servers...)
+	}
+	c.MCP.Servers = filtered
+
+	// Add unified path to front if not already present
+	found := false
+	for _, s := range c.MCP.Servers {
+		if s == unifiedPath {
+			found = true
+			break
 		}
+	}
+	if !found {
+		c.MCP.Servers = append([]string{unifiedPath}, c.MCP.Servers...)
 	}
 }
 
