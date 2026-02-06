@@ -89,6 +89,15 @@ func runMCPAdd(cmd *cobra.Command, args []string) error {
 	serverName := args[0]
 	command := args[1]
 
+	// Additional positional arguments are treated as args
+	positionalArgs := []string{}
+	if len(args) > 2 {
+		positionalArgs = args[2:]
+	}
+
+	// Combine positional args and flag args
+	allArgs := append(positionalArgs, addArgs...)
+
 	// Determine the mcpServers.json file path
 	// 1. Check if local mcpServers.json exists
 	configFile := "./mcpServers.json"
@@ -125,7 +134,7 @@ func runMCPAdd(cmd *cobra.Command, args []string) error {
 	serverCfg := serverConfig{
 		Type:    "stdio",
 		Command: command,
-		Args:    addArgs,
+		Args:    allArgs,
 	}
 
 	// Set URL if provided
@@ -160,8 +169,8 @@ func runMCPAdd(cmd *cobra.Command, args []string) error {
 	fmt.Printf("   Type: %s\n", serverCfg.Type)
 	if serverCfg.Type == "stdio" {
 		fmt.Printf("   Command: %s\n", command)
-		if len(addArgs) > 0 {
-			fmt.Printf("   Args: %v\n", addArgs)
+		if len(allArgs) > 0 {
+			fmt.Printf("   Args: %v\n", allArgs)
 		}
 	} else {
 		fmt.Printf("   URL: %s\n", serverCfg.URL)
