@@ -156,7 +156,13 @@ func (s *Store) ListPlans(sessionID string, limit int) ([]*Plan, error) {
 		query += " LIMIT ?"
 	}
 
-	rows, err := s.db.Query(query, sessionID)
+	var rows *sql.Rows
+	var err error
+	if limit > 0 {
+		rows, err = s.db.Query(query, sessionID, limit)
+	} else {
+		rows, err = s.db.Query(query, sessionID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to list plans: %w", err)
 	}

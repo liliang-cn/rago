@@ -1,4 +1,4 @@
-// Package main shows how to use the rago agent library with memory
+// Package main shows how to use the rago agent library
 package main
 
 import (
@@ -11,17 +11,21 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// Create agent
+	// Create agent with minimal configuration
 	svc, _ := agent.New(&agent.AgentConfig{
 		Name: "assistant",
 	})
 	defer svc.Close()
 
-	// Chat with auto-generated session ID (UUID)
-	sessionID := "chat-001"
+	// === Plan ===
+	plan, _ := svc.Plan(ctx, "写一个 Go 语言的 Hello World 程序")
+	fmt.Printf("Plan ID: %s\n", plan.ID)
 
-	svc.RunWithSession(ctx, "My name is Alice", sessionID)
-	result, _ := svc.RunWithSession(ctx, "What's my name?", sessionID)
+	// === Execute ===
+	result, _ := svc.Execute(ctx, plan.ID)
+	fmt.Printf("Result:\n%v\n", result.FinalResult)
 
-	fmt.Printf("Answer: %v\n", result.FinalResult)
+	// === Save to file ===
+	svc.SaveToFile(fmt.Sprintf("%v", result.FinalResult), "./hello.go")
+	fmt.Println("✅ Saved to ./hello.go")
 }

@@ -154,7 +154,7 @@ func (r *AgentRunner) Run(ctx context.Context, goal string) (*ExecutionResult, e
 	}
 
 	// Execute plan
-	result, err := r.executor.ExecutePlan(ctx, plan)
+	result, err := r.executor.ExecutePlan(ctx, plan, session)
 	if err != nil {
 		return nil, fmt.Errorf("execution failed: %w", err)
 	}
@@ -200,7 +200,7 @@ func (r *AgentRunner) RunWithSession(ctx context.Context, goal string, sessionID
 	}
 
 	// Execute plan
-	result, err := r.executor.ExecutePlan(ctx, plan)
+	result, err := r.executor.ExecutePlan(ctx, plan, session)
 	if err != nil {
 		return nil, fmt.Errorf("execution failed: %w", err)
 	}

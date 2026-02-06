@@ -6,33 +6,62 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"sync"
 
+	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 // Service provides RAG (Retrieval-Augmented Generation) functionality
 type Service struct {
-	store         domain.VectorStore
-	embedder      domain.EmbedderProvider
-	relevanceThreshold float64 // Minimum similarity score for relevance
+	store              domain.VectorStore
+	embedder           domain.EmbedderProvider
+	llm                domain.Generator // LLM for generating responses
+	relevanceThreshold float64
+	conversations      map[string]*Conversation
+	convMu             sync.RWMutex
+}
+
+// Conversation represents a RAG chat conversation
+type Conversation struct {
+	ID       string
+	Messages []domain.Message
 }
 
 // NewService creates a new RAG service
 func NewService(store domain.VectorStore, embedder domain.EmbedderProvider) *Service {
 	return &Service{
-		store:         store,
-		embedder:      embedder,
-		relevanceThreshold: 0.7, // Default threshold - documents below this are considered irrelevant
+		store:              store,
+		embedder:           embedder,
+		relevanceThreshold: 0.7,
+		conversations:      make(map[string]*Conversation),
+	}
+}
+
+// NewServiceWithLLM creates a new RAG service with LLM for chat
+func NewServiceWithLLM(store domain.VectorStore, embedder domain.EmbedderProvider, llm domain.Generator) *Service {
+	return &Service{
+		store:              store,
+		embedder:           embedder,
+		llm:                llm,
+		relevanceThreshold: 0.7,
+		conversations:      make(map[string]*Conversation),
 	}
 }
 
 // NewServiceWithThreshold creates a new RAG service with custom relevance threshold
 func NewServiceWithThreshold(store domain.VectorStore, embedder domain.EmbedderProvider, threshold float64) *Service {
 	return &Service{
-		store:         store,
-		embedder:      embedder,
+		store:              store,
+		embedder:           embedder,
 		relevanceThreshold: threshold,
+		conversations:      make(map[string]*Conversation),
 	}
+}
+
+// SetLLM sets the LLM for generating responses
+func (s *Service) SetLLM(llm domain.Generator) {
+	s.llm = llm
 }
 
 // SearchResult represents a search result with relevance information
@@ -197,4 +226,128 @@ func (s *Service) SetRelevanceThreshold(threshold float64) {
 // IsAvailable checks if RAG service is available
 func (s *Service) IsAvailable() bool {
 	return s.store != nil && s.embedder != nil
+}
+
+// ============================================
+// Chat API with Memory
+// ============================================
+
+// Chat sends a message with RAG context and conversation history
+func (s *Service) Chat(ctx context.Context, message string) (string, error) {
+	s.convMu.Lock()
+	if len(s.conversations) == 0 {
+		conv := &Conversation{
+			ID:       uuid.New().String(),
+			Messages: []domain.Message{},
+		}
+		s.conversations[conv.ID] = conv
+	}
+	var convID string
+	for id := range s.conversations {
+		convID = id
+		break
+	}
+	s.convMu.Unlock()
+
+	return s.ChatWithID(ctx, convID, message)
+}
+
+// ChatWithID sends a message to a specific conversation with RAG context
+func (s *Service) ChatWithID(ctx context.Context, convID, message string) (string, error) {
+	s.convMu.Lock()
+	conv, exists := s.conversations[convID]
+	if !exists {
+		conv = &Conversation{
+			ID:       convID,
+			Messages: []domain.Message{},
+		}
+		s.conversations[convID] = conv
+	}
+	s.convMu.Unlock()
+
+	// Add user message
+	conv.Messages = append(conv.Messages, domain.Message{
+		Role:    "user",
+		Content: message,
+	})
+
+	// Get relevant context
+	context, docsFound, err := s.GetRelevantContext(ctx, message, 3)
+	if err != nil {
+		return "", fmt.Errorf("failed to get context: %w", err)
+	}
+
+	// Build prompt with context and history
+	var prompt strings.Builder
+	if docsFound > 0 {
+		prompt.WriteString("Relevant context:\n")
+		prompt.WriteString(context)
+		prompt.WriteString("\n\n")
+	}
+	prompt.WriteString("Conversation:\n")
+	for _, msg := range conv.Messages {
+		prompt.WriteString(fmt.Sprintf("%s: %s\n", msg.Role, msg.Content))
+	}
+
+	// Generate response
+	var response string
+	if s.llm != nil {
+		response, err = s.llm.Generate(ctx, prompt.String(), &domain.GenerationOptions{
+			Temperature: 0.7,
+			MaxTokens:   1000,
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to generate: %w", err)
+		}
+	} else {
+		// No LLM, return context only
+		if docsFound > 0 {
+			response = fmt.Sprintf("Found %d relevant documents:\n%s", docsFound, context)
+		} else {
+			response = "No relevant information found."
+		}
+	}
+
+	// Add assistant response
+	conv.Messages = append(conv.Messages, domain.Message{
+		Role:    "assistant",
+		Content: response,
+	})
+
+	return response, nil
+}
+
+// CurrentConversationID returns the current conversation ID
+func (s *Service) CurrentConversationID() string {
+	s.convMu.RLock()
+	defer s.convMu.RUnlock()
+	for id := range s.conversations {
+		return id
+	}
+	return ""
+}
+
+// ResetConversation clears current conversation and starts a new one
+func (s *Service) ResetConversation() string {
+	s.convMu.Lock()
+	defer s.convMu.Unlock()
+	s.conversations = make(map[string]*Conversation)
+	convID := uuid.New().String()
+	s.conversations[convID] = &Conversation{
+		ID:       convID,
+		Messages: []domain.Message{},
+	}
+	return convID
+}
+
+// GetConversationMessages returns all messages in a conversation
+func (s *Service) GetConversationMessages(convID string) []domain.Message {
+	s.convMu.RLock()
+	defer s.convMu.RUnlock()
+	if conv, exists := s.conversations[convID]; exists {
+		messages := make([]domain.Message, len(conv.Messages))
+		copy(messages, conv.Messages)
+		return messages
+	}
+	return nil
 }

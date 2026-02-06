@@ -1,5 +1,10 @@
 package skills
 
+import (
+	"os"
+	"path/filepath"
+)
+
 // Config configures the skills module
 type Config struct {
 	Enabled      bool     `json:"enabled"`
@@ -21,13 +26,16 @@ type Config struct {
 
 // DefaultConfig returns default skills configuration
 func DefaultConfig() *Config {
-	homeDir := "./.rago"
+	homeDir, _ := os.UserHomeDir()
+	localSkills := "./.rago/skills"
+	userSkills := filepath.Join(homeDir, ".rago", "skills")
+
 	return &Config{
 		Enabled:               true,
-		Paths:                 []string{".skills", homeDir + "/skills"},
+		Paths:                 []string{".skills", localSkills, userSkills},
 		AutoLoad:              true,
 		CacheEnabled:          true,
-		DBPath:                homeDir + "/data/skills.db",
+		DBPath:                filepath.Join(homeDir, ".rago", "data", "skills.db"),
 		LogLevel:              "info",
 		AllowCommandInjection: false,
 		RequireConfirmation:   true,
@@ -77,7 +85,8 @@ func (c *Config) Validate() error {
 		c.Paths = []string{".skills"}
 	}
 	if c.DBPath == "" {
-		c.DBPath = "./.rago/data/skills.db"
+		homeDir, _ := os.UserHomeDir()
+		c.DBPath = filepath.Join(homeDir, ".rago", "data", "skills.db")
 	}
 	return nil
 }

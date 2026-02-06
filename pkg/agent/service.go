@@ -9,12 +9,15 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/memory"
+	ragprocessor "github.com/liliang-cn/rago/v2/pkg/rag/processor"
+	ragstore "github.com/liliang-cn/rago/v2/pkg/rag/store"
 	"github.com/liliang-cn/rago/v2/pkg/router"
 	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
@@ -35,19 +38,29 @@ type ProgressCallback func(ProgressEvent)
 // Service is the main agent service that handles planning and execution
 // This matches the interface expected by the CLI in cmd/rago-cli/agent/agent.go
 type Service struct {
-	llmService    domain.Generator
-	mcpService    MCPToolExecutor
-	ragProcessor  domain.Processor
-	memoryService domain.MemoryService
-	skillsService *skills.Service
-	routerService *router.Service // Semantic Router for fast intent recognition
-	planner       *Planner
-	executor      *Executor
-	store         *Store
-	agent         *Agent
-	cancelMu      sync.RWMutex
-	cancelFunc    context.CancelFunc
-	progressCb    ProgressCallback
+	llmService       domain.Generator
+	mcpService       MCPToolExecutor
+	ragProcessor     domain.Processor
+	memoryService    domain.MemoryService
+	skillsService    *skills.Service
+	routerService    *router.Service // Semantic Router for fast intent recognition
+	planner          *Planner
+	executor         *Executor
+	store            *Store
+	agent            *Agent
+	cancelMu         sync.RWMutex
+	cancelFunc       context.CancelFunc
+	progressCb       ProgressCallback
+	currentSessionID string // Auto-generated UUID for Chat() method
+	sessionMu        sync.RWMutex
+
+	// Public access to underlying services
+	LLM    domain.Generator
+	MCP    MCPToolExecutor
+	RAG    domain.Processor
+	Memory domain.MemoryService
+	Router *router.Service
+	Skills *skills.Service
 }
 
 // NewService creates a new agent service
@@ -104,21 +117,25 @@ Available tools include:
 		executor:      executor,
 		store:         store,
 		agent:         agent,
+		// Public fields
+		LLM:    llmService,
+		MCP:    mcpService,
+		RAG:    ragProcessor,
+		Memory: memoryService,
 	}, nil
 }
 
 // SetRouter sets the semantic router for improved intent recognition
 func (s *Service) SetRouter(routerService *router.Service) {
 	s.routerService = routerService
-	// Update planner with router
-	if routerService != nil {
-		s.planner.SetRouter(routerService)
-	}
+	s.Router = routerService
+	s.planner.SetRouter(routerService)
 }
 
 // SetSkillsService sets the skills service for agent integration
 func (s *Service) SetSkillsService(skillsService *skills.Service) {
 	s.skillsService = skillsService
+	s.Skills = skillsService
 	// Re-create agent with updated tools
 	if skillsService != nil {
 		tools := collectAvailableTools(s.mcpService, s.ragProcessor, skillsService)
@@ -158,27 +175,118 @@ func (s *Service) emitProgress(eventType, message string, round int, tool string
 // This matches the CLI expectation: agentService.Plan(ctx, goal)
 func (s *Service) Plan(ctx context.Context, goal string) (*Plan, error) {
 	session := NewSession(s.agent.ID())
-	return s.planner.PlanWithFallback(ctx, goal, session)
+	plan, err := s.planner.PlanWithFallback(ctx, goal, session)
+	if err != nil {
+		return nil, err
+	}
+	// Save plan to database
+	if err := s.store.SavePlan(plan); err != nil {
+		return nil, fmt.Errorf("failed to save plan: %w", err)
+	}
+	return plan, nil
+}
+
+// RevisePlan revises an existing plan based on user instructions
+// The user can modify the plan through natural language chat
+func (s *Service) RevisePlan(ctx context.Context, plan *Plan, instruction string) (*Plan, error) {
+	// Build prompt for plan revision
+	var prompt strings.Builder
+	prompt.WriteString("You are revising an existing execution plan based on user feedback.\n\n")
+	prompt.WriteString("=== Original Plan ===\n")
+	prompt.WriteString(fmt.Sprintf("Goal: %s\n", plan.Goal))
+	prompt.WriteString(fmt.Sprintf("Status: %s\n", plan.Status))
+	prompt.WriteString(fmt.Sprintf("Current Steps (%d):\n", len(plan.Steps)))
+	for i, step := range plan.Steps {
+		prompt.WriteString(fmt.Sprintf("  %d. [%s] %s\n", i+1, step.Tool, step.Description))
+	}
+	prompt.WriteString("\n=== User Instruction ===\n")
+	prompt.WriteString(instruction)
+	prompt.WriteString("\n\n=== Task ===\n")
+	prompt.WriteString("Generate a revised plan based on the user's instruction. ")
+	prompt.WriteString("Return JSON with:\n")
+	prompt.WriteString("- reasoning: explanation of changes\n")
+	prompt.WriteString("- steps: array of steps, each with tool, description, arguments\n")
+	prompt.WriteString("Keep the same step structure. Only include steps that need to be done.")
+
+	// Call LLM to get revised plan
+	response, err := s.llmService.Generate(ctx, prompt.String(), &domain.GenerationOptions{
+		Temperature: 0.3,
+		MaxTokens:   2000,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("LLM call failed: %w", err)
+	}
+
+	// Parse the response
+	var revisedPlan struct {
+		Reasoning string `json:"reasoning"`
+		Steps     []struct {
+			Tool        string                 `json:"tool"`
+			Description string                 `json:"description"`
+			Arguments   map[string]interface{} `json:"arguments"`
+		} `json:"steps"`
+	}
+
+	// Extract JSON from response
+	jsonStart := strings.Index(response, "{")
+	jsonEnd := strings.LastIndex(response, "}")
+	if jsonStart == -1 || jsonEnd == -1 {
+		return nil, fmt.Errorf("no valid JSON in LLM response")
+	}
+	jsonStr := response[jsonStart : jsonEnd+1]
+
+	if err := json.Unmarshal([]byte(jsonStr), &revisedPlan); err != nil {
+		return nil, fmt.Errorf("failed to parse revised plan: %w", err)
+	}
+
+	// Create new plan with revisions
+	newPlan := &Plan{
+		ID:        uuid.New().String(),
+		SessionID: plan.SessionID,
+		Goal:      plan.Goal,
+		Status:    PlanStatusPending,
+		Reasoning: revisedPlan.Reasoning,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	// Convert steps
+	for i, step := range revisedPlan.Steps {
+		newPlan.Steps = append(newPlan.Steps, Step{
+			ID:          fmt.Sprintf("step-%d", i+1),
+			Tool:        step.Tool,
+			Description: step.Description,
+			Arguments:   step.Arguments,
+			Status:      StepStatusPending,
+		})
+	}
+
+	// Save revised plan
+	if err := s.store.SavePlan(newPlan); err != nil {
+		return nil, fmt.Errorf("failed to save revised plan: %w", err)
+	}
+
+	return newPlan, nil
 }
 
 // ExecutePlan executes the given plan
 // This matches the CLI expectation: agentService.ExecutePlan(ctx, plan)
-func (s *Service) ExecutePlan(ctx context.Context, plan *Plan) error {
-	result, err := s.executor.ExecutePlan(ctx, plan)
+func (s *Service) ExecutePlan(ctx context.Context, plan *Plan) (*ExecutionResult, error) {
+	result, err := s.executor.ExecutePlan(ctx, plan, nil)
 	if err != nil {
-		return fmt.Errorf("execution failed: %w", err)
+		return nil, fmt.Errorf("execution failed: %w", err)
 	}
 
 	// Save the plan state
 	if err := s.store.SavePlan(plan); err != nil {
-		return fmt.Errorf("failed to save plan: %w", err)
+		return nil, fmt.Errorf("failed to save plan: %w", err)
 	}
 
 	if !result.Success {
-		return fmt.Errorf("plan execution completed with errors: %s", result.Error)
+		return result, fmt.Errorf("plan execution completed with errors: %s", result.Error)
 	}
 
-	return nil
+	return result, nil
 }
 
 // Run executes a goal using a fixed workflow:
@@ -882,7 +990,7 @@ func (s *Service) RunWithSession(ctx context.Context, goal, sessionID string) (*
 	}
 
 	// Execute plan
-	result, err := s.executor.ExecutePlan(ctx, plan)
+	result, err := s.executor.ExecutePlan(ctx, plan, session)
 	if err != nil {
 		return nil, fmt.Errorf("execution failed: %w", err)
 	}
@@ -930,6 +1038,74 @@ func (s *Service) ListPlans(sessionID string, limit int) ([]*Plan, error) {
 	return s.store.ListPlans(sessionID, limit)
 }
 
+// Chat sends a message with auto-generated session UUID.
+// This is the simplest API for conversational AI with memory.
+//
+// Example:
+//
+//	svc, _ := agent.New(&agent.AgentConfig{Name: "assistant"})
+//	result, _ := svc.Chat(ctx, "My name is Alice")
+//	result, _ = svc.Chat(ctx, "What's my name?") // Will remember "Alice"
+func (s *Service) Chat(ctx context.Context, message string) (*ExecutionResult, error) {
+	s.sessionMu.Lock()
+	if s.currentSessionID == "" {
+		s.currentSessionID = uuid.New().String()
+	}
+	sessionID := s.currentSessionID
+	s.sessionMu.Unlock()
+
+	return s.RunWithSession(ctx, message, sessionID)
+}
+
+// CurrentSessionID returns the current session UUID used by Chat()
+func (s *Service) CurrentSessionID() string {
+	s.sessionMu.RLock()
+	defer s.sessionMu.RUnlock()
+	return s.currentSessionID
+}
+
+// SetSessionID sets a specific session ID for Chat() to use
+func (s *Service) SetSessionID(sessionID string) {
+	s.sessionMu.Lock()
+	defer s.sessionMu.Unlock()
+	s.currentSessionID = sessionID
+}
+
+// ResetSession clears the current session and starts a new one with a new UUID
+func (s *Service) ResetSession() {
+	s.sessionMu.Lock()
+	defer s.sessionMu.Unlock()
+	s.currentSessionID = uuid.New().String()
+}
+
+// Execute executes a plan by ID and returns the result
+func (s *Service) Execute(ctx context.Context, planID string) (*ExecutionResult, error) {
+	plan, err := s.GetPlan(planID)
+	if err != nil {
+		return nil, fmt.Errorf("plan not found: %w", err)
+	}
+	return s.ExecutePlan(ctx, plan)
+}
+
+// SaveToFile saves content to a file
+func (s *Service) SaveToFile(content, filePath string) error {
+	// Create directory if needed
+	dir := filepath.Dir(filePath)
+	if dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
+	// Write to file
+	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	log.Printf("[Agent] ✅ Saved to %s\n", filePath)
+	return nil
+}
+
 // Close closes the service and releases resources
 func (s *Service) Close() error {
 	return s.store.Close()
@@ -941,12 +1117,13 @@ func (s *Service) Close() error {
 
 // AgentConfig holds configuration for New()
 type AgentConfig struct {
-	Name        string
+	Name         string
 	SystemPrompt string
-	DBPath      string
+	DBPath       string
 	MemoryDBPath string
 	EnableMCP    bool
 	EnableMemory bool
+	EnableRAG    bool
 	EnableRouter bool
 	ProgressCb   ProgressCallback
 }
@@ -1026,6 +1203,34 @@ func New(cfg *AgentConfig) (*Service, error) {
 		}
 	}
 
+	// RAG processor
+	var ragProcessor domain.Processor
+	if cfg.EnableRAG {
+		// Create RAG stores
+		homeDir, _ := os.UserHomeDir()
+		ragStorePath := filepath.Join(homeDir, ".rago", "data", cfg.Name+"_rag.db")
+		vectorStore, _ := ragstore.NewVectorStore(ragstore.StoreConfig{
+			Type: "sqlite",
+			Parameters: map[string]interface{}{
+				"path": ragStorePath,
+			},
+		})
+		if vectorStore != nil {
+			docStore := ragstore.NewDocumentStoreFor(vectorStore)
+			// Create RAG processor with proper stores
+			ragProcessor = ragprocessor.New(
+				embedSvc,
+				llmSvc,
+				nil,         // chunker - will use default
+				vectorStore, // vector store
+				docStore,    // document store
+				ragoCfg,
+				nil,    // llmService for metadata extraction (optional)
+				memSvc, // memory service
+			)
+		}
+	}
+
 	// Agent DB path
 	agentDBPath := cfg.DBPath
 	if agentDBPath == "" {
@@ -1034,7 +1239,7 @@ func New(cfg *AgentConfig) (*Service, error) {
 	}
 
 	// Create agent service
-	svc, err := NewService(llmSvc, mcpAdapter, nil, agentDBPath, memSvc)
+	svc, err := NewService(llmSvc, mcpAdapter, ragProcessor, agentDBPath, memSvc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent: %w", err)
 	}
