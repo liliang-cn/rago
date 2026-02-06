@@ -70,6 +70,7 @@ func (c *Client) Generate(ctx context.Context, prompt string, opts *domain.Gener
 		Choices []struct {
 			Message struct {
 				Content string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"`
 			} `json:"message"`
 		} `json:"choices"`
 	}
@@ -164,6 +165,7 @@ func (c *Client) Stream(ctx context.Context, prompt string, opts *domain.Generat
 			Choices []struct {
 				Delta struct {
 					Content string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"`
 				} `json:"delta"`
 			} `json:"choices"`
 		}
@@ -194,10 +196,26 @@ func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Messag
 			"content": msg.Content,
 		}
 		if msg.ToolCalls != nil {
-			apiMessages[i]["tool_calls"] = msg.ToolCalls
+			// Transform tool calls to match API requirement (arguments as string)
+			apiToolCalls := make([]map[string]interface{}, len(msg.ToolCalls))
+			for j, tc := range msg.ToolCalls {
+				argsBytes, _ := json.Marshal(tc.Function.Arguments)
+				apiToolCalls[j] = map[string]interface{}{
+					"id":   tc.ID,
+					"type": tc.Type,
+					"function": map[string]interface{}{
+						"name":      tc.Function.Name,
+						"arguments": string(argsBytes),
+					},
+				}
+			}
+			apiMessages[i]["tool_calls"] = apiToolCalls
 		}
 		if msg.ToolCallID != "" {
 			apiMessages[i]["tool_call_id"] = msg.ToolCallID
+		}
+		if msg.ReasoningContent != "" {
+			apiMessages[i]["reasoning_content"] = msg.ReasoningContent
 		}
 	}
 
@@ -234,6 +252,7 @@ func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Messag
 				Content   string            `json:"content"`
 				Role      string            `json:"role"`
 				ToolCalls []json.RawMessage `json:"tool_calls,omitempty"`
+				ReasoningContent string `json:"reasoning_content"`
 			} `json:"message"`
 		} `json:"choices"`
 	}
@@ -249,6 +268,7 @@ func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Messag
 	choice := result.Choices[0]
 	response := &domain.GenerationResult{
 		Content: choice.Message.Content,
+		ReasoningContent: choice.Message.ReasoningContent,
 	}
 
 	// 解析tool calls
@@ -342,6 +362,7 @@ func (c *Client) GenerateStructured(ctx context.Context, prompt string, schema i
 		Choices []struct {
 			Message struct {
 				Content string `json:"content"`
+				ReasoningContent string `json:"reasoning_content"`
 			} `json:"message"`
 		} `json:"choices"`
 	}
