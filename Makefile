@@ -14,7 +14,7 @@ help:
 	@echo "====================="
 	@echo ""
 	@echo "  dev         - Start development mode (runs backend directly)"
-	@echo "  build       - Build the rago-cli binary"
+	@echo "  build       - Build the rago binary"
 	@echo "  test        - Run all Go tests"
 	@echo "  clean       - Clean build artifacts and databases"
 	@echo "  deps        - Download and install Go dependencies"
@@ -33,8 +33,8 @@ build: backend
 backend:
 	@echo "Building rago version $(GIT_TAG)..."
 	@mkdir -p bin
-	@go build $(LDFLAGS) -o bin/rago-cli ./cmd/rago-cli
-	@echo "✅ Backend binary built: bin/rago-cli"
+	@go build $(LDFLAGS) -o bin/rago ./cmd/rago-cli
+	@echo "✅ Backend binary built: bin/rago"
 
 # Run all tests
 test:

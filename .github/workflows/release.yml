@@ -34,26 +34,24 @@ jobs:
           # Create build directory
           mkdir -p dist
 
-          # Build for multiple platforms
-          PLATFORMS="darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64"
+          # Build for requested platforms
+          # linux/amd64 and darwin/arm64 (mac arm64)
+          PLATFORMS="linux/amd64 darwin/arm64"
           for platform in $PLATFORMS; do
             os=$(echo $platform | cut -d'/' -f1)
             arch=$(echo $platform | cut -d'/' -f2)
             
-            output_name="rago-$VERSION-$os-$arch"
-            if [ "$os" = "windows" ]; then
-              output_name="$output_name.exe"
-            fi
+            # Using a consistent naming for the binary inside the archive if needed, 
+            # but for the release asset we use the platform-specific name.
+            output_name="rago"
             
             echo "Building for $os/$arch..."
             GOOS=$os GOARCH=$arch go build -ldflags="-X 'main.version=$VERSION'" -o "dist/$output_name" ./cmd/rago-cli
             
-            # Create archive
-            if [ "$os" = "windows" ]; then
-              (cd dist && zip "rago-$VERSION-$os-$arch.zip" "$output_name")
-            else
-              (cd dist && tar -czf "rago-$VERSION-$os-$arch.tar.gz" "$output_name")
-            fi
+            # Create archive with the platform name but containing the rago binary
+            (cd dist && tar -czf "rago-$VERSION-$os-$arch.tar.gz" "$output_name")
+            # Remove the binary after archiving to prepare for the next platform
+            rm "dist/$output_name"
           done
 
       - name: Generate changelog
@@ -82,8 +80,6 @@ jobs:
           body_path: CHANGELOG.md
           draft: false
           prerelease: false
-          files: |
-            dist/*.tar.gz
-            dist/*.zip
+          files: dist/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
