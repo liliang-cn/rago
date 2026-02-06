@@ -14,7 +14,6 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	"github.com/liliang-cn/rago/v2/pkg/rag/store"
-	"github.com/liliang-cn/rago/v2/pkg/settings"
 )
 
 // Client provides high-level RAG operations
@@ -25,7 +24,6 @@ type Client struct {
 	embedder    domain.Embedder
 	llm         domain.Generator
 	config      *config.Config
-	settings    *settings.Service
 	mcpService  *mcp.Service
 	mcpConfig   *mcp.Config
 	agentService *agent.Service
@@ -94,12 +92,6 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 		memoryService,
 	)
 
-	// Initialize settings service
-	settingsService, err := settings.NewService(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create settings service: %w", err)
-	}
-
 	// Initialize MCP service
 	// MCP service configuration
 	mcpConfig := &mcp.Config{
@@ -117,7 +109,6 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 		embedder:    embedder,
 		llm:         llm,
 		config:      cfg,
-		settings:    settingsService,
 		mcpService:  mcpService,
 		mcpConfig:   mcpConfig,
 	}, nil
@@ -374,100 +365,9 @@ func (c *Client) GetProcessor() *processor.Service {
 	return c.processor
 }
 
-// GetSettings returns the settings service for advanced operations
-func (c *Client) GetSettings() *settings.Service {
-	return c.settings
-}
-
 // GetVectorStore returns the underlying vector store for advanced operations
 func (c *Client) GetVectorStore() domain.VectorStore {
 	return c.vectorStore
-}
-
-// Profile management methods
-
-// CreateProfile creates a new user profile
-func (c *Client) CreateProfile(name, description string) (*settings.UserProfile, error) {
-	req := settings.CreateProfileRequest{
-		Name:        name,
-		Description: description,
-	}
-	return c.settings.CreateProfile(req)
-}
-
-// ListProfiles returns all available profiles
-func (c *Client) ListProfiles() ([]*settings.UserProfile, error) {
-	return c.settings.ListProfiles()
-}
-
-// GetProfile retrieves a specific profile by ID
-func (c *Client) GetProfile(profileID string) (*settings.UserProfile, error) {
-	return c.settings.GetProfile(profileID)
-}
-
-// UpdateProfile updates an existing profile
-func (c *Client) UpdateProfile(profileID string, updates map[string]interface{}) error {
-	req := settings.UpdateProfileRequest{}
-	// Convert updates to the request structure
-	if name, ok := updates["name"].(string); ok {
-		req.Name = &name
-	}
-	if desc, ok := updates["description"].(string); ok {
-		req.Description = &desc
-	}
-	if prompt, ok := updates["default_system_prompt"].(string); ok {
-		req.DefaultSystemPrompt = &prompt
-	}
-	if metadata, ok := updates["metadata"].(map[string]string); ok {
-		req.Metadata = &metadata
-	}
-	_, err := c.settings.UpdateProfile(profileID, req)
-	return err
-}
-
-// DeleteProfile deletes a profile
-func (c *Client) DeleteProfile(profileID string) error {
-	return c.settings.DeleteProfile(profileID)
-}
-
-// SetActiveProfile sets the active profile
-func (c *Client) SetActiveProfile(profileID string) error {
-	if err := c.settings.SetActiveProfile(profileID); err != nil {
-		return err
-	}
-	// Update config to reflect active profile settings
-	return c.updateConfigFromActiveProfile()
-}
-
-// GetActiveProfile returns the currently active profile
-func (c *Client) GetActiveProfile() (*settings.UserProfile, error) {
-	return c.settings.GetActiveProfile()
-}
-
-// updateConfigFromActiveProfile updates client config based on active profile settings
-func (c *Client) updateConfigFromActiveProfile() error {
-	profile, err := c.settings.GetActiveProfile()
-	if err != nil {
-		return err
-	}
-
-	// Get LLM settings for the active profile
-	// Use the first provider from LLM pool
-	if len(c.config.LLMPool.Providers) > 0 {
-		providerName := c.config.LLMPool.Providers[0].Name
-		llmSettings, err := c.settings.GetLLMSettingsForActiveProfile(providerName)
-		if err == nil && llmSettings != nil {
-			if llmSettings.Temperature != nil {
-				// Note: Temperature settings would need to be applied at generation time
-			}
-			if llmSettings.MaxTokens != nil {
-				// Note: MaxTokens settings would need to be applied at generation time
-			}
-		}
-	}
-
-	_ = profile
-	return nil
 }
 
 // initMCPService initializes the MCP service if not already done
@@ -488,70 +388,6 @@ func (c *Client) initMCPService(ctx context.Context) error {
 
 	c.mcpService = service
 	return nil
-}
-
-// LLM settings management
-
-// UpdateLLMSettings updates LLM settings in the active profile
-func (c *Client) UpdateLLMSettings(llmSettings *settings.LLMSettings) error {
-	// Create update request
-	updateReq := settings.UpdateLLMSettingsRequest{
-		SystemPrompt: &llmSettings.SystemPrompt,
-		Temperature:  llmSettings.Temperature,
-		MaxTokens:    llmSettings.MaxTokens,
-		Settings:     &llmSettings.Settings,
-	}
-
-	// Update the LLM settings
-	_, err := c.settings.UpdateLLMSettings(llmSettings.ID, updateReq)
-	return err
-}
-
-// GetLLMSettings retrieves LLM settings from the active profile
-func (c *Client) GetLLMSettings() (*settings.LLMSettings, error) {
-	// Get LLM settings for the active profile and default provider
-	// Use the first provider from LLM pool
-	providerName := "openai"
-	if len(c.config.LLMPool.Providers) > 0 {
-		providerName = c.config.LLMPool.Providers[0].Name
-	}
-
-	return c.settings.GetLLMSettingsForActiveProfile(providerName)
-}
-
-// UpdateLLMModel updates the LLM model in the active profile
-func (c *Client) UpdateLLMModel(modelName string) error {
-	// Get current LLM settings
-	settings, err := c.GetLLMSettings()
-	if err != nil {
-		return fmt.Errorf("failed to get current LLM settings: %w", err)
-	}
-
-	// Update the model in settings (stored in Settings field)
-	if settings.Settings == nil {
-		settings.Settings = make(map[string]interface{})
-	}
-	settings.Settings["model"] = modelName
-
-	// Update the settings
-	return c.UpdateLLMSettings(settings)
-}
-
-// GetLLMModel retrieves the current LLM model
-func (c *Client) GetLLMModel() (string, error) {
-	// Try to get from LLM settings first
-	llmSettings, err := c.GetLLMSettings()
-	if err == nil && llmSettings != nil && llmSettings.Settings != nil {
-		if model, ok := llmSettings.Settings["model"].(string); ok {
-			return model, nil
-		}
-	}
-
-	// Fallback to config
-	if len(c.config.LLMPool.Providers) > 0 {
-		return c.config.LLMPool.Providers[0].ModelName, nil
-	}
-	return "", fmt.Errorf("no LLM model configured")
 }
 
 // MCP/Tools integration methods
@@ -635,22 +471,6 @@ func (c *Client) GetMCPStatus(ctx context.Context) (interface{}, error) {
 		"message": "MCP service operational",
 		"servers": serverStatus,
 	}, nil
-}
-
-// Enhanced RAG methods with profiles
-
-// IngestWithProfile ingests content using a specific profile
-func (c *Client) IngestWithProfile(ctx context.Context, profileID string, filePath string, opts *IngestOptions) (*domain.IngestResponse, error) {
-	// TODO: Implement profile-based ingestion when profile switching is available
-	// For now, just use regular ingestion
-	return c.IngestFile(ctx, filePath, opts)
-}
-
-// QueryWithProfile queries using a specific profile
-func (c *Client) QueryWithProfile(ctx context.Context, profileID string, query string, opts *QueryOptions) (*domain.QueryResponse, error) {
-	// TODO: Implement profile-based query when profile switching is available
-	// For now, just use regular query
-	return c.Query(ctx, query, opts)
 }
 
 // IngestTextWithMetadata ingests text with custom metadata

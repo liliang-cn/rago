@@ -1,6 +1,6 @@
 # RAGO: Industrial-Grade AI Library for Go
 
-RAGO is not just a CLI tool; it is a high-performance, concurrency-safe **AI SDK** designed to be embedded into your Go applications. It empowers your software with private Knowledge Base (RAG), Semantic Chat Memory, and Agentic capabilities (MCP).
+RAGO is not just a CLI tool; it is a concurrency-safe **AI SDK** designed to be embedded into your Go applications. It empowers your software with private Knowledge Base (RAG), Semantic Chat Memory, and Agentic capabilities (MCP).
 
 ## 🚀 Why RAGO as a Library?
 

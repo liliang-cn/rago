@@ -66,6 +66,7 @@ func (s *Store) initSchema() error {
 			id TEXT PRIMARY KEY,
 			agent_id TEXT NOT NULL,
 			messages TEXT NOT NULL,
+			summary TEXT,
 			context TEXT,
 			metadata TEXT,
 			created_at DATETIME NOT NULL,
@@ -214,9 +215,9 @@ func (s *Store) SaveSession(session *Session) error {
 
 	res, err := s.db.Exec(`
 		INSERT OR REPLACE INTO sessions
-		(id, agent_id, messages, context, metadata, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, session.ID, session.AgentID, string(messagesJSON), string(contextJSON),
+		(id, agent_id, messages, summary, context, metadata, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, session.ID, session.AgentID, string(messagesJSON), session.Summary, string(contextJSON),
 		string(metadataJSON), session.CreatedAt, session.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to save session: %w", err)
@@ -234,17 +235,22 @@ func (s *Store) GetSession(id string) (*Session, error) {
 
 	var session Session
 	var messagesJSON, contextJSON, metadataJSON string
+	var summary sql.NullString
 
 	err := s.db.QueryRow(`
-		SELECT id, agent_id, messages, context, metadata, created_at, updated_at
+		SELECT id, agent_id, messages, summary, context, metadata, created_at, updated_at
 		FROM sessions WHERE id = ?
-	`, id).Scan(&session.ID, &session.AgentID, &messagesJSON,
+	`, id).Scan(&session.ID, &session.AgentID, &messagesJSON, &summary,
 		&contextJSON, &metadataJSON, &session.CreatedAt, &session.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("session not found: %s", id)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session: %w", err)
+	}
+
+	if summary.Valid {
+		session.Summary = summary.String
 	}
 
 	if err := json.Unmarshal([]byte(messagesJSON), &session.Messages); err != nil {
@@ -276,7 +282,7 @@ func (s *Store) ListSessions(limit int) ([]*Session, error) {
 	defer s.mu.RUnlock()
 
 	query := `
-		SELECT id, agent_id, messages, context, metadata, created_at, updated_at
+		SELECT id, agent_id, messages, summary, context, metadata, created_at, updated_at
 		FROM sessions ORDER BY updated_at DESC
 	`
 	var rows *sql.Rows
@@ -297,11 +303,16 @@ func (s *Store) ListSessions(limit int) ([]*Session, error) {
 	for rows.Next() {
 		var session Session
 		var messagesJSON, contextJSON, metadataJSON string
+		var summary sql.NullString
 
-		err := rows.Scan(&session.ID, &session.AgentID, &messagesJSON,
+		err := rows.Scan(&session.ID, &session.AgentID, &messagesJSON, &summary,
 			&contextJSON, &metadataJSON, &session.CreatedAt, &session.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan session: %w", err)
+		}
+
+		if summary.Valid {
+			session.Summary = summary.String
 		}
 
 		if err := json.Unmarshal([]byte(messagesJSON), &session.Messages); err != nil {

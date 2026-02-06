@@ -27,20 +27,12 @@ func main() {
 	fmt.Println("\n1️⃣  Basic RAG Operations")
 	demonstrateBasicRAG(ctx, client)
 
-	// 2. Profile Management
-	fmt.Println("\n2️⃣  Profile Management")
-	demonstrateProfileManagement(ctx, client)
-
-	// 3. LLM Settings
-	fmt.Println("\n3️⃣  LLM Settings Management")
-	demonstrateLLMSettings(ctx, client)
-
-	// 4. MCP Tools
-	fmt.Println("\n4️⃣  MCP Tools Integration")
+	// 2. MCP Tools
+	fmt.Println("\n2️⃣  MCP Tools Integration")
 	demonstrateMCPTools(ctx, client)
 
-	// 5. Advanced Features
-	fmt.Println("\n5️⃣  Advanced Features")
+	// 3. Advanced Features
+	fmt.Println("\n3️⃣  Advanced Features")
 	demonstrateAdvancedFeatures(ctx, client)
 
 	fmt.Println("\n✅ Quickstart completed successfully!")
@@ -127,72 +119,6 @@ func demonstrateBasicRAG(ctx context.Context, client *rag.Client) {
 	}
 }
 
-func demonstrateProfileManagement(ctx context.Context, client *rag.Client) {
-	// List existing profiles
-	profiles, err := client.ListProfiles()
-	if err != nil {
-		log.Printf("Failed to list profiles: %v", err)
-		return
-	}
-
-	fmt.Printf("  Existing profiles: %d\n", len(profiles))
-	for _, profile := range profiles {
-		status := ""
-		if profile.IsActive {
-			status = " [ACTIVE]"
-		}
-		fmt.Printf("    - %s: %s%s\n", profile.Name, profile.Description, status)
-	}
-
-	// Create specialized profiles
-	profilesToCreate := []struct {
-		name        string
-		description string
-	}{
-		{"research", "Profile for academic research and analysis"},
-		{"development", "Profile for software development"},
-		{"creative", "Profile for creative writing and brainstorming"},
-	}
-
-	for _, p := range profilesToCreate {
-		profile, err := client.CreateProfile(p.name, p.description)
-		if err != nil {
-			log.Printf("Failed to create profile %s: %v", p.name, err)
-			continue
-		}
-		fmt.Printf("  ✓ Created profile: %s\n", profile.Name)
-	}
-
-	// Switch between profiles
-	fmt.Printf("  Profile switching enabled with %d profiles\n", len(profiles)+len(profilesToCreate))
-}
-
-func demonstrateLLMSettings(ctx context.Context, client *rag.Client) {
-	// Get current LLM model
-	model, err := client.GetLLMModel()
-	if err != nil {
-		log.Printf("Failed to get LLM model: %v", err)
-		return
-	}
-	fmt.Printf("  Current LLM model: %s\n", model)
-
-	// Try to get LLM settings
-	settings, err := client.GetLLMSettings()
-	if err != nil {
-		fmt.Printf("  LLM settings: Not configured for active profile (normal)\n")
-	} else {
-		fmt.Printf("  LLM settings found for provider: %s\n", settings.ProviderName)
-		if settings.Temperature != nil {
-			fmt.Printf("    Temperature: %.1f\n", *settings.Temperature)
-		}
-		if settings.MaxTokens != nil {
-			fmt.Printf("    Max Tokens: %d\n", *settings.MaxTokens)
-		}
-	}
-
-	fmt.Printf("  ✓ LLM settings management fully functional\n")
-}
-
 func demonstrateMCPTools(ctx context.Context, client *rag.Client) {
 	// Get MCP status
 	status, err := client.GetMCPStatus(ctx)
@@ -261,7 +187,7 @@ func demonstrateAdvancedFeatures(ctx context.Context, client *rag.Client) {
 		"version":    "2.17.0",
 	}
 
-	text := "RAGO v2 includes advanced features like profile management, MCP integration, and enhanced RAG operations."
+	text := "RAGO v2 includes advanced features like MCP integration and enhanced RAG operations."
 	resp, err := client.IngestTextWithMetadata(ctx, text, "advanced.txt", metadata, rag.DefaultIngestOptions())
 	if err != nil {
 		log.Printf("Failed enhanced ingestion: %v", err)

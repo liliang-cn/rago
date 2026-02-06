@@ -16,6 +16,7 @@ type Session struct {
 	ID       string                 `json:"id"`
 	AgentID  string                 `json:"agent_id"`
 	Messages []domain.Message       `json:"messages"`
+	Summary  string                 `json:"summary,omitempty"` // Compacted key points
 	Context  map[string]interface{} `json:"context,omitempty"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 	CreatedAt time.Time             `json:"created_at"`
@@ -72,6 +73,21 @@ func (s *Session) GetMessages() []domain.Message {
 	messages := make([]domain.Message, len(s.Messages))
 	copy(messages, s.Messages)
 	return messages
+}
+
+// SetSummary sets the session summary
+func (s *Session) SetSummary(summary string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Summary = summary
+	s.UpdatedAt = time.Now()
+}
+
+// GetSummary returns the session summary
+func (s *Session) GetSummary() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Summary
 }
 
 // GetLastNMessages returns the last n messages

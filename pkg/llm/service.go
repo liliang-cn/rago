@@ -113,6 +113,36 @@ func (s *Service) RecognizeIntent(ctx context.Context, request string) (*domain.
 	return nil, fmt.Errorf("RecognizeIntent not supported")
 }
 
+// Compact summarizes a list of messages into key points
+func (s *Service) Compact(ctx context.Context, messages []domain.Message) (string, error) {
+	if len(messages) == 0 {
+		return "", nil
+	}
+
+	// Build the messages for compaction
+	compactionMessages := []domain.Message{
+		{
+			Role:    "system",
+			Content: "You are a helpful assistant that summarizes long conversations. Your goal is to extract key points and important information from the conversation, keeping it concise but comprehensive. Focus on what was discussed, what decisions were made, and any important context that should be preserved.",
+		},
+		{
+			Role:    "user",
+			Content: fmt.Sprintf("Please summarize the following conversation into key points:\n\n%s", s.buildPromptFromMessages(messages)),
+		},
+	}
+
+	// Generate the summary
+	result, err := s.GenerateWithTools(ctx, compactionMessages, nil, &domain.GenerationOptions{
+		Temperature: 0.3, // Lower temperature for more focused summary
+		MaxTokens:   1000,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to generate summary for compaction: %w", err)
+	}
+
+	return result.Content, nil
+}
+
 // ============================================
 // Chat API - Simple conversation interface
 // ============================================

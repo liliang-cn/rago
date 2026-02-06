@@ -553,7 +553,14 @@ Goal: "What is the capital of France?" → general_qa
 	prompt.WriteString(fmt.Sprintf("User Goal: %s\n\n", goal))
 
 	// Add session context if available
-	if session != nil && len(session.GetMessages()) > 0 {
+	if session != nil {
+		// Add summary if available
+		if session.Summary != "" {
+			prompt.WriteString("Conversation Summary:\n")
+			prompt.WriteString(session.Summary)
+			prompt.WriteString("\n\n")
+		}
+
 		messages := session.GetLastNMessages(3)
 		if len(messages) > 0 {
 			prompt.WriteString("Recent conversation:\n")
@@ -687,7 +694,15 @@ func (p *Planner) buildUserPromptWithContext(goal string, session *Session, inte
 	}
 
 	// Add session context if available
-	if session != nil && len(session.GetMessages()) > 0 {
+	if session != nil {
+		// Add summary if available
+		if session.Summary != "" {
+			prompt.WriteString("Conversation Summary:\n")
+			prompt.WriteString(session.Summary)
+			prompt.WriteString("\n\n")
+		}
+
+		// Add recent messages
 		messages := session.GetLastNMessages(5)
 		if len(messages) > 0 {
 			prompt.WriteString("Recent conversation context:\n")

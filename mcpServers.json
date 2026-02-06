@@ -1,11 +1,19 @@
 {
   "mcpServers": {
+    "fetch": {
+      "type": "stdio",
+      "command": "npx -y @modelcontextprotocol/server-fetch"
+    },
     "filesystem": {
       "command": "mcp-filesystem-server",
       "args": [
         "./",
         "./.rago/data"
       ]
+    },
+    "git": {
+      "type": "stdio",
+      "command": "uvx mcp-server-git --repository ."
     },
     "web-search": {
       "command": "mcp-websearch-server"

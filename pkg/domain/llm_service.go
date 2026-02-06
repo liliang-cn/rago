@@ -11,4 +11,5 @@ type MetadataExtractor interface {
 type LLMService interface {
 	Generator
 	MetadataExtractor
+	Compact(ctx context.Context, messages []Message) (string, error)
 }

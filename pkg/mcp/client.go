@@ -92,8 +92,29 @@ func (c *Client) Connect(ctx context.Context) error {
 
 // createStdioTransport creates a command transport for stdio-based servers
 func (c *Client) createStdioTransport(ctx context.Context) (mcp.Transport, error) {
+	// Parse command and arguments
+	execPath := ""
+	var args []string
+
+	if len(c.config.Command) > 0 {
+		// If command contains spaces and args is empty, try to split it
+		cmdStr := c.config.Command[0]
+		if strings.Contains(cmdStr, " ") && len(c.config.Args) == 0 {
+			parts := strings.Fields(cmdStr)
+			execPath = parts[0]
+			args = parts[1:]
+		} else {
+			execPath = cmdStr
+			args = c.config.Args
+		}
+	}
+
+	if execPath == "" {
+		return nil, fmt.Errorf("no executable command found for MCP server %s", c.config.Name)
+	}
+
 	// Create command for the MCP server
-	cmd := exec.CommandContext(ctx, c.config.Command[0], c.config.Args...)
+	cmd := exec.CommandContext(ctx, execPath, args...)
 
 	// Set working directory if specified
 	if c.config.WorkingDir != "" {

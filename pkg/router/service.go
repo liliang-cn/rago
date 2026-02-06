@@ -2,6 +2,7 @@ package router
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -134,6 +135,44 @@ func (s *Service) ListIntents() []*Intent {
 	result := make([]*Intent, len(s.intents))
 	copy(result, s.intents)
 	return result
+}
+
+// LoadIntentsFromDir loads intent definitions from a directory
+func (s *Service) LoadIntentsFromDir(dir string) error {
+	definitions, err := LoadIntentsFromDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, def := range definitions {
+		intent := &Intent{
+			Name:       def.Name,
+			Utterances: def.Utterances,
+			Metadata:   def.Metadata,
+		}
+		if intent.Metadata == nil {
+			intent.Metadata = make(map[string]string)
+		}
+		if def.Description != "" {
+			intent.Metadata["description"] = def.Description
+		}
+
+		if err := s.RegisterIntent(intent, def.ToolMapping); err != nil {
+			return fmt.Errorf("failed to register intent %s: %w", def.Name, err)
+		}
+	}
+
+	return nil
+}
+
+// LoadIntentsFromPaths loads intent definitions from multiple paths
+func (s *Service) LoadIntentsFromPaths(paths []string) error {
+	for _, path := range paths {
+		if err := s.LoadIntentsFromDir(path); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RemoveIntent removes an intent by name
