@@ -89,6 +89,111 @@ mkdir -p ~/.rago/config
 cp rago.toml.example ~/.rago/config/rago.toml
 ```
 
+Or use the init command:
+```bash
+rago init              # Initialize in ~/.rago/
+rago init -d ~/my-rago  # Custom directory
+```
+
+## 🔌 Extending RAGO
+
+### MCP Servers
+
+Add external tools via Model Context Protocol:
+
+```bash
+# Add a server
+rago mcp add websearch mcp-websearch-server
+rago mcp add filesystem mcp-filesystem-server ~/.rago/
+
+# List available tools
+rago mcp list
+
+# Call a tool directly
+rago mcp call mcp_websearch_websearch_basic '{"query": "golang news", "max_results": 5}'
+```
+
+Servers are stored in `~/.rago/mcpServers.json`:
+
+```json
+{
+  "mcpServers": {
+    "websearch": {
+      "type": "stdio",
+      "command": "mcp-websearch-server"
+    },
+    "filesystem": {
+      "type": "stdio",
+      "command": "mcp-filesystem-server",
+      "args": ["/Users/liliang/.rago/"]
+    }
+  }
+}
+```
+
+### Skills
+
+Skills are Markdown files that define domain-specific capabilities. Place them in `~/.rago/.skills/`:
+
+```markdown
+<!-- ~/.rago/.skills/weather.md -->
+---
+description: Get current weather and forecasts
+args:
+  - name: location
+    description: City name
+    type: string
+    required: true
+---
+
+# Weather Skill
+
+You are a weather assistant. Use the mcp_websearch tool to find current weather information for {{location}}.
+
+Provide temperature, conditions, and forecast in a concise format.
+```
+
+```bash
+# List loaded skills
+rago skills list
+
+# Test a skill
+rago skills call weather '{"location": "Beijing"}'
+```
+
+### Intents
+
+Intents enable semantic routing - matching user goals to appropriate tools automatically. Place them in `~/.rago/.intents/`:
+
+```markdown
+<!-- ~/.rago/.intents/filesystem.md -->
+---
+label: filesystem
+description: File system operations
+examples:
+  - "list files in current directory"
+  - "read README.md"
+  - "create a new file"
+  - "delete temporary files"
+tools:
+  - mcp_filesystem_list_directory
+  - mcp_filesystem_read_file
+  - mcp_filesystem_write_file
+  - mcp_filesystem_delete_file
+priority: 0.8
+---
+
+This intent handles file system operations using MCP filesystem tools.
+```
+
+```bash
+# List registered intents
+rago agent intents list
+
+# Test intent recognition
+rago agent intents recognize "show me all go files"
+```
+
 ## 🏗️ Architecture for Integrators
 
 RAGO is designed to be the **Intelligence Layer** of your application:
