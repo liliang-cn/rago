@@ -600,8 +600,11 @@ func TestMCPToolManager_ComprehensiveScenarios(t *testing.T) {
 
 		ctx := context.Background()
 		err := manager.Start(ctx)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to load server configurations")
+		// Missing config files are now skipped (not an error)
+		assert.NoError(t, err)
+		// No servers should be available
+		tools := manager.ListTools()
+		assert.Empty(t, tools)
 	})
 }
 
