@@ -2,11 +2,13 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/liliang-cn/sqvect/v2/pkg/hindsight"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -36,7 +38,8 @@ type MemoryWithScore struct {
 
 // MemoryStore handles memory persistence using Hindsight
 type MemoryStore struct {
-	sys *hindsight.System
+	sys    *hindsight.System
+	dbPath string
 }
 
 // NewMemoryStore creates a new memory store backed by Hindsight/sqvect
@@ -44,14 +47,45 @@ func NewMemoryStore(dbPath string) (*MemoryStore, error) {
 	if dbPath == "" {
 		return nil, errors.New("dbPath is required")
 	}
-	
+
 	cfg := hindsight.DefaultConfig(dbPath)
 	sys, err := hindsight.New(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize hindsight system: %w", err)
 	}
 
-	return &MemoryStore{sys: sys}, nil
+	return &MemoryStore{sys: sys, dbPath: dbPath}, nil
+}
+
+// getBankIDsFromDB retrieves all unique bank_ids from the embeddings metadata
+// This is a workaround because hindsight.ListBanks() might not return all banks
+func (s *MemoryStore) getBankIDsFromDB() ([]string, error) {
+	db, err := sql.Open("sqlite3", s.dbPath)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	// Get all unique bank_ids from metadata
+	rows, err := db.Query(`
+		SELECT DISTINCT json_extract(metadata, '$.bank_id') as bank_id
+		FROM embeddings
+		WHERE json_extract(metadata, '$.bank_id') IS NOT NULL
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var bankIDs []string
+	for rows.Next() {
+		var bankID sql.NullString
+		if err := rows.Scan(&bankID); err == nil && bankID.Valid {
+			bankIDs = append(bankIDs, bankID.String)
+		}
+	}
+
+	return bankIDs, nil
 }
 
 // InitSchema is handled by Hindsight internally, keeping for interface compatibility
@@ -103,36 +137,66 @@ func (s *MemoryStore) Store(ctx context.Context, memory *Memory) error {
 	return s.sys.Retain(ctx, hMem)
 }
 
-// Search performs vector search using Hindsight Recall
+// Search performs vector search using Hindsight Recall across all banks
 func (s *MemoryStore) Search(ctx context.Context, vector []float64, topK int, minScore float64) ([]*MemoryWithScore, error) {
-	// Search in the "default" bank where memories are stored
-	req := &hindsight.RecallRequest{
-		BankID:      "default",
-		QueryVector: toFloat32(vector),
-		TopK:        topK,
-		Strategy:    hindsight.DefaultStrategy(), // Uses default TEMPR fusion
+	// Get all available banks
+	banks := s.sys.ListBanks()
+
+	// Fallback: if ListBanks returns empty, get bank IDs from database metadata
+	if len(banks) == 0 {
+		bankIDs, err := s.getBankIDsFromDB()
+		if err == nil && len(bankIDs) > 0 {
+			// Convert bank IDs to Bank structs
+			for _, bankID := range bankIDs {
+				banks = append(banks, &hindsight.Bank{ID: bankID, Name: bankID})
+			}
+		}
 	}
 
-	results, err := s.sys.Recall(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	var memories []*MemoryWithScore
-	for _, res := range results {
-		// Filter by minScore
-		if float64(res.Score) < minScore {
-			continue
+	// Collect results from all banks
+	var allMemories []*MemoryWithScore
+	for _, bank := range banks {
+		req := &hindsight.RecallRequest{
+			BankID:      bank.ID,
+			QueryVector: toFloat32(vector),
+			TopK:        topK,
+			Strategy:    hindsight.DefaultStrategy(), // Uses default TEMPR fusion
 		}
 
-		mem := toStoreMemory(res.Memory)
-		memories = append(memories, &MemoryWithScore{
-			Memory: mem,
-			Score:  float64(res.Score),
-		})
+		results, err := s.sys.Recall(ctx, req)
+		if err != nil {
+			continue // Skip banks that fail
+		}
+
+		for _, res := range results {
+			// Filter by minScore
+			if float64(res.Score) < minScore {
+				continue
+			}
+
+			mem := toStoreMemory(res.Memory)
+			allMemories = append(allMemories, &MemoryWithScore{
+				Memory: mem,
+				Score:  float64(res.Score),
+			})
+		}
 	}
 
-	return memories, nil
+	// Sort by score (highest first)
+	for i := 0; i < len(allMemories)-1; i++ {
+		for j := i + 1; j < len(allMemories); j++ {
+			if allMemories[i].Score < allMemories[j].Score {
+				allMemories[i], allMemories[j] = allMemories[j], allMemories[i]
+			}
+		}
+	}
+
+	// Return topK results
+	if len(allMemories) > topK {
+		allMemories = allMemories[:topK]
+	}
+
+	return allMemories, nil
 }
 
 // SearchBySession searches memories within a specific session (Bank)

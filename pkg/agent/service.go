@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	ragolog "github.com/liliang-cn/rago/v2/pkg/log"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/memory"
 	ragprocessor "github.com/liliang-cn/rago/v2/pkg/rag/processor"
@@ -1079,6 +1080,22 @@ func (s *Service) RunWithSession(ctx context.Context, goal, sessionID string) (*
 		Content: goal,
 	}
 	session.AddMessage(userMsg)
+
+	// Step 1: Retrieve memory context before planning
+	if s.memoryService != nil {
+		ragolog.Debug("[RunWithSession] Retrieving memory context for goal: %q, sessionID: %q", goal, sessionID)
+		memoryContext, memoryMemories, _ := s.memoryService.RetrieveAndInject(ctx, goal, sessionID)
+		ragolog.Debug("[RunWithSession] Memory context retrieved - context length: %d, memories: %d", len(memoryContext), len(memoryMemories))
+		if memoryContext != "" {
+			// Inject memory context into the session messages
+			session.AddMessage(domain.Message{
+				Role:    "system",
+				Content: memoryContext,
+			})
+		}
+	} else {
+		ragolog.Debug("[RunWithSession] Memory service is nil, skipping memory retrieval")
+	}
 
 	// Generate plan
 	plan, err := s.planner.PlanWithFallback(ctx, goal, session)

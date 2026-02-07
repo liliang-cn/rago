@@ -2,8 +2,64 @@ package domain
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
+
+// FlexibleStringArray handles JSON unmarshaling for fields that might be
+// arrays, objects, or null. Used for robust LLM response parsing.
+type FlexibleStringArray []string
+
+// UnmarshalJSON implements custom JSON unmarshaling for FlexibleStringArray
+// It handles: ["a","b"], {"key":"value"}, null, or even a single string
+func (f *FlexibleStringArray) UnmarshalJSON(data []byte) error {
+	// Handle null
+	if len(data) == 0 || string(data) == "null" {
+		*f = []string{}
+		return nil
+	}
+
+	// Try to unmarshal as string array first
+	var arr []string
+	if err := json.Unmarshal(data, &arr); err == nil {
+		*f = arr
+		return nil
+	}
+
+	// Try to unmarshal as object - extract keys
+	var obj map[string]interface{}
+	if err := json.Unmarshal(data, &obj); err == nil {
+		keys := make([]string, 0, len(obj))
+		for k := range obj {
+			keys = append(keys, k)
+		}
+		*f = keys
+		return nil
+	}
+
+	// Try to unmarshal as single string
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		if str != "" {
+			*f = []string{str}
+		} else {
+			*f = []string{}
+		}
+		return nil
+	}
+
+	// If all else fails, return empty array
+	*f = []string{}
+	return nil
+}
+
+// Strings returns the string slice
+func (f FlexibleStringArray) Strings() []string {
+	if f == nil {
+		return []string{}
+	}
+	return []string(f)
+}
 
 // MemoryType represents different types of long-term memories
 type MemoryType string
@@ -63,11 +119,11 @@ type MemorySummaryResult struct {
 
 // MemoryItem represents a single memory item extracted by LLM
 type MemoryItem struct {
-	Type       MemoryType `json:"type"`
-	Content    string     `json:"content"`
-	Importance float64    `json:"importance"`
-	Tags       []string   `json:"tags,omitempty"`
-	Entities   []string   `json:"entities,omitempty"`
+	Type       MemoryType           `json:"type"`
+	Content    string               `json:"content"`
+	Importance float64              `json:"importance"`
+	Tags       FlexibleStringArray  `json:"tags,omitempty"`
+	Entities   FlexibleStringArray  `json:"entities,omitempty"`
 }
 
 // MemoryStore defines the interface for memory persistence

@@ -16,6 +16,7 @@ import (
 
 type Config struct {
 	Home         string          `mapstructure:"home"`
+	Debug        bool            `mapstructure:"debug"`
 	Server       ServerConfig    `mapstructure:"server"`
 	LLMPool      pool.PoolConfig `mapstructure:"llm_pool"`
 	EmbeddingPool pool.PoolConfig `mapstructure:"embedding_pool"`
