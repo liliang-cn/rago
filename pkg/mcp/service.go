@@ -69,6 +69,25 @@ func (s *Service) StopServer(serverName string) error {
 	return s.manager.StopServer(serverName)
 }
 
+// AddDynamicServer adds and starts a server dynamically
+func (s *Service) AddDynamicServer(ctx context.Context, name string, command string, args []string) error {
+	// Create server configuration
+	serverConfig := &ServerConfig{
+		Name:      name,
+		Type:      ServerTypeStdio,
+		Command:   []string{command},
+		Args:      args,
+		AutoStart: true,
+	}
+
+	// Register with config
+	s.mcpConfig.AddServer(serverConfig)
+
+	// Start it via manager
+	_, err := s.manager.StartServer(ctx, name)
+	return err
+}
+
 // ListServers returns a list of configured servers and their status
 func (s *Service) ListServers() []ServerStatus {
 	var servers []ServerStatus

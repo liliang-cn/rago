@@ -23,6 +23,7 @@ type Skill struct {
 
 	// Execution
 	Command     string `json:"command,omitempty"`
+	Handler     func(ctx context.Context, vars map[string]interface{}) (string, error) `json:"-"` // Direct Go function handler
 	ForkMode    bool   `json:"fork_mode,omitempty"`
 	UserInvocable bool `json:"user_invocable,omitempty"`
 	DisableModelInvocation bool `json:"disable_model_invocation,omitempty"`

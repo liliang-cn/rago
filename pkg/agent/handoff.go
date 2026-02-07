@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 // HandoffKind defines the type of handoff
@@ -266,22 +267,13 @@ type FuncDef struct {
 }
 
 // ToDomainTool converts ToolDef to domain.ToolDefinition
-func (t ToolDef) ToDomainTool() domainToolDefinition {
-	return domainToolDefinition{
-		Type:     t.Type,
-		Function: domainToolFunction(t.Function),
+func (t ToolDef) ToDomainTool() domain.ToolDefinition {
+	return domain.ToolDefinition{
+		Type: t.Type,
+		Function: domain.ToolFunction{
+			Name:        t.Function.Name,
+			Description: t.Function.Description,
+			Parameters:  t.Function.Parameters,
+		},
 	}
-}
-
-// domainToolDefinition matches domain.ToolDefinition
-type domainToolDefinition struct {
-	Type     string              `json:"type"`
-	Function domainToolFunction  `json:"function"`
-}
-
-// domainToolFunction matches domain.ToolFunction
-type domainToolFunction struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Parameters  map[string]interface{} `json:"parameters"`
 }

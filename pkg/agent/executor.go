@@ -33,6 +33,7 @@ type Executor struct {
 type MCPToolExecutor interface {
 	CallTool(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error)
 	ListTools() []domain.ToolDefinition
+	AddServer(ctx context.Context, name string, command string, args []string) error
 }
 
 // NewExecutor creates a new executor

@@ -50,8 +50,8 @@ var runCmd = &cobra.Command{
 		goal := args[0]
 		ctx := context.Background()
 
-		// Always use simple text output
-		return runSimple(ctx, goal)
+		// Use the new Event-Driven Stream Runner
+		return runStream(ctx, goal)
 	},
 }
 
@@ -387,6 +387,10 @@ func (a *mcpToolAdapter) ListTools() []domain.ToolDefinition {
 	return result
 }
 
+func (a *mcpToolAdapter) AddServer(ctx context.Context, name string, command string, args []string) error {
+	return a.service.AddDynamicServer(ctx, name, command, args)
+}
+
 // initializeSkills initializes the skills service
 func initializeSkills(ctx context.Context, ragClient *rag.Client) error {
 	skillsInitOnce.Do(func() {
@@ -611,6 +615,53 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 func getAgentDBPath() string {
 	// Use Cfg.DataDir() for agent database
 	return filepath.Join(Cfg.DataDir(), "agent.db")
+}
+
+// runStream runs the agent with Event Loop streaming output
+func runStream(ctx context.Context, goal string) error {
+	fmt.Printf("🎯 Agent Goal: %s\n\n", goal)
+
+	ragClient, agentService, err := initAgentServices(ctx)
+	if err != nil {
+		return err
+	}
+	if ragClient != nil {
+		defer ragClient.Close()
+	}
+	defer agentService.Close()
+
+	// Start streaming
+	events, err := agentService.RunStream(ctx, goal)
+	if err != nil {
+		return err
+	}
+
+	// Consume events
+	var currentRound int
+	for evt := range events {
+		switch evt.Type {
+		case agent.EventTypeStart:
+			fmt.Printf("🚀 %s\n", evt.Content)
+		case agent.EventTypeThinking:
+			currentRound++
+			fmt.Printf("\n🔄 [Round %d] Thinking...\n", currentRound)
+		case agent.EventTypeToolCall:
+			fmt.Printf("🛠️  Using Tool: %s (args: %v)\n", evt.ToolName, evt.ToolArgs)
+		case agent.EventTypeToolResult:
+			fmt.Printf("✅ Tool Success: %s\n", evt.ToolName)
+		case agent.EventTypeHandoff:
+			fmt.Printf("🔀 Handoff: %s\n", evt.Content)
+		case agent.EventTypePartial:
+			// Print text as it comes (Typewriter effect)
+			fmt.Print(evt.Content)
+		case agent.EventTypeComplete:
+			fmt.Printf("\n\n🏁 Task Completed!\n")
+		case agent.EventTypeError:
+			fmt.Printf("\n❌ Error: %s\n", evt.Content)
+		}
+	}
+
+	return nil
 }
 
 // runSimple runs the agent with simple text output
