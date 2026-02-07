@@ -70,7 +70,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, 30*time.Second, config.DefaultTimeout)
 	assert.Equal(t, 10, config.MaxConcurrentRequests)
 	assert.Equal(t, 60*time.Second, config.HealthCheckInterval)
-	assert.Equal(t, []string{"./mcpServers.json"}, config.Servers)
+	assert.Equal(t, []string{}, config.Servers) // Empty by default, resolved by resolveMCPServerPaths()
 	assert.Empty(t, config.LoadedServers)
 }
 

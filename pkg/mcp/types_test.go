@@ -259,9 +259,10 @@ func TestLoadServersFromJSON_FileNotFound(t *testing.T) {
 		Servers: []string{"nonexistent-file.json"},
 	}
 
+	// Missing files are now skipped (not an error)
 	err := config.LoadServersFromJSON()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to load server file")
+	assert.NoError(t, err)
+	assert.Empty(t, config.LoadedServers)
 }
 
 func TestLoadServersFromJSON_InvalidJSON(t *testing.T) {
@@ -282,18 +283,14 @@ func TestLoadServersFromJSON_InvalidJSON(t *testing.T) {
 }
 
 func TestLoadServersFromJSON_HomeDirectory(t *testing.T) {
-	// This tests the home directory path resolution logic
-	// We can't easily test the actual home directory logic in unit tests
-	// but we can test the relative path behavior
-
+	// Missing files are now skipped (not an error)
 	config := &Config{
 		Servers: []string{"nonexistent-relative-path.json"},
 	}
 
 	err := config.LoadServersFromJSON()
-	assert.Error(t, err)
-	// The error should mention failing to read the file
-	assert.Contains(t, err.Error(), "failed to read MCP servers config file")
+	assert.NoError(t, err)
+	assert.Empty(t, config.LoadedServers)
 }
 
 func TestLoadServerFile_ClearsPreviousServers(t *testing.T) {
@@ -446,7 +443,7 @@ func TestDefaultConfig_Values(t *testing.T) {
 	assert.Equal(t, 30*time.Second, config.DefaultTimeout)
 	assert.Equal(t, 10, config.MaxConcurrentRequests)
 	assert.Equal(t, 60*time.Second, config.HealthCheckInterval)
-	assert.Equal(t, []string{"./mcpServers.json"}, config.Servers)
+	assert.Equal(t, []string{}, config.Servers) // Empty by default, resolved by resolveMCPServerPaths()
 	assert.Empty(t, config.ServersConfigPath)
 	assert.Empty(t, config.LoadedServers)
 }
