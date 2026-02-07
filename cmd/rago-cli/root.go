@@ -9,6 +9,7 @@ import (
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/rag"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/skills"
 	"github.com/liliang-cn/rago/v2/pkg/config"
+	ragolog "github.com/liliang-cn/rago/v2/pkg/log"
 	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/spf13/cobra"
 )
@@ -16,6 +17,7 @@ import (
 var (
 	cfgFile string
 	verbose bool
+	debug   bool
 	quiet   bool
 	cfg     *config.Config
 	version string = "dev"
@@ -41,6 +43,11 @@ var RootCmd = &cobra.Command{
 		cfg, err = config.Load(cfgFile)
 		if err != nil {
 			return fmt.Errorf("failed to load configuration: %w", err)
+		}
+
+		// Enable debug mode if CLI flag is set or config has debug=true
+		if debug || cfg.Debug {
+			ragolog.SetDebug(true)
 		}
 
 		// Initialize global pool service
@@ -85,6 +92,7 @@ var versionCmd = &cobra.Command{
 func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "configuration file path (default: ./rago.toml or ~/.rago/config/rago.toml)")
 	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose logging output")
+	RootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "enable debug logging")
 	RootCmd.PersistentFlags().BoolVarP(&quiet, "quiet", "q", false, "quiet mode")
 
 	RootCmd.AddCommand(versionCmd)

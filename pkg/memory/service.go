@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -77,7 +78,7 @@ func (s *Service) RetrieveAndInject(ctx context.Context, query string, sessionID
 		}
 	}
 
-	// Search global memories
+	// Search global memories (in "default" bank)
 	globalMems, err := s.store.Search(ctx, vector, s.maxMemories-len(allMemories), s.minScore)
 	if err == nil {
 		allMemories = append(allMemories, toDomainMemories(globalMems)...)
@@ -165,6 +166,7 @@ func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStore
 	// 3. Parse result
 	var summary domain.MemorySummaryResult
 	if err := json.Unmarshal([]byte(result.Raw), &summary); err != nil {
+		log.Printf("[Memory] Error parsing memory summary: %v", err)
 		return fmt.Errorf("failed to parse memory summary: %w", err)
 	}
 
@@ -177,7 +179,6 @@ func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStore
 		// Generate embedding for the memory content
 		vector, err := s.embedder.Embed(ctx, item.Content)
 		if err != nil {
-			// Continue with other memories
 			continue
 		}
 
@@ -189,14 +190,13 @@ func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStore
 			Vector:     vector,
 			Importance: item.Importance,
 			Metadata: map[string]interface{}{
-				"tags":     item.Tags,
-				"entities": item.Entities,
+				"tags":     item.Tags.Strings(),
+				"entities": item.Entities.Strings(),
 				"source":   "task_completion",
 			},
 		}
 
 		if err := s.store.Store(ctx, memory); err != nil {
-			// Log but continue
 			continue
 		}
 	}

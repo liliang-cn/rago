@@ -8,7 +8,7 @@ RAGO is an **AI Agent SDK** designed for Go developers. It enables you to build 
 
 RAGO's agent system acts as the central brain, orchestrating all other components (LLM, RAG, MCP) to solve complex tasks dynamically.
 
-### Zero-Config Agent
+### Autonomous Agent
 Create an intelligent agent that can reason, plan, and use tools with just a few lines:
 
 ```go
@@ -208,6 +208,117 @@ RAGO is designed to be the **Intelligence Layer** of your application:
 RAGO provides a powerful CLI for management, but is optimized for library usage:
 - **CLI**: `./rago agent run "Task"`
 - **Library**: `agentSvc.Run(ctx, "Task")`
+
+## 🔌 Library API: MCP, Skills & Intents
+
+### Using MCP in Your Code
+
+```go
+import (
+    "github.com/liliang-cn/rago/v2/pkg/config"
+    "github.com/liliang-cn/rago/v2/pkg/mcp"
+    "github.com/liliang-cn/rago/v2/pkg/services"
+)
+
+// Load config and initialize LLM
+cfg, _ := config.Load("")
+globalPool := services.GetGlobalPoolService()
+globalPool.Initialize(ctx, cfg)
+llmSvc, _ := globalPool.GetLLMService()
+
+// Create MCP service
+mcpSvc, _ := mcp.NewService(&cfg.MCP, llmSvc)
+mcpSvc.StartServers(ctx, nil)
+
+// List available tools
+tools := mcpSvc.GetAvailableTools(ctx)
+for _, tool := range tools {
+    fmt.Printf("- %s: %s\n", tool.Name, tool.Description)
+}
+
+// Call a tool
+result, _ := mcpSvc.CallTool(ctx, "mcp_websearch_websearch_basic", map[string]interface{}{
+    "query": "golang news",
+    "max_results": 5,
+})
+```
+
+### Using Skills in Your Code
+
+```go
+import "github.com/liliang-cn/rago/v2/pkg/skills"
+
+// Create skills service
+skillsCfg := skills.DefaultConfig()
+skillsCfg.Paths = []string{cfg.SkillsDir()} // ~/.rago/.skills
+skillsSvc, _ := skills.NewService(skillsCfg)
+
+// Load all skills from directory
+skillsSvc.LoadAll(ctx)
+
+// List available skills
+allSkills, _ := skillsSvc.ListSkills(ctx, skills.SkillFilter{})
+for _, skill := range allSkills {
+    fmt.Printf("- %s: %s\n", skill.ID, skill.Description)
+}
+
+// Call a skill directly
+result, _ := skillsSvc.Call(ctx, "weather", map[string]interface{}{
+    "location": "Beijing",
+})
+```
+
+### Using Intents (Router) in Your Code
+
+```go
+import "github.com/liliang-cn/rago/v2/pkg/router"
+
+// Create router service
+routerCfg := router.DefaultConfig()
+routerCfg.Threshold = 0.75
+routerSvc, _ := router.NewService(embedSvc, routerCfg)
+
+// Register default intents
+routerSvc.RegisterDefaultIntents()
+
+// Or register from directory
+routerSvc.RegisterIntentsFrom(cfg.IntentsDir()) // ~/.rago/.intents
+
+// Test intent recognition
+result, _ := routerSvc.Route(ctx, "What's the weather today?")
+if result.Matched {
+    fmt.Printf("Matched: %s (Score: %.2f)\n", result.IntentName, result.Score)
+    fmt.Printf("Tool: %s\n", result.ToolName)
+}
+
+// List all registered intents
+intents := routerSvc.ListIntents()
+for _, intent := range intents {
+    fmt.Printf("- %s: %s\n", intent.Name, intent.Description)
+}
+```
+
+### Complete Agent Example
+
+```go
+import "github.com/liliang-cn/rago/v2/pkg/agent"
+
+// Create agent with all features enabled
+svc, _ := agent.New(&agent.AgentConfig{
+    Name:         "my-agent",
+    EnableMCP:    true,  // MCP tools
+    EnableSkills: true,  // Skills
+    EnableRouter: true,  // Intent routing
+    EnableMemory: true,  // Long-term memory
+    EnableRAG:    true,  // RAG features
+    RouterThreshold: 0.75,
+})
+defer svc.Close()
+
+// Run a goal - agent will plan and execute automatically
+result, _ := svc.Run(ctx, "Research latest Go features and summarize")
+fmt.Println(result.FinalResult)
+```
 
 ## 📚 Documentation & Examples
 
