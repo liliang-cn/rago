@@ -27,20 +27,9 @@ result, _ := svc.Run(ctx, "Research the latest Go features and write a summary")
 
 ## 🧠 Core Capabilities
 
-RAGO is organized into four powerful pillars that form the intelligence layer of your application.
+RAGO is organized into three powerful pillars that form the intelligence layer of your application.
 
-### 1. Unified LLM Support
-Single API for multiple providers (Ollama, OpenAI, DeepSeek, etc.) with built-in resilience and load balancing.
-
-```go
-// Initialize LLM Pool with multiple providers via agent config
-svc, _ := agent.New(&agent.AgentConfig{
-    Name: "my-agent",
-    EnableRouter: true, // Auto-select best strategy
-})
-```
-
-### 2. Hybrid RAG (Vector + Knowledge Graph)
+### 1. Hybrid RAG (Vector + Knowledge Graph)
 Combines high-speed vector similarity with **GraphRAG** for deep relationship discovery and context retrieval.
 
 ```go
@@ -52,7 +41,7 @@ client.IngestFile(ctx, "data.pdf", opts)
 resp, _ := client.Query(ctx, "Analyze relationships in the data", nil)
 ```
 
-### 3. MCP & Claude-compatible Skills
+### 2. MCP & Claude-compatible Skills
 Extend your agent with **Model Context Protocol** tools and **Claude-compatible Skills**.
 
 ```go
@@ -63,7 +52,7 @@ svc, _ := agent.New(&agent.AgentConfig{
 })
 ```
 
-### 4. Hindsight: Self-Verification & Reflection
+### 3. Hindsight: Self-Verification & Reflection
 Powered by the **Hindsight** system, the agent reflects on its own performance to ensure accuracy.
 
 *   **Self-Correction**: Automatically detects and fixes errors via multi-turn verification loops.
