@@ -2,54 +2,61 @@ package log
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
-	"sync"
 )
 
 var (
-	debugEnabled bool
-	mu           sync.RWMutex
+	defaultLogger *slog.Logger
+	levelVar      *slog.LevelVar
 )
 
-// SetDebug enables or disables debug logging
+func init() {
+	levelVar = &slog.LevelVar{}
+	levelVar.Set(slog.LevelInfo)
+
+	opts := &slog.HandlerOptions{
+		Level: levelVar,
+	}
+
+	handler := slog.NewTextHandler(os.Stderr, opts)
+	defaultLogger = slog.New(handler)
+}
+
+func SetLevel(level slog.Level) { levelVar.Set(level) }
+
 func SetDebug(enabled bool) {
-	mu.Lock()
-	defer mu.Unlock()
-	debugEnabled = enabled
-}
-
-// IsDebug returns whether debug logging is enabled
-func IsDebug() bool {
-	mu.RLock()
-	defer mu.RUnlock()
-	return debugEnabled
-}
-
-// Debug logs a debug message only if debug mode is enabled
-func Debug(format string, args ...interface{}) {
-	if IsDebug() {
-		fmt.Fprintf(os.Stderr, "[DEBUG] "+format+"\n", args...)
+	if enabled {
+		SetLevel(slog.LevelDebug)
+	} else {
+		SetLevel(slog.LevelInfo)
 	}
 }
 
-// DebugWithPrefix logs a debug message with a custom prefix
-func DebugWithPrefix(prefix, format string, args ...interface{}) {
-	if IsDebug() {
-		fmt.Fprintf(os.Stderr, "["+prefix+"] "+format+"\n", args...)
-	}
+func IsDebug() bool { return levelVar.Level() == slog.LevelDebug }
+
+func GetLogger() *slog.Logger { return defaultLogger }
+
+func WithModule(module string) *slog.Logger {
+	return defaultLogger.With(slog.String("module", module))
 }
 
-// Info logs an info message (always shown)
-func Info(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "[INFO] "+format+"\n", args...)
-}
+// Structured Logging
+func Debug(msg string, args ...any) { defaultLogger.Debug(msg, args...) }
+func Info(msg string, args ...any)  { defaultLogger.Info(msg, args...) }
+func Warn(msg string, args ...any)  { defaultLogger.Warn(msg, args...) }
+func Error(msg string, args ...any) { defaultLogger.Error(msg, args...) }
 
-// Warn logs a warning message (always shown)
-func Warn(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "[WARN] "+format+"\n", args...)
+// Format-style Logging (Compatibility)
+func Debugf(format string, args ...any) {
+	defaultLogger.Debug(fmt.Sprintf(format, args...))
 }
-
-// Error logs an error message (always shown)
-func Error(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "[ERROR] "+format+"\n", args...)
+func Infof(format string, args ...any) {
+	defaultLogger.Info(fmt.Sprintf(format, args...))
+}
+func Warnf(format string, args ...any) {
+	defaultLogger.Warn(fmt.Sprintf(format, args...))
+}
+func Errf(format string, args ...any) {
+	defaultLogger.Error(fmt.Sprintf(format, args...))
 }

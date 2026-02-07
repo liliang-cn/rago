@@ -16,11 +16,12 @@ import (
 
 // Service implements the MemoryService interface
 type Service struct {
-	store       *store.MemoryStore
-	llm         domain.Generator
-	embedder    domain.Embedder
-	minScore    float64
-	maxMemories int
+	store        *store.MemoryStore
+	entityMemory *EntityMemory
+	llm          domain.Generator
+	embedder     domain.Embedder
+	minScore     float64
+	maxMemories  int
 
 	mu sync.RWMutex
 }
@@ -51,11 +52,12 @@ func NewService(
 	}
 
 	return &Service{
-		store:       memStore,
-		llm:         llm,
-		embedder:    embedder,
-		minScore:    config.MinScore,
-		maxMemories: config.MaxMemories,
+		store:        memStore,
+		entityMemory: NewEntityMemory(memStore, embedder),
+		llm:          llm,
+		embedder:     embedder,
+		minScore:     config.MinScore,
+		maxMemories:  config.MaxMemories,
 	}
 }
 
@@ -67,8 +69,26 @@ func (s *Service) RetrieveAndInject(ctx context.Context, query string, sessionID
 		return "", nil, fmt.Errorf("failed to embed query: %w", err)
 	}
 
-	// 2. Retrieve: session memories + global memories
+	// 2. Retrieve: session memories + global memories + entities
 	var allMemories []*domain.MemoryWithScore
+
+	// Search entities
+	if s.entityMemory != nil {
+		entities, err := s.entityMemory.SearchEntities(ctx, query, 3)
+		if err == nil {
+			for _, ent := range entities {
+				content := fmt.Sprintf("Entity: %s (%s) - %s", ent.Name, ent.Type, ent.Description)
+				allMemories = append(allMemories, &domain.MemoryWithScore{
+					Memory: &domain.Memory{
+						Type:       "entity",
+						Content:    content,
+						Importance: 1.0,
+					},
+					Score: 1.0, // High priority
+				})
+			}
+		}
+	}
 
 	// Search session-specific memories
 	if sessionID != "" {
@@ -176,6 +196,27 @@ func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStore
 
 	// 4. Store each memory
 	for _, item := range summary.Memories {
+		// Handle entities specifically
+		if len(item.Entities) > 0 && s.entityMemory != nil {
+			for _, entityName := range item.Entities {
+				// Basic entity creation - ideally LLM would provide more detail
+				// We create a stub entity here, future retrievals might enrich it
+				entity := domain.Entity{
+					Name:        entityName,
+					Type:        "unknown", // LLM extraction schema needs update to support type
+					Description: "Extracted from: " + item.Content,
+				}
+				// Simple heuristic for type
+				if strings.Contains(strings.ToLower(item.Content), "user") {
+					entity.Type = "person"
+				} else if strings.Contains(strings.ToLower(item.Content), "project") {
+					entity.Type = "project"
+				}
+				
+				_ = s.entityMemory.SaveEntity(ctx, entity)
+			}
+		}
+
 		// Generate embedding for the memory content
 		vector, err := s.embedder.Embed(ctx, item.Content)
 		if err != nil {
@@ -368,6 +409,21 @@ func (s *Service) List(ctx context.Context, limit, offset int) ([]*domain.Memory
 // Delete removes a memory
 func (s *Service) Delete(ctx context.Context, id string) error {
 	return s.store.Delete(ctx, id)
+}
+
+// ConfigureBank sets mission and disposition for a memory bank
+func (s *Service) ConfigureBank(ctx context.Context, sessionID string, config *domain.MemoryBankConfig) error {
+	return s.store.ConfigureBank(ctx, sessionID, config)
+}
+
+// Reflect triggers knowledge consolidation for a bank
+func (s *Service) Reflect(ctx context.Context, sessionID string) (string, error) {
+	return s.store.Reflect(ctx, sessionID)
+}
+
+// AddMentalModel adds a curated mental model
+func (s *Service) AddMentalModel(ctx context.Context, model *domain.MentalModel) error {
+	return s.store.AddMentalModel(ctx, model)
 }
 
 // Helper methods

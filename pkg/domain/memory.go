@@ -61,6 +61,32 @@ func (f FlexibleStringArray) Strings() []string {
 	return []string(f)
 }
 
+// MemoryBankConfig represents the configuration for a Hindsight memory bank
+type MemoryBankConfig struct {
+	Mission     string `json:"mission"`     // The identity/purpose of this memory bank
+	Directives  []string `json:"directives"` // Hard rules the agent must follow
+	Skepticism  int    `json:"skepticism"`  // 1-5, how much to doubt new information
+	Literalism  int    `json:"literalism"`  // 1-5, how strictly to interpret language
+	Empathy     int    `json:"empathy"`     // 1-5, level of emotional resonance
+}
+
+// MentalModel represents a user-curated summary or rule
+type MentalModel struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Content     string   `json:"content"`
+	Tags        []string `json:"tags,omitempty"`
+}
+
+// Entity represents a named entity extracted from text
+type Entity struct {
+	Name        string   `json:"name"`
+	Type        string   `json:"type"`
+	Description string   `json:"description"`
+	Aliases     []string `json:"aliases,omitempty"`
+}
+
 // MemoryType represents different types of long-term memories
 type MemoryType string
 
@@ -187,4 +213,13 @@ type MemoryService interface {
 
 	// Delete removes a memory
 	Delete(ctx context.Context, id string) error
+
+	// ConfigureBank sets mission and disposition for a memory bank (session)
+	ConfigureBank(ctx context.Context, sessionID string, config *MemoryBankConfig) error
+
+	// Reflect triggers knowledge consolidation for a bank
+	Reflect(ctx context.Context, sessionID string) (string, error)
+
+	// AddMentalModel adds a curated mental model to the memory system
+	AddMentalModel(ctx context.Context, model *MentalModel) error
 }

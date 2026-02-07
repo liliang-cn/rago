@@ -687,6 +687,10 @@ func (a *mcpToolAdapter) ListTools() []domain.ToolDefinition {
 	return result
 }
 
+func (a *mcpToolAdapter) AddServer(ctx context.Context, name string, command string, args []string) error {
+	return a.service.AddDynamicServer(ctx, name, command, args)
+}
+
 // RunAgent executes an agent with the given goal
 func (c *Client) RunAgent(ctx context.Context, goal string, opts *AgentOptions) (*agent.ExecutionResult, error) {
 	if err := c.initAgentService(ctx); err != nil {

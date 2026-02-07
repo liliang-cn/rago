@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,6 +50,8 @@ type Service struct {
 	executor         *Executor
 	store            *Store
 	agent            *Agent
+	registry         *Registry
+	logger           *slog.Logger
 	cancelMu         sync.RWMutex
 	cancelFunc       context.CancelFunc
 	progressCb       ProgressCallback
@@ -105,11 +108,18 @@ Available tools include:
 		tools,
 	)
 
+	// Initialize registry and register default agent
+	registry := NewRegistry()
+	registry.Register(agent)
+
 	// Create planner (without router initially)
 	planner := NewPlanner(llmService, tools)
 
 	// Create executor
 	executor := NewExecutor(llmService, nil, mcpService, ragProcessor, memoryService)
+
+	// Initialize logger
+	logger := ragolog.WithModule("agent.service")
 
 	return &Service{
 		llmService:    llmService,
@@ -120,6 +130,8 @@ Available tools include:
 		executor:      executor,
 		store:         store,
 		agent:         agent,
+		registry:      registry,
+		logger:        logger,
 		// Public fields
 		LLM:    llmService,
 		MCP:    mcpService,
@@ -133,6 +145,13 @@ func (s *Service) SetRouter(routerService *router.Service) {
 	s.routerService = routerService
 	s.Router = routerService
 	s.planner.SetRouter(routerService)
+}
+
+// RegisterAgent registers a new agent with the service
+func (s *Service) RegisterAgent(agent *Agent) {
+	if s.registry != nil {
+		s.registry.Register(agent)
+	}
 }
 
 // SetSkillsService sets the skills service for agent integration
@@ -172,6 +191,15 @@ func (s *Service) emitProgress(eventType, message string, round int, tool string
 			Tool:    tool,
 		})
 	}
+}
+
+// AddFunctionSkill adds a function-based skill dynamically
+func (s *Service) AddFunctionSkill(id, name, description string, fn func(ctx context.Context, vars map[string]interface{}) (string, error)) error {
+	if s.skillsService == nil {
+		return fmt.Errorf("skills service not initialized")
+	}
+	s.skillsService.RegisterFunction(id, name, description, fn)
+	return nil
 }
 
 // Plan generates an execution plan for the given goal
@@ -292,6 +320,27 @@ func (s *Service) ExecutePlan(ctx context.Context, plan *Plan) (*ExecutionResult
 	return result, nil
 }
 
+// RunStream executes a goal and returns a stream of events
+// This is the preferred method for reactive applications.
+func (s *Service) RunStream(ctx context.Context, goal string) (<-chan *Event, error) {
+	// Create or get session (auto-generated ID if not set)
+	sessionID := s.CurrentSessionID()
+	if sessionID == "" {
+		s.ResetSession()
+		sessionID = s.CurrentSessionID()
+	}
+
+	session, err := s.store.GetSession(sessionID)
+	if err != nil {
+		session = NewSessionWithID(sessionID, s.agent.ID())
+	}
+
+	// Create Runtime
+	runtime := NewRuntime(s, session)
+	
+	return runtime.RunStream(ctx, goal), nil
+}
+
 // Run executes a goal using a fixed workflow:
 // 1. Intent Recognition
 // 2. Check Memory
@@ -320,7 +369,7 @@ func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error
 	session := NewSession(s.agent.ID())
 
 	// Step 1: Collect ALL available tools
-	availableTools := s.collectAllAvailableTools(runCtx)
+	// Tools are collected dynamically in executeWithLLM
 
 	// Step 2: Intent Recognition (for context, not routing)
 	intent, _ := s.recognizeIntent(runCtx, goal, session)
@@ -347,7 +396,7 @@ func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error
 	}
 
 	// Step 5: Let LLM decide and execute (with RAG context)
-	finalResult, err := s.executeWithLLM(runCtx, goal, intent, availableTools, memoryContext, ragContext)
+	finalResult, err := s.executeWithLLM(runCtx, goal, intent, session, memoryContext, ragContext)
 	if err != nil {
 		return nil, err
 	}
@@ -375,7 +424,7 @@ func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error
 		s.emitProgress("tool_result", fmt.Sprintf("⚠ Verification: %s - Retrying...", reason), 0, "")
 		if verifyAttempt < maxVerifyRetries {
 			// Retry with correction prompt (reuse the same RAG context)
-			currentResult, err = s.executeWithLLM(runCtx, fmt.Sprintf("%s\n\nPrevious attempt was incomplete. Please ensure: %s", goal, reason), intent, availableTools, memoryContext, ragContext)
+			currentResult, err = s.executeWithLLM(runCtx, fmt.Sprintf("%s\n\nPrevious attempt was incomplete. Please ensure: %s", goal, reason), intent, session, memoryContext, ragContext)
 			if err != nil {
 				break
 			}
@@ -433,151 +482,189 @@ func (s *Service) Cancel() bool {
 	return false
 }
 
-// collectAllAvailableTools collects tools from MCP, Skills, and RAG
-func (s *Service) collectAllAvailableTools(ctx context.Context) []domain.ToolDefinition {
-	var tools []domain.ToolDefinition
+// collectAllAvailableTools collects tools from MCP, Skills, RAG, and Agent Handoffs
+func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Agent) []domain.ToolDefinition {
+	toolsMap := make(map[string]domain.ToolDefinition)
+
+	// Helper to add tools with deduplication
+	addTools := func(defs []domain.ToolDefinition) {
+		for _, tool := range defs {
+			toolsMap[tool.Function.Name] = tool
+		}
+	}
+
+	// Agent Handoffs and Tools
+	if currentAgent != nil {
+		for _, handoff := range currentAgent.Handoffs() {
+			tool := handoff.ToToolDefinition().ToDomainTool()
+			toolsMap[tool.Function.Name] = tool
+		}
+		addTools(currentAgent.Tools())
+	}
 
 	// MCP tools
 	if s.mcpService != nil {
-		tools = append(tools, s.mcpService.ListTools()...)
+		allMCP := s.mcpService.ListTools()
+		if isAllAllowed(currentAgent.mcpTools) {
+			addTools(allMCP)
+		} else {
+			for _, tool := range allMCP {
+				if containsStr(currentAgent.mcpTools, tool.Function.Name) {
+					addTools([]domain.ToolDefinition{tool})
+				}
+			}
+		}
 	}
 
 	// Skills tools
 	if s.skillsService != nil {
 		skillsList, _ := s.skillsService.ListSkills(ctx, skills.SkillFilter{})
+		allowedAll := isAllAllowed(currentAgent.skills)
 		for _, sk := range skillsList {
-			tools = append(tools, domain.ToolDefinition{
-				Type: "function",
-				Function: domain.ToolFunction{
-					Name:        sk.ID,
-					Description: sk.Description,
-					Parameters:  map[string]interface{}{},
-				},
-			})
+			if allowedAll || containsStr(currentAgent.skills, sk.ID) {
+				toolsMap[sk.ID] = domain.ToolDefinition{
+					Type: "function",
+					Function: domain.ToolFunction{
+						Name:        sk.ID,
+						Description: sk.Description,
+						Parameters:  map[string]interface{}{},
+					},
+				}
+			}
 		}
 	}
 
 	// RAG tools
 	if s.ragProcessor != nil {
-		tools = append(tools, domain.ToolDefinition{
-			Type: "function",
-			Function: domain.ToolFunction{
-				Name:        "rag_query",
-				Description: "Search knowledge base for information",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"query": map[string]interface{}{
-							"type":        "string",
-							"description": "Search query",
+		addTools([]domain.ToolDefinition{
+			{
+				Type: "function",
+				Function: domain.ToolFunction{
+					Name:        "rag_query",
+					Description: "Search knowledge base for information",
+					Parameters: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"query": map[string]interface{}{
+								"type":        "string",
+								"description": "Search query",
+							},
+						},
+					},
+				},
+			},
+			{
+				Type: "function",
+				Function: domain.ToolFunction{
+					Name:        "rag_ingest",
+					Description: "Ingest a document into the RAG system",
+					Parameters: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"content": map[string]interface{}{
+								"type":        "string",
+								"description": "The document content",
+							},
+							"file_path": map[string]interface{}{
+								"type":        "string",
+								"description": "Path to the document file",
+							},
 						},
 					},
 				},
 			},
 		})
-
-
-		tools = append(tools, domain.ToolDefinition{
-			Type: "function",
-			Function: domain.ToolFunction{
-				Name:        "rag_ingest",
-				Description: "Ingest a document into the RAG system",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"content": map[string]interface{}{
-							"type":        "string",
-							"description": "The document content",
-						},
-						"file_path": map[string]interface{}{
-							"type":        "string",
-							"description": "Path to the document file",
-						},
-					},
-				},
-			},
-		})	}
+	}
 
 	// Add Memory tools
 	if s.memoryService != nil {
-		tools = append(tools, domain.ToolDefinition{
-			Type: "function",
-			Function: domain.ToolFunction{
-				Name:        "memory_save",
-				Description: "Save information to long-term memory for future reference",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"content": map[string]interface{}{
-							"type":        "string",
-							"description": "The information to remember",
+		addTools([]domain.ToolDefinition{
+			{
+				Type: "function",
+				Function: domain.ToolFunction{
+					Name:        "memory_save",
+					Description: "Save information to long-term memory for future reference",
+					Parameters: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"content": map[string]interface{}{
+								"type":        "string",
+								"description": "The information to remember",
+							},
+							"type": map[string]interface{}{
+								"type":        "string",
+								"description": "Type of memory (fact, preference, skill, pattern, context)",
+								"enum":        []string{"fact", "preference", "skill", "pattern", "context"},
+							},
 						},
-						"type": map[string]interface{}{
-							"type":        "string",
-							"description": "Type of memory (fact, preference, skill, pattern)",
-							"enum":        []string{"fact", "preference", "skill", "pattern", "context"},
-						},
+						"required": []string{"content"},
 					},
-					"required": []string{"content"},
+				},
+			},
+			{
+				Type: "function",
+				Function: domain.ToolFunction{
+					Name:        "memory_recall",
+					Description: "Recall information from long-term memory",
+					Parameters: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"query": map[string]interface{}{
+								"type":        "string",
+								"description": "The query to search memory for",
+							},
+						},
+						"required": []string{"query"},
+					},
 				},
 			},
 		})
+	}
 
-		tools = append(tools, domain.ToolDefinition{
-			Type: "function",
-			Function: domain.ToolFunction{
-				Name:        "memory_recall",
-				Description: "Recall information from long-term memory",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"query": map[string]interface{}{
-							"type":        "string",
-							"description": "The query to search memory for",
-						},
-					},
-					"required": []string{"query"},
-				},
-			},
-		})
+	// Convert map to slice
+	var tools []domain.ToolDefinition
+	for _, tool := range toolsMap {
+		tools = append(tools, tool)
 	}
 
 	return tools
 }
 
 // buildSystemPrompt 构建包含系统上下文的system prompt
-func (s *Service) buildSystemPrompt() string {
+func (s *Service) buildSystemPrompt(agent *Agent) string {
 	systemCtx := s.buildSystemContext()
 
 	var sb strings.Builder
-	sb.WriteString(`You are a helpful assistant with access to various tools.
-
-IMPORTANT - Tool Response Guidelines:
-- After using tools, provide a clear text response to summarize what was done
-- For memory/save operations: respond with a brief confirmation like "I've saved that to memory" and STOP - do not call memory_save again
-- For memory/recall operations: report what you found and respond to the user's question
-- NEVER repeat the same tool call with the same arguments. If you already have the information, provide the final answer.
-- If a tool succeeds, move to the next step or provide a final answer
-
-`)
+	sb.WriteString(agent.Instructions())
+	sb.WriteString("\n\nIMPORTANT - Tool Response Guidelines:\n")
+	sb.WriteString("- After using tools, provide a clear text response to summarize what was done\n")
+	sb.WriteString("- For memory/save operations: respond with a brief confirmation like \"I've saved that to memory\" and STOP - do not call memory_save again\n")
+	sb.WriteString("- For memory/recall operations: report what you found and respond to the user's question\n")
+	sb.WriteString("- NEVER repeat the same tool call with the same arguments. If you already have the information, provide the final answer.\n")
+	sb.WriteString("- If a tool succeeds, move to the next step or provide a final answer\n\n")
+	
 	sb.WriteString(systemCtx.FormatForPrompt())
 
 	return sb.String()
 }
 
 // executeWithLLM lets LLM decide which tool to use and executes with multi-round support
-func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *IntentRecognitionResult, tools []domain.ToolDefinition, memoryContext string, ragContext string) (interface{}, error) {
-	const maxRounds = 10 // Maximum rounds to prevent infinite loops
+func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *IntentRecognitionResult, session *Session, memoryContext string, ragContext string) (interface{}, error) {
+	const maxRounds = 20 // Maximum rounds to prevent infinite loops
+
+	// Determine starting agent
+	currentAgent := s.agent
+	if session != nil && session.AgentID != "" && s.registry != nil {
+		if a, ok := s.registry.GetAgent(session.AgentID); ok {
+			currentAgent = a
+		}
+	}
 
 	// Track tool calls to detect duplicates
 	prevToolCalls := make(map[string]int)
 
-	// Build system message with context
-	systemMsg := s.buildSystemPrompt()
-
-	// Build initial messages
+	// Build initial user message
 	messages := []domain.Message{
-		{Role: "system", Content: systemMsg},
 		{Role: "user", Content: goal},
 	}
 
@@ -600,20 +687,88 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 		default:
 		}
 
-		s.emitProgress("thinking", "思考中...", round+1, "")
+		s.emitProgress("thinking", fmt.Sprintf("[%s] Thinking...", currentAgent.Name()), round+1, "")
+
+		// Collect tools for current agent
+		tools := s.collectAllAvailableTools(ctx, currentAgent)
+
+		// Build system message for current agent
+		systemMsg := s.buildSystemPrompt(currentAgent)
+
+		// Prepare messages for this generation (System + History)
+		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
+
+		// Log Request (DEBUG)
+		s.logger.Debug("LLM Request",
+			slog.String("agent", currentAgent.Name()),
+			slog.Int("round", round+1),
+			slog.Any("messages", genMessages),
+			slog.Int("tools_count", len(tools)))
 
 		// Let LLM decide
-		result, err := s.llmService.GenerateWithTools(ctx, messages, tools, &domain.GenerationOptions{
+		result, err := s.llmService.GenerateWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
 			Temperature: 0.3,
 			MaxTokens:   2000,
 		})
 
 		if err != nil {
+			s.logger.Error("LLM Generation failed", slog.Any("error", err))
 			return nil, fmt.Errorf("LLM execution failed: %w", err)
 		}
 
+		// Log Response (DEBUG)
+		s.logger.Debug("LLM Response",
+			slog.String("content", result.Content),
+			slog.Int("tool_calls", len(result.ToolCalls)))
+
 		// If LLM made tool calls, execute them and continue the conversation
 		if len(result.ToolCalls) > 0 {
+
+			// Check for Handoffs FIRST
+			handoffOccurred := false
+			for _, tc := range result.ToolCalls {
+				if strings.HasPrefix(tc.Function.Name, "transfer_to_") {
+					// Find target agent in current agent's handoffs
+					for _, h := range currentAgent.Handoffs() {
+						if h.ToolName() == tc.Function.Name {
+							// Perform Handoff
+							targetAgent := h.TargetAgent()
+							reason := tc.Function.Arguments["reason"]
+
+							s.emitProgress("tool_call", fmt.Sprintf("Transferring to %s", targetAgent.Name()), round+1, "handoff")
+
+							// Update state
+							currentAgent = targetAgent
+							if session != nil {
+								session.AgentID = targetAgent.ID()
+							}
+
+							// Add transfer message to history
+							messages = append(messages, domain.Message{
+								Role:             "assistant",
+								Content:          result.Content,
+								ReasoningContent: result.ReasoningContent,
+								ToolCalls:        result.ToolCalls,
+							})
+							messages = append(messages, domain.Message{
+								Role:       "tool",
+								ToolCallID: tc.ID,
+								Content:    fmt.Sprintf("Transferred to %s. Reason: %v", targetAgent.Name(), reason),
+							})
+
+							handoffOccurred = true
+							break
+						}
+					}
+				}
+				if handoffOccurred {
+					break
+				}
+			}
+
+			if handoffOccurred {
+				continue // Start next round with new agent
+			}
 
 			// Check for duplicate tool calls (same tool, same arguments)
 			for _, tc := range result.ToolCalls {
@@ -629,7 +784,7 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 
 			// Execute tools and collect results
 			s.emitProgress("tool_call", fmt.Sprintf("Calling %d tool(s)", len(result.ToolCalls)), round+1, "")
-			toolResults, err := s.executeToolCalls(ctx, result.ToolCalls)
+			toolResults, err := s.executeToolCalls(ctx, currentAgent, result.ToolCalls)
 			if err != nil {
 				// Add error as assistant message and continue
 				messages = append(messages, domain.Message{
@@ -641,10 +796,10 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 
 			// Add assistant's response (tool calls) to conversation history
 			messages = append(messages, domain.Message{
-				Role:      "assistant",
-				Content:   result.Content,
+				Role:             "assistant",
+				Content:          result.Content,
 				ReasoningContent: result.ReasoningContent,
-				ToolCalls: result.ToolCalls,
+				ToolCalls:        result.ToolCalls,
 			})
 
 			// Add tool results using Role: tool
@@ -759,7 +914,7 @@ func extractJSON(resp string, target interface{}) error {
 }
 
 // executeToolCalls executes the tool calls decided by LLM and returns all results
-func (s *Service) executeToolCalls(ctx context.Context, toolCalls []domain.ToolCall) ([]ToolExecutionResult, error) {
+func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, toolCalls []domain.ToolCall) ([]ToolExecutionResult, error) {
 	results := make([]ToolExecutionResult, 0, len(toolCalls))
 
 	for _, tc := range toolCalls {
@@ -772,15 +927,24 @@ func (s *Service) executeToolCalls(ctx context.Context, toolCalls []domain.ToolC
 
 		s.emitProgress("tool_call", fmt.Sprintf("→ %s", toolDesc), 0, toolName)
 
+		s.logger.Info("Executing Tool",
+			slog.String("tool", toolName),
+			slog.Any("arguments", tc.Function.Arguments))
+
 		var result interface{}
 		var err error
 		var toolType string
 
-		// Route to appropriate executor
-		if s.isMCPTool(tc.Function.Name) {
+		// 0. Priority: Agent-local Tools
+		if handler, ok := currentAgent.GetHandler(tc.Function.Name); ok {
+			result, err = handler(ctx, tc.Function.Arguments)
+			toolType = "local"
+		} else if s.isMCPTool(tc.Function.Name) {
+			// 1. MCP tools
 			result, err = s.mcpService.CallTool(ctx, tc.Function.Name, tc.Function.Arguments)
 			toolType = "mcp"
 		} else if s.isSkill(ctx, tc.Function.Name) && s.skillsService != nil {
+			// 2. Skills
 			skillResult, skillErr := s.skillsService.Execute(ctx, &skills.ExecutionRequest{
 				SkillID:     tc.Function.Name,
 				Variables:   tc.Function.Arguments,
@@ -860,8 +1024,15 @@ func (s *Service) executeToolCalls(ctx context.Context, toolCalls []domain.ToolC
 		}
 
 		if err != nil {
+			s.logger.Error("Tool execution failed",
+				slog.String("tool", toolName),
+				slog.Any("error", err))
 			return nil, fmt.Errorf("Tool %s (%s) failed: %w", tc.Function.Name, toolType, err)
 		}
+
+		s.logger.Info("Tool Result",
+			slog.String("tool", toolName),
+			slog.Any("result", result))
 
 		// Emit tool result progress
 		s.emitProgress("tool_result", fmt.Sprintf("✓ %s Done", toolDesc), 0, toolName)
@@ -930,6 +1101,16 @@ func (s *Service) hasRunMemorySaved() bool {
 	s.memorySaveMu.RLock()
 	defer s.memorySaveMu.RUnlock()
 	return s.memorySavedInRun
+}
+
+// containsStr checks if a string slice contains a string
+func containsStr(slice []string, s string) bool {
+	for _, item := range slice {
+		if item == s {
+			return true
+		}
+	}
+	return false
 }
 
 // isMCPTool checks if a tool name is from MCP
@@ -1195,6 +1376,22 @@ func (s *Service) ResetSession() {
 	s.sessionMu.Lock()
 	defer s.sessionMu.Unlock()
 	s.currentSessionID = uuid.New().String()
+}
+
+// ConfigureMemory sets the memory bank personality for the current session
+func (s *Service) ConfigureMemory(ctx context.Context, config *domain.MemoryBankConfig) error {
+	if s.memoryService == nil {
+		return fmt.Errorf("memory service not enabled")
+	}
+	return s.memoryService.ConfigureBank(ctx, s.CurrentSessionID(), config)
+}
+
+// ReflectMemory triggers memory consolidation and returns current system observations
+func (s *Service) ReflectMemory(ctx context.Context) (string, error) {
+	if s.memoryService == nil {
+		return "", fmt.Errorf("memory service not enabled")
+	}
+	return s.memoryService.Reflect(ctx, s.CurrentSessionID())
 }
 
 // CompactSession summarizes a session into key points
@@ -1483,6 +1680,18 @@ func (a *mcpToolAdapter) ListTools() []domain.ToolDefinition {
 		})
 	}
 	return result
+}
+
+func (a *mcpToolAdapter) AddServer(ctx context.Context, name string, command string, args []string) error {
+	return a.service.AddDynamicServer(ctx, name, command, args)
+}
+
+// AddMCPServer dynamically adds and starts an MCP server
+func (s *Service) AddMCPServer(ctx context.Context, name string, command string, args []string) error {
+	if s.mcpService == nil {
+		return fmt.Errorf("MCP service not initialized")
+	}
+	return s.mcpService.AddServer(ctx, name, command, args)
 }
 
 // collectAvailableTools collects tools from all available sources

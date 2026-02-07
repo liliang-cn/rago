@@ -126,6 +126,13 @@ func (c *Config) GetLoadedServers() []ServerConfig {
 	return servers
 }
 
+// AddServer adds a server configuration to the loaded servers list
+func (c *Config) AddServer(serverConfig *ServerConfig) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.LoadedServers = append(c.LoadedServers, *serverConfig)
+}
+
 // loadServerFile loads a single server configuration file
 func (c *Config) loadServerFile(serverFile string) error {
 	configPath := serverFile

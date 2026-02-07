@@ -46,6 +46,7 @@ func (r *Registry) Get(skillID string) *Skill {
 
 	// Return a copy
 	skillCopy := *skill
+	skillCopy.Handler = skill.Handler
 	return &skillCopy
 }
 
@@ -57,6 +58,7 @@ func (r *Registry) List() []*Skill {
 	result := make([]*Skill, 0, len(r.skills))
 	for _, skill := range r.skills {
 		skillCopy := *skill
+		skillCopy.Handler = skill.Handler
 		result = append(result, &skillCopy)
 	}
 
@@ -83,6 +85,7 @@ func (r *Registry) Update(skill *Skill) {
 	defer r.mu.Unlock()
 
 	skillCopy := *skill
+	skillCopy.Handler = skill.Handler
 	r.skills[skill.ID] = &skillCopy
 }
 

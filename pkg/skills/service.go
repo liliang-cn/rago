@@ -43,6 +43,22 @@ func NewService(cfg *Config) (*Service, error) {
 	return svc, nil
 }
 
+// RegisterFunction registers a Go function as a skill
+func (s *Service) RegisterFunction(id, name, description string, fn func(ctx context.Context, vars map[string]interface{}) (string, error)) {
+	skill := &Skill{
+		ID:            id,
+		Name:          name,
+		Description:   description,
+		Enabled:       true,
+		UserInvocable: true,
+		Handler:       fn,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+		Variables:     make(map[string]VariableDef), // Can be enhanced to accept variable defs
+	}
+	s.registry.Register(skill)
+}
+
 // SetStore sets the skill store
 func (s *Service) SetStore(store SkillStore) {
 	s.mu.Lock()
@@ -239,15 +255,19 @@ func (s *Service) Execute(ctx context.Context, req *ExecutionRequest) (*Executio
 	var execErr error
 
 	// Handle different skill types
-	switch skill.ID {
-	case "rag-query", "rag":
-		output, execErr = s.executeRAGQuery(ctx, req)
-	default:
-		// Generic skill execution
-		if skill.Command != "" {
-			output = fmt.Sprintf("Command: %s\nVariables: %v", skill.Command, req.Variables)
-		} else {
-			output = fmt.Sprintf("Skill '%s' executed. Variables: %v", skill.Name, req.Variables)
+	if skill.Handler != nil {
+		output, execErr = skill.Handler(ctx, req.Variables)
+	} else {
+		switch skill.ID {
+		case "rag-query", "rag":
+			output, execErr = s.executeRAGQuery(ctx, req)
+		default:
+			// Generic skill execution
+			if skill.Command != "" {
+				output = fmt.Sprintf("Command: %s\nVariables: %v", skill.Command, req.Variables)
+			} else {
+				output = fmt.Sprintf("Skill '%s' executed. Variables: %v", skill.Name, req.Variables)
+			}
 		}
 	}
 

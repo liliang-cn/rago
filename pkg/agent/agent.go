@@ -15,6 +15,10 @@ type Agent struct {
 	name         string
 	instructions string
 	tools        []domain.ToolDefinition
+	handoffs     []*Handoff
+	mcpTools     []string // Specific MCP tools allowed for this agent (names). Use ["*"] for all.
+	skills       []string // Specific Skills allowed (IDs). Use ["*"] for all.
+	handlers     map[string]func(context.Context, map[string]interface{}) (interface{}, error)
 	model        string
 	temperature  float64
 }
@@ -26,9 +30,77 @@ func NewAgent(name string) *Agent {
 		name:         name,
 		instructions: "You are a helpful assistant.",
 		tools:        []domain.ToolDefinition{},
+		handoffs:     []*Handoff{},
+		mcpTools:     []string{"*"}, // Default to all
+		skills:       []string{"*"}, // Default to all
+		handlers:     make(map[string]func(context.Context, map[string]interface{}) (interface{}, error)),
 		model:        "",
 		temperature:  0.7,
 	}
+}
+
+// AddTool adds a custom Go function tool to the agent
+func (a *Agent) AddTool(name, description string, parameters map[string]interface{}, handler func(context.Context, map[string]interface{}) (interface{}, error)) {
+	if a.handlers == nil {
+		a.handlers = make(map[string]func(context.Context, map[string]interface{}) (interface{}, error))
+	}
+	a.handlers[name] = handler
+	
+	a.tools = append(a.tools, domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        name,
+			Description: description,
+			Parameters:  parameters,
+		},
+	})
+}
+
+// GetHandler returns the handler for a specific tool
+func (a *Agent) GetHandler(name string) (func(context.Context, map[string]interface{}) (interface{}, error), bool) {
+	if a.handlers == nil {
+		return nil, false
+	}
+	handler, ok := a.handlers[name]
+	return handler, ok
+}
+
+// SetAllowedMCPTools sets which MCP tools this agent can use
+func (a *Agent) SetAllowedMCPTools(tools []string) {
+	a.mcpTools = tools
+}
+
+// SetAllowedSkills sets which skills this agent can use
+func (a *Agent) SetAllowedSkills(skills []string) {
+	a.skills = skills
+}
+
+// AddAllowedMCPTool adds a single MCP tool to the allowed list
+func (a *Agent) AddAllowedMCPTool(tool string) {
+	if isAllAllowed(a.mcpTools) {
+		a.mcpTools = []string{tool}
+		return
+	}
+	a.mcpTools = append(a.mcpTools, tool)
+}
+
+// AddAllowedSkill adds a single skill to the allowed list
+func (a *Agent) AddAllowedSkill(skill string) {
+	if isAllAllowed(a.skills) {
+		a.skills = []string{skill}
+		return
+	}
+	a.skills = append(a.skills, skill)
+}
+
+// isAllAllowed checks if a list contains the wildcard "*"
+func isAllAllowed(list []string) bool {
+	for _, item := range list {
+		if item == "*" {
+			return true
+		}
+	}
+	return false
 }
 
 // NewAgentWithConfig creates a new Agent with custom configuration
@@ -38,6 +110,7 @@ func NewAgentWithConfig(name, instructions string, tools []domain.ToolDefinition
 		name:         name,
 		instructions: instructions,
 		tools:        tools,
+		handoffs:     []*Handoff{},
 		model:        "",
 		temperature:  0.7,
 	}
@@ -61,6 +134,16 @@ func (a *Agent) Instructions() string {
 // Tools returns the agent's available tools
 func (a *Agent) Tools() []domain.ToolDefinition {
 	return a.tools
+}
+
+// Handoffs returns the agent's available handoffs
+func (a *Agent) Handoffs() []*Handoff {
+	return a.handoffs
+}
+
+// AddHandoff adds a handoff to the agent
+func (a *Agent) AddHandoff(h *Handoff) {
+	a.handoffs = append(a.handoffs, h)
 }
 
 // Model returns the model name

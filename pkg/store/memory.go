@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/sqvect/v2/pkg/hindsight"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -302,6 +303,56 @@ func (s *MemoryStore) Delete(ctx context.Context, id string) error {
 // DeleteBySession removes all memories for a session
 func (s *MemoryStore) DeleteBySession(ctx context.Context, sessionID string) error {
 	return s.sys.DeleteBank(sessionID)
+}
+
+// ConfigureBank applies Hindsight mission and disposition settings
+func (s *MemoryStore) ConfigureBank(ctx context.Context, bankID string, config *domain.MemoryBankConfig) error {
+	bank := hindsight.NewBank(bankID, bankID)
+	bank.Description = config.Mission // Mapping Mission to Description
+	bank.Disposition.Skepticism = config.Skepticism
+	bank.Disposition.Literalism = config.Literalism
+	bank.Disposition.Empathy = config.Empathy
+
+	return s.sys.CreateBank(ctx, bank)
+}
+
+// Reflect triggers the Hindsight reflection/consolidation process
+func (s *MemoryStore) Reflect(ctx context.Context, bankID string) (string, error) {
+	// Use Reflect to get formatted context from memories
+	req := &hindsight.ContextRequest{
+		BankID:   bankID,
+		Strategy: hindsight.DefaultStrategy(),
+		TopK:     10,
+	}
+
+	resp, err := s.sys.Reflect(ctx, req)
+	if err != nil {
+		return "", err
+	}
+
+	if resp.Context == "" {
+		return "No significant memories to reflect on.", nil
+	}
+
+	return resp.Context, nil
+}
+
+// AddMentalModel adds a curated mental model
+func (s *MemoryStore) AddMentalModel(ctx context.Context, model *domain.MentalModel) error {
+	// Mental models are typically WorldMemory or ObservationMemory in Hindsight
+	hMem := &hindsight.Memory{
+		ID:         model.ID,
+		BankID:     "global",
+		Type:       hindsight.ObservationMemory,
+		Content:    fmt.Sprintf("Mental Model: %s\n%s", model.Name, model.Content),
+		Confidence: 1.0,
+		Metadata: map[string]any{
+			"name":        model.Name,
+			"description": model.Description,
+			"tags":        model.Tags,
+		},
+	}
+	return s.sys.Retain(ctx, hMem)
 }
 
 // Close closes the store
