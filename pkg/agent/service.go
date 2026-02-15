@@ -60,6 +60,9 @@ type Service struct {
 	memorySaveMu     sync.RWMutex
 	memorySavedInRun bool
 
+	// Hook system for lifecycle events
+	hooks *HookRegistry
+
 	// Public access to underlying services
 	LLM    domain.Generator
 	MCP    MCPToolExecutor
@@ -132,6 +135,7 @@ Available tools include:
 		agent:         agent,
 		registry:      registry,
 		logger:        logger,
+		hooks:         GlobalHookRegistry(),
 		// Public fields
 		LLM:    llmService,
 		MCP:    mcpService,
@@ -179,6 +183,32 @@ func (s *Service) SetSkillsService(skillsService *skills.Service) {
 // SetProgressCallback sets the progress callback for execution events
 func (s *Service) SetProgressCallback(cb ProgressCallback) {
 	s.progressCb = cb
+}
+
+// RegisterHook registers a hook for lifecycle events
+// Returns the hook ID for later unregistration
+func (s *Service) RegisterHook(event HookEvent, handler HookHandler, opts ...HookOption) string {
+	return s.hooks.Register(event, handler, opts...)
+}
+
+// UnregisterHook removes a hook by ID
+func (s *Service) UnregisterHook(hookID string) bool {
+	return s.hooks.Unregister(hookID)
+}
+
+// GetHooks returns the hook registry for advanced usage
+func (s *Service) GetHooks() *HookRegistry {
+	return s.hooks
+}
+
+// CreateSubAgent creates a sub-agent wrapper for isolated execution
+func (s *Service) CreateSubAgent(agent *Agent, goal string, opts ...SubAgentOption) *SubAgent {
+	cfg := SubAgentConfig{
+		Agent:   agent,
+		Goal:    goal,
+		Service: s,
+	}
+	return NewSubAgent(cfg, opts...)
 }
 
 // emitProgress emits a progress event if callback is set
