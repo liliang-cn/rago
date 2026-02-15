@@ -170,15 +170,35 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 // executeToolOrHandoff executes a tool call and handles agent switching
 func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) (interface{}, error, bool) {
+	// === PRE-TOOL HOOK ===
+	hookData := HookData{
+		ToolName:  tc.Function.Name,
+		ToolArgs:  tc.Function.Arguments,
+		SessionID: r.session.GetID(),
+		AgentID:   r.currentAgent.ID(),
+	}
+
+	if r.svc.hooks != nil {
+		modifiedData, err := r.svc.hooks.EmitWithResult(ctx, HookEventPreToolUse, hookData)
+		if err != nil {
+			// Hook blocked execution
+			return nil, err, false
+		}
+		// Use modified args if hook changed them
+		if modifiedData.ToolArgs != nil {
+			tc.Function.Arguments = modifiedData.ToolArgs
+		}
+	}
+
 	// Check for Handoff
 	if strings.HasPrefix(tc.Function.Name, "transfer_to_") {
 		for _, h := range r.currentAgent.Handoffs() {
 			if h.ToolName() == tc.Function.Name {
 				targetAgent := h.TargetAgent()
 				reason := tc.Function.Arguments["reason"]
-				
+
 				r.emit(EventTypeHandoff, fmt.Sprintf("Transferring to %s: %v", targetAgent.Name(), reason))
-				
+
 				// SWITCH AGENT
 				r.currentAgent = targetAgent
 				return nil, nil, true
@@ -187,56 +207,60 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 	}
 
 	// Normal Tool Execution
+	var result interface{}
+	var execErr error
+
 	// 1. Agent-Local Tools
 	if handler, ok := r.currentAgent.GetHandler(tc.Function.Name); ok {
-		res, err := handler(ctx, tc.Function.Arguments)
-		return res, err, false
-	}
-
-	// 2. MCP Tools
-	if r.svc.isMCPTool(tc.Function.Name) {
-		res, err := r.svc.mcpService.CallTool(ctx, tc.Function.Name, tc.Function.Arguments)
-		return res, err, false
-	}
-
-	// 3. Skills
-	if r.svc.isSkill(ctx, tc.Function.Name) && r.svc.skillsService != nil {
+		result, execErr = handler(ctx, tc.Function.Arguments)
+	} else if r.svc.isMCPTool(tc.Function.Name) {
+		// 2. MCP Tools
+		result, execErr = r.svc.mcpService.CallTool(ctx, tc.Function.Name, tc.Function.Arguments)
+	} else if r.svc.isSkill(ctx, tc.Function.Name) && r.svc.skillsService != nil {
+		// 3. Skills
 		res, err := r.svc.skillsService.Execute(ctx, &skills.ExecutionRequest{
 			SkillID:   tc.Function.Name,
 			Variables: tc.Function.Arguments,
 		})
 		if err != nil {
-			return nil, err, false
+			execErr = err
+		} else {
+			result = res.Output
 		}
-		return res.Output, nil, false
-	}
-
-	// 4. RAG
-	if tc.Function.Name == "rag_query" && r.svc.ragProcessor != nil {
+	} else if tc.Function.Name == "rag_query" && r.svc.ragProcessor != nil {
+		// 4. RAG
 		q, _ := tc.Function.Arguments["query"].(string)
 		resp, err := r.svc.ragProcessor.Query(ctx, domain.QueryRequest{Query: q})
 		if err != nil {
-			return nil, err, false
+			execErr = err
+		} else {
+			result = resp.Answer
 		}
-		return resp.Answer, nil, false
-	}
-
-	// 5. Memory Tools
-	if strings.HasPrefix(tc.Function.Name, "memory_") && r.svc.memoryService != nil {
-		// Reuse existing logic via executeToolCalls or implement directly here
-		// For brevity, simple implementation:
+	} else if strings.HasPrefix(tc.Function.Name, "memory_") && r.svc.memoryService != nil {
+		// 5. Memory Tools
 		if tc.Function.Name == "memory_save" {
 			content, _ := tc.Function.Arguments["content"].(string)
-			_ = r.svc.memoryService.Add(ctx, &domain.Memory{
-				Type: domain.MemoryTypePreference, 
-				Content: content,
+			execErr = r.svc.memoryService.Add(ctx, &domain.Memory{
+				Type:       domain.MemoryTypePreference,
+				Content:    content,
 				Importance: 0.8,
 			})
-			return "Saved", nil, false
+			if execErr == nil {
+				result = "Saved"
+			}
 		}
+	} else {
+		execErr = fmt.Errorf("unknown tool: %s", tc.Function.Name)
 	}
 
-	return nil, fmt.Errorf("unknown tool: %s", tc.Function.Name), false
+	// === POST-TOOL HOOK ===
+	hookData.ToolResult = result
+	hookData.ToolError = execErr
+	if r.svc.hooks != nil {
+		r.svc.hooks.Emit(HookEventPostToolUse, hookData)
+	}
+
+	return result, execErr, false
 }
 
 func (r *Runtime) prepareContext(ctx context.Context, goal string) (string, string) {
