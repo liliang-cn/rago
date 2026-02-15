@@ -14,7 +14,7 @@ RAGO is designed for developers who want to build complex AI applications that r
 | :--- | :--- |
 | **🧠 Reasoning Engine** | **Planner/Executor**, **Intent Recognition**, and **Multi-Agent Handoffs**. Capable of solving multi-step complex tasks. |
 | **📚 Knowledge Engine** | **Hybrid RAG**: Combines high-speed Vector Search with **SQLite-based GraphRAG** for deep relationship discovery. |
-| **🛠️ Tooling Engine** | Native support for **MCP (Model Context Protocol)**, **Claude-compatible Skills**, and **Dynamic Go Functions**. |
+| **🛠️ Tooling Engine** | Native support for **MCP (Model Context Protocol)**, **[Claude-compatible Skills](SKILLS.md)**, and **Dynamic Go Functions**. |
 | **💾 Memory System** | **Hindsight Architecture**: Features Short-term context, Long-term factual memory, Entity tracking, and Reflection. |
 | **⚡ Runtime** | **Event-Driven Loop**: Real-time streaming (token-by-token), state management, and async execution. |
 | **🔒 Local-First** | Designed to work offline with **Ollama** or online with **OpenAI/DeepSeek**. Data stays in your control. |
@@ -105,10 +105,11 @@ svc.RegisterAgent(mathAgent)
 svc.RegisterAgent(triageAgent)
 ```
 
-### 3. Universal Tooling (MCP & Code)
+### 3. Universal Tooling (MCP, Skills & Code)
 RAGO unifies all tools under one interface.
 
 *   **MCP Servers**: Connect to filesystem, GitHub, databases, or browsers via standard protocol.
+*   **Agent Skills**: Use the [Agent Skills](SKILLS.md) standard (Markdown + YAML) to define complex workflows and specialized knowledge.
 *   **Go Functions**: Register your own code as tools dynamically.
 
 ```go

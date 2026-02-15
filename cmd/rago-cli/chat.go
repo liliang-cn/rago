@@ -180,7 +180,7 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service) error {
 				if result.FinalResult != nil {
 					fmt.Printf("\n🤖 RAGO: %v\n\n", result.FinalResult)
 				} else {
-					fmt.Println("\n🤖 RAGO: (empty response)\n")
+					fmt.Println("\n🤖 RAGO: (empty response)")
 				}
 			}
 		}

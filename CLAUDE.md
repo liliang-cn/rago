@@ -109,6 +109,13 @@ git push origin main --tags
 2. Test tool directly: `./rago mcp tools call filesystem read_file '{"path": "test.txt"}'`
 3. Review server logs in `~/.rago/logs/`
 
+### Debugging Skills Issues
+
+1. List available skills: `./rago skills list`
+2. Show skill details: `./rago skills show [skill-id]`
+3. Test skill execution: `./rago skills run [skill-id] --var key=value`
+4. Check for `SKILL.md` format errors in logs.
+
 ### Adding New Commands
 
 1. Create command file in `cmd/rago/`

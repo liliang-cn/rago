@@ -14,7 +14,7 @@ RAGO 解决了构建复杂 AI 应用时的核心痛点，且完全本地化，�
 | :--- | :--- |
 | **🧠 推理引擎** | **规划与执行 (Planner/Executor)**、**意图识别** 以及 **多智能体协作 (Handoffs)**。能够自动拆解并解决多步骤复杂任务。 |
 | **📚 知识引擎** | **混合 RAG**: 结合了极速向量搜索与 **基于 SQLite 的 GraphRAG**，能够发现数据间深层的关联。 |
-| **🛠️ 工具引擎** | 原生支持 **MCP (Model Context Protocol)**、**Claude 兼容技能**，以及 **动态 Go 函数注册**。 |
+| **🛠️ 工具引擎** | 原生支持 **MCP (Model Context Protocol)**、**[Claude 兼容技能](SKILLS.md)**，以及 **动态 Go 函数注册**。 |
 | **💾 记忆系统** | **Hindsight 架构**: 包含短期上下文、长期事实记忆、实体追踪以及 **反思 (Reflection)** 机制。 |
 | **⚡ 运行时** | **事件驱动循环 (Event-Driven Loop)**: 支持实时流式输出 (Token-by-token)、状态管理和全异步执行。 |
 | **🔒 本地优先** | 设计为既可离线运行（**Ollama**），也可连接云端（**OpenAI/DeepSeek**）。数据完全掌控。 |
@@ -105,10 +105,11 @@ svc.RegisterAgent(mathAgent)
 svc.RegisterAgent(triageAgent)
 ```
 
-### 3. 通用工具接口 (MCP & Code)
+### 3. 通用工具接口 (MCP, Skills & Code)
 RAGO 统一了所有工具的调用接口。
 
 *   **MCP 服务器**: 通过标准协议连接文件系统、GitHub、数据库或浏览器。
+*   **Agent 技能**: 使用 [Agent Skills](SKILLS.md) 标准（Markdown + YAML）定义复杂工作流和专业知识。
 *   **Go 函数**: 直接在代码中注册你自己的业务逻辑函数。
 
 ```go
