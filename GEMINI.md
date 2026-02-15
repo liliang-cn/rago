@@ -32,8 +32,9 @@ Run the CLI directly for tasks:
 - **Context:** Always pass `context.Context` through service calls.
 - **Database:** Use SQLite for persistence. Data is stored in `home/data/` (`~/.rago/data/` by default).
 - **Unified Path:** Configure `home` in `rago.toml` to unify paths for `config/`, `data/`, `skills/`, `intents/`, and `workspace/`.
-- **IDs:** Use UUIDs for session and conversation identification (avoid sequential IDs).
+- `IDs:** Use UUIDs for session and conversation identification (avoid sequential IDs).
 - **RAG Priority:** Focus on local document processing and semantic retrieval before agentic tool use.
+- **Agent Skills:** Use the `SKILL.md` format (YAML frontmatter + Markdown) for specialized workflows. See `SKILLS.md` for details.
 - **Examples:** New features should include a runnable example in the `examples/` directory.
 - **MCP Integration:** Prefer standard MCP tools for external system interactions.
 
@@ -43,3 +44,4 @@ Run the CLI directly for tasks:
 - `pkg/agent/service.go`: Agent planning and execution loop.
 - `cmd/rago-cli/`: CLI command definitions (using Cobra).
 - `rago.toml.example`: Template for system configuration.
+- `SKILLS.md`: Documentation for the Agent Skills system.

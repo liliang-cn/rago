@@ -43,19 +43,14 @@ func main() {
 	for evt := range events {
 		switch evt.Type {
 		case agent.EventTypeThinking:
-			fmt.Printf("
-[Thinking] ")
+			fmt.Printf("\n[Thinking] ")
 		case agent.EventTypeToolCall:
-			fmt.Printf("
-[Tool Call: %s] ", evt.ToolName)
+			fmt.Printf("\n[Tool Call: %s] ", evt.ToolName)
 		case agent.EventTypePartial:
 			// 真正的流式输出
 			fmt.Print(evt.Content)
 		case agent.EventTypeComplete:
-			fmt.Printf("
-
-✅ DONE at %s
-", time.Now().Format("15:04:05"))
+			fmt.Printf("\n\n✅ DONE at %s\n", time.Now().Format("15:04:05"))
 		}
 	}
 }
