@@ -593,20 +593,15 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 	}
 
 	// Display available tools summary
-	mcpTools := mcpService.GetAvailableTools(ctx)
+	mcpServerCount := mcpService.GetServerCount()
 	skillToolsCount := 0
 	if skillsService != nil {
 		allSkills, _ := skillsService.ListSkills(ctx, skills.SkillFilter{})
 		skillToolsCount = len(allSkills)
 	}
-	// RAG tools (rag_query, rag_ingest) = 2, only available if RAG client is initialized
-	ragToolCount := 0
-	if ragClient != nil {
-		ragToolCount = 2
-	}
-	totalTools := len(mcpTools) + skillToolsCount + ragToolCount
-	fmt.Printf("✓ Available tools: %d (MCP: %d, Skills: %d, RAG: %d)\n",
-		totalTools, len(mcpTools), skillToolsCount, ragToolCount)
+	totalTools := mcpServerCount + skillToolsCount
+	fmt.Printf("✓ Available tools: %d (MCP: %d, Skills: %d)\n",
+		totalTools, mcpServerCount, skillToolsCount)
 
 	return ragClient, agentService, nil
 }
