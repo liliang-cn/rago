@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/prompt"
 )
 
 // SelectionStrategy 选择策略
@@ -51,9 +52,10 @@ type clientWrapper struct {
 
 // Pool LLM/Embedding Client Pool
 type Pool struct {
-	config   PoolConfig
-	clients  map[string]*clientWrapper  // name -> wrapper
-	strategy SelectionStrategy
+	config        PoolConfig
+	clients       map[string]*clientWrapper // name -> wrapper
+	strategy      SelectionStrategy
+	promptManager *prompt.Manager
 
 	// round_robin
 	roundRobinIdx uint32
@@ -72,9 +74,10 @@ func NewPool(config PoolConfig) (*Pool, error) {
 	}
 
 	pool := &Pool{
-		config:   config,
-		clients:  make(map[string]*clientWrapper),
-		strategy: config.Strategy,
+		config:        config,
+		clients:       make(map[string]*clientWrapper),
+		strategy:      config.Strategy,
+		promptManager: prompt.NewManager(),
 	}
 
 	// 解析策略
@@ -102,6 +105,12 @@ func NewPool(config PoolConfig) (*Pool, error) {
 	// go pool.healthCheckLoop()
 
 	return pool, nil
+}
+
+func (p *Pool) SetPromptManager(m *prompt.Manager) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.promptManager = m
 }
 
 // Get 获取一个client（根据策略）
@@ -446,17 +455,15 @@ func (p *Pool) ExtractMetadata(ctx context.Context, content string, model string
 	defer p.Release(client)
 
 	// Use a simple prompt-based extraction
-	prompt := fmt.Sprintf(`Extract structured metadata from the following content. Return JSON:
-{
-  "summary": "brief summary",
-  "keywords": ["keyword1", "keyword2"],
-  "document_type": "article|report|email|code|other"
-}
+	data := map[string]interface{}{
+		"Content": content,
+	}
+	rendered, err := p.promptManager.Render(prompt.MetadataExtraction, data)
+	if err != nil {
+		rendered = fmt.Sprintf("Extract metadata from: %s", content)
+	}
 
-Content:
-%s`, content)
-
-	result, err := client.Generate(ctx, prompt, &domain.GenerationOptions{Temperature: 0.1})
+	result, err := client.Generate(ctx, rendered, &domain.GenerationOptions{Temperature: 0.1})
 	if err != nil {
 		return nil, err
 	}

@@ -7,28 +7,36 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/prompt"
 )
 
 // Service wraps an LLM with conversation support
 type Service struct {
-	generator domain.Generator
-	chats     map[string]*Conversation
-	chatMu    sync.RWMutex
+	generator     domain.Generator
+	promptManager *prompt.Manager
+	chats         map[string]*Conversation
+	chatMu        sync.RWMutex
 }
 
 // Conversation represents a chat conversation with history
 type Conversation struct {
-	ID            string
-	Messages      []domain.Message
-	systemPrompt  string
+	ID           string
+	Messages     []domain.Message
+	systemPrompt string
 }
 
 // NewService creates a new LLM service with a generator
 func NewService(generator domain.Generator) *Service {
 	return &Service{
-		generator: generator,
-		chats:     make(map[string]*Conversation),
+		generator:     generator,
+		promptManager: prompt.NewManager(),
+		chats:         make(map[string]*Conversation),
 	}
+}
+
+// SetPromptManager sets a custom prompt manager
+func (s *Service) SetPromptManager(m *prompt.Manager) {
+	s.promptManager = m
 }
 
 // Generate generates text using the configured generator
@@ -119,11 +127,16 @@ func (s *Service) Compact(ctx context.Context, messages []domain.Message) (strin
 		return "", nil
 	}
 
+	systemPrompt, err := s.promptManager.Render(prompt.LLMCompact, nil)
+	if err != nil {
+		systemPrompt = "You are a helpful assistant that summarizes long conversations."
+	}
+
 	// Build the messages for compaction
 	compactionMessages := []domain.Message{
 		{
 			Role:    "system",
-			Content: "You are a helpful assistant that summarizes long conversations. Your goal is to extract key points and important information from the conversation, keeping it concise but comprehensive. Focus on what was discussed, what decisions were made, and any important context that should be preserved.",
+			Content: systemPrompt,
 		},
 		{
 			Role:    "user",

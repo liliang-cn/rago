@@ -7,14 +7,23 @@ import (
 	"strings"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/prompt"
 )
 
 type EntityExtractor struct {
-	generator domain.Generator
+	generator     domain.Generator
+	promptManager *prompt.Manager
 }
 
 func NewEntityExtractor(generator domain.Generator) *EntityExtractor {
-	return &EntityExtractor{generator: generator}
+	return &EntityExtractor{
+		generator:     generator,
+		promptManager: prompt.NewManager(),
+	}
+}
+
+func (e *EntityExtractor) SetPromptManager(m *prompt.Manager) {
+	e.promptManager = m
 }
 
 type ExtractedGraphData struct {
@@ -32,27 +41,14 @@ type ExtractedGraphData struct {
 }
 
 func (e *EntityExtractor) Extract(ctx context.Context, text string) (*ExtractedGraphData, error) {
-	prompt := fmt.Sprintf(`You are a knowledge graph expert. Extract entities and relationships from the following text.
+	promptData := map[string]interface{}{
+		"Text": text,
+	}
 
-Rules:
-1. Identify key entities (Person, Organization, Location, Concept, Event, etc.).
-2. Identify relationships between these entities.
-3. Return valid JSON only. No markdown, no comments.
-
-JSON Schema:
-{
-  "entities": [
-    {"name": "Entity Name", "type": "Type", "description": "Short description"}
-  ],
-  "relationships": [
-    {"source": "Entity Name", "target": "Entity Name", "type": "relationship_type", "description": "Context"}
-  ]
-}
-
-Text:
-%s
-
-JSON Output:`, text)
+	rendered, err := e.promptManager.Render(prompt.RAGGraphExtraction, promptData)
+	if err != nil {
+		rendered = fmt.Sprintf("Extract entities and relationships from: %s", text)
+	}
 
 	// Use low temperature for deterministic output
 	opts := &domain.GenerationOptions{
@@ -60,7 +56,7 @@ JSON Output:`, text)
 		MaxTokens:   4000,
 	}
 
-	response, err := e.generator.Generate(ctx, prompt, opts)
+	response, err := e.generator.Generate(ctx, rendered, opts)
 	if err != nil {
 		return nil, fmt.Errorf("extraction generation failed: %w", err)
 	}

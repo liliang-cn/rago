@@ -20,6 +20,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/memory"
 	ragprocessor "github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	ragstore "github.com/liliang-cn/rago/v2/pkg/rag/store"
+	"github.com/liliang-cn/rago/v2/pkg/prompt"
 	"github.com/liliang-cn/rago/v2/pkg/router"
 	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
@@ -46,6 +47,7 @@ type Service struct {
 	memoryService    domain.MemoryService
 	skillsService    *skills.Service
 	routerService    *router.Service // Semantic Router for fast intent recognition
+	promptManager    *prompt.Manager // Central prompt management
 	planner          *Planner
 	executor         *Executor
 	store            *Store
@@ -64,12 +66,13 @@ type Service struct {
 	hooks *HookRegistry
 
 	// Public access to underlying services
-	LLM    domain.Generator
-	MCP    MCPToolExecutor
-	RAG    domain.Processor
-	Memory domain.MemoryService
-	Router *router.Service
-	Skills *skills.Service
+	LLM     domain.Generator
+	MCP     MCPToolExecutor
+	RAG     domain.Processor
+	Memory  domain.MemoryService
+	Router  *router.Service
+	Skills  *skills.Service
+	Prompts *prompt.Manager
 }
 
 // NewService creates a new agent service
@@ -87,6 +90,9 @@ func NewService(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent store: %w", err)
 	}
+
+	// Initialize prompt manager
+	promptMgr := prompt.NewManager()
 
 	// Collect available tools
 	tools := collectAvailableTools(mcpService, ragProcessor, nil)
@@ -117,6 +123,14 @@ Available tools include:
 
 	// Create planner (without router initially)
 	planner := NewPlanner(llmService, tools)
+	planner.SetPromptManager(promptMgr)
+
+	// Inject prompt manager into memory service if it supports it
+	if memoryService != nil {
+		if s, ok := memoryService.(interface{ SetPromptManager(*prompt.Manager) }); ok {
+			s.SetPromptManager(promptMgr)
+		}
+	}
 
 	// Create executor
 	executor := NewExecutor(llmService, nil, mcpService, ragProcessor, memoryService)
@@ -129,6 +143,7 @@ Available tools include:
 		mcpService:    mcpService,
 		ragProcessor:  ragProcessor,
 		memoryService: memoryService,
+		promptManager: promptMgr,
 		planner:       planner,
 		executor:      executor,
 		store:         store,
@@ -137,10 +152,11 @@ Available tools include:
 		logger:        logger,
 		hooks:         GlobalHookRegistry(),
 		// Public fields
-		LLM:    llmService,
-		MCP:    mcpService,
-		RAG:    ragProcessor,
-		Memory: memoryService,
+		LLM:     llmService,
+		MCP:     mcpService,
+		RAG:     ragProcessor,
+		Memory:  memoryService,
+		Prompts: promptMgr,
 	}, nil
 }
 
@@ -247,30 +263,23 @@ func (s *Service) Plan(ctx context.Context, goal string) (*Plan, error) {
 	return plan, nil
 }
 
-// RevisePlan revises an existing plan based on user instructions
+// RevisePlan revises an existing plan based on user feedback.
 // The user can modify the plan through natural language chat
 func (s *Service) RevisePlan(ctx context.Context, plan *Plan, instruction string) (*Plan, error) {
-	// Build prompt for plan revision
-	var prompt strings.Builder
-	prompt.WriteString("You are revising an existing execution plan based on user feedback.\n\n")
-	prompt.WriteString("=== Original Plan ===\n")
-	prompt.WriteString(fmt.Sprintf("Goal: %s\n", plan.Goal))
-	prompt.WriteString(fmt.Sprintf("Status: %s\n", plan.Status))
-	prompt.WriteString(fmt.Sprintf("Current Steps (%d):\n", len(plan.Steps)))
-	for i, step := range plan.Steps {
-		prompt.WriteString(fmt.Sprintf("  %d. [%s] %s\n", i+1, step.Tool, step.Description))
+	data := map[string]interface{}{
+		"Goal":        plan.Goal,
+		"Status":      plan.Status,
+		"Steps":       plan.Steps,
+		"Instruction": instruction,
 	}
-	prompt.WriteString("\n=== User Instruction ===\n")
-	prompt.WriteString(instruction)
-	prompt.WriteString("\n\n=== Task ===\n")
-	prompt.WriteString("Generate a revised plan based on the user's instruction. ")
-	prompt.WriteString("Return JSON with:\n")
-	prompt.WriteString("- reasoning: explanation of changes\n")
-	prompt.WriteString("- steps: array of steps, each with tool, description, arguments\n")
-	prompt.WriteString("Keep the same step structure. Only include steps that need to be done.")
+
+	rendered, err := s.promptManager.Render(prompt.AgentRevisePlan, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render revision prompt: %w", err)
+	}
 
 	// Call LLM to get revised plan
-	response, err := s.llmService.Generate(ctx, prompt.String(), &domain.GenerationOptions{
+	response, err := s.llmService.Generate(ctx, rendered, &domain.GenerationOptions{
 		Temperature: 0.3,
 		MaxTokens:   2000,
 	})
@@ -664,18 +673,18 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 func (s *Service) buildSystemPrompt(agent *Agent) string {
 	systemCtx := s.buildSystemContext()
 
-	var sb strings.Builder
-	sb.WriteString(agent.Instructions())
-	sb.WriteString("\n\nIMPORTANT - Tool Response Guidelines:\n")
-	sb.WriteString("- After using tools, provide a clear text response to summarize what was done\n")
-	sb.WriteString("- For memory/save operations: respond with a brief confirmation like \"I've saved that to memory\" and STOP - do not call memory_save again\n")
-	sb.WriteString("- For memory/recall operations: report what you found and respond to the user's question\n")
-	sb.WriteString("- NEVER repeat the same tool call with the same arguments. If you already have the information, provide the final answer.\n")
-	sb.WriteString("- If a tool succeeds, move to the next step or provide a final answer\n\n")
-	
-	sb.WriteString(systemCtx.FormatForPrompt())
+	data := map[string]interface{}{
+		"AgentInstructions": agent.Instructions(),
+		"SystemContext":     systemCtx.FormatForPrompt(),
+	}
 
-	return sb.String()
+	rendered, err := s.promptManager.Render(prompt.AgentSystemPrompt, data)
+	if err != nil {
+		// Fallback
+		return agent.Instructions() + "\n\n" + systemCtx.FormatForPrompt()
+	}
+
+	return rendered
 }
 
 // executeWithLLM lets LLM decide which tool to use and executes with multi-round support
@@ -860,27 +869,17 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 func (s *Service) verifyResult(ctx context.Context, goal string, result interface{}) (bool, string, interface{}, error) {
 	resultStr := formatResultForContent(result)
 
-	// Build verification prompt
-	verifyPrompt := fmt.Sprintf(`Original Goal: %s
+	data := map[string]interface{}{
+		"Goal":   goal,
+		"Result": resultStr,
+	}
 
-Agent Result: %s
+	rendered, err := s.promptManager.Render(prompt.AgentVerification, data)
+	if err != nil {
+		return true, "Render failed, assume verified", result, nil
+	}
 
-Please verify:
-1. Does the result actually complete the original goal?
-2. Is the result accurate and complete?
-3. For file operations: was the actual content (not placeholder) written to the file?
-4. For data queries: was real data retrieved and saved?
-
-Respond with JSON:
-{
-  "verified": true/false,
-  "reason": "brief explanation if not verified",
-  "needs_retry": true/false
-}
-
-If the goal was fully accomplished with real data (not placeholders), return {"verified": true, "needs_retry": false}.`, goal, resultStr)
-
-	verifyResp, err := s.llmService.Generate(ctx, verifyPrompt, &domain.GenerationOptions{
+	verifyResp, err := s.llmService.Generate(ctx, rendered, &domain.GenerationOptions{
 		Temperature: 0.1,
 		MaxTokens:   300,
 	})
@@ -1642,6 +1641,10 @@ func New(cfg *AgentConfig) (*Service, error) {
 		return nil, fmt.Errorf("failed to create agent: %w", err)
 	}
 
+	// Load prompts from default directory (~/.rago/prompts)
+	promptDir := filepath.Join(ragoCfg.Home, "prompts")
+	_ = svc.promptManager.LoadFromDir(promptDir)
+
 	// Set skills service
 	if skillsSvc != nil {
 		svc.SetSkillsService(skillsSvc)
@@ -1818,9 +1821,14 @@ func collectAvailableTools(mcpService MCPToolExecutor, ragProcessor domain.Proce
 
 // executeWithDynamicToolSelection uses LLM's native function calling to decide which MCP tools to use
 func (s *Service) executeWithDynamicToolSelection(ctx context.Context, goal string, intent *IntentRecognitionResult, availableTools []domain.ToolDefinition, memoryContext, ragResult string) (interface{}, error) {
+	systemPrompt, err := s.promptManager.Render(prompt.AgentDynamicToolSelection, nil)
+	if err != nil {
+		systemPrompt = "You are a helpful assistant with access to tools. Use tools when appropriate to help the user."
+	}
+
 	// Build messages - let LLM decide which tools to call
 	messages := []domain.Message{
-		{Role: "system", Content: "You are a helpful assistant with access to tools. Use tools when appropriate to help the user."},
+		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: goal},
 	}
 

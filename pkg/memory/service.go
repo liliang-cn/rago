@@ -11,17 +11,19 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/prompt"
 	"github.com/liliang-cn/rago/v2/pkg/store"
 )
 
 // Service implements the MemoryService interface
 type Service struct {
-	store        *store.MemoryStore
-	entityMemory *EntityMemory
-	llm          domain.Generator
-	embedder     domain.Embedder
-	minScore     float64
-	maxMemories  int
+	store         *store.MemoryStore
+	entityMemory  *EntityMemory
+	llm           domain.Generator
+	embedder      domain.Embedder
+	promptManager *prompt.Manager
+	minScore      float64
+	maxMemories   int
 
 	mu sync.RWMutex
 }
@@ -52,13 +54,19 @@ func NewService(
 	}
 
 	return &Service{
-		store:        memStore,
-		entityMemory: NewEntityMemory(memStore, embedder),
-		llm:          llm,
-		embedder:     embedder,
-		minScore:     config.MinScore,
-		maxMemories:  config.MaxMemories,
+		store:         memStore,
+		entityMemory:  NewEntityMemory(memStore, embedder),
+		llm:           llm,
+		embedder:      embedder,
+		promptManager: prompt.NewManager(), // Default manager
+		minScore:      config.MinScore,
+		maxMemories:   config.MaxMemories,
 	}
+}
+
+// SetPromptManager sets a custom prompt manager
+func (s *Service) SetPromptManager(m *prompt.Manager) {
+	s.promptManager = m
 }
 
 // RetrieveAndInject searches relevant memories and formats them for LLM context
@@ -463,26 +471,18 @@ func (s *Service) formatMemories(memories []*domain.MemoryWithScore) string {
 }
 
 func (s *Service) buildSummaryPrompt(req *domain.MemoryStoreRequest) string {
-	execLog := ""
-	if req.ExecutionLog != "" {
-		execLog = fmt.Sprintf("\nExecution Log:\n%s\n", req.ExecutionLog)
+	data := map[string]interface{}{
+		"Goal":         req.TaskGoal,
+		"Result":       req.TaskResult,
+		"ExecutionLog": req.ExecutionLog,
 	}
 
-	return fmt.Sprintf(`Analyze the completed task and extract any information worth storing in long-term memory.
+	rendered, err := s.promptManager.Render("memory.extraction", data)
+	if err != nil {
+		return fmt.Sprintf("Analyze task: %s. Extract useful info for memory.", req.TaskGoal)
+	}
 
-Task Goal: %s
-
-Task Result: %s
-%s
-Guidelines:
-- Extract facts, skills, patterns, or preferences that could be useful for future tasks
-- Only store information that is likely to be referenced again
-- Importance score (0-1): >0.8 for critical info, >0.5 for useful info, <0.5 for trivial
-- Tags: short keywords for categorization
-- Entities: named entities (people, projects, concepts)
-
-Return JSON with: should_store (boolean), reasoning (string), and memories array.
-`, req.TaskGoal, req.TaskResult, execLog)
+	return rendered
 }
 
 func (s *Service) searchByText(ctx context.Context, query string, topK int) ([]*domain.MemoryWithScore, error) {
