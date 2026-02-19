@@ -421,12 +421,12 @@ func TestOpenAILLMProvider_GenerateStructured(t *testing.T) {
 }
 
 func TestOpenAILLMProvider_ExtractMetadata(t *testing.T) {
-	provider := &OpenAILLMProvider{
-		config: &domain.OpenAIProviderConfig{
-			APIKey:   "test-key",
-			LLMModel: "gpt-4",
-		},
-	}
+	provider, err := NewOpenAILLMProvider(&domain.OpenAIProviderConfig{
+		APIKey:   "test-key",
+		LLMModel: "gpt-4",
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, provider)
 
 	tests := []struct {
 		name        string
