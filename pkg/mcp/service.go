@@ -137,6 +137,11 @@ func (s *Service) GetAvailableTools(ctx context.Context) []AgentToolInfo {
 	return s.manager.GetAvailableTools(ctx)
 }
 
+// GetServerCount returns the count of connected MCP servers
+func (s *Service) GetServerCount() int {
+	return s.manager.GetServerCount()
+}
+
 // CallTool calls a specific tool by name
 func (s *Service) CallTool(ctx context.Context, toolName string, arguments map[string]interface{}) (*ToolResult, error) {
 	return s.manager.CallTool(ctx, toolName, arguments)

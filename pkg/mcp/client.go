@@ -449,6 +449,20 @@ func (m *Manager) GetAvailableTools(ctx context.Context) []AgentToolInfo {
 	return tools
 }
 
+// GetServerCount returns the count of connected MCP servers
+func (m *Manager) GetServerCount() int {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	count := 0
+	for _, client := range m.clients {
+		if client != nil && client.IsConnected() {
+			count++
+		}
+	}
+	return count
+}
+
 // GetToolsDescription returns a formatted string description of all available tools
 func (m *Manager) GetToolsDescription(ctx context.Context) string {
 	tools := m.GetAvailableTools(ctx)
