@@ -10,14 +10,16 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/prompt"
 )
 
 // Client OpenAI兼容的LLM/Embedding Client
 type Client struct {
-	baseURL   string
-	key       string
-	modelName string
-	http      *http.Client
+	baseURL       string
+	key           string
+	modelName     string
+	http          *http.Client
+	promptManager *prompt.Manager
 }
 
 // NewClient 创建新client
@@ -36,7 +38,12 @@ func NewClient(baseURL, key, modelName string) (*Client, error) {
 		http: &http.Client{
 			Timeout: 60 * time.Second,
 		},
+		promptManager: prompt.NewManager(),
 	}, nil
+}
+
+func (c *Client) SetPromptManager(m *prompt.Manager) {
+	c.promptManager = m
 }
 
 // Generate 生成文本
@@ -382,19 +389,17 @@ func (c *Client) GenerateStructured(ctx context.Context, prompt string, schema i
 
 // RecognizeIntent 意图识别
 func (c *Client) RecognizeIntent(ctx context.Context, request string) (*domain.IntentResult, error) {
-	prompt := fmt.Sprintf(`Analyze the following user request and determine the intent. Respond with JSON:
-{
-  "intent": "question|action|analysis|search|calculation|status|unknown",
-  "confidence": 0.0-1.0,
-  "key_verbs": ["verb1", "verb2"],
-  "entities": ["entity1", "entity2"],
-  "needs_tools": true/false,
-  "reasoning": "brief explanation"
-}
+	data := map[string]interface{}{
+		"Query":   request,
+		"Intents": "question, action, analysis, search, calculation, status, unknown",
+	}
 
-User request: %s`, request)
+	rendered, err := c.promptManager.Render(prompt.RouterIntentAnalysis, data)
+	if err != nil {
+		rendered = fmt.Sprintf("Analyze intent for: %s", request)
+	}
 
-	result, err := c.Generate(ctx, prompt, &domain.GenerationOptions{Temperature: 0.1})
+	result, err := c.Generate(ctx, rendered, &domain.GenerationOptions{Temperature: 0.1})
 	if err != nil {
 		return nil, err
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/prompt"
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/shared"
@@ -13,8 +14,9 @@ import (
 
 // OpenAILLMProvider implements LLMProvider for OpenAI-compatible services
 type OpenAILLMProvider struct {
-	client openai.Client
-	config *domain.OpenAIProviderConfig
+	client        openai.Client
+	config        *domain.OpenAIProviderConfig
+	promptManager *prompt.Manager
 }
 
 // NewOpenAILLMProvider creates a new OpenAI LLM provider
@@ -39,9 +41,15 @@ func NewOpenAILLMProvider(config *domain.OpenAIProviderConfig) (domain.LLMProvid
 	}
 
 	return &OpenAILLMProvider{
-		client: openai.NewClient(opts...),
-		config: config,
+		client:        openai.NewClient(opts...),
+		config:        config,
+		promptManager: prompt.NewManager(),
 	}, nil
+}
+
+// SetPromptManager sets a custom prompt manager
+func (p *OpenAILLMProvider) SetPromptManager(m *prompt.Manager) {
+	p.promptManager = m
 }
 
 // ProviderType returns the provider type
@@ -451,21 +459,16 @@ func (p *OpenAILLMProvider) ExtractMetadata(ctx context.Context, content string,
 		return nil, fmt.Errorf("%w: content cannot be empty", domain.ErrInvalidInput)
 	}
 
-	prompt := fmt.Sprintf(`You are an expert data extractor. Analyze the following document content and return ONLY a single valid JSON object with the following fields:
-- "summary": A concise, one-sentence summary of the document.
-- "keywords": An array of 3 to 5 most relevant keywords.
-- "document_type": The type of the document (e.g., "Article", "Meeting Notes", "Technical Manual", "Code Snippet", "Essay").
-- "creation_date": The creation date found in the document text in "YYYY-MM-DD" format. If no date is found, use null.
-
-Document Content:
-"""
-%s
-"""
-
-JSON Output:`, content)
+	data := map[string]interface{}{
+		"Content": content,
+	}
+	rendered, err := p.promptManager.Render(prompt.MetadataExtraction, data)
+	if err != nil {
+		rendered = fmt.Sprintf("Extract metadata from: %s", content)
+	}
 
 	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(prompt),
+		openai.UserMessage(rendered),
 	}
 
 	llmModel := p.config.LLMModel
@@ -502,32 +505,17 @@ func (p *OpenAILLMProvider) RecognizeIntent(ctx context.Context, request string)
 		return nil, fmt.Errorf("%w: empty request", domain.ErrInvalidInput)
 	}
 
-	prompt := fmt.Sprintf(`Analyze this request and determine the user's intent. Categorize it into ONE of these types:
-
-REQUEST: %s
-
-INTENT CATEGORIES:
-- "question": User is asking a question that needs an answer (what, why, how, explain, etc.)
-- "action": User wants to perform an action (create, delete, modify, run, execute, etc.)
-- "analysis": User wants to analyze or process data (analyze, compare, evaluate, review, etc.)
-- "search": User wants to find or list information (find, search, list, show, get, etc.)
-- "calculation": User wants a mathematical or logical computation (calculate, compute, count, etc.)
-- "status": User wants to check status or state (check, status, verify, test, etc.)
-
-Also determine if this request requires external tools to complete.
-
-Respond with JSON only:
-{
-  "intent": "one of the categories above",
-  "confidence": 0.0-1.0,
-  "key_verbs": ["verb1", "verb2"],
-  "entities": ["entity1", "entity2"],
-  "needs_tools": true/false,
-  "reasoning": "brief explanation"
-}`, request)
+	data := map[string]interface{}{
+		"Query":   request,
+		"Intents": "question, action, analysis, search, calculation, status, unknown",
+	}
+	rendered, err := p.promptManager.Render(prompt.RouterIntentAnalysis, data)
+	if err != nil {
+		rendered = fmt.Sprintf("Analyze intent for: %s", request)
+	}
 
 	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(prompt),
+		openai.UserMessage(rendered),
 	}
 
 	params := openai.ChatCompletionNewParams{

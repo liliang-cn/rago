@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/prompt"
 )
 
 type Service struct {
@@ -28,6 +29,7 @@ type Service struct {
 	graphStore      domain.GraphStore
 	chatStore       domain.ChatStore
 	memoryService   domain.MemoryService
+	promptManager   *prompt.Manager
 }
 
 func New(
@@ -49,11 +51,13 @@ func New(
 		config:        config,
 		llmService:    llmService,
 		memoryService: memoryService,
+		promptManager: prompt.NewManager(),
 	}
 
 	// Initialize entity extractor (only if generator is available)
 	if generator != nil {
 		s.extractor = NewEntityExtractor(generator)
+		s.extractor.SetPromptManager(s.promptManager)
 	}
 
 	// Get graph store if available
@@ -63,6 +67,13 @@ func New(
 	}
 
 	return s
+}
+
+func (s *Service) SetPromptManager(m *prompt.Manager) {
+	s.promptManager = m
+	if s.extractor != nil {
+		s.extractor.SetPromptManager(m)
+	}
 }
 
 // initializeTools sets up the tool system
@@ -977,7 +988,12 @@ func (s *Service) Chat(ctx context.Context, sessionID string, message string, op
 func (s *Service) buildChatPrompt(query string, recent []*domain.ChatMessage, relevant []*domain.ChatMessage, chunks []domain.Chunk) string {
 	var sb strings.Builder
 
-	sb.WriteString("You are a helpful AI assistant with access to a knowledge base and conversation history.\n")
+	systemMsg, err := s.promptManager.Render(prompt.RAGSystemPrompt, nil)
+	if err != nil {
+		systemMsg = "You are a helpful AI assistant with access to a knowledge base and conversation history."
+	}
+
+	sb.WriteString(systemMsg + "\n")
 	sb.WriteString("Use the following context to answer the user's question.\n\n")
 
 	// Knowledge Base Context

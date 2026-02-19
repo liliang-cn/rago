@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/prompt"
 	"github.com/liliang-cn/rago/v2/pkg/router"
 )
 
@@ -20,26 +21,34 @@ type RouterService interface {
 
 // Planner generates execution plans from goals using semantic router + LLM
 type Planner struct {
-	llmService domain.Generator
-	tools      []domain.ToolDefinition
-	router     RouterService // Optional: semantic router for fast intent recognition
+	llmService    domain.Generator
+	tools         []domain.ToolDefinition
+	router        RouterService   // Optional: semantic router for fast intent recognition
+	promptManager *prompt.Manager // Handles prompt templates and overrides
 }
 
 // NewPlanner creates a new planner without semantic router
 func NewPlanner(llmService domain.Generator, tools []domain.ToolDefinition) *Planner {
 	return &Planner{
-		llmService: llmService,
-		tools:      tools,
+		llmService:    llmService,
+		tools:         tools,
+		promptManager: prompt.NewManager(),
 	}
 }
 
 // NewPlannerWithRouter creates a new planner with semantic router support
 func NewPlannerWithRouter(llmService domain.Generator, tools []domain.ToolDefinition, routerService RouterService) *Planner {
 	return &Planner{
-		llmService: llmService,
-		tools:      tools,
-		router:     routerService,
+		llmService:    llmService,
+		tools:         tools,
+		router:        routerService,
+		promptManager: prompt.NewManager(),
 	}
+}
+
+// SetPromptManager sets a custom prompt manager
+func (p *Planner) SetPromptManager(m *prompt.Manager) {
+	p.promptManager = m
 }
 
 // SetRouter sets or updates the semantic router
@@ -238,49 +247,16 @@ func (p *Planner) isValidTool(toolName string) bool {
 func (p *Planner) buildSystemPrompt() string {
 	toolDescriptions := p.describeAvailableTools()
 
-	return `You are an AI planning agent. Your task is to break down goals into clear, executable steps.
+	data := map[string]interface{}{
+		"ToolDescriptions": toolDescriptions,
+	}
 
-` + toolDescriptions + `
+	rendered, err := p.promptManager.Render(prompt.PlannerSystemPrompt, data)
+	if err != nil {
+		return "You are an AI planning agent. Help user achieve their goal using available tools."
+	}
 
-When creating a plan:
-1. Think step by step about what needs to be done
-2. Break down complex goals into smaller, manageable steps
-3. Choose the most appropriate tool for each step
-4. Provide clear arguments for each tool call
-5. Reason about your plan before presenting the steps
-
-CRITICAL - Match Your Tools to the Task:
-- Creating/Saving/Writing files → MUST use mcp_filesystem_write_file (NOT llm!)
-- Reading/Opening files → use mcp_filesystem_read_file (NOT llm!)
-- Searching the web → use web search tools
-- Querying your knowledge base → use rag_query
-- Generating content → use llm
-- Analyzing data → use llm
-
-EXAMPLE WORKFLOWS:
-
-📝 File Creation Example:
-Goal: "Create a markdown document about Go and save to go.md"
-Plan:
-1. rag_query - Retrieve information about Go language from knowledge base
-2. llm - Generate comprehensive markdown content about Go
-3. mcp_filesystem_write_file - Save content to "go.md" (path="./go.md", content="{{PREVIOUS_OUTPUT}}")
-
-📄 File Analysis Example:
-Goal: "Analyze the main.go file"
-Plan:
-1. mcp_filesystem_read_file - Read "./main.go" (path="./main.go")
-2. llm - Analyze the code structure and provide insights
-
-🔍 Research Example:
-Goal: "Find information about quantum computing"
-Plan:
-1. web_search - Search for quantum computing information
-2. llm - Summarize findings
-
-Return your response as JSON with:
-- reasoning: Your explanation of the plan
-- steps: Array of steps with description, tool, and arguments`
+	return rendered
 }
 
 // describeAvailableTools creates a description of available tools
@@ -527,53 +503,36 @@ func (p *Planner) llmIntentRecognition(ctx context.Context, goal string, session
 
 // buildIntentRecognitionPrompt creates the prompt for LLM-based intent recognition
 func (p *Planner) buildIntentRecognitionPrompt(goal string, session *Session) string {
-	var prompt strings.Builder
-
-	prompt.WriteString(`You are an intent classifier. Analyze the user's goal and classify it.
-
-Intent Types:
-- file_create: User wants to create, generate, or save a file
-- file_read: User wants to read, view, or analyze an existing file
-- file_edit: User wants to modify or update an existing file
-- web_search: User wants to search the web for current information
-- rag_query: User wants to query the knowledge base/vector store
-- analysis: User wants to analyze, summarize, or compare something
-- general_qa: General question that doesn't fit other categories
-
-Examples:
-Goal: "Create a markdown doc about Go and save to ./go.md" → file_create, target_file: "./go.md"
-Goal: "Read and analyze the main.go file" → file_read, target_file: "main.go"
-Goal: "Search for latest AI news" → web_search
-Goal: "What's in my knowledge base about Python?" → rag_query
-Goal: "Summarize the key points of this article" → analysis
-Goal: "What is the capital of France?" → general_qa
-
-`)
-
-	prompt.WriteString(fmt.Sprintf("User Goal: %s\n\n", goal))
+	data := map[string]interface{}{
+		"Goal": goal,
+	}
 
 	// Add session context if available
 	if session != nil {
-		// Add summary if available
+		var context strings.Builder
 		if session.Summary != "" {
-			prompt.WriteString("Conversation Summary:\n")
-			prompt.WriteString(session.Summary)
-			prompt.WriteString("\n\n")
+			context.WriteString("Conversation Summary:\n")
+			context.WriteString(session.Summary)
+			context.WriteString("\n\n")
 		}
 
 		messages := session.GetLastNMessages(3)
 		if len(messages) > 0 {
-			prompt.WriteString("Recent conversation:\n")
+			context.WriteString("Recent conversation:\n")
 			for _, msg := range messages {
-				prompt.WriteString(fmt.Sprintf("- %s: %s\n", msg.Role, msg.Content))
+				context.WriteString(fmt.Sprintf("- %s: %s\n", msg.Role, msg.Content))
 			}
-			prompt.WriteString("\n")
 		}
+		data["Context"] = context.String()
 	}
 
-	prompt.WriteString("Classify this goal. Return JSON with intent_type, target_file (if applicable), topic, requirements, and confidence.")
+	rendered, err := p.promptManager.Render(prompt.PlannerIntentRecognition, data)
+	if err != nil {
+		// Fallback if rendering fails
+		return fmt.Sprintf("Analyze user goal: %s. Return intent type and confidence.", goal)
+	}
 
-	return prompt.String()
+	return rendered
 }
 
 // fallbackIntentRecognition provides basic regex-based intent recognition as fallback
@@ -669,53 +628,37 @@ func (p *Planner) extractTopic(goal string) string {
 
 // buildUserPromptWithContext creates the user prompt with intent context
 func (p *Planner) buildUserPromptWithContext(goal string, session *Session, intent *IntentRecognitionResult) string {
-	var prompt strings.Builder
-
-	prompt.WriteString(fmt.Sprintf("Goal: %s\n\n", goal))
-
-	// Add intent recognition context
-	prompt.WriteString("Intent Analysis:\n")
-	prompt.WriteString(fmt.Sprintf("- Type: %s\n", intent.IntentType))
-	if intent.TargetFile != "" {
-		prompt.WriteString(fmt.Sprintf("- Target File: %s\n", intent.TargetFile))
-	}
-	if intent.Topic != "" {
-		prompt.WriteString(fmt.Sprintf("- Topic: %s\n", intent.Topic))
-	}
-	prompt.WriteString(fmt.Sprintf("- Confidence: %.1f\n\n", intent.Confidence))
-
-	// Add specific instructions based on intent
-	switch intent.IntentType {
-	case "file_create":
-		prompt.WriteString("⚠️  IMPORTANT: You MUST include a mcp_filesystem_write_file step to save the file!\n")
-		prompt.WriteString("   The workflow should be: 1) Gather information 2) Generate content 3) Write to file\n\n")
-	case "file_read":
-		prompt.WriteString("⚠️  IMPORTANT: Start with mcp_filesystem_read_file to read the file first!\n\n")
+	data := map[string]interface{}{
+		"Goal":   goal,
+		"Intent": intent,
 	}
 
 	// Add session context if available
 	if session != nil {
-		// Add summary if available
+		var sb strings.Builder
 		if session.Summary != "" {
-			prompt.WriteString("Conversation Summary:\n")
-			prompt.WriteString(session.Summary)
-			prompt.WriteString("\n\n")
+			sb.WriteString("Conversation Summary:\n")
+			sb.WriteString(session.Summary)
+			sb.WriteString("\n\n")
 		}
 
 		// Add recent messages
 		messages := session.GetLastNMessages(5)
 		if len(messages) > 0 {
-			prompt.WriteString("Recent conversation context:\n")
+			sb.WriteString("Recent conversation context:\n")
 			for _, msg := range messages {
-				prompt.WriteString(fmt.Sprintf("- [%s]: %s\n", msg.Role, msg.Content))
+				sb.WriteString(fmt.Sprintf("- [%s]: %s\n", msg.Role, msg.Content))
 			}
-			prompt.WriteString("\n")
 		}
+		data["SessionContext"] = sb.String()
 	}
 
-	prompt.WriteString("Create a step-by-step plan to accomplish this goal. Return JSON with reasoning and steps.")
+	rendered, err := p.promptManager.Render(prompt.PlannerUserPrompt, data)
+	if err != nil {
+		return fmt.Sprintf("Goal: %s. Create a plan.", goal)
+	}
 
-	return prompt.String()
+	return rendered
 }
 
 // ============================================================================
