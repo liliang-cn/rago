@@ -887,6 +887,25 @@ func (s *DocumentStore) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+func (s *DocumentStore) Update(ctx context.Context, doc domain.Document) error {
+	// Map domain.Document to core.Document
+	coreDoc := &core.Document{
+		ID:        doc.ID,
+		Title:     doc.Path, // Using path as title for now
+		SourceURL: doc.URL,
+		Version:   1,
+		Metadata:  doc.Metadata,
+		CreatedAt: doc.Created,
+		UpdatedAt: time.Now(),
+	}
+
+	if err := s.sqvect.UpdateDocument(ctx, coreDoc); err != nil {
+		return fmt.Errorf("%w: failed to update document: %v", domain.ErrDocumentStoreFailed, err)
+	}
+
+	return nil
+}
+
 // ensureCollection ensures a collection exists, creating it if necessary
 func (s *DocumentStore) ensureCollection(ctx context.Context, name string) error {
 	// Check if collection already exists
