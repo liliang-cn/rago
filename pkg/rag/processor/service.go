@@ -173,99 +173,102 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 		return domain.IngestResponse{}, fmt.Errorf("failed to store vectors: %w", err)
 	}
 
-	// GraphRAG Extraction
-	if s.graphStore != nil && s.extractor != nil {
-		log.Println("Starting GraphRAG extraction (concurrent)...")
+	// GraphRAG Extraction (disabled by default - too slow for most use cases)
+	// Set GRAPHRAG_ENABLED=true environment variable to enable
+	if s.graphStore != nil && s.extractor != nil && os.Getenv("GRAPHRAG_ENABLED") == "true" {
+		log.Println("Starting GraphRAG extraction (async)...")
 
-		// Concurrency control (limit to 3 concurrent LLM calls to avoid rate limits/freezing)
-		concurrencyLimit := 3
-		sem := make(chan struct{}, concurrencyLimit)
-		var wg sync.WaitGroup
+		// Run GraphRAG in background - does not block ingestion
+		go func() {
+			// Concurrency control (limit to 3 concurrent LLM calls to avoid rate limits/freezing)
+			concurrencyLimit := 3
+			sem := make(chan struct{}, concurrencyLimit)
+			var wg sync.WaitGroup
 
-		// Process chunks
-		for i, chunk := range chunks {
-			// Skip very small chunks
-			if len(chunk.Content) < 50 {
-				continue
+			// Process chunks
+			for i, chunk := range chunks {
+				// Skip very small chunks
+				if len(chunk.Content) < 50 {
+					continue
+				}
+
+				wg.Add(1)
+				go func(idx int, c domain.Chunk) {
+					defer wg.Done()
+
+					// Acquire semaphore
+					sem <- struct{}{}
+					defer func() { <-sem }()
+
+					// Create a context with timeout for each extraction to prevent hanging
+					extractCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+					defer cancel()
+
+					graphData, err := s.extractor.Extract(extractCtx, c.Content)
+					if err != nil {
+						log.Printf("Graph extraction failed for chunk %d: %v", idx, err)
+						return
+					}
+
+					// Store Entities as Nodes
+					for _, entity := range graphData.Entities {
+						entityID := generateEntityID(entity.Name, "") // Ignore type for ID consistency
+
+						// Get embedding for entity (also needs context)
+						embedCtx, embedCancel := context.WithTimeout(context.Background(), 10*time.Second)
+						vec, err := s.embedder.Embed(embedCtx, entity.Description)
+						embedCancel()
+
+						if err != nil {
+							log.Printf("Failed to embed entity %s: %v", entity.Name, err)
+							continue
+						}
+
+						node := domain.GraphNode{
+							ID:         entityID,
+							Content:    entity.Description,
+							NodeType:   entity.Type,
+							Properties: map[string]interface{}{
+								"name":            entity.Name,
+								"source_chunk_id": c.ID,
+								"source_doc_id":   c.DocumentID,
+							},
+							Vector: vec,
+						}
+
+						if err := s.graphStore.UpsertNode(extractCtx, node); err != nil {
+							log.Printf("Failed to upsert node %s: %v", entity.Name, err)
+						}
+					}
+
+					// Store Relationships as Edges
+					for _, rel := range graphData.Relationships {
+						fromID := generateEntityID(rel.Source, "")
+						toID := generateEntityID(rel.Target, "")
+
+						edge := domain.GraphEdge{
+							ID:         uuid.New().String(),
+							FromNodeID: fromID,
+							ToNodeID:   toID,
+							EdgeType:   rel.Type,
+							Weight:     1.0,
+							Properties: map[string]interface{}{
+								"description":     rel.Description,
+								"source_chunk_id": c.ID,
+							},
+						}
+
+						if err := s.graphStore.UpsertEdge(extractCtx, edge); err != nil {
+							log.Printf("Failed to upsert edge %s->%s: %v", rel.Source, rel.Target, err)
+						}
+					}
+				}(i, chunk)
 			}
 
-			wg.Add(1)
-			go func(idx int, c domain.Chunk) {
-				defer wg.Done()
-
-				// Acquire semaphore
-				sem <- struct{}{}
-				defer func() { <-sem }()
-
-				// Create a context with timeout for each extraction to prevent hanging
-				extractCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-				defer cancel()
-
-				graphData, err := s.extractor.Extract(extractCtx, c.Content)
-				if err != nil {
-					log.Printf("Graph extraction failed for chunk %d: %v", idx, err)
-					return
-				}
-
-				// Store Entities as Nodes
-				for _, entity := range graphData.Entities {
-					entityID := generateEntityID(entity.Name, "") // Ignore type for ID consistency
-
-					// Get embedding for entity (also needs context)
-					// We reuse the extraction context or create a new short one
-					embedCtx, embedCancel := context.WithTimeout(ctx, 10*time.Second)
-					vec, err := s.embedder.Embed(embedCtx, entity.Description)
-					embedCancel()
-
-					if err != nil {
-						log.Printf("Failed to embed entity %s: %v", entity.Name, err)
-						continue
-					}
-
-					node := domain.GraphNode{
-						ID:         entityID,
-						Content:    entity.Description,
-						NodeType:   entity.Type,
-						Properties: map[string]interface{}{
-							"name":            entity.Name,
-							"source_chunk_id": c.ID,
-							"source_doc_id":   c.DocumentID,
-						},
-						Vector: vec,
-					}
-
-					if err := s.graphStore.UpsertNode(extractCtx, node); err != nil {
-						log.Printf("Failed to upsert node %s: %v", entity.Name, err)
-					}
-				}
-
-				// Store Relationships as Edges
-				for _, rel := range graphData.Relationships {
-					fromID := generateEntityID(rel.Source, "")
-					toID := generateEntityID(rel.Target, "")
-
-					edge := domain.GraphEdge{
-						ID:         uuid.New().String(),
-						FromNodeID: fromID,
-						ToNodeID:   toID,
-						EdgeType:   rel.Type,
-						Weight:     1.0,
-						Properties: map[string]interface{}{
-							"description":     rel.Description,
-							"source_chunk_id": c.ID,
-						},
-					}
-
-					if err := s.graphStore.UpsertEdge(extractCtx, edge); err != nil {
-						log.Printf("Failed to upsert edge %s->%s: %v", rel.Source, rel.Target, err)
-					}
-				}
-			}(i, chunk)
-		}
-
-		// Wait for all routines to finish
-		wg.Wait()
-		log.Println("GraphRAG extraction completed.")
+			// Wait for all routines to finish
+			wg.Wait()
+			log.Println("GraphRAG extraction completed.")
+		}()
 	}
 
 	return domain.IngestResponse{
@@ -711,7 +714,7 @@ func (s *Service) readFile(filePath string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(filePath))
 
 	switch ext {
-	case ".txt", ".md", ".markdown":
+	case ".txt", ".md", ".markdown", ".adoc", ".asciidoc", ".html", ".htm":
 		data, err := os.ReadFile(filePath)
 		if err != nil {
 			return "", fmt.Errorf("failed to read file %s: %w", filePath, err)
