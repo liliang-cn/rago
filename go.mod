@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/liliang-cn/mcp-swagger-server v0.4.0
 	github.com/liliang-cn/skills-go v1.1.0
-	github.com/liliang-cn/sqvect/v2 v2.6.0
+	github.com/liliang-cn/sqvect/v2 v2.6.1
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/modelcontextprotocol/go-sdk v1.3.0-pre.1
 	github.com/openai/openai-go/v3 v3.22.0
@@ -89,5 +89,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace github.com/liliang-cn/sqvect/v2 => ../sqvect
