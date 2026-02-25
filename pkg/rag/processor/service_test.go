@@ -20,6 +20,18 @@ func (s *SimpleEmbedder) Embed(ctx context.Context, text string) ([]float64, err
 	return []float64{0.1, 0.2, 0.3}, nil
 }
 
+func (s *SimpleEmbedder) EmbedBatch(ctx context.Context, texts []string) ([][]float64, error) {
+	result := make([][]float64, len(texts))
+	for i, text := range texts {
+		v, err := s.Embed(ctx, text)
+		if err != nil {
+			return nil, err
+		}
+		result[i] = v
+	}
+	return result, nil
+}
+
 type SimpleGenerator struct {
 	generateFunc func(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error)
 }

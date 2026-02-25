@@ -23,6 +23,11 @@ func (s *Service) Embed(ctx context.Context, text string) ([]float64, error) {
 	return s.provider.Embed(ctx, text)
 }
 
+// EmbedBatch generates embeddings for multiple texts using the configured provider
+func (s *Service) EmbedBatch(ctx context.Context, texts []string) ([][]float64, error) {
+	return s.provider.EmbedBatch(ctx, texts)
+}
+
 // Health checks the health of the underlying provider
 func (s *Service) Health(ctx context.Context) error {
 	return s.provider.Health(ctx)

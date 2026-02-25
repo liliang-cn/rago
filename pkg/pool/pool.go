@@ -435,6 +435,11 @@ func (p *Pool) Embed(ctx context.Context, text string) ([]float64, error) {
 	return client.Embed(ctx, []string{text})
 }
 
+// EmbedBatch implements domain.Embedder batch interface, delegating to EmbedMultiple
+func (p *Pool) EmbedBatch(ctx context.Context, texts []string) ([][]float64, error) {
+	return p.EmbedMultiple(ctx, texts)
+}
+
 // EmbedMultiple Pool级别的EmbedMultiple (向量化多个文本)
 func (p *Pool) EmbedMultiple(ctx context.Context, texts []string) ([][]float64, error) {
 	client, err := p.Get()

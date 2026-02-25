@@ -735,6 +735,50 @@ func (p *OpenAIEmbedderProvider) Embed(ctx context.Context, text string) ([]floa
 	return vec64, nil
 }
 
+// EmbedBatch generates embeddings for multiple texts in a single API call.
+// Inputs are batched (max 512 per request) to stay within API limits.
+func (p *OpenAIEmbedderProvider) EmbedBatch(ctx context.Context, texts []string) ([][]float64, error) {
+	if len(texts) == 0 {
+		return nil, nil
+	}
+
+	const maxBatchSize = 512
+	all := make([][]float64, 0, len(texts))
+
+	for i := 0; i < len(texts); i += maxBatchSize {
+		end := i + maxBatchSize
+		if end > len(texts) {
+			end = len(texts)
+		}
+		batch := texts[i:end]
+
+		params := openai.EmbeddingNewParams{
+			Model: openai.EmbeddingModel(p.config.EmbeddingModel),
+			Input: openai.EmbeddingNewParamsInputUnion{
+				OfArrayOfStrings: batch,
+			},
+		}
+
+		res, err := p.client.Embeddings.New(ctx, params)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", domain.ErrEmbeddingFailed, err)
+		}
+
+		// Use Index field to ensure correct ordering
+		vecs := make([][]float64, len(batch))
+		for _, item := range res.Data {
+			vec := make([]float64, len(item.Embedding))
+			for j, v := range item.Embedding {
+				vec[j] = float64(v)
+			}
+			vecs[item.Index] = vec
+		}
+		all = append(all, vecs...)
+	}
+
+	return all, nil
+}
+
 // Health checks the health of the OpenAI embeddings service
 func (p *OpenAIEmbedderProvider) Health(ctx context.Context) error {
 	params := openai.EmbeddingNewParams{

@@ -90,6 +90,9 @@ type Stats struct {
 
 type Embedder interface {
 	Embed(ctx context.Context, text string) ([]float64, error)
+	// EmbedBatch generates embeddings for multiple texts in a single API call.
+	// Implementations should use the provider's native batch endpoint when available.
+	EmbedBatch(ctx context.Context, texts []string) ([][]float64, error)
 }
 
 // IntentType represents different types of user intents
