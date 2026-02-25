@@ -98,6 +98,10 @@ func (m *MockLLMProvider) GenerateStructured(ctx context.Context, prompt string,
 	}, nil
 }
 
+func (m *MockLLMProvider) NewSession(ctx context.Context, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (domain.RealtimeSession, error) {
+	return nil, nil
+}
+
 func (m *MockLLMProvider) ProviderType() domain.ProviderType {
 	return domain.ProviderType("mock_" + m.name)
 }

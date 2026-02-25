@@ -133,6 +133,22 @@ type Generator interface {
 	RecognizeIntent(ctx context.Context, request string) (*IntentResult, error)
 }
 
+// RealtimeSession represents a live bidirectional session with the LLM (e.g., via WebSocket)
+type RealtimeSession interface {
+	// Send sends a message or event to the session
+	Send(ctx context.Context, message Message) error
+	// Receive listens for the next result from the session
+	Receive(ctx context.Context) (*GenerationResult, error)
+	// Close terminates the session
+	Close() error
+}
+
+// RealtimeGenerator provides access to low-latency, bidirectional LLM interactions
+type RealtimeGenerator interface {
+	// NewSession creates a new persistent WebSocket session
+	NewSession(ctx context.Context, tools []ToolDefinition, opts *GenerationOptions) (RealtimeSession, error)
+}
+
 type GenerationOptions struct {
 	Temperature float64
 	MaxTokens   int

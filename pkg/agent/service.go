@@ -1468,6 +1468,27 @@ func (s *Service) Execute(ctx context.Context, planID string) (*ExecutionResult,
 	return s.ExecutePlan(ctx, plan)
 }
 
+// RunRealtime starts a bidirectional realtime session with the agent's capabilities.
+func (s *Service) RunRealtime(ctx context.Context, opts *domain.GenerationOptions) (domain.RealtimeSession, error) {
+	// 1. Check if provider supports realtime
+	realtimeGen, ok := s.llmService.(domain.RealtimeGenerator)
+	if !ok {
+		return nil, fmt.Errorf("current LLM provider does not support realtime interactions")
+	}
+
+	// 2. Collect tools for the current agent
+	tools := s.collectAllAvailableTools(ctx, s.agent)
+
+	// 3. Create session
+	session, err := realtimeGen.NewSession(ctx, tools, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create realtime session: %w", err)
+	}
+
+	s.logger.Info("Realtime session started", slog.Int("tools_count", len(tools)))
+	return session, nil
+}
+
 // SaveToFile saves content to a file
 func (s *Service) SaveToFile(content, filePath string) error {
 	// Create directory if needed

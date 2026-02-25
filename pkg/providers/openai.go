@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"sync"
 
+	"github.com/gorilla/websocket"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/prompt"
 	openai "github.com/openai/openai-go/v3"
@@ -17,6 +20,77 @@ type OpenAILLMProvider struct {
 	client        openai.Client
 	config        *domain.OpenAIProviderConfig
 	promptManager *prompt.Manager
+}
+
+// OpenAIRealtimeSession handles bidirectional WebSocket communication
+type OpenAIRealtimeSession struct {
+	conn *websocket.Conn
+	mu   sync.Mutex
+}
+
+func (s *OpenAIRealtimeSession) Send(ctx context.Context, msg domain.Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// OpenAI Realtime API uses a specific JSON structure
+	// This is a simplified version of response.create event
+	event := map[string]interface{}{
+		"type": "response.create",
+		"response": map[string]interface{}{
+			"instructions": msg.Content,
+		},
+	}
+
+	return s.conn.WriteJSON(event)
+}
+
+func (s *OpenAIRealtimeSession) Receive(ctx context.Context) (*domain.GenerationResult, error) {
+	for {
+		var event map[string]interface{}
+		err := s.conn.ReadJSON(&event)
+		if err != nil {
+			return nil, err
+		}
+
+		eventType, _ := event["type"].(string)
+
+		switch eventType {
+		case "response.text.delta":
+			delta, _ := event["delta"].(string)
+			return &domain.GenerationResult{
+				Content:  delta,
+				Finished: false,
+			}, nil
+		case "response.done":
+			return &domain.GenerationResult{
+				Content:  "",
+				Finished: true,
+			}, nil
+		case "error":
+			errorMsg, _ := event["error"].(map[string]interface{})["message"].(string)
+			return nil, fmt.Errorf("OpenAI Realtime Error: %s", errorMsg)
+		}
+	}
+}
+
+func (s *OpenAIRealtimeSession) Close() error {
+	return s.conn.Close()
+}
+
+// NewSession creates a new persistent WebSocket session
+func (p *OpenAILLMProvider) NewSession(ctx context.Context, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (domain.RealtimeSession, error) {
+	url := "wss://api.openai.com/v1/realtime?model=" + p.config.LLMModel
+	
+	headers := make(http.Header)
+	headers.Add("Authorization", "Bearer " + p.config.APIKey)
+	headers.Add("OpenAI-Beta", "realtime=v1")
+
+	conn, _, err := websocket.DefaultDialer.DialContext(ctx, url, headers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial openai realtime websocket: %w", err)
+	}
+
+	return &OpenAIRealtimeSession{conn: conn}, nil
 }
 
 // NewOpenAILLMProvider creates a new OpenAI LLM provider

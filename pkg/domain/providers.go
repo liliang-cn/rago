@@ -38,6 +38,7 @@ type ProviderConfig struct {
 // LLMProvider wraps the Generator interface with provider-specific information
 type LLMProvider interface {
 	Generator
+	RealtimeGenerator
 	ProviderType() ProviderType
 	Health(ctx context.Context) error
 	ExtractMetadata(ctx context.Context, content string, model string) (*ExtractedMetadata, error)
