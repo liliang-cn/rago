@@ -17,11 +17,11 @@ var (
 
 // GlobalPoolService 管理全局LLM和Embedding Pools
 type GlobalPoolService struct {
-	config         *config.Config
-	llmPool        *pool.Pool
-	embeddingPool  *pool.Pool
-	initialized    bool
-	mu             sync.RWMutex
+	config        *config.Config
+	llmPool       *pool.Pool
+	embeddingPool *pool.Pool
+	initialized   bool
+	mu            sync.RWMutex
 }
 
 // GetGlobalPoolService 获取全局pool服务

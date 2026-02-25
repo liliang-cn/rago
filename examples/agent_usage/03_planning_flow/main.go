@@ -28,42 +28,32 @@ func main() {
 		log.Fatalf("规划失败: %v", err)
 	}
 
-	fmt.Printf("
-目标: %s
-", plan.Goal)
+	fmt.Printf("\n目标: %s\n", plan.Goal)
 	fmt.Println("推理过程:", plan.Reasoning)
-	fmt.Println("
-待执行步骤:")
+	fmt.Println("\n待执行步骤:")
 	for i, step := range plan.Steps {
-		fmt.Printf("%d. [%s] %s
-", i+1, step.Tool, step.Description)
+		fmt.Printf("%d. [%s] %s\n", i+1, step.Tool, step.Description)
 	}
 
 	// 2. 模拟用户反馈修改计划 (可选)
-	fmt.Println("
-步骤 2: 修改计划 (增加代码注释检查)...")
+	fmt.Println("\n步骤 2: 修改计划 (增加代码注释检查)...")
 	revisedPlan, err := svc.RevisePlan(ctx, plan, "在架构文档中额外增加关于错误处理模式的分析。")
 	if err != nil {
 		log.Fatalf("修改计划失败: %v", err)
 	}
 
-	fmt.Println("
-修改后的步骤:")
+	fmt.Println("\n修改后的步骤:")
 	for i, step := range revisedPlan.Steps {
-		fmt.Printf("%d. [%s] %s
-", i+1, step.Tool, step.Description)
+		fmt.Printf("%d. [%s] %s\n", i+1, step.Tool, step.Description)
 	}
 
 	// 3. 执行最终计划
-	fmt.Println("
-步骤 3: 开始执行计划...")
+	fmt.Println("\n步骤 3: 开始执行计划...")
 	result, err := svc.ExecutePlan(ctx, revisedPlan)
 	if err != nil {
 		log.Fatalf("执行计划失败: %v", err)
 	}
 
-	fmt.Printf("
-执行状态: %s
-", result.Duration)
+	fmt.Printf("\n执行状态: %s\n", result.Duration)
 	fmt.Println("结果预览:", result.FinalResult)
 }

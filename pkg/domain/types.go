@@ -37,10 +37,10 @@ type QueryRequest struct {
 	MaxToolCalls   int                    `json:"max_tool_calls"`
 	ConversationID string                 `json:"conversation_id,omitempty"`
 	// Advanced Search Options
-	RerankStrategy  string  `json:"rerank_strategy,omitempty"`  // "keyword", "rrf", "diversity"
-	RerankBoost     float64 `json:"rerank_boost,omitempty"`     // For keyword reranker
-	DiversityLambda float32 `json:"diversity_lambda,omitempty"` // For MMR (0-1)
-	EnableACL       bool    `json:"enable_acl,omitempty"`
+	RerankStrategy  string   `json:"rerank_strategy,omitempty"`  // "keyword", "rrf", "diversity"
+	RerankBoost     float64  `json:"rerank_boost,omitempty"`     // For keyword reranker
+	DiversityLambda float32  `json:"diversity_lambda,omitempty"` // For MMR (0-1)
+	EnableACL       bool     `json:"enable_acl,omitempty"`
 	ACLIDs          []string `json:"acl_ids,omitempty"`
 }
 
@@ -71,15 +71,15 @@ type IngestResponse struct {
 // ExtractedMetadata holds the data extracted from a document by an LLM.
 
 type ExtractedMetadata struct {
-	Summary      string                 `json:"summary"`
-	Keywords     []string               `json:"keywords"`
-	DocumentType string                 `json:"document_type"`
-	CreationDate string                 `json:"creation_date"`
-	Collection   string                 `json:"collection"`               // LLM-determined collection name
+	Summary      string   `json:"summary"`
+	Keywords     []string `json:"keywords"`
+	DocumentType string   `json:"document_type"`
+	CreationDate string   `json:"creation_date"`
+	Collection   string   `json:"collection"` // LLM-determined collection name
 	// Enhanced metadata fields
 	TemporalRefs map[string]string      `json:"temporal_refs,omitempty"` // e.g., "today": "2025-09-12", "tomorrow": "2025-09-13"
 	Entities     map[string][]string    `json:"entities,omitempty"`      // e.g., "person": ["张三"], "location": ["华西医院"]
-	Events       []string               `json:"events,omitempty"`         // e.g., ["手术前检查", "玻璃体切割术"]
+	Events       []string               `json:"events,omitempty"`        // e.g., ["手术前检查", "玻璃体切割术"]
 	CustomMeta   map[string]interface{} `json:"custom_meta,omitempty"`   // For any additional metadata
 }
 
@@ -120,11 +120,11 @@ type IntentResult struct {
 
 // Message represents a conversation message, used for tool calling
 type Message struct {
-	Role       string     `json:"role"` // user, assistant, tool
-	Content    string     `json:"content"`
-	ReasoningContent string `json:"reasoning_content,omitempty"` 
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string     `json:"tool_call_id,omitempty"`
+	Role             string     `json:"role"` // user, assistant, tool
+	Content          string     `json:"content"`
+	ReasoningContent string     `json:"reasoning_content,omitempty"`
+	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID       string     `json:"tool_call_id,omitempty"`
 }
 
 type Generator interface {
@@ -189,10 +189,10 @@ type FunctionCall struct {
 
 // GenerationResult represents the result of LLM generation with potential tool calls
 type GenerationResult struct {
-	Content   string     `json:"content"`
-	ReasoningContent string `json:"reasoning_content,omitempty"` 
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-	Finished  bool       `json:"finished"`
+	Content          string     `json:"content"`
+	ReasoningContent string     `json:"reasoning_content,omitempty"`
+	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
+	Finished         bool       `json:"finished"`
 }
 
 // StructuredResult represents the result of structured generation
