@@ -271,6 +271,11 @@ func (t *TrackedLLMProvider) RecognizeIntent(ctx context.Context, request string
 	return result, err
 }
 
+// NewSession creates a new realtime session with the underlying provider
+func (t *TrackedLLMProvider) NewSession(ctx context.Context, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (domain.RealtimeSession, error) {
+	return t.LLMProvider.NewSession(ctx, tools, opts)
+}
+
 // TrackedEmbedderProvider wraps an EmbedderProvider with usage tracking
 type TrackedEmbedderProvider struct {
 	domain.EmbedderProvider
