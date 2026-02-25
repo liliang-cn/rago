@@ -23,6 +23,18 @@ func (m *MockEmbedderProvider) Embed(ctx context.Context, text string) ([]float6
 	return []float64{0.1, 0.2, 0.3, 0.4, 0.5}, nil
 }
 
+func (m *MockEmbedderProvider) EmbedBatch(ctx context.Context, texts []string) ([][]float64, error) {
+	result := make([][]float64, len(texts))
+	for i, text := range texts {
+		v, err := m.Embed(ctx, text)
+		if err != nil {
+			return nil, err
+		}
+		result[i] = v
+	}
+	return result, nil
+}
+
 func (m *MockEmbedderProvider) Health(ctx context.Context) error {
 	if m.healthFunc != nil {
 		return m.healthFunc(ctx)

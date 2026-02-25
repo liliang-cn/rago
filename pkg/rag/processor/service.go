@@ -146,22 +146,21 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 		return domain.IngestResponse{}, fmt.Errorf("failed to chunk text: %w", err)
 	}
 
+	vectors, err := s.embedder.EmbedBatch(ctx, textChunks)
+	if err != nil {
+		return domain.IngestResponse{}, fmt.Errorf("failed to generate embeddings for chunks: %w", err)
+	}
+
 	var chunks []domain.Chunk
 	for i, textChunk := range textChunks {
-		vector, err := s.embedder.Embed(ctx, textChunk)
-		if err != nil {
-			return domain.IngestResponse{}, fmt.Errorf("failed to generate embedding for chunk %d: %w", i, err)
-		}
-
 		chunk := domain.Chunk{
 			ID:         fmt.Sprintf("%s_%d", doc.ID, i),
 			DocumentID: doc.ID,
 			Content:    textChunk,
-			Vector:     vector,
+			Vector:     vectors[i],
 			Metadata:   doc.Metadata, // Pass down the combined metadata to each chunk
 		}
 		chunks = append(chunks, chunk)
-
 	}
 
 	// Store document metadata BEFORE vectors (sqvect v2 needs document to exist for foreign key)

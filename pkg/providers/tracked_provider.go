@@ -319,5 +319,7 @@ func (t *TrackedEmbedderProvider) Embed(ctx context.Context, text string) ([]flo
 	return result, err
 }
 
-// Note: EmbedBatch is not part of the EmbedderProvider interface.
-// If batch embedding is needed, users should call Embed multiple times.
+// EmbedBatch generates embeddings for multiple texts, delegating to the underlying provider.
+func (t *TrackedEmbedderProvider) EmbedBatch(ctx context.Context, texts []string) ([][]float64, error) {
+	return t.EmbedderProvider.EmbedBatch(ctx, texts)
+}

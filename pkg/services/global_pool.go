@@ -261,6 +261,11 @@ func (s *GlobalPoolService) EmbedMultiple(ctx context.Context, texts []string) (
 	return s.embeddingPool.EmbedMultiple(ctx, texts)
 }
 
+// EmbedBatch 使用pool批量向量化（实现 domain.Embedder 接口）
+func (s *GlobalPoolService) EmbedBatch(ctx context.Context, texts []string) ([][]float64, error) {
+	return s.EmbedMultiple(ctx, texts)
+}
+
 // GetLLMPoolStatus 获取LLM pool状态
 func (s *GlobalPoolService) GetLLMPoolStatus() map[string]pool.ClientStatus {
 	s.mu.RLock()
@@ -367,6 +372,10 @@ type embeddingServiceWrapper struct {
 
 func (w *embeddingServiceWrapper) Embed(ctx context.Context, text string) ([]float64, error) {
 	return w.pool.Embed(ctx, text)
+}
+
+func (w *embeddingServiceWrapper) EmbedBatch(ctx context.Context, texts []string) ([][]float64, error) {
+	return w.pool.EmbedMultiple(ctx, texts)
 }
 
 // GetGlobalLLM 获取全局LLM服务（兼容旧代码）
