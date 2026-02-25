@@ -32,9 +32,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("Alice: %v
-
-", res1.FinalResult)
+	fmt.Printf("Alice: %v\n\n", res1.FinalResult)
 
 	fmt.Println("--- 第二轮对话 (展示自动会话记忆) ---")
 	// Agent 会自动维护 Session，不需要手动传递 ID
@@ -42,11 +40,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("Alice: %v
+	fmt.Printf("Alice: %v\n\n", res2.FinalResult)
 
-", res2.FinalResult)
-
-	fmt.Printf("当前会话 ID: %s
-", svc.CurrentSessionID())
+	fmt.Printf("当前会话 ID: %s\n", svc.CurrentSessionID())
 	fmt.Println("所有对话和计划已自动持久化。")
 }

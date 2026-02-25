@@ -80,9 +80,9 @@ func (s *OpenAIRealtimeSession) Close() error {
 // NewSession creates a new persistent WebSocket session
 func (p *OpenAILLMProvider) NewSession(ctx context.Context, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (domain.RealtimeSession, error) {
 	url := "wss://api.openai.com/v1/realtime?model=" + p.config.LLMModel
-	
+
 	headers := make(http.Header)
-	headers.Add("Authorization", "Bearer " + p.config.APIKey)
+	headers.Add("Authorization", "Bearer "+p.config.APIKey)
 	headers.Add("OpenAI-Beta", "realtime=v1")
 
 	conn, _, err := websocket.DefaultDialer.DialContext(ctx, url, headers)

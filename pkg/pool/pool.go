@@ -17,11 +17,11 @@ import (
 type SelectionStrategy string
 
 const (
-	StrategyRoundRobin  SelectionStrategy = "round_robin"
-	StrategyRandom      SelectionStrategy = "random"
-	StrategyLeastLoad   SelectionStrategy = "least_load"
-	StrategyCapability  SelectionStrategy = "capability"
-	StrategyFailover    SelectionStrategy = "failover"
+	StrategyRoundRobin SelectionStrategy = "round_robin"
+	StrategyRandom     SelectionStrategy = "random"
+	StrategyLeastLoad  SelectionStrategy = "least_load"
+	StrategyCapability SelectionStrategy = "capability"
+	StrategyFailover   SelectionStrategy = "failover"
 )
 
 // Provider LLM Provider配置
@@ -43,10 +43,10 @@ type PoolConfig struct {
 
 // clientWrapper 包装client及其状态
 type clientWrapper struct {
-	client         *Client
-	provider       Provider
-	activeRequests int32
-	healthy        bool
+	client          *Client
+	provider        Provider
+	activeRequests  int32
+	healthy         bool
 	lastHealthCheck time.Time
 }
 
@@ -93,10 +93,10 @@ func NewPool(config PoolConfig) (*Pool, error) {
 		}
 
 		pool.clients[p.Name] = &clientWrapper{
-			client:         client,
-			provider:       p,
-			activeRequests: 0,
-			healthy:        true,
+			client:          client,
+			provider:        p,
+			activeRequests:  0,
+			healthy:         true,
 			lastHealthCheck: time.Now(),
 		}
 	}
@@ -339,10 +339,10 @@ func (p *Pool) GetStatus() map[string]ClientStatus {
 
 // ClientStatus 客户端状态
 type ClientStatus struct {
-	Healthy        bool  `json:"healthy"`
-	ActiveRequests int32 `json:"active_requests"`
-	MaxConcurrency int   `json:"max_concurrency"`
-	Capability     int   `json:"capability"`
+	Healthy        bool   `json:"healthy"`
+	ActiveRequests int32  `json:"active_requests"`
+	MaxConcurrency int    `json:"max_concurrency"`
+	Capability     int    `json:"capability"`
 	ModelName      string `json:"model_name"`
 }
 

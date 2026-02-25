@@ -18,18 +18,18 @@ import (
 )
 
 type Service struct {
-	embedder        domain.Embedder
-	generator       domain.Generator
-	chunker         domain.Chunker
-	vectorStore     domain.VectorStore
-	documentStore   domain.DocumentStore
-	config          *config.Config
-	llmService      domain.MetadataExtractor
-	extractor       *EntityExtractor
-	graphStore      domain.GraphStore
-	chatStore       domain.ChatStore
-	memoryService   domain.MemoryService
-	promptManager   *prompt.Manager
+	embedder      domain.Embedder
+	generator     domain.Generator
+	chunker       domain.Chunker
+	vectorStore   domain.VectorStore
+	documentStore domain.DocumentStore
+	config        *config.Config
+	llmService    domain.MetadataExtractor
+	extractor     *EntityExtractor
+	graphStore    domain.GraphStore
+	chatStore     domain.ChatStore
+	memoryService domain.MemoryService
+	promptManager *prompt.Manager
 }
 
 func New(
@@ -224,9 +224,9 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 						}
 
 						node := domain.GraphNode{
-							ID:         entityID,
-							Content:    entity.Description,
-							NodeType:   entity.Type,
+							ID:       entityID,
+							Content:  entity.Description,
+							NodeType: entity.Type,
 							Properties: map[string]interface{}{
 								"name":            entity.Name,
 								"source_chunk_id": c.ID,
@@ -296,7 +296,7 @@ func (s *Service) IngestBatch(ctx context.Context, reqs []domain.IngestRequest) 
 			defer func() { <-sem }()
 
 			resp, err := s.Ingest(ctx, r)
-			
+
 			mu.Lock()
 			defer mu.Unlock()
 
@@ -329,7 +329,7 @@ func (s *Service) mergeMetadata(base map[string]interface{}, extracted *domain.E
 	if extracted.Collection != "" {
 		base["collection"] = extracted.Collection
 	}
-	
+
 	// Merge enhanced fields
 	if len(extracted.TemporalRefs) > 0 {
 		base["temporal_refs"] = extracted.TemporalRefs
@@ -599,7 +599,7 @@ func (s *Service) hybridSearch(ctx context.Context, req domain.QueryRequest) ([]
 			for _, res := range graphResults {
 				if res.Node != nil {
 					name, _ := res.Node.Properties["name"].(string)
-					
+
 					// Create a pseudo-chunk for the entity
 					entityChunk := domain.Chunk{
 						ID:         "graph_" + res.Node.ID,
@@ -616,7 +616,7 @@ func (s *Service) hybridSearch(ctx context.Context, req domain.QueryRequest) ([]
 						entityChunk.Metadata = make(map[string]interface{})
 					}
 					entityChunk.Metadata["source"] = "Knowledge Graph"
-					
+
 					chunks = append(chunks, entityChunk)
 				}
 			}
@@ -1034,14 +1034,14 @@ func (s *Service) buildChatPrompt(query string, recent []*domain.ChatMessage, re
 			sb.WriteString(fmt.Sprintf("%s: %s\n", strings.Title(msg.Role), msg.Content))
 		}
 	}
-	
+
 	// If the most recent message isn't the query (unlikely given logic flow), append query
 	// But since we store before fetch, it should be there.
 	// Safety check:
 	if len(recent) == 0 || recent[len(recent)-1].Content != query {
 		sb.WriteString(fmt.Sprintf("User: %s\n", query))
 	}
-	
+
 	sb.WriteString("\nAssistant:")
 
 	return sb.String()
@@ -1067,5 +1067,3 @@ func composePrompt(chunks []domain.Chunk, query string) string {
 
 	return promptBuilder.String()
 }
-
-
