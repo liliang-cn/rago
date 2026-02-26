@@ -203,7 +203,7 @@ type StructuredResult struct {
 }
 
 // ToolCallCallback is called during streaming when tool calls are detected
-type ToolCallCallback func(chunk string, toolCalls []ToolCall) error
+type ToolCallCallback func(delta *GenerationResult) error
 
 // ExecutedToolCall represents a tool call that has been executed
 type ExecutedToolCall struct {

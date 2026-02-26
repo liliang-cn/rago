@@ -320,20 +320,7 @@ func (c *Client) StreamWithTools(ctx context.Context, messages []domain.Message,
 		return err
 	}
 
-	// 回调内容
-	if result.Content != "" {
-		// ToolCallCallback签名: func(chunk string, toolCalls []ToolCall) error
-		if err := callback(result.Content, nil); err != nil {
-			return err
-		}
-	}
-
-	// 回调工具调用
-	if len(result.ToolCalls) > 0 {
-		return callback("", result.ToolCalls)
-	}
-
-	return nil
+	return callback(result)
 }
 
 // GenerateStructured 结构化生成

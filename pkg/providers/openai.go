@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -411,16 +412,24 @@ func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []doma
 		}
 
 		choice := chunk.Choices[0]
-		var toolCalls []domain.ToolCall
+		delta := &domain.GenerationResult{
+			Content: choice.Delta.Content,
+		}
+
+		// Support reasoning_content from DeepSeek/Ollama via ExtraFields
+		if reasoning, ok := choice.Delta.JSON.ExtraFields["reasoning_content"]; ok {
+			// Field value can be extracted using its raw representation or a simple string check
+			delta.ReasoningContent = strings.Trim(reasoning.Raw(), "\"")
+		}
 
 		if len(choice.Delta.ToolCalls) > 0 {
-			toolCalls = make([]domain.ToolCall, len(choice.Delta.ToolCalls))
+			delta.ToolCalls = make([]domain.ToolCall, len(choice.Delta.ToolCalls))
 			for i, tc := range choice.Delta.ToolCalls {
 				var args map[string]interface{}
-				if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-					args = make(map[string]interface{})
-				}
-				toolCalls[i] = domain.ToolCall{
+				// In streaming, arguments arrive in fragments
+				_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
+				
+				delta.ToolCalls[i] = domain.ToolCall{
 					ID:   tc.ID,
 					Type: "function",
 					Function: domain.FunctionCall{
@@ -431,7 +440,7 @@ func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []doma
 			}
 		}
 
-		if err := callback(choice.Delta.Content, toolCalls); err != nil {
+		if err := callback(delta); err != nil {
 			return fmt.Errorf("callback error: %w", err)
 		}
 	}
