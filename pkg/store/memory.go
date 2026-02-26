@@ -9,7 +9,7 @@ import (
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/sqvect/v2/pkg/hindsight"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 var (
@@ -191,9 +191,26 @@ func (s *MemoryStore) GetByType(ctx context.Context, memoryType domain.MemoryTyp
 	return filtered, nil
 }
 
+// List lists all memories across all banks
 func (s *MemoryStore) List(ctx context.Context, limit, offset int) ([]*domain.Memory, int, error) {
+	// 1. Get all known banks
 	banks := s.sys.ListBanks()
-	var all []*domain.Memory
+	
+	// 2. Discover missing banks directly from DB metadata (The Fallback)
+	if bankIDs, err := s.getBankIDsFromDB(); err == nil {
+		known := make(map[string]bool)
+		for _, b := range banks {
+			known[b.ID] = true
+		}
+		for _, id := range bankIDs {
+			if !known[id] {
+				banks = append(banks, &hindsight.Bank{ID: id, Name: id})
+			}
+		}
+	}
+
+	var allMems []*domain.Memory
+	seenIDs := make(map[string]bool)
 
 	for _, bank := range banks {
 		req := &hindsight.RecallRequest{
@@ -204,12 +221,16 @@ func (s *MemoryStore) List(ctx context.Context, limit, offset int) ([]*domain.Me
 		results, err := s.sys.Recall(ctx, req)
 		if err == nil {
 			for _, res := range results {
-				all = append(all, toDomainMemory(toInternalMemory(res.Memory)))
+				if seenIDs[res.Memory.ID] {
+					continue
+				}
+				seenIDs[res.Memory.ID] = true
+				allMems = append(allMems, toDomainMemory(toInternalMemory(res.Memory)))
 			}
 		}
 	}
 
-	total := len(all)
+	total := len(allMems)
 	if offset >= total {
 		return nil, total, nil
 	}
@@ -217,7 +238,7 @@ func (s *MemoryStore) List(ctx context.Context, limit, offset int) ([]*domain.Me
 	if end > total {
 		end = total
 	}
-	return all[offset:end], total, nil
+	return allMems[offset:end], total, nil
 }
 
 func (s *MemoryStore) Delete(ctx context.Context, id string) error {
@@ -277,7 +298,7 @@ func (s *MemoryStore) Close() error {
 // Helpers
 
 func (s *MemoryStore) getBankIDsFromDB() ([]string, error) {
-	db, err := sql.Open("sqlite3", s.dbPath)
+	db, err := sql.Open("sqlite", s.dbPath)
 	if err != nil {
 		return nil, err
 	}
