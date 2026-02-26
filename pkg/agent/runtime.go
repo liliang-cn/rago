@@ -80,6 +80,17 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		systemMsg := r.svc.buildSystemPrompt(r.currentAgent)
 		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
 
+		// --- DEBUG: LOG FULL PROMPT ---
+		if r.svc.config != nil && r.svc.config.Debug {
+			fmt.Println("\n" + strings.Repeat("=", 40))
+			fmt.Printf("DEBUG [Runtime Round %d] LLM FULL PROMPT\n", round+1)
+			fmt.Println(strings.Repeat("-", 40))
+			for _, m := range genMessages {
+				fmt.Printf("[%s]:\n%s\n", strings.ToUpper(m.Role), m.Content)
+			}
+			fmt.Println(strings.Repeat("=", 40) + "\n")
+		}
+
 		// 5. LLM Call (Streaming)
 		var fullContent strings.Builder
 		var toolCalls []domain.ToolCall
@@ -101,6 +112,21 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		if err != nil {
 			r.emit(EventTypeError, fmt.Sprintf("LLM error: %v", err))
 			return
+		}
+
+		// --- DEBUG: LOG LLM RESPONSE ---
+		if r.svc.config != nil && r.svc.config.Debug {
+			fmt.Println("\n" + strings.Repeat("=", 40))
+			fmt.Printf("DEBUG [Runtime Round %d] LLM RESPONSE\n", round+1)
+			fmt.Println(strings.Repeat("-", 40))
+			fmt.Printf("CONTENT: %s\n", fullContent.String())
+			if len(toolCalls) > 0 {
+				fmt.Println("TOOL CALLS:")
+				for _, tc := range toolCalls {
+					fmt.Printf("  - %s(%v)\n", tc.Function.Name, tc.Function.Arguments)
+				}
+			}
+			fmt.Println(strings.Repeat("=", 40) + "\n")
 		}
 
 		// 6. Handle Result
@@ -170,6 +196,12 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 // executeToolOrHandoff executes a tool call and handles agent switching
 func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) (interface{}, error, bool) {
+	// --- DEBUG: LOG TOOL START ---
+	if r.svc.config != nil && r.svc.config.Debug {
+		fmt.Printf("\n🛠️  DEBUG RUNTIME TOOL CALL: %s\n", tc.Function.Name)
+		fmt.Printf("   Arguments: %v\n", tc.Function.Arguments)
+	}
+
 	// === PRE-TOOL HOOK ===
 	hookData := HookData{
 		ToolName:  tc.Function.Name,
@@ -258,6 +290,16 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 	hookData.ToolError = execErr
 	if r.svc.hooks != nil {
 		r.svc.hooks.Emit(HookEventPostToolUse, hookData)
+	}
+
+	// --- DEBUG: LOG TOOL RESULT ---
+	if r.svc.config != nil && r.svc.config.Debug {
+		if execErr != nil {
+			fmt.Printf("   ❌ ERROR: %v\n", execErr)
+		} else {
+			fmt.Printf("   ✅ RESULT: %v\n", result)
+		}
+		fmt.Println(strings.Repeat("-", 20))
 	}
 
 	return result, execErr, false
