@@ -275,13 +275,19 @@ func (s *Service) Search(ctx context.Context, query string, topK int) ([]*domain
 
 	// 3. Truth Retrieval: For each found ID, fetch fresh content from Primary Store
 	// This ensures that even if vector index is slightly stale, we get the human-edited content.
-	for i, res := range results {
+	var finalResults []*domain.MemoryWithScore
+	for _, res := range results {
 		if fresh, err := s.store.Get(ctx, res.ID); err == nil {
-			results[i].Memory = fresh
+			res.Memory = fresh
+			finalResults = append(finalResults, res)
+		} else if s.shadowIndex == nil {
+			// If we are NOT in hybrid mode, keep the result even if Get fails (unlikely)
+			finalResults = append(finalResults, res)
 		}
+		// In hybrid mode, if Get fails, it means the file is missing, so we skip it.
 	}
 
-	return results, nil
+	return finalResults, nil
 }
 
 func (s *Service) Get(ctx context.Context, id string) (*domain.Memory, error) {
