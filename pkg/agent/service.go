@@ -643,6 +643,44 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 			{
 				Type: "function",
 				Function: domain.ToolFunction{
+					Name:        "memory_update",
+					Description: "Update an existing memory entry by its ID",
+					Parameters: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"id": map[string]interface{}{
+								"type":        "string",
+								"description": "The ID of the memory to update (e.g., 'mem_123')",
+							},
+							"content": map[string]interface{}{
+								"type":        "string",
+								"description": "The new content for the memory",
+							},
+						},
+						"required": []string{"id", "content"},
+					},
+				},
+			},
+			{
+				Type: "function",
+				Function: domain.ToolFunction{
+					Name:        "memory_delete",
+					Description: "Permanently remove a memory entry by its ID",
+					Parameters: map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"id": map[string]interface{}{
+								"type":        "string",
+								"description": "The ID of the memory to delete",
+							},
+						},
+						"required": []string{"id"},
+					},
+				},
+			},
+			{
+				Type: "function",
+				Function: domain.ToolFunction{
 					Name:        "memory_recall",
 					Description: "Recall information from long-term memory",
 					Parameters: map[string]interface{}{
@@ -1020,6 +1058,21 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 			})
 			if err == nil {
 				result = fmt.Sprintf("Saved to memory: %s", content)
+			}
+			toolType = "memory"
+		} else if tc.Function.Name == "memory_update" && s.memoryService != nil {
+			id, _ := tc.Function.Arguments["id"].(string)
+			content, _ := tc.Function.Arguments["content"].(string)
+			err = s.memoryService.Update(ctx, id, content)
+			if err == nil {
+				result = fmt.Sprintf("Memory %s updated successfully.", id)
+			}
+			toolType = "memory"
+		} else if tc.Function.Name == "memory_delete" && s.memoryService != nil {
+			id, _ := tc.Function.Arguments["id"].(string)
+			err = s.memoryService.Delete(ctx, id)
+			if err == nil {
+				result = fmt.Sprintf("Memory %s deleted successfully.", id)
 			}
 			toolType = "memory"
 		} else if tc.Function.Name == "memory_recall" && s.memoryService != nil {
@@ -1519,18 +1572,19 @@ func (s *Service) Close() error {
 
 // AgentConfig holds configuration for New()
 type AgentConfig struct {
-	Name         string
-	SystemPrompt string
-	DBPath       string
-	MemoryDBPath string
-	EnableMCP    bool
-	EnableMemory bool
-	EnableRAG    bool
-	EnableRouter bool
-	EnableSkills bool
-	IntentPaths  []string
+	Name            string
+	SystemPrompt    string
+	DBPath          string
+	MemoryDBPath    string
+	MemoryStoreType string // "sqlite" (default) or "file"
+	EnableMCP       bool
+	EnableMemory    bool
+	EnableRAG       bool
+	EnableRouter    bool
+	EnableSkills    bool
+	IntentPaths     []string
 	RouterThreshold float64
-	ProgressCb   ProgressCallback
+	ProgressCb      ProgressCallback
 }
 
 // New creates an agent service with simplified configuration.
@@ -1586,14 +1640,30 @@ func New(cfg *AgentConfig) (*Service, error) {
 
 	// Memory service
 	var memSvc domain.MemoryService
-	memDBPath := cfg.MemoryDBPath
-	if memDBPath == "" {
-		memDBPath = filepath.Join(ragoCfg.DataDir(), "memory.db")
-	}
 	if cfg.EnableMemory {
-		memStore, err := store.NewMemoryStore(memDBPath)
-		if err == nil {
-			_ = memStore.InitSchema(context.Background())
+		var memStore domain.MemoryStore
+		var err error
+
+		if cfg.MemoryStoreType == "file" {
+			memPath := cfg.MemoryDBPath
+			if memPath == "" {
+				memPath = filepath.Join(ragoCfg.DataDir(), "memories")
+			}
+			memStore, err = store.NewFileMemoryStore(memPath)
+		} else {
+			memDBPath := cfg.MemoryDBPath
+			if memDBPath == "" {
+				memDBPath = filepath.Join(ragoCfg.DataDir(), "memory.db")
+			}
+			sqliteStore, serr := store.NewMemoryStore(memDBPath)
+			if serr == nil {
+				_ = sqliteStore.InitSchema(context.Background())
+				memStore = sqliteStore
+			}
+			err = serr
+		}
+
+		if err == nil && memStore != nil {
 			memSvc = memory.NewService(memStore, llmSvc, embedSvc, memory.DefaultConfig())
 		}
 	}
