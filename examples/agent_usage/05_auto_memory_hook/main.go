@@ -1,0 +1,52 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+
+	"github.com/liliang-cn/rago/v2/pkg/agent"
+)
+
+func main() {
+	ctx := context.Background()
+	homeDir, _ := os.UserHomeDir()
+	testDir := filepath.Join(homeDir, ".rago", "data", "auto_memory_test")
+	_ = os.RemoveAll(testDir)
+
+	// 1. 初始化 Agent 并开启自动记忆 Hook
+	svc, err := agent.New(&agent.AgentConfig{
+		Name:             "AutoAgent",
+		EnableMemory:     true,
+		MemoryStoreType:  "file",
+		MemoryDBPath:     filepath.Join(testDir, "memories"),
+		DBPath:           filepath.Join(testDir, "agent.db"),
+		EnableAutoMemory: true, // 关键配置
+	})
+	if err != nil {
+		log.Fatalf("Failed to init: %v", err)
+	}
+	defer svc.Close()
+
+	fmt.Println("=== 测试自动记忆 Hook ===")
+	goal := "My favorite programming language is Go because of its simplicity."
+	fmt.Printf("Goal: %s\n", goal)
+	
+	res, err := svc.Run(ctx, goal)
+	if err != nil {
+		log.Fatalf("Run failed: %v", err)
+	}
+	fmt.Printf("Agent Result: %v\n", res.FinalResult)
+
+	// 2. 检查磁盘
+	files, _ := filepath.Glob(filepath.Join(testDir, "memories", "entities", "*.md"))
+	if len(files) > 0 {
+		fmt.Printf("\n✅ Hook 成功检测到重要信息并保存！\n")
+		content, _ := os.ReadFile(files[0])
+		fmt.Printf("记忆内容:\n%s\n", string(content))
+	} else {
+		fmt.Println("\n❌ 未能自动保存记忆。")
+	}
+}

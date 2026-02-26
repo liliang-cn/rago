@@ -465,35 +465,8 @@ func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error
 		return nil, err
 	}
 
-	// Step 5: Verify result with LLM (optional verification step)
-	const maxVerifyRetries = 2
+	// Skip verification for faster response
 	currentResult := finalResult
-	for verifyAttempt := 0; verifyAttempt <= maxVerifyRetries; verifyAttempt++ {
-		verified, reason, correctedResult, err := s.verifyResult(runCtx, goal, currentResult)
-		if err != nil {
-			s.emitProgress("tool_result", fmt.Sprintf("⚠ Verification failed: %v", err), 0, "")
-			if verifyAttempt == maxVerifyRetries {
-				return s.finalizeExecution(runCtx, session, goal, intent, memoryMemories, "", currentResult)
-			}
-			continue
-		}
-
-		if verified {
-			if correctedResult != nil {
-				currentResult = correctedResult
-			}
-			break
-		}
-
-		s.emitProgress("tool_result", fmt.Sprintf("⚠ Verification: %s - Retrying...", reason), 0, "")
-		if verifyAttempt < maxVerifyRetries {
-			// Retry with correction prompt (reuse the same RAG context)
-			currentResult, err = s.executeWithLLM(runCtx, fmt.Sprintf("%s\n\nPrevious attempt was incomplete. Please ensure: %s", goal, reason), intent, session, memoryContext, ragContext)
-			if err != nil {
-				break
-			}
-		}
-	}
 
 	// Add messages to session before saving
 	session.AddMessage(domain.Message{
@@ -1622,6 +1595,7 @@ type AgentConfig struct {
 	EnableRAG       bool
 	EnableRouter    bool
 	EnableSkills    bool
+	EnableAutoMemory bool // Automatically save important info to memory
 	IntentPaths     []string
 	RouterThreshold float64
 	ProgressCb      ProgressCallback
@@ -1691,9 +1665,10 @@ func New(cfg *AgentConfig) (*Service, error) {
 			}
 			memStore, err = store.NewFileMemoryStore(memPath)
 		} else {
+			// Use the unified DB path
 			memDBPath := cfg.MemoryDBPath
 			if memDBPath == "" {
-				memDBPath = filepath.Join(ragoCfg.DataDir(), "memory.db")
+				memDBPath = ragoCfg.Sqvect.DBPath
 			}
 			sqliteStore, serr := store.NewMemoryStore(memDBPath)
 			if serr == nil {
@@ -1724,14 +1699,16 @@ func New(cfg *AgentConfig) (*Service, error) {
 	// RAG processor
 	var ragProcessor domain.Processor
 	if cfg.EnableRAG {
-		// Create RAG stores
-		ragStorePath := filepath.Join(ragoCfg.DataDir(), cfg.Name+"_rag.db")
-		vectorStore, _ := ragstore.NewVectorStore(ragstore.StoreConfig{
+		// Create RAG stores using the unified DB path
+		vectorStore, err := ragstore.NewVectorStore(ragstore.StoreConfig{
 			Type: "sqlite",
 			Parameters: map[string]interface{}{
-				"path": ragStorePath,
+				"db_path": ragoCfg.Sqvect.DBPath,
 			},
 		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create vector store: %w", err)
+		}
 		if vectorStore != nil {
 			docStore := ragstore.NewDocumentStoreFor(vectorStore)
 			// Create RAG processor with proper stores
@@ -1753,17 +1730,18 @@ func New(cfg *AgentConfig) (*Service, error) {
 	if cfg.EnableSkills {
 		skillsCfg := skills.DefaultConfig()
 		skillsCfg.Paths = []string{ragoCfg.SkillsDir()}
-		skillsCfg.DBPath = filepath.Join(ragoCfg.DataDir(), "skills.db")
+		// Use the unified DB path
+		skillsCfg.DBPath = ragoCfg.Sqvect.DBPath
 		skillsSvc, err = skills.NewService(skillsCfg)
 		if err == nil {
 			_ = skillsSvc.LoadAll(context.Background())
 		}
 	}
 
-	// Agent DB path
+	// Agent DB path - use the unified DB path
 	agentDBPath := cfg.DBPath
 	if agentDBPath == "" {
-		agentDBPath = filepath.Join(ragoCfg.DataDir(), cfg.Name+".db")
+		agentDBPath = ragoCfg.Sqvect.DBPath
 	}
 
 	// Create agent service
@@ -1801,6 +1779,11 @@ func New(cfg *AgentConfig) (*Service, error) {
 	// Set custom system prompt if provided
 	if cfg.SystemPrompt != "" {
 		svc.SetAgentInstructions(cfg.SystemPrompt)
+	}
+
+	// Register auto-memory hook if enabled
+	if cfg.EnableAutoMemory {
+		svc.RegisterAutoMemoryHook()
 	}
 
 	return svc, nil
@@ -2110,7 +2093,7 @@ func (s *Service) finalizeExecution(ctx context.Context, session *Session, goal 
 		return nil, fmt.Errorf("failed to save session: %w", err)
 	}
 
-	return &ExecutionResult{
+	res := &ExecutionResult{
 		PlanID:      uuid.New().String(),
 		SessionID:   session.GetID(),
 		Success:     true,
@@ -2119,7 +2102,20 @@ func (s *Service) finalizeExecution(ctx context.Context, session *Session, goal 
 		StepsFailed: 0,
 		FinalResult: finalResult,
 		Duration:    "completed",
-	}, nil
+	}
+
+	// Emit PostExecution Hook
+	GlobalHookRegistry().Emit(HookEventPostExecution, HookData{
+		SessionID: session.GetID(),
+		AgentID:   session.AgentID,
+		Goal:      goal,
+		Result:    finalResult,
+		Metadata: map[string]interface{}{
+			"intent": intent.IntentType,
+		},
+	})
+
+	return res, nil
 }
 
 // performRAGQuery performs a RAG query to get relevant documents

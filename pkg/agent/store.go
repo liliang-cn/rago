@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
-	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -17,8 +16,9 @@ type Store struct {
 	dbPath string
 }
 
-// NewStore creates a new agent store
+// NewStore creates a new storage backend for agent data
 func NewStore(dbPath string) (*Store, error) {
+	// Use modernc.org/sqlite which doesn't require CGO
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -42,9 +42,9 @@ func (s *Store) initSchema() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Plans table
+	// Plans table (renamed to agent_plans to avoid collision)
 	_, err := s.db.Exec(`
-		CREATE TABLE IF NOT EXISTS plans (
+		CREATE TABLE IF NOT EXISTS agent_plans (
 			id TEXT PRIMARY KEY,
 			goal TEXT NOT NULL,
 			session_id TEXT NOT NULL,
@@ -57,12 +57,12 @@ func (s *Store) initSchema() error {
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("failed to create plans table: %w", err)
+		return fmt.Errorf("failed to create agent_plans table: %w", err)
 	}
 
-	// Sessions table
+	// Sessions table (renamed to agent_sessions to avoid collision with core library)
 	_, err = s.db.Exec(`
-		CREATE TABLE IF NOT EXISTS sessions (
+		CREATE TABLE IF NOT EXISTS agent_sessions (
 			id TEXT PRIMARY KEY,
 			agent_id TEXT NOT NULL,
 			messages TEXT NOT NULL,
@@ -74,46 +74,30 @@ func (s *Store) initSchema() error {
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("failed to create sessions table: %w", err)
-	}
-
-	// Create indexes
-	_, err = s.db.Exec(`
-		CREATE INDEX IF NOT EXISTS idx_plans_session_id ON plans(session_id);
-		CREATE INDEX IF NOT EXISTS idx_plans_status ON plans(status);
-		CREATE INDEX IF NOT EXISTS idx_plans_created_at ON plans(created_at);
-	`)
-	if err != nil {
-		return fmt.Errorf("failed to create indexes: %w", err)
+		return fmt.Errorf("failed to create agent_sessions table: %w", err)
 	}
 
 	return nil
 }
 
-// SavePlan saves a plan to the store
+// SavePlan saves or updates an agent plan
 func (s *Store) SavePlan(plan *Plan) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	stepsJSON, err := json.Marshal(plan.Steps)
-	if err != nil {
-		return fmt.Errorf("failed to marshal steps: %w", err)
-	}
-
-	now := time.Now()
-	plan.UpdatedAt = now
-
-	_, err = s.db.Exec(`
-		INSERT OR REPLACE INTO plans
-		(id, goal, session_id, steps, status, reasoning, error, created_at, updated_at)
+	stepsJSON, _ := json.Marshal(plan.Steps)
+	_, err := s.db.Exec(`
+		INSERT INTO agent_plans (id, goal, session_id, steps, status, reasoning, error, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, plan.ID, plan.Goal, plan.SessionID, string(stepsJSON), plan.Status,
-		plan.Reasoning, plan.Error, plan.CreatedAt, plan.UpdatedAt)
-	if err != nil {
-		return fmt.Errorf("failed to save plan: %w", err)
-	}
-
-	return nil
+		ON CONFLICT(id) DO UPDATE SET
+			goal = excluded.goal,
+			steps = excluded.steps,
+			status = excluded.status,
+			reasoning = excluded.reasoning,
+			error = excluded.error,
+			updated_at = excluded.updated_at
+	`, plan.ID, plan.Goal, plan.SessionID, string(stepsJSON), plan.Status, plan.Reasoning, plan.Error, plan.CreatedAt, plan.UpdatedAt)
+	return err
 }
 
 // GetPlan retrieves a plan by ID
@@ -123,27 +107,22 @@ func (s *Store) GetPlan(id string) (*Plan, error) {
 
 	var plan Plan
 	var stepsJSON string
-
 	err := s.db.QueryRow(`
 		SELECT id, goal, session_id, steps, status, reasoning, error, created_at, updated_at
-		FROM plans WHERE id = ?
+		FROM agent_plans
+		WHERE id = ?
 	`, id).Scan(&plan.ID, &plan.Goal, &plan.SessionID, &stepsJSON,
 		&plan.Status, &plan.Reasoning, &plan.Error, &plan.CreatedAt, &plan.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("plan not found: %s", id)
-	}
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to get plan: %w", err)
+		return nil, err
 	}
 
-	if err := json.Unmarshal([]byte(stepsJSON), &plan.Steps); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal steps: %w", err)
-	}
-
+	_ = json.Unmarshal([]byte(stepsJSON), &plan.Steps)
 	return &plan, nil
 }
 
-// ListPlans retrieves plans by session ID, or all plans if sessionID is empty
+// ListPlans retrieves plans with optional limit and session filtering
 func (s *Store) ListPlans(sessionID string, limit int) ([]*Plan, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -155,11 +134,10 @@ func (s *Store) ListPlans(sessionID string, limit int) ([]*Plan, error) {
 	if sessionID != "" {
 		query = `
 			SELECT id, goal, session_id, steps, status, reasoning, error, created_at, updated_at
-			FROM plans WHERE session_id = ?
+			FROM agent_plans WHERE session_id = ?
 			ORDER BY created_at DESC
 		`
 		if limit > 0 {
-			query += " LIMIT ?"
 			rows, err = s.db.Query(query, sessionID, limit)
 		} else {
 			rows, err = s.db.Query(query, sessionID)
@@ -167,11 +145,10 @@ func (s *Store) ListPlans(sessionID string, limit int) ([]*Plan, error) {
 	} else {
 		query = `
 			SELECT id, goal, session_id, steps, status, reasoning, error, created_at, updated_at
-			FROM plans
+			FROM agent_plans
 			ORDER BY created_at DESC
 		`
 		if limit > 0 {
-			query += " LIMIT ?"
 			rows, err = s.db.Query(query, limit)
 		} else {
 			rows, err = s.db.Query(query)
@@ -179,7 +156,7 @@ func (s *Store) ListPlans(sessionID string, limit int) ([]*Plan, error) {
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list plans: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -187,59 +164,38 @@ func (s *Store) ListPlans(sessionID string, limit int) ([]*Plan, error) {
 	for rows.Next() {
 		var plan Plan
 		var stepsJSON string
-
 		err := rows.Scan(&plan.ID, &plan.Goal, &plan.SessionID, &stepsJSON,
 			&plan.Status, &plan.Reasoning, &plan.Error, &plan.CreatedAt, &plan.UpdatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan plan: %w", err)
+			continue
 		}
-
-		if err := json.Unmarshal([]byte(stepsJSON), &plan.Steps); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal steps: %w", err)
-		}
-
+		_ = json.Unmarshal([]byte(stepsJSON), &plan.Steps)
 		plans = append(plans, &plan)
 	}
 
 	return plans, nil
 }
 
-// SaveSession saves a session to the store
+// SaveSession saves or updates an agent session
 func (s *Store) SaveSession(session *Session) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	messagesJSON, err := json.Marshal(session.GetMessages())
-	if err != nil {
-		return fmt.Errorf("failed to marshal messages: %w", err)
-	}
+	messagesJSON, _ := json.Marshal(session.Messages)
+	contextJSON, _ := json.Marshal(session.Context)
+	metadataJSON, _ := json.Marshal(session.Metadata)
 
-	contextJSON, err := json.Marshal(session.Context)
-	if err != nil {
-		return fmt.Errorf("failed to marshal context: %w", err)
-	}
-
-	metadataJSON, err := json.Marshal(session.Metadata)
-	if err != nil {
-		return fmt.Errorf("failed to marshal metadata: %w", err)
-	}
-
-	now := time.Now()
-	session.UpdatedAt = now
-
-	res, err := s.db.Exec(`
-		INSERT OR REPLACE INTO sessions
-		(id, agent_id, messages, summary, context, metadata, created_at, updated_at)
+	_, err := s.db.Exec(`
+		INSERT INTO agent_sessions (id, agent_id, messages, summary, context, metadata, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, session.ID, session.AgentID, string(messagesJSON), session.Summary, string(contextJSON),
-		string(metadataJSON), session.CreatedAt, session.UpdatedAt)
-	if err != nil {
-		return fmt.Errorf("failed to save session: %w", err)
-	}
-
-	_, _ = res.RowsAffected()
-
-	return nil
+		ON CONFLICT(id) DO UPDATE SET
+			messages = excluded.messages,
+			summary = excluded.summary,
+			context = excluded.context,
+			metadata = excluded.metadata,
+			updated_at = excluded.updated_at
+	`, session.ID, session.AgentID, string(messagesJSON), session.Summary, string(contextJSON), string(metadataJSON), session.CreatedAt, session.UpdatedAt)
+	return err
 }
 
 // GetSession retrieves a session by ID
@@ -247,47 +203,29 @@ func (s *Store) GetSession(id string) (*Session, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var session Session
+	session := &Session{}
 	var messagesJSON, contextJSON, metadataJSON string
 	var summary sql.NullString
 
 	err := s.db.QueryRow(`
 		SELECT id, agent_id, messages, summary, context, metadata, created_at, updated_at
-		FROM sessions WHERE id = ?
+		FROM agent_sessions WHERE id = ?
 	`, id).Scan(&session.ID, &session.AgentID, &messagesJSON, &summary,
 		&contextJSON, &metadataJSON, &session.CreatedAt, &session.UpdatedAt)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("session not found: %s", id)
-	}
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to get session: %w", err)
+		return nil, err
 	}
 
 	if summary.Valid {
 		session.Summary = summary.String
 	}
 
-	if err := json.Unmarshal([]byte(messagesJSON), &session.Messages); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal messages: %w", err)
-	}
+	_ = json.Unmarshal([]byte(messagesJSON), &session.Messages)
+	_ = json.Unmarshal([]byte(contextJSON), &session.Context)
+	_ = json.Unmarshal([]byte(metadataJSON), &session.Metadata)
 
-	if contextJSON != "" && contextJSON != "null" {
-		if err := json.Unmarshal([]byte(contextJSON), &session.Context); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal context: %w", err)
-		}
-	} else {
-		session.Context = make(map[string]interface{})
-	}
-
-	if metadataJSON != "" && metadataJSON != "null" {
-		if err := json.Unmarshal([]byte(metadataJSON), &session.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-		}
-	} else {
-		session.Metadata = make(map[string]interface{})
-	}
-
-	return &session, nil
+	return session, nil
 }
 
 // ListSessions retrieves all sessions
@@ -297,70 +235,54 @@ func (s *Store) ListSessions(limit int) ([]*Session, error) {
 
 	query := `
 		SELECT id, agent_id, messages, summary, context, metadata, created_at, updated_at
-		FROM sessions ORDER BY updated_at DESC
+		FROM agent_sessions ORDER BY updated_at DESC
 	`
 	var rows *sql.Rows
 	var err error
 
 	if limit > 0 {
-		query += " LIMIT ?"
-		rows, err = s.db.Query(query, limit)
+		rows, err = s.db.Query(query+" LIMIT ?", limit)
 	} else {
 		rows, err = s.db.Query(query)
 	}
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to list sessions: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
 	var sessions []*Session
 	for rows.Next() {
-		var session Session
+		session := &Session{}
 		var messagesJSON, contextJSON, metadataJSON string
 		var summary sql.NullString
 
 		err := rows.Scan(&session.ID, &session.AgentID, &messagesJSON, &summary,
 			&contextJSON, &metadataJSON, &session.CreatedAt, &session.UpdatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan session: %w", err)
+			continue
 		}
 
 		if summary.Valid {
 			session.Summary = summary.String
 		}
 
-		if err := json.Unmarshal([]byte(messagesJSON), &session.Messages); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal messages: %w", err)
-		}
+		_ = json.Unmarshal([]byte(messagesJSON), &session.Messages)
+		_ = json.Unmarshal([]byte(contextJSON), &session.Context)
+		_ = json.Unmarshal([]byte(metadataJSON), &session.Metadata)
 
-		if contextJSON != "" && contextJSON != "null" {
-			if err := json.Unmarshal([]byte(contextJSON), &session.Context); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal context: %w", err)
-			}
-		} else {
-			session.Context = make(map[string]interface{})
-		}
-
-		if metadataJSON != "" && metadataJSON != "null" {
-			if err := json.Unmarshal([]byte(metadataJSON), &session.Metadata); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
-			}
-		} else {
-			session.Metadata = make(map[string]interface{})
-		}
-
-		sessions = append(sessions, &session)
+		sessions = append(sessions, session)
 	}
 
 	return sessions, nil
 }
 
-// DeleteSession removes a session
+// DeleteSession deletes a session and its associated plans
 func (s *Store) DeleteSession(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	_, err := s.db.Exec(`DELETE FROM sessions WHERE id = ?`, id)
+	_, err := s.db.Exec(`DELETE FROM agent_sessions WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
