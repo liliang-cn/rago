@@ -624,9 +624,9 @@ func (c *Client) initAgentService(ctx context.Context) error {
 		return nil
 	}
 
-	// Determine agent DB path
+	// Use the same unified DB path for the agent
 	if c.agentDBPath == "" {
-		c.agentDBPath = filepath.Join(filepath.Dir(c.config.Sqvect.DBPath), "agent.db")
+		c.agentDBPath = c.config.Sqvect.DBPath
 	}
 
 	// Initialize MCP service for agent

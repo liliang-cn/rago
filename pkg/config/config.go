@@ -417,7 +417,7 @@ func (c *Config) resolveDatabasePath() {
 		return
 	}
 
-	c.Sqvect.DBPath = filepath.Join(c.DataDir(), "rag.db")
+	c.Sqvect.DBPath = filepath.Join(c.DataDir(), "rago.db")
 }
 
 func (c *Config) expandPaths() {

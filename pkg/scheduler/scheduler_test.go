@@ -52,8 +52,7 @@ func TestNewScheduler(t *testing.T) {
 	assert.NotNil(t, scheduler.cronParser)
 	assert.NotNil(t, scheduler.executors)
 	assert.False(t, scheduler.running)
-	assert.Contains(t, scheduler.config.DatabasePath, "/tmp")
-	assert.Contains(t, scheduler.config.DatabasePath, "scheduler.db")
+	assert.Equal(t, "/tmp/test.db", scheduler.config.DatabasePath)
 }
 
 func TestSchedulerStartStop(t *testing.T) {

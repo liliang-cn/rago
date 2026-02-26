@@ -33,6 +33,9 @@ const (
 
 	// HookEventSubagentProgress fires when a sub-agent makes progress
 	HookEventSubagentProgress HookEvent = "subagent_progress"
+
+	// HookEventPostExecution fires after the entire agent run completes
+	HookEventPostExecution HookEvent = "post_execution"
 )
 
 // HookData contains data passed to hook handlers
