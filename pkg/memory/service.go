@@ -16,6 +16,7 @@ import (
 // Service implements the MemoryService interface
 type Service struct {
 	store         domain.MemoryStore
+	shadowIndex   domain.MemoryStore // Optional vector-based shadow index
 	entityMemory  *EntityMemory
 	llm           domain.Generator
 	embedder      domain.Embedder
@@ -65,6 +66,11 @@ func NewService(
 // SetPromptManager sets a custom prompt manager
 func (s *Service) SetPromptManager(m *prompt.Manager) {
 	s.promptManager = m
+}
+
+// SetShadowIndex sets the optional vector index for accelerating file-based stores
+func (s *Service) SetShadowIndex(idx domain.MemoryStore) {
+	s.shadowIndex = idx
 }
 
 // RetrieveAndInject searches relevant memories and formats them for LLM context
@@ -190,11 +196,28 @@ func (s *Service) Add(ctx context.Context, memory *domain.Memory) error {
 	if memory.CreatedAt.IsZero() {
 		memory.CreatedAt = time.Now()
 	}
+	
+	// Always generate embedding if possible
 	if len(memory.Vector) == 0 && s.embedder != nil {
 		vec, _ := s.embedder.Embed(ctx, memory.Content)
 		memory.Vector = vec
 	}
-	return s.store.Store(ctx, memory)
+
+	// 1. Write to Primary Store (The Truth)
+	err := s.store.Store(ctx, memory)
+	if err != nil {
+		return err
+	}
+
+	// 2. Write to Shadow Index (The Accelerator)
+	if s.shadowIndex != nil {
+		// Ensure it has vector before indexing
+		if len(memory.Vector) > 0 {
+			_ = s.shadowIndex.Store(ctx, memory)
+		}
+	}
+
+	return nil
 }
 
 func (s *Service) Update(ctx context.Context, id string, newInfo string) error {
@@ -220,6 +243,17 @@ func (s *Service) Update(ctx context.Context, id string, newInfo string) error {
 }
 
 func (s *Service) Search(ctx context.Context, query string, topK int) ([]*domain.MemoryWithScore, error) {
+	if topK <= 0 {
+		topK = 10
+	}
+
+	// 1. Choose searching backend
+	searchStore := s.store
+	if s.shadowIndex != nil {
+		searchStore = s.shadowIndex // Use vector-capable store for searching
+	}
+
+	// 2. Perform search
 	if s.embedder == nil {
 		mems, _, _ := s.store.List(ctx, topK, 0)
 		var res []*domain.MemoryWithScore
@@ -234,7 +268,20 @@ func (s *Service) Search(ctx context.Context, query string, topK int) ([]*domain
 		return nil, err
 	}
 
-	return s.store.Search(ctx, vec, topK, s.minScore)
+	results, err := searchStore.Search(ctx, vec, topK, s.minScore)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. Truth Retrieval: For each found ID, fetch fresh content from Primary Store
+	// This ensures that even if vector index is slightly stale, we get the human-edited content.
+	for i, res := range results {
+		if fresh, err := s.store.Get(ctx, res.ID); err == nil {
+			results[i].Memory = fresh
+		}
+	}
+
+	return results, nil
 }
 
 func (s *Service) Get(ctx context.Context, id string) (*domain.Memory, error) {
