@@ -196,9 +196,11 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 // executeToolOrHandoff executes a tool call and handles agent switching
 func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) (interface{}, error, bool) {
+	toolName := tc.Function.Name
+
 	// --- DEBUG: LOG TOOL START ---
 	if r.svc.config != nil && r.svc.config.Debug {
-		fmt.Printf("\n🛠️  DEBUG RUNTIME TOOL CALL: %s\n", tc.Function.Name)
+		fmt.Printf("\n🛠️  DEBUG RUNTIME TOOL CALL: %s\n", toolName)
 		fmt.Printf("   Arguments: %v\n", tc.Function.Arguments)
 	}
 
@@ -259,8 +261,8 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 		} else {
 			result = res.Output
 		}
-	} else if tc.Function.Name == "rag_query" && r.svc.ragProcessor != nil {
-		// 4. RAG
+	} else if toolName == "rag_query" && r.svc.ragProcessor != nil {
+		// 4. RAG Query
 		q, _ := tc.Function.Arguments["query"].(string)
 		resp, err := r.svc.ragProcessor.Query(ctx, domain.QueryRequest{Query: q})
 		if err != nil {
@@ -268,21 +270,53 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 		} else {
 			result = resp.Answer
 		}
-	} else if strings.HasPrefix(tc.Function.Name, "memory_") && r.svc.memoryService != nil {
+	} else if toolName == "rag_ingest" && r.svc.ragProcessor != nil {
+		// 4.1 RAG Ingest
+		content, _ := tc.Function.Arguments["content"].(string)
+		filePath, _ := tc.Function.Arguments["file_path"].(string)
+		_, execErr = r.svc.ragProcessor.Ingest(ctx, domain.IngestRequest{
+			Content:  content,
+			FilePath: filePath,
+		})
+		if execErr == nil {
+			result = "Successfully ingested document"
+		}
+	} else if toolName == "rag_delete" && r.svc.ragProcessor != nil {
+		// 4.2 RAG Delete
+		docID, _ := tc.Function.Arguments["document_id"].(string)
+		execErr = r.svc.ragProcessor.DeleteDocument(ctx, docID)
+		if execErr == nil {
+			result = fmt.Sprintf("Successfully deleted document %s", docID)
+		}
+	} else if strings.HasPrefix(toolName, "memory_") && r.svc.memoryService != nil {
 		// 5. Memory Tools
-		if tc.Function.Name == "memory_save" {
+		if toolName == "memory_save" {
 			content, _ := tc.Function.Arguments["content"].(string)
+			memType, _ := tc.Function.Arguments["type"].(string)
+			if memType == "" { memType = string(domain.MemoryTypeFact) }
 			execErr = r.svc.memoryService.Add(ctx, &domain.Memory{
-				Type:       domain.MemoryTypePreference,
+				Type:       domain.MemoryType(memType),
 				Content:    content,
 				Importance: 0.8,
 			})
-			if execErr == nil {
-				result = "Saved"
-			}
+			if execErr == nil { result = "Saved" }
+		} else if toolName == "memory_update" {
+			id, _ := tc.Function.Arguments["id"].(string)
+			content, _ := tc.Function.Arguments["content"].(string)
+			execErr = r.svc.memoryService.Update(ctx, id, content)
+			if execErr == nil { result = "Updated" }
+		} else if toolName == "memory_delete" {
+			id, _ := tc.Function.Arguments["id"].(string)
+			execErr = r.svc.memoryService.Delete(ctx, id)
+			if execErr == nil { result = "Deleted" }
+		} else if toolName == "memory_recall" {
+			query, _ := tc.Function.Arguments["query"].(string)
+			mContext, _, err := r.svc.memoryService.RetrieveAndInject(ctx, query, "")
+			result = mContext
+			execErr = err
 		}
 	} else {
-		execErr = fmt.Errorf("unknown tool: %s", tc.Function.Name)
+		execErr = fmt.Errorf("unknown tool: %s", toolName)
 	}
 
 	// === POST-TOOL HOOK ===

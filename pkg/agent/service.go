@@ -801,6 +801,12 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 			Temperature: 0.3,
 			MaxTokens:   2000,
 		})
+		if err != nil {
+			return nil, fmt.Errorf("LLM generation failed: %w", err)
+		}
+		if result == nil {
+			return nil, fmt.Errorf("LLM generation returned nil result")
+		}
 
 		// --- DEBUG: LOG RAW RESPONSE ---
 		if s.config.Debug && err == nil {

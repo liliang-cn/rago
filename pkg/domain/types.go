@@ -310,6 +310,8 @@ type DocumentStore interface {
 type Processor interface {
 	Ingest(ctx context.Context, req IngestRequest) (IngestResponse, error)
 	Query(ctx context.Context, req QueryRequest) (QueryResponse, error)
+	ListDocuments(ctx context.Context) ([]Document, error)
+	DeleteDocument(ctx context.Context, documentID string) error
 }
 
 // RAGProcessor is the interface for RAG processing services
