@@ -72,7 +72,7 @@ func (s *Service) StreamWithTools(ctx context.Context, messages []domain.Message
 	// Fallback: simple stream
 	fullPrompt := s.buildPromptFromMessages(messages)
 	return s.generator.Stream(ctx, fullPrompt, opts, func(chunk string) {
-		callback(chunk, nil)
+		_ = callback(&domain.GenerationResult{Content: chunk})
 	})
 }
 

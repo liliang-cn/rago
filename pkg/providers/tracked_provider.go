@@ -166,14 +166,14 @@ func (t *TrackedLLMProvider) StreamWithTools(ctx context.Context, messages []dom
 	// Collect the streamed response
 	var fullContent string
 	var toolCalls []domain.ToolCall
-	wrappedCallback := func(content string, tc []domain.ToolCall) error {
-		if content != "" {
-			fullContent += content
+	wrappedCallback := func(delta *domain.GenerationResult) error {
+		if delta.Content != "" {
+			fullContent += delta.Content
 		}
-		if len(tc) > 0 {
-			toolCalls = tc
+		if len(delta.ToolCalls) > 0 {
+			toolCalls = delta.ToolCalls
 		}
-		return callback(content, tc)
+		return callback(delta)
 	}
 
 	// Call the underlying provider

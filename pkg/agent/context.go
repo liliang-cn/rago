@@ -79,18 +79,16 @@ func (s *Service) buildSystemContext() *SystemContext {
 		mems, total, err := s.memoryService.List(context.Background(), 20, 0)
 		if err == nil && total > 0 {
 			for _, m := range mems {
-				// 仅展示实体/事实类型的长效记忆
-				if m.Type != domain.MemoryTypeContext {
-					summary := m.Content
-					if len(summary) > 80 {
-						summary = summary[:77] + "..."
-					}
-					ctx.Memories = append(ctx.Memories, MemorySummary{
-						ID:      m.ID,
-						Type:    string(m.Type),
-						Summary: summary,
-					})
+				// 展示所有类型的长效记忆摘要，以便 Agent 发现线索
+				summary := m.Content
+				if len(summary) > 80 {
+					summary = summary[:77] + "..."
 				}
+				ctx.Memories = append(ctx.Memories, MemorySummary{
+					ID:      m.ID,
+					Type:    string(m.Type),
+					Summary: summary,
+				})
 			}
 		}
 	}

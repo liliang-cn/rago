@@ -100,17 +100,25 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		err := r.svc.llmService.StreamWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
 			Temperature: 0.3,
 			MaxTokens:   2000,
-		}, func(chunk string, calls []domain.ToolCall) error {
-			if chunk != "" {
-				fullContent.WriteString(chunk)
-				r.emit(EventTypePartial, chunk)
+		}, func(delta *domain.GenerationResult) error {
+			// 1. Handle Reasoning (The "Thinking" Stream)
+			if delta.ReasoningContent != "" {
+				r.emit(EventTypeThinking, delta.ReasoningContent)
 			}
-			if len(calls) > 0 {
+
+			// 2. Handle Content (The "Output" Stream)
+			if delta.Content != "" {
+				fullContent.WriteString(delta.Content)
+				r.emit(EventTypePartial, delta.Content)
+			}
+
+			// 3. Handle Tool Calls detection
+			if len(delta.ToolCalls) > 0 {
 				if !toolCallDetected {
 					r.emit(EventTypeThinking, "Planning tool usage...")
 					toolCallDetected = true
 				}
-				toolCalls = calls
+				toolCalls = delta.ToolCalls
 			}
 			return nil
 		})
