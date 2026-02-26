@@ -42,6 +42,7 @@ type ProgressCallback func(ProgressEvent)
 // Service is the main agent service that handles planning and execution
 // This matches the interface expected by the CLI in cmd/rago-cli/agent/agent.go
 type Service struct {
+	config           *AgentConfig
 	llmService       domain.Generator
 	mcpService       MCPToolExecutor
 	ragProcessor     domain.Processor
@@ -140,6 +141,7 @@ Available tools include:
 	logger := ragolog.WithModule("agent.service")
 
 	return &Service{
+		config:        &AgentConfig{}, // Default empty config
 		llmService:    llmService,
 		mcpService:    mcpService,
 		ragProcessor:  ragProcessor,
@@ -159,6 +161,13 @@ Available tools include:
 		Memory:  memoryService,
 		Prompts: promptMgr,
 	}, nil
+}
+
+// SetConfig updates the agent's runtime configuration
+func (s *Service) SetConfig(cfg *AgentConfig) {
+	if cfg != nil {
+		s.config = cfg
+	}
 }
 
 // SetRouter sets the semantic router for improved intent recognition
@@ -773,12 +782,19 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 		// Prepare messages for this generation (System + History)
 		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
 
-		// Log Request (DEBUG)
-		s.logger.Debug("LLM Request",
-			slog.String("agent", currentAgent.Name()),
-			slog.Int("round", round+1),
-			slog.Any("messages", genMessages),
-			slog.Int("tools_count", len(tools)))
+		// --- DEBUG: LOG FULL PROMPT ---
+		if s.config.Debug {
+			fmt.Println("\n" + strings.Repeat("=", 40))
+			fmt.Printf("DEBUG: [ROUND %d] LLM FULL PROMPT\n", round+1)
+			fmt.Println(strings.Repeat("-", 40))
+			for _, m := range genMessages {
+				fmt.Printf("[%s]:\n%s\n", strings.ToUpper(m.Role), m.Content)
+				if len(m.ToolCalls) > 0 {
+					fmt.Printf("  (ToolCalls: %d)\n", len(m.ToolCalls))
+				}
+			}
+			fmt.Println(strings.Repeat("=", 40) + "\n")
+		}
 
 		// Let LLM decide
 		result, err := s.llmService.GenerateWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
@@ -786,15 +802,23 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 			MaxTokens:   2000,
 		})
 
-		if err != nil {
-			s.logger.Error("LLM Generation failed", slog.Any("error", err))
-			return nil, fmt.Errorf("LLM execution failed: %w", err)
+		// --- DEBUG: LOG RAW RESPONSE ---
+		if s.config.Debug && err == nil {
+			fmt.Println("\n" + strings.Repeat("=", 40))
+			fmt.Printf("DEBUG: [ROUND %d] LLM RAW RESPONSE\n", round+1)
+			fmt.Println(strings.Repeat("-", 40))
+			if result.ReasoningContent != "" {
+				fmt.Printf("REASONING: %s\n", result.ReasoningContent)
+			}
+			fmt.Printf("CONTENT: %s\n", result.Content)
+			if len(result.ToolCalls) > 0 {
+				fmt.Println("TOOL CALLS:")
+				for _, tc := range result.ToolCalls {
+					fmt.Printf("  - %s(%v)\n", tc.Function.Name, tc.Function.Arguments)
+				}
+			}
+			fmt.Println(strings.Repeat("=", 40) + "\n")
 		}
-
-		// Log Response (DEBUG)
-		s.logger.Debug("LLM Response",
-			slog.String("content", result.Content),
-			slog.Int("tool_calls", len(result.ToolCalls)))
 
 		// If LLM made tool calls, execute them and continue the conversation
 		if len(result.ToolCalls) > 0 {
@@ -1000,6 +1024,12 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 
 			s.emitProgress("tool_call", fmt.Sprintf("→ %s", toolDesc), 0, toolName)
 
+			// --- DEBUG: LOG TOOL CALL ---
+			if s.config != nil && s.config.Debug {
+				fmt.Printf("\n🛠️  DEBUG TOOL CALL: %s\n", toolName)
+				fmt.Printf("   Arguments: %v\n", toolCall.Function.Arguments)
+			}
+
 			s.logger.Info("Executing Tool",
 				slog.String("tool", toolName),
 				slog.Any("arguments", toolCall.Function.Arguments))
@@ -1008,16 +1038,20 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 			var err error
 			var toolType string
 
-			// 0. Priority: Agent-local Tools
-			if handler, ok := currentAgent.GetHandler(toolName); ok {
-				result, err = handler(groupCtx, toolCall.Function.Arguments)
-				toolType = "local"
-			} else if s.isMCPTool(toolName) {
-				// 1. MCP tools
-				result, err = s.mcpService.CallTool(groupCtx, toolName, toolCall.Function.Arguments)
-				toolType = "mcp"
-			} else if s.isSkill(groupCtx, toolName) && s.skillsService != nil {
-				// 2. Skills
+					// 0. Priority: Agent-local Tools
+					if handler, ok := currentAgent.GetHandler(toolName); ok {
+						if s.config != nil && s.config.Debug { fmt.Println("   Type: Local Handler") }
+						result, err = handler(groupCtx, toolCall.Function.Arguments)
+						toolType = "local"
+					} else if s.isMCPTool(toolName) {
+						// 1. MCP tools
+						if s.config != nil && s.config.Debug { fmt.Printf("   Type: MCP Tool\n") }
+						result, err = s.mcpService.CallTool(groupCtx, toolName, toolCall.Function.Arguments)
+						toolType = "mcp"
+					} else if s.isSkill(groupCtx, toolName) && s.skillsService != nil {
+						// 2. Skills
+						if s.config != nil && s.config.Debug { fmt.Printf("   Type: Skill (%s)\n", toolName) }
+			
 				skillResult, skillErr := s.skillsService.Execute(groupCtx, &skills.ExecutionRequest{
 					SkillID:     toolName,
 					Variables:   toolCall.Function.Arguments,
@@ -1115,12 +1149,24 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 				s.logger.Error("Tool execution failed",
 					slog.String("tool", toolName),
 					slog.Any("error", err))
+				
+				if s.config != nil && s.config.Debug {
+					fmt.Printf("   ❌ ERROR: %v\n", err)
+					fmt.Println(strings.Repeat("-", 20))
+				}
+				
 				return fmt.Errorf("Tool %s (%s) failed: %w", toolCall.Function.Name, toolType, err)
 			}
 
 			s.logger.Info("Tool Result",
 				slog.String("tool", toolName),
 				slog.Any("result", result))
+
+			// --- DEBUG: LOG TOOL SUCCESS ---
+			if s.config != nil && s.config.Debug {
+				fmt.Printf("   ✅ RESULT: %v\n", result)
+				fmt.Println(strings.Repeat("-", 20))
+			}
 
 			// Emit tool result progress
 			s.emitProgress("tool_result", fmt.Sprintf("✓ %s Done", toolDesc), 0, toolName)
@@ -1596,6 +1642,7 @@ type AgentConfig struct {
 	EnableRouter    bool
 	EnableSkills    bool
 	EnableAutoMemory bool // Automatically save important info to memory
+	Debug           bool // Enable verbose debugging output
 	IntentPaths     []string
 	RouterThreshold float64
 	ProgressCb      ProgressCallback
@@ -1749,6 +1796,7 @@ func New(cfg *AgentConfig) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent: %w", err)
 	}
+	svc.config = cfg
 
 	// Load prompts from default directory (~/.rago/prompts)
 	promptDir := filepath.Join(ragoCfg.Home, "prompts")

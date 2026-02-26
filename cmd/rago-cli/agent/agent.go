@@ -23,6 +23,7 @@ import (
 var (
 	Cfg            *config.Config
 	Verbose        bool
+	Debug          bool // New debug flag
 	skillsService  *skills.Service
 	skillsInitOnce sync.Once
 	skillsInitErr  error
@@ -324,6 +325,7 @@ var reviseCmd = &cobra.Command{
 }
 
 func init() {
+	runCmd.Flags().BoolVarP(&Debug, "debug", "D", false, "Enable verbose debugging output (show full prompts)")
 	AgentCmd.AddCommand(runCmd)
 	AgentCmd.AddCommand(planCmd)
 	planCmd.AddCommand(planCreateCmd)
@@ -564,6 +566,9 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 		}
 		return nil, nil, fmt.Errorf("failed to init agent service: %w", err)
 	}
+
+	// Set debug mode from CLI flag
+	agentService.SetConfig(&agent.AgentConfig{Debug: Debug})
 
 	// Initialize Semantic Router for improved intent recognition
 	if embedService != nil {
