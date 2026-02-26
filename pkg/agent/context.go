@@ -1,11 +1,14 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 // SystemContext 系统上下文信息
@@ -21,6 +24,14 @@ type SystemContext struct {
 	User         string
 	GoVersion    string
 	EnvInfo      map[string]string // selected env vars
+	Memories     []MemorySummary   // list of available memory entities
+}
+
+// MemorySummary represents a summary of a persistent memory file
+type MemorySummary struct {
+	ID      string
+	Type    string
+	Summary string
 }
 
 // buildSystemContext 收集系统上下文信息
@@ -48,7 +59,7 @@ func (s *Service) buildSystemContext() *SystemContext {
 		}
 	}
 
-	return &SystemContext{
+	ctx := &SystemContext{
 		Date:       now.Format("2006-01-02"),
 		Time:       now.Format("15:04:05"),
 		Timezone:   now.Location().String(),
@@ -61,25 +72,49 @@ func (s *Service) buildSystemContext() *SystemContext {
 		GoVersion:  runtime.Version(),
 		EnvInfo:    envInfo,
 	}
+
+	// 注入记忆地图
+	if s.memoryService != nil {
+		// 限制数量，防止上下文溢出
+		mems, total, err := s.memoryService.List(context.Background(), 20, 0)
+		if err == nil && total > 0 {
+			for _, m := range mems {
+				// 仅展示实体/事实类型的长效记忆
+				if m.Type != domain.MemoryTypeContext {
+					summary := m.Content
+					if len(summary) > 80 {
+						summary = summary[:77] + "..."
+					}
+					ctx.Memories = append(ctx.Memories, MemorySummary{
+						ID:      m.ID,
+						Type:    string(m.Type),
+						Summary: summary,
+					})
+				}
+			}
+		}
+	}
+
+	return ctx
 }
 
 // FormatForPrompt 格式化系统上下文为prompt字符串
 func (c *SystemContext) FormatForPrompt() string {
 	var sb strings.Builder
 
-	sb.WriteString("--- System Context ---\n")
-	fmt.Fprintf(&sb, "Date: %s\n", c.Date)
-	fmt.Fprintf(&sb, "Time: %s\n", c.Time)
-	if c.Timezone != "" && c.Timezone != "UTC" {
-		fmt.Fprintf(&sb, "Timezone: %s\n", c.Timezone)
-	}
-	fmt.Fprintf(&sb, "OS: %s/%s\n", c.OS, c.Arch)
+	sb.WriteString("## SYSTEM CHRONOMETER (CRITICAL)\n")
+	fmt.Fprintf(&sb, "- Current Date: %s\n", c.Date)
+	fmt.Fprintf(&sb, "- Current Time: %s (%s)\n", c.Time, c.Timezone)
+	sb.WriteString("When accessing long-term memories, always interpret their 'updated_at' timestamps relative to the current time above. Recent information should generally override older conflicting data.\n\n")
+
+	sb.WriteString("## System Environment\n")
+	fmt.Fprintf(&sb, "- OS: %s/%s\n", c.OS, c.Arch)
 	if c.Hostname != "" {
-		fmt.Fprintf(&sb, "Hostname: %s\n", c.Hostname)
+		fmt.Fprintf(&sb, "- Hostname: %s\n", c.Hostname)
 	}
-	fmt.Fprintf(&sb, "Working Directory: %s\n", c.WorkingDir)
+	fmt.Fprintf(&sb, "- Working Directory: %s\n", c.WorkingDir)
 	if c.User != "" {
-		fmt.Fprintf(&sb, "User: %s\n", c.User)
+		fmt.Fprintf(&sb, "- User: %s\n", c.User)
 	}
 	if len(c.EnvInfo) > 0 {
 		sb.WriteString("Environment: ")
@@ -92,6 +127,14 @@ func (c *SystemContext) FormatForPrompt() string {
 			first = false
 		}
 		sb.WriteString("\n")
+	}
+
+	if len(c.Memories) > 0 {
+		sb.WriteString("\n## Available Persistent Memories (Memory Map)\n")
+		sb.WriteString("The following facts and entities are stored in your long-term memory. Use 'memory_recall' to read their full details:\n")
+		for _, m := range c.Memories {
+			sb.WriteString(fmt.Sprintf("- [%s] (%s): %s\n", m.ID, m.Type, m.Summary))
+		}
 	}
 
 	return sb.String()

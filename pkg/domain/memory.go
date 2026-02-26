@@ -184,6 +184,15 @@ type MemoryStore interface {
 	// DeleteBySession removes all memories for a session
 	DeleteBySession(ctx context.Context, sessionID string) error
 
+	// ConfigureBank sets mission and disposition for a memory bank (session)
+	ConfigureBank(ctx context.Context, sessionID string, config *MemoryBankConfig) error
+
+	// Reflect triggers knowledge consolidation for a bank
+	Reflect(ctx context.Context, sessionID string) (string, error)
+
+	// AddMentalModel adds a curated mental model to the memory system
+	AddMentalModel(ctx context.Context, model *MentalModel) error
+
 	// InitSchema initializes the memory tables
 	InitSchema(ctx context.Context) error
 }

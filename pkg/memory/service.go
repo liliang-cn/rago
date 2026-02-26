@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -12,12 +11,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/prompt"
-	"github.com/liliang-cn/rago/v2/pkg/store"
 )
 
 // Service implements the MemoryService interface
 type Service struct {
-	store         *store.MemoryStore
+	store         domain.MemoryStore
 	entityMemory  *EntityMemory
 	llm           domain.Generator
 	embedder      domain.Embedder
@@ -37,14 +35,14 @@ type Config struct {
 // DefaultConfig returns default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		MinScore:    0.01, // Very low threshold - cosine similarity can be low for short texts
+		MinScore:    0.01,
 		MaxMemories: 5,
 	}
 }
 
 // NewService creates a new memory service
 func NewService(
-	memStore *store.MemoryStore,
+	memStore domain.MemoryStore,
 	llm domain.Generator,
 	embedder domain.Embedder,
 	config *Config,
@@ -58,7 +56,7 @@ func NewService(
 		entityMemory:  NewEntityMemory(memStore, embedder),
 		llm:           llm,
 		embedder:      embedder,
-		promptManager: prompt.NewManager(), // Default manager
+		promptManager: prompt.NewManager(),
 		minScore:      config.MinScore,
 		maxMemories:   config.MaxMemories,
 	}
@@ -71,110 +69,84 @@ func (s *Service) SetPromptManager(m *prompt.Manager) {
 
 // RetrieveAndInject searches relevant memories and formats them for LLM context
 func (s *Service) RetrieveAndInject(ctx context.Context, query string, sessionID string) (string, []*domain.MemoryWithScore, error) {
-	// 1. Generate query vector
-	vector, err := s.embedder.Embed(ctx, query)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to embed query: %w", err)
-	}
-
-	// 2. Retrieve: session memories + global memories + entities
 	var allMemories []*domain.MemoryWithScore
 
-	// Search entities
-	if s.entityMemory != nil {
+	// 1. Entity Search (if query is not empty)
+	if s.entityMemory != nil && query != "" {
 		entities, err := s.entityMemory.SearchEntities(ctx, query, 3)
 		if err == nil {
 			for _, ent := range entities {
 				content := fmt.Sprintf("Entity: %s (%s) - %s", ent.Name, ent.Type, ent.Description)
 				allMemories = append(allMemories, &domain.MemoryWithScore{
 					Memory: &domain.Memory{
-						Type:       "entity",
+						ID:         "ent_" + ent.Name,
+						Type:       domain.MemoryTypeFact,
 						Content:    content,
 						Importance: 1.0,
 					},
-					Score: 1.0, // High priority
+					Score: 1.0,
 				})
 			}
 		}
 	}
 
-	// Search session-specific memories
-	if sessionID != "" {
-		sessionMems, err := s.store.SearchBySession(ctx, sessionID, vector, s.maxMemories/2)
+	// 2. Vector Search (if embedder available)
+	if s.embedder != nil {
+		vector, err := s.embedder.Embed(ctx, query)
 		if err == nil {
-			allMemories = append(allMemories, toDomainMemories(sessionMems)...)
+			// Session memories
+			if sessionID != "" {
+				mems, _ := s.store.SearchBySession(ctx, sessionID, vector, s.maxMemories/2)
+				allMemories = append(allMemories, mems...)
+			}
+			// Global memories
+			mems, _ := s.store.Search(ctx, vector, s.maxMemories, s.minScore)
+			allMemories = append(allMemories, mems...)
+		}
+	} else {
+		// Fallback to List (Memory Sitemap mode)
+		mems, _, _ := s.store.List(ctx, s.maxMemories, 0)
+		for _, m := range mems {
+			allMemories = append(allMemories, &domain.MemoryWithScore{Memory: m, Score: 0.5})
 		}
 	}
 
-	// Search global memories (in "default" bank)
-	globalMems, err := s.store.Search(ctx, vector, s.maxMemories-len(allMemories), s.minScore)
-	if err == nil {
-		allMemories = append(allMemories, toDomainMemories(globalMems)...)
-	}
-
-	// 3. Merge and rank by score
+	// 3. Merge and rank
 	allMemories = s.mergeAndRank(allMemories)
 
-	// 4. Update access statistics
+	// Update access count
 	for _, m := range allMemories {
-		_ = s.store.IncrementAccess(ctx, m.ID)
+		if m.ID != "" {
+			_ = s.store.IncrementAccess(ctx, m.ID)
+		}
 	}
 
-	// 5. Format for LLM context
 	if len(allMemories) == 0 {
-		return "", allMemories, nil
+		return "", nil, nil
 	}
 
-	contextStr := s.formatMemories(allMemories)
-	return contextStr, allMemories, nil
+	return s.formatMemories(allMemories), allMemories, nil
 }
 
-// StoreIfWorthwhile analyzes task completion and decides what to store
+// StoreIfWorthwhile decides what to store based on task completion
 func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStoreRequest) error {
 	if s.llm == nil {
-		return nil // LLM required for auto-storage
+		return nil
 	}
 
-	// 1. Build LLM prompt for memory extraction
 	prompt := s.buildSummaryPrompt(req)
-
-	// 2. Use structured generation to extract memories
 	schema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
-			"should_store": map[string]interface{}{
-				"type": "boolean",
-			},
-			"reasoning": map[string]interface{}{
-				"type": "string",
-			},
+			"should_store": map[string]interface{}{"type": "boolean"},
 			"memories": map[string]interface{}{
 				"type": "array",
 				"items": map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"type": map[string]interface{}{
-							"type": "string",
-							"enum": []string{"fact", "skill", "pattern", "context", "preference"},
-						},
-						"content": map[string]interface{}{
-							"type": "string",
-						},
-						"importance": map[string]interface{}{
-							"type": "number",
-						},
-						"tags": map[string]interface{}{
-							"type": "array",
-							"items": map[string]string{
-								"type": "string",
-							},
-						},
-						"entities": map[string]interface{}{
-							"type": "array",
-							"items": map[string]string{
-								"type": "string",
-							},
-						},
+						"type":       map[string]interface{}{"type": "string", "enum": []string{"fact", "skill", "pattern", "context", "preference"}},
+						"content":    map[string]interface{}{"type": "string"},
+						"importance": map[string]interface{}{"type": "number"},
 					},
 					"required": []string{"type", "content", "importance"},
 				},
@@ -183,272 +155,123 @@ func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStore
 		"required": []string{"should_store", "memories"},
 	}
 
-	result, err := s.llm.GenerateStructured(ctx, prompt, schema, &domain.GenerationOptions{
-		Temperature: 0.3,
-		MaxTokens:   1000,
-	})
+	result, err := s.llm.GenerateStructured(ctx, prompt, schema, &domain.GenerationOptions{Temperature: 0.3})
 	if err != nil {
-		return fmt.Errorf("failed to generate memory summary: %w", err)
+		return err
 	}
 
-	// 3. Parse result
 	var summary domain.MemorySummaryResult
 	if err := json.Unmarshal([]byte(result.Raw), &summary); err != nil {
-		log.Printf("[Memory] Error parsing memory summary: %v", err)
-		return fmt.Errorf("failed to parse memory summary: %w", err)
+		return err
 	}
 
-	if !summary.ShouldStore || len(summary.Memories) == 0 {
-		return nil // Nothing to store
+	if !summary.ShouldStore {
+		return nil
 	}
 
-	// 4. Store each memory
 	for _, item := range summary.Memories {
-		// Handle entities specifically
-		if len(item.Entities) > 0 && s.entityMemory != nil {
-			for _, entityName := range item.Entities {
-				// Basic entity creation - ideally LLM would provide more detail
-				// We create a stub entity here, future retrievals might enrich it
-				entity := domain.Entity{
-					Name:        entityName,
-					Type:        "unknown", // LLM extraction schema needs update to support type
-					Description: "Extracted from: " + item.Content,
-				}
-				// Simple heuristic for type
-				if strings.Contains(strings.ToLower(item.Content), "user") {
-					entity.Type = "person"
-				} else if strings.Contains(strings.ToLower(item.Content), "project") {
-					entity.Type = "project"
-				}
-				
-				_ = s.entityMemory.SaveEntity(ctx, entity)
-			}
-		}
-
-		// Generate embedding for the memory content
-		vector, err := s.embedder.Embed(ctx, item.Content)
-		if err != nil {
-			continue
-		}
-
-		memory := &store.Memory{
+		_ = s.Add(ctx, &domain.Memory{
 			ID:         uuid.New().String(),
 			SessionID:  req.SessionID,
-			Type:       string(item.Type),
+			Type:       item.Type,
 			Content:    item.Content,
-			Vector:     vector,
 			Importance: item.Importance,
-			Metadata: map[string]interface{}{
-				"tags":     item.Tags.Strings(),
-				"entities": item.Entities.Strings(),
-				"source":   "task_completion",
-			},
-		}
-
-		if err := s.store.Store(ctx, memory); err != nil {
-			continue
-		}
+			CreatedAt:  time.Now(),
+		})
 	}
 
 	return nil
 }
 
-// Add directly adds a memory
 func (s *Service) Add(ctx context.Context, memory *domain.Memory) error {
 	if memory.ID == "" {
 		memory.ID = uuid.New().String()
 	}
-	now := time.Now()
 	if memory.CreatedAt.IsZero() {
-		memory.CreatedAt = now
+		memory.CreatedAt = time.Now()
 	}
-	if memory.UpdatedAt.IsZero() {
-		memory.UpdatedAt = now
-	}
-
-	// Generate embedding if not provided
 	if len(memory.Vector) == 0 && s.embedder != nil {
-		vector, err := s.embedder.Embed(ctx, memory.Content)
-		if err != nil {
-			return fmt.Errorf("failed to embed memory: %w", err)
-		}
-		memory.Vector = vector
+		vec, _ := s.embedder.Embed(ctx, memory.Content)
+		memory.Vector = vec
 	}
-
-	// Convert to store memory
-	storeMem := &store.Memory{
-		ID:           memory.ID,
-		SessionID:    memory.SessionID,
-		Type:         string(memory.Type),
-		Content:      memory.Content,
-		Vector:       memory.Vector,
-		Importance:   memory.Importance,
-		AccessCount:  memory.AccessCount,
-		LastAccessed: memory.LastAccessed,
-		Metadata:     memory.Metadata,
-		CreatedAt:    memory.CreatedAt,
-		UpdatedAt:    memory.UpdatedAt,
-	}
-
-	return s.store.Store(ctx, storeMem)
+	return s.store.Store(ctx, memory)
 }
 
-// Update updates a memory's content (LLM-driven)
-func (s *Service) Update(ctx context.Context, id string, content string) error {
+func (s *Service) Update(ctx context.Context, id string, newInfo string) error {
 	if s.llm == nil {
-		return fmt.Errorf("LLM service required for memory updates")
+		return fmt.Errorf("LLM required")
 	}
 
-	// 1. Get existing memory
-	storeMem, err := s.store.Get(ctx, id)
+	oldMem, err := s.store.Get(ctx, id)
 	if err != nil {
-		return fmt.Errorf("failed to get memory: %w", err)
+		return err
 	}
 
-	// 2. Let LLM update the memory based on instruction
-	prompt := fmt.Sprintf(`Update the following memory based on the instruction.
-
-Current Memory:
-Type: %s
-Content: %s
-Importance: %.2f
-
-Update Instruction: %s
-
-Return JSON with: content (string), importance (number if changed).
-`, storeMem.Type, storeMem.Content, storeMem.Importance, content)
-
-	schema := map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"content": map[string]interface{}{
-				"type": "string",
-			},
-			"importance": map[string]interface{}{
-				"type": "number",
-			},
-		},
-		"required": []string{"content"},
-	}
-
-	result, err := s.llm.GenerateStructured(ctx, prompt, schema, &domain.GenerationOptions{
-		Temperature: 0.2,
-		MaxTokens:   500,
-	})
+	prompt := fmt.Sprintf("Existing Memory:\n%s\n\nNew Info: %s\n\nMerge and provide updated content.", oldMem.Content, newInfo)
+	updated, err := s.llm.Generate(ctx, prompt, nil)
 	if err != nil {
-		return fmt.Errorf("failed to generate update: %w", err)
+		return err
 	}
 
-	var update struct {
-		Content    string  `json:"content"`
-		Importance float64 `json:"importance"`
-	}
-	if err := json.Unmarshal([]byte(result.Raw), &update); err != nil {
-		return fmt.Errorf("failed to parse update: %w", err)
-	}
+	oldMem.Content = strings.TrimSpace(updated)
+	oldMem.UpdatedAt = time.Now()
 
-	// 3. Update memory
-	oldContent := storeMem.Content
-	storeMem.Content = update.Content
-	if update.Importance > 0 {
-		storeMem.Importance = update.Importance
-	}
-
-	// Re-embed if content changed
-	if update.Content != oldContent && s.embedder != nil {
-		if vector, err := s.embedder.Embed(ctx, update.Content); err == nil {
-			storeMem.Vector = vector
-		}
-	}
-
-	return s.store.Update(ctx, storeMem)
+	return s.store.Update(ctx, oldMem)
 }
 
-// Search searches memories by query
 func (s *Service) Search(ctx context.Context, query string, topK int) ([]*domain.MemoryWithScore, error) {
-	if topK <= 0 {
-		topK = 10
-	}
-
 	if s.embedder == nil {
-		// Fallback to text search
-		return s.searchByText(ctx, query, topK)
+		mems, _, _ := s.store.List(ctx, topK, 0)
+		var res []*domain.MemoryWithScore
+		for _, m := range mems {
+			res = append(res, &domain.MemoryWithScore{Memory: m, Score: 0.5})
+		}
+		return res, nil
 	}
 
-	vector, err := s.embedder.Embed(ctx, query)
-	if err != nil {
-		// Fallback to text search
-		return s.searchByText(ctx, query, topK)
-	}
-
-	results, err := s.store.Search(ctx, vector, topK, s.minScore)
+	vec, err := s.embedder.Embed(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	return toDomainMemories(results), nil
+	return s.store.Search(ctx, vec, topK, s.minScore)
 }
 
-// Get retrieves a memory by ID
 func (s *Service) Get(ctx context.Context, id string) (*domain.Memory, error) {
-	storeMem, err := s.store.Get(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return toDomainMemory(storeMem), nil
+	return s.store.Get(ctx, id)
 }
 
-// List lists memories
 func (s *Service) List(ctx context.Context, limit, offset int) ([]*domain.Memory, int, error) {
-	storeMems, total, err := s.store.List(ctx, limit, offset)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	memories := make([]*domain.Memory, len(storeMems))
-	for i, sm := range storeMems {
-		memories[i] = toDomainMemory(sm)
-	}
-
-	return memories, total, nil
+	return s.store.List(ctx, limit, offset)
 }
 
-// Delete removes a memory
 func (s *Service) Delete(ctx context.Context, id string) error {
 	return s.store.Delete(ctx, id)
 }
 
-// ConfigureBank sets mission and disposition for a memory bank
 func (s *Service) ConfigureBank(ctx context.Context, sessionID string, config *domain.MemoryBankConfig) error {
 	return s.store.ConfigureBank(ctx, sessionID, config)
 }
 
-// Reflect triggers knowledge consolidation for a bank
 func (s *Service) Reflect(ctx context.Context, sessionID string) (string, error) {
 	return s.store.Reflect(ctx, sessionID)
 }
 
-// AddMentalModel adds a curated mental model
 func (s *Service) AddMentalModel(ctx context.Context, model *domain.MentalModel) error {
 	return s.store.AddMentalModel(ctx, model)
 }
 
-// Helper methods
+// Helpers
 
 func (s *Service) mergeAndRank(memories []*domain.MemoryWithScore) []*domain.MemoryWithScore {
-	// Remove duplicates by ID
 	seen := make(map[string]bool)
 	unique := make([]*domain.MemoryWithScore, 0)
-
 	for _, m := range memories {
 		if !seen[m.ID] {
 			seen[m.ID] = true
 			unique = append(unique, m)
 		}
 	}
-
-	// Sort by score (highest first)
 	for i := 0; i < len(unique)-1; i++ {
 		for j := i + 1; j < len(unique); j++ {
 			if unique[i].Score < unique[j].Score {
@@ -456,7 +279,6 @@ func (s *Service) mergeAndRank(memories []*domain.MemoryWithScore) []*domain.Mem
 			}
 		}
 	}
-
 	return unique
 }
 
@@ -464,89 +286,11 @@ func (s *Service) formatMemories(memories []*domain.MemoryWithScore) string {
 	var sb strings.Builder
 	sb.WriteString("## Relevant Memory\n\n")
 	for i, m := range memories {
-		sb.WriteString(fmt.Sprintf("[%d] [%s] (score: %.2f, importance: %.2f)\n%s\n\n",
-			i+1, m.Type, m.Score, m.Importance, m.Content))
+		sb.WriteString(fmt.Sprintf("[%d] [%s]: %s\n\n", i+1, m.Type, m.Content))
 	}
 	return sb.String()
 }
 
 func (s *Service) buildSummaryPrompt(req *domain.MemoryStoreRequest) string {
-	data := map[string]interface{}{
-		"Goal":         req.TaskGoal,
-		"Result":       req.TaskResult,
-		"ExecutionLog": req.ExecutionLog,
-	}
-
-	rendered, err := s.promptManager.Render("memory.extraction", data)
-	if err != nil {
-		return fmt.Sprintf("Analyze task: %s. Extract useful info for memory.", req.TaskGoal)
-	}
-
-	return rendered
-}
-
-func (s *Service) searchByText(ctx context.Context, query string, topK int) ([]*domain.MemoryWithScore, error) {
-	// Simple text-based search fallback
-	allMems, _, err := s.store.List(ctx, 100, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	var results []*domain.MemoryWithScore
-	queryLower := strings.ToLower(query)
-
-	for _, mem := range allMems {
-		contentLower := strings.ToLower(mem.Content)
-		if strings.Contains(contentLower, queryLower) {
-			// Simple relevance score based on occurrence
-			score := 0.5
-			if strings.HasPrefix(contentLower, queryLower) {
-				score = 0.8
-			}
-
-			domainMem := toDomainMemory(mem)
-			results = append(results, &domain.MemoryWithScore{
-				Memory: domainMem,
-				Score:  score,
-			})
-
-			if len(results) >= topK {
-				break
-			}
-		}
-	}
-
-	return results, nil
-}
-
-// Conversion functions
-
-func toDomainMemory(sm *store.Memory) *domain.Memory {
-	if sm == nil {
-		return nil
-	}
-	return &domain.Memory{
-		ID:           sm.ID,
-		SessionID:    sm.SessionID,
-		Type:         domain.MemoryType(sm.Type),
-		Content:      sm.Content,
-		Vector:       sm.Vector,
-		Importance:   sm.Importance,
-		AccessCount:  sm.AccessCount,
-		LastAccessed: sm.LastAccessed,
-		Metadata:     sm.Metadata,
-		CreatedAt:    sm.CreatedAt,
-		UpdatedAt:    sm.UpdatedAt,
-	}
-}
-
-func toDomainMemories(sm []*store.MemoryWithScore) []*domain.MemoryWithScore {
-	result := make([]*domain.MemoryWithScore, len(sm))
-	for i, m := range sm {
-		result[i] = &domain.MemoryWithScore{
-			Memory: toDomainMemory(m.Memory),
-			Score:  m.Score,
-		}
-	}
-	return result
+	return fmt.Sprintf("Goal: %s\nResult: %s\nExtract memory.", req.TaskGoal, req.TaskResult)
 }
