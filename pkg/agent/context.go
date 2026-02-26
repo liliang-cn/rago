@@ -7,8 +7,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 // SystemContext 系统上下文信息
@@ -79,6 +77,10 @@ func (s *Service) buildSystemContext() *SystemContext {
 		mems, total, err := s.memoryService.List(context.Background(), 20, 0)
 		if err == nil && total > 0 {
 			for _, m := range mems {
+				// 仅展示有内容的记忆摘要
+				if m.Content == "" {
+					continue
+				}
 				// 展示所有类型的长效记忆摘要，以便 Agent 发现线索
 				summary := m.Content
 				if len(summary) > 80 {

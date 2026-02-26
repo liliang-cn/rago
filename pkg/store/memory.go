@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -191,54 +192,55 @@ func (s *MemoryStore) GetByType(ctx context.Context, memoryType domain.MemoryTyp
 	return filtered, nil
 }
 
-// List lists all memories across all banks
+// List lists all memories across all banks by querying the database directly
 func (s *MemoryStore) List(ctx context.Context, limit, offset int) ([]*domain.Memory, int, error) {
-	// 1. Get all known banks
-	banks := s.sys.ListBanks()
-	
-	// 2. Discover missing banks directly from DB metadata (The Fallback)
-	if bankIDs, err := s.getBankIDsFromDB(); err == nil {
-		known := make(map[string]bool)
-		for _, b := range banks {
-			known[b.ID] = true
-		}
-		for _, id := range bankIDs {
-			if !known[id] {
-				banks = append(banks, &hindsight.Bank{ID: id, Name: id})
-			}
-		}
+	db, err := sql.Open("sqlite", s.dbPath)
+	if err != nil {
+		return nil, 0, err
 	}
+	defer db.Close()
+
+	// Query total count
+	var total int
+	err = db.QueryRow("SELECT COUNT(*) FROM embeddings").Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Query items with pagination
+	rows, err := db.Query(`
+		SELECT id, content, metadata, created_at 
+		FROM embeddings 
+		ORDER BY created_at DESC 
+		LIMIT ? OFFSET ?`, limit, offset)
+	if err != nil {
+		return nil, total, err
+	}
+	defer rows.Close()
 
 	var allMems []*domain.Memory
-	seenIDs := make(map[string]bool)
+	for rows.Next() {
+		var id, content, metadataJSON string
+		var createdAt time.Time
+		if err := rows.Scan(&id, &content, &metadataJSON, &createdAt); err == nil {
+			var metadata map[string]interface{}
+			_ = json.Unmarshal([]byte(metadataJSON), &metadata)
+			
+			bankID, _ := metadata["bank_id"].(string)
+			memType, _ := metadata["type"].(string)
 
-	for _, bank := range banks {
-		req := &hindsight.RecallRequest{
-			BankID:   bank.ID,
-			TopK:     1000,
-			Strategy: hindsight.DefaultStrategy(),
-		}
-		results, err := s.sys.Recall(ctx, req)
-		if err == nil {
-			for _, res := range results {
-				if seenIDs[res.Memory.ID] {
-					continue
-				}
-				seenIDs[res.Memory.ID] = true
-				allMems = append(allMems, toDomainMemory(toInternalMemory(res.Memory)))
-			}
+			allMems = append(allMems, &domain.Memory{
+				ID:        id,
+				Content:   content,
+				Metadata:  metadata,
+				SessionID: bankID,
+				Type:      domain.MemoryType(memType),
+				CreatedAt: createdAt,
+			})
 		}
 	}
 
-	total := len(allMems)
-	if offset >= total {
-		return nil, total, nil
-	}
-	end := offset + limit
-	if end > total {
-		end = total
-	}
-	return allMems[offset:end], total, nil
+	return allMems, total, nil
 }
 
 func (s *MemoryStore) Delete(ctx context.Context, id string) error {

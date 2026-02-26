@@ -486,6 +486,11 @@ func (c *Client) embedSingle(ctx context.Context, text string) ([]float64, error
 		return nil, fmt.Errorf("no embeddings returned")
 	}
 
+	// Protect against empty embedding vectors
+	if len(result.Data[0].Embedding) == 0 {
+		return nil, fmt.Errorf("embedding vector is empty (length 0)")
+	}
+
 	// Convert []float32 to []float64
 	vec := make([]float64, len(result.Data[0].Embedding))
 	for i, v := range result.Data[0].Embedding {
