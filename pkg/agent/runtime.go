@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
 )
@@ -94,6 +95,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		// 5. LLM Call (Streaming)
 		var fullContent strings.Builder
 		var toolCalls []domain.ToolCall
+		toolCallDetected := false
 
 		err := r.svc.llmService.StreamWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
 			Temperature: 0.3,
@@ -104,6 +106,10 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 				r.emit(EventTypePartial, chunk)
 			}
 			if len(calls) > 0 {
+				if !toolCallDetected {
+					r.emit(EventTypeThinking, "Planning tool usage...")
+					toolCallDetected = true
+				}
 				toolCalls = calls
 			}
 			return nil
@@ -138,45 +144,81 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 				ToolCalls: toolCalls,
 			})
 
-			// 7. Process Tool Calls (The "Side Effects")
+			// 7. Process Tool Calls (Parallel Execution)
 			handoffOccurred := false
 			
-			for _, tc := range toolCalls {
-				// Emit Tool Call Event
-				r.emitToolCall(tc.Function.Name, tc.Function.Arguments)
+			// Use errgroup for parallel tool execution
+			g, groupCtx := errgroup.WithContext(ctx)
+			toolResults := make([]struct {
+				Content    string
+				IsHandoff  bool
+				ToolCallID string
+				ToolName   string
+				Result     interface{}
+				Error      error
+			}, len(toolCalls))
 
-				// Execute Tool logic
-				res, err, isHandoff := r.executeToolOrHandoff(ctx, tc)
+			for i, tc := range toolCalls {
+				idx, toolCall := i, tc
 				
-				if isHandoff {
-					handoffOccurred = true
-					// Update session state
-					r.session.AgentID = r.currentAgent.ID()
+				// Handle Handoff immediately (sequential) as it changes state
+				if strings.HasPrefix(toolCall.Function.Name, "transfer_to_") {
+					res, err, isHandoff := r.executeToolOrHandoff(ctx, toolCall)
+					toolResults[idx].Content = fmt.Sprintf("%v", res)
+					if err != nil { toolResults[idx].Content = fmt.Sprintf("Error: %v", err) }
+					toolResults[idx].IsHandoff = isHandoff
+					toolResults[idx].ToolCallID = toolCall.ID
+					toolResults[idx].ToolName = toolCall.Function.Name
+					toolResults[idx].Result = res
+					toolResults[idx].Error = err
+					if isHandoff { handoffOccurred = true }
+					continue
+				}
+
+				// Parallel execute independent tools
+				g.Go(func() error {
+					r.emitToolCall(toolCall.Function.Name, toolCall.Function.Arguments)
+					res, err, isHandoff := r.executeToolOrHandoff(groupCtx, toolCall)
 					
-					// Add tool result
+					content := ""
+					if err != nil {
+						content = fmt.Sprintf("Error: %v", err)
+					} else {
+						content = fmt.Sprintf("%v", res)
+					}
+
+					toolResults[idx].Content = content
+					toolResults[idx].IsHandoff = isHandoff
+					toolResults[idx].ToolCallID = toolCall.ID
+					toolResults[idx].ToolName = toolCall.Function.Name
+					toolResults[idx].Result = res
+					toolResults[idx].Error = err
+					
+					r.emitToolResult(toolCall.Function.Name, res, err)
+					return nil
+				})
+			}
+
+			_ = g.Wait()
+
+			// Collect all results into messages
+			for _, tr := range toolResults {
+				if tr.ToolCallID == "" { continue } // Skip if not handled (shouldn't happen)
+				
+				if tr.IsHandoff {
+					r.session.AgentID = r.currentAgent.ID()
 					messages = append(messages, domain.Message{
 						Role:       "tool",
-						ToolCallID: tc.ID,
+						ToolCallID: tr.ToolCallID,
 						Content:    fmt.Sprintf("Transferred to %s", r.currentAgent.Name()),
 					})
-					break
-				}
-
-				// Normal tool result
-				content := ""
-				if err != nil {
-					content = fmt.Sprintf("Error: %v", err)
 				} else {
-					content = fmt.Sprintf("%v", res)
+					messages = append(messages, domain.Message{
+						Role:       "tool",
+						ToolCallID: tr.ToolCallID,
+						Content:    tr.Content,
+					})
 				}
-
-				r.emitToolResult(tc.Function.Name, res, err)
-
-				messages = append(messages, domain.Message{
-					Role:       "tool",
-					ToolCallID: tc.ID,
-					Content:    content,
-				})
 			}
 
 			if handoffOccurred {
@@ -342,18 +384,27 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 func (r *Runtime) prepareContext(ctx context.Context, goal string) (string, string) {
 	var ragCtx, memCtx string
 	
+	g, groupCtx := errgroup.WithContext(ctx)
+
 	// RAG Retrieval
 	if r.svc.ragProcessor != nil {
-		if res, err := r.svc.performRAGQuery(ctx, goal); err == nil {
-			ragCtx = res
-		}
+		g.Go(func() error {
+			if res, err := r.svc.performRAGQuery(groupCtx, goal); err == nil {
+				ragCtx = res
+			}
+			return nil
+		})
 	}
 
 	// Memory Retrieval
 	if r.svc.memoryService != nil {
-		memCtx, _, _ = r.svc.memoryService.RetrieveAndInject(ctx, goal, r.session.GetID())
+		g.Go(func() error {
+			memCtx, _, _ = r.svc.memoryService.RetrieveAndInject(groupCtx, goal, r.session.GetID())
+			return nil
+		})
 	}
 
+	_ = g.Wait()
 	return memCtx, ragCtx
 }
 
