@@ -1709,6 +1709,7 @@ func New(cfg *AgentConfig) (*Service, error) {
 	var memSvc domain.MemoryService
 	if cfg.EnableMemory {
 		var memStore domain.MemoryStore
+		var shadowStore domain.MemoryStore // New: optional shadow index
 		var err error
 
 		if cfg.MemoryStoreType == "file" {
@@ -1717,8 +1718,15 @@ func New(cfg *AgentConfig) (*Service, error) {
 				memPath = filepath.Join(ragoCfg.DataDir(), "memories")
 			}
 			memStore, err = store.NewFileMemoryStore(memPath)
+			
+			// Initialize Shadow Index (Vector accelerator)
+			sqlitePath := filepath.Join(ragoCfg.DataDir(), "rago.db")
+			if sqliteStore, serr := store.NewMemoryStore(sqlitePath); serr == nil {
+				_ = sqliteStore.InitSchema(context.Background())
+				shadowStore = sqliteStore
+			}
 		} else {
-			// Use the unified DB path
+			// (Old logic for direct SQLite storage...)
 			memDBPath := cfg.MemoryDBPath
 			if memDBPath == "" {
 				memDBPath = ragoCfg.Sqvect.DBPath
@@ -1732,7 +1740,12 @@ func New(cfg *AgentConfig) (*Service, error) {
 		}
 
 		if err == nil && memStore != nil {
-			memSvc = memory.NewService(memStore, llmSvc, embedSvc, memory.DefaultConfig())
+			memSvcInstance := memory.NewService(memStore, llmSvc, embedSvc, memory.DefaultConfig())
+			// Inject shadow index if available
+			if shadowStore != nil {
+				memSvcInstance.SetShadowIndex(shadowStore)
+			}
+			memSvc = memSvcInstance
 		}
 	}
 
