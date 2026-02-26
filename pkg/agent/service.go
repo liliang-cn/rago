@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	ragolog "github.com/liliang-cn/rago/v2/pkg/log"
@@ -199,6 +200,13 @@ func (s *Service) SetSkillsService(skillsService *skills.Service) {
 // SetProgressCallback sets the progress callback for execution events
 func (s *Service) SetProgressCallback(cb ProgressCallback) {
 	s.progressCb = cb
+}
+
+// SetAgentInstructions sets the instructions for the default agent
+func (s *Service) SetAgentInstructions(instructions string) {
+	if s.agent != nil {
+		s.agent.SetInstructions(instructions)
+	}
 }
 
 // RegisterHook registers a hook for lifecycle events
@@ -407,34 +415,51 @@ func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error
 
 	session := NewSession(s.agent.ID())
 
-	// Step 1: Collect ALL available tools
-	// Tools are collected dynamically in executeWithLLM
+	// Parallel Context Collection
+	var (
+		intent         *IntentRecognitionResult
+		ragContext     string
+		memoryContext  string
+		memoryMemories []*domain.MemoryWithScore
+	)
 
-	// Step 2: Intent Recognition (for context, not routing)
-	intent, _ := s.recognizeIntent(runCtx, goal, session)
+	g, groupCtx := errgroup.WithContext(runCtx)
 
-	// Step 3: RAG Query - get relevant documents from knowledge base
-	var ragContext string
-	if s.ragProcessor != nil {
-		s.emitProgress("thinking", "🔍 Searching knowledge base...", 0, "")
+	// 1. Intent Recognition
+	g.Go(func() error {
 		var err error
-		ragContext, err = s.performRAGQuery(runCtx, goal)
-		if err != nil {
-			// Log but don't fail - RAG is optional
-			log.Printf("[Agent] RAG query failed: %v", err)
-		} else if ragContext != "" {
-			s.emitProgress("tool_result", fmt.Sprintf("✓ Found %d relevant documents", countDocuments(ragContext)), 0, "")
-		}
+		intent, err = s.recognizeIntent(groupCtx, goal, session)
+		return err
+	})
+
+	// 2. RAG Retrieval
+	if s.ragProcessor != nil {
+		g.Go(func() error {
+			s.emitProgress("thinking", "🔍 Searching knowledge base...", 0, "")
+			var err error
+			ragContext, err = s.performRAGQuery(groupCtx, goal)
+			if err == nil && ragContext != "" {
+				s.emitProgress("tool_result", fmt.Sprintf("✓ Found %d relevant documents", countDocuments(ragContext)), 0, "")
+			}
+			return nil // Don't fail the whole run if RAG fails
+		})
 	}
 
-	// Step 4: Get memory context
-	var memoryContext string
-	var memoryMemories []*domain.MemoryWithScore
+	// 3. Memory Recall
 	if s.memoryService != nil {
-		memoryContext, memoryMemories, _ = s.memoryService.RetrieveAndInject(runCtx, goal, session.GetID())
+		g.Go(func() error {
+			var err error
+			memoryContext, memoryMemories, err = s.memoryService.RetrieveAndInject(groupCtx, goal, session.GetID())
+			return err
+		})
 	}
 
-	// Step 5: Let LLM decide and execute (with RAG context)
+	// Wait for all context collection to finish
+	if err := g.Wait(); err != nil {
+		s.logger.Warn("Context collection partial failure", slog.Any("error", err))
+	}
+
+	// Step 5: Let LLM decide and execute (with gathered context)
 	finalResult, err := s.executeWithLLM(runCtx, goal, intent, session, memoryContext, ragContext)
 	if err != nil {
 		return nil, err
@@ -981,150 +1006,165 @@ func extractJSON(resp string, target interface{}) error {
 }
 
 // executeToolCalls executes the tool calls decided by LLM and returns all results
+// executeToolCalls executes the tool calls decided by LLM and returns all results
 func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, toolCalls []domain.ToolCall) ([]ToolExecutionResult, error) {
-	results := make([]ToolExecutionResult, 0, len(toolCalls))
+	results := make([]ToolExecutionResult, len(toolCalls))
+	
+	// Create an errgroup to run tools in parallel
+	g, groupCtx := errgroup.WithContext(ctx)
 
-	for _, tc := range toolCalls {
-		// Format tool name for display
-		toolName := tc.Function.Name
-		toolDesc := toolName
-		if strings.HasPrefix(toolName, "mcp_") {
-			toolDesc = strings.TrimPrefix(toolName, "mcp_")
-		}
+	for i, tc := range toolCalls {
+		// Capture index and tool call for the goroutine
+		idx, toolCall := i, tc
 
-		s.emitProgress("tool_call", fmt.Sprintf("→ %s", toolDesc), 0, toolName)
+		g.Go(func() error {
+			// Format tool name for display
+			toolName := toolCall.Function.Name
+			toolDesc := toolName
+			if strings.HasPrefix(toolName, "mcp_") {
+				toolDesc = strings.TrimPrefix(toolName, "mcp_")
+			}
 
-		s.logger.Info("Executing Tool",
-			slog.String("tool", toolName),
-			slog.Any("arguments", tc.Function.Arguments))
+			s.emitProgress("tool_call", fmt.Sprintf("→ %s", toolDesc), 0, toolName)
 
-		var result interface{}
-		var err error
-		var toolType string
-
-		// 0. Priority: Agent-local Tools
-		if handler, ok := currentAgent.GetHandler(tc.Function.Name); ok {
-			result, err = handler(ctx, tc.Function.Arguments)
-			toolType = "local"
-		} else if s.isMCPTool(tc.Function.Name) {
-			// 1. MCP tools
-			result, err = s.mcpService.CallTool(ctx, tc.Function.Name, tc.Function.Arguments)
-			toolType = "mcp"
-		} else if s.isSkill(ctx, tc.Function.Name) && s.skillsService != nil {
-			// 2. Skills
-			skillResult, skillErr := s.skillsService.Execute(ctx, &skills.ExecutionRequest{
-				SkillID:     tc.Function.Name,
-				Variables:   tc.Function.Arguments,
-				Interactive: false,
-			})
-			if skillErr == nil {
-				result = skillResult.Output
-				err = skillErr
-			}
-			toolType = "skill"
-		} else if tc.Function.Name == "rag_query" && s.ragProcessor != nil {
-			query, _ := tc.Function.Arguments["query"].(string)
-			resp, ragErr := s.ragProcessor.Query(ctx, domain.QueryRequest{Query: query})
-			if ragErr == nil {
-				result = resp.Answer
-			}
-			err = ragErr
-			toolType = "rag"
-		} else if tc.Function.Name == "rag_ingest" && s.ragProcessor != nil {
-			content, _ := tc.Function.Arguments["content"].(string)
-			filePath, _ := tc.Function.Arguments["file_path"].(string)
-			_, err = s.ragProcessor.Ingest(ctx, domain.IngestRequest{
-				Content:  content,
-				FilePath: filePath,
-			})
-			if err == nil {
-				result = "Successfully ingested document"
-			}
-			toolType = "rag"
-		} else if tc.Function.Name == "memory_save" && s.memoryService != nil {
-			s.markRunMemorySaved()
-			content, _ := tc.Function.Arguments["content"].(string)
-			memType := "preference"
-			if t, ok := tc.Function.Arguments["type"].(string); ok {
-				memType = t
-			}
-			err = s.memoryService.Add(ctx, &domain.Memory{
-				Type:       domain.MemoryType(memType),
-				Content:    content,
-				Importance: 0.8,
-				Metadata: map[string]interface{}{
-					"source": "tool_call",
-				},
-			})
-			if err == nil {
-				result = fmt.Sprintf("Saved to memory: %s", content)
-			}
-			toolType = "memory"
-		} else if tc.Function.Name == "memory_update" && s.memoryService != nil {
-			id, _ := tc.Function.Arguments["id"].(string)
-			content, _ := tc.Function.Arguments["content"].(string)
-			err = s.memoryService.Update(ctx, id, content)
-			if err == nil {
-				result = fmt.Sprintf("Memory %s updated successfully.", id)
-			}
-			toolType = "memory"
-		} else if tc.Function.Name == "memory_delete" && s.memoryService != nil {
-			id, _ := tc.Function.Arguments["id"].(string)
-			err = s.memoryService.Delete(ctx, id)
-			if err == nil {
-				result = fmt.Sprintf("Memory %s deleted successfully.", id)
-			}
-			toolType = "memory"
-		} else if tc.Function.Name == "memory_recall" && s.memoryService != nil {
-			query, _ := tc.Function.Arguments["query"].(string)
-			memories, memErr := s.memoryService.Search(ctx, query, 5)
-			if memErr == nil {
-				if len(memories) == 0 {
-					// Fallback: list all recent memories
-					allMems, _, listErr := s.memoryService.List(ctx, 10, 0)
-					if listErr == nil && len(allMems) > 0 {
-						var memResults []string
-						for _, m := range allMems {
-							memResults = append(memResults, fmt.Sprintf("- [%s] %s", m.Type, m.Content))
-						}
-						result = fmt.Sprintf("Recent memories:\n%s", strings.Join(memResults, "\n"))
-					} else {
-						result = "No relevant memories found"
-					}
-				} else {
-					var memResults []string
-					for _, m := range memories {
-						memResults = append(memResults, fmt.Sprintf("- [%s: %.2f] %s", m.Type, m.Score, m.Content))
-					}
-					result = fmt.Sprintf("Found %d memories:\n%s", len(memories), strings.Join(memResults, "\n"))
-				}
-			}
-			err = memErr
-			toolType = "memory"
-		} else {
-			err = fmt.Errorf("unknown tool: %s", tc.Function.Name)
-		}
-
-		if err != nil {
-			s.logger.Error("Tool execution failed",
+			s.logger.Info("Executing Tool",
 				slog.String("tool", toolName),
-				slog.Any("error", err))
-			return nil, fmt.Errorf("Tool %s (%s) failed: %w", tc.Function.Name, toolType, err)
-		}
+				slog.Any("arguments", toolCall.Function.Arguments))
 
-		s.logger.Info("Tool Result",
-			slog.String("tool", toolName),
-			slog.Any("result", result))
+			var result interface{}
+			var err error
+			var toolType string
 
-		// Emit tool result progress
-		s.emitProgress("tool_result", fmt.Sprintf("✓ %s Done", toolDesc), 0, toolName)
+			// 0. Priority: Agent-local Tools
+			if handler, ok := currentAgent.GetHandler(toolName); ok {
+				result, err = handler(groupCtx, toolCall.Function.Arguments)
+				toolType = "local"
+			} else if s.isMCPTool(toolName) {
+				// 1. MCP tools
+				result, err = s.mcpService.CallTool(groupCtx, toolName, toolCall.Function.Arguments)
+				toolType = "mcp"
+			} else if s.isSkill(groupCtx, toolName) && s.skillsService != nil {
+				// 2. Skills
+				skillResult, skillErr := s.skillsService.Execute(groupCtx, &skills.ExecutionRequest{
+					SkillID:     toolName,
+					Variables:   toolCall.Function.Arguments,
+					Interactive: false,
+				})
+				if skillErr == nil {
+					result = skillResult.Output
+					err = skillErr
+				}
+				toolType = "skill"
+			} else if toolName == "rag_query" && s.ragProcessor != nil {
+				query, _ := toolCall.Function.Arguments["query"].(string)
+				resp, ragErr := s.ragProcessor.Query(groupCtx, domain.QueryRequest{Query: query})
+				if ragErr == nil {
+					result = resp.Answer
+				}
+				err = ragErr
+				toolType = "rag"
+			} else if toolName == "rag_ingest" && s.ragProcessor != nil {
+				content, _ := toolCall.Function.Arguments["content"].(string)
+				filePath, _ := toolCall.Function.Arguments["file_path"].(string)
+				_, err = s.ragProcessor.Ingest(groupCtx, domain.IngestRequest{
+					Content:  content,
+					FilePath: filePath,
+				})
+				if err == nil {
+					result = "Successfully ingested document"
+				}
+				toolType = "rag"
+			} else if toolName == "memory_save" && s.memoryService != nil {
+				s.markRunMemorySaved()
+				content, _ := toolCall.Function.Arguments["content"].(string)
+				memType := "preference"
+				if t, ok := toolCall.Function.Arguments["type"].(string); ok {
+					memType = t
+				}
+				err = s.memoryService.Add(groupCtx, &domain.Memory{
+					Type:       domain.MemoryType(memType),
+					Content:    content,
+					Importance: 0.8,
+					Metadata: map[string]interface{}{
+						"source": "tool_call",
+					},
+				})
+				if err == nil {
+					result = fmt.Sprintf("Saved to memory: %s", content)
+				}
+				toolType = "memory"
+			} else if toolName == "memory_update" && s.memoryService != nil {
+				id, _ := toolCall.Function.Arguments["id"].(string)
+				content, _ := toolCall.Function.Arguments["content"].(string)
+				err = s.memoryService.Update(groupCtx, id, content)
+				if err == nil {
+					result = fmt.Sprintf("Memory %s updated successfully.", id)
+				}
+				toolType = "memory"
+			} else if toolName == "memory_delete" && s.memoryService != nil {
+				id, _ := toolCall.Function.Arguments["id"].(string)
+				err = s.memoryService.Delete(groupCtx, id)
+				if err == nil {
+					result = fmt.Sprintf("Memory %s deleted successfully.", id)
+				}
+				toolType = "memory"
+			} else if toolName == "memory_recall" && s.memoryService != nil {
+				query, _ := toolCall.Function.Arguments["query"].(string)
+				memories, memErr := s.memoryService.Search(groupCtx, query, 5)
+				if memErr == nil {
+					if len(memories) == 0 {
+						// Fallback: list all recent memories
+						allMems, _, listErr := s.memoryService.List(groupCtx, 10, 0)
+						if listErr == nil && len(allMems) > 0 {
+							var memResults []string
+							for _, m := range allMems {
+								memResults = append(memResults, fmt.Sprintf("- [%s] %s", m.Type, m.Content))
+							}
+							result = fmt.Sprintf("Recent memories:\n%s", strings.Join(memResults, "\n"))
+						} else {
+							result = "No relevant memories found"
+						}
+					} else {
+						var memResults []string
+						for _, m := range memories {
+							memResults = append(memResults, fmt.Sprintf("- [%s: %.2f] %s", m.Type, m.Score, m.Content))
+						}
+						result = fmt.Sprintf("Found %d memories:\n%s", len(memories), strings.Join(memResults, "\n"))
+					}
+				}
+				err = memErr
+				toolType = "memory"
+			} else {
+				err = fmt.Errorf("unknown tool: %s", toolCall.Function.Name)
+			}
 
-		results = append(results, ToolExecutionResult{
-			ToolCallID: tc.ID,
-			ToolName:   tc.Function.Name,
-			ToolType:   toolType,
-			Result:     result,
+			if err != nil {
+				s.logger.Error("Tool execution failed",
+					slog.String("tool", toolName),
+					slog.Any("error", err))
+				return fmt.Errorf("Tool %s (%s) failed: %w", toolCall.Function.Name, toolType, err)
+			}
+
+			s.logger.Info("Tool Result",
+				slog.String("tool", toolName),
+				slog.Any("result", result))
+
+			// Emit tool result progress
+			s.emitProgress("tool_result", fmt.Sprintf("✓ %s Done", toolDesc), 0, toolName)
+
+			results[idx] = ToolExecutionResult{
+				ToolCallID: toolCall.ID,
+				ToolName:   toolCall.Function.Name,
+				ToolType:   toolType,
+				Result:     result,
+			}
+			return nil
 		})
+	}
+
+	// Wait for all tools to finish
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	return results, nil
@@ -1756,6 +1796,11 @@ func New(cfg *AgentConfig) (*Service, error) {
 	// Set progress callback
 	if cfg.ProgressCb != nil {
 		svc.SetProgressCallback(cfg.ProgressCb)
+	}
+
+	// Set custom system prompt if provided
+	if cfg.SystemPrompt != "" {
+		svc.SetAgentInstructions(cfg.SystemPrompt)
 	}
 
 	return svc, nil
