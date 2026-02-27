@@ -28,22 +28,35 @@ func initializeSkills(cmd *cobra.Command) error {
 	initOnce.Do(func() {
 		ctx := context.Background()
 
-		// Initialize skills service
-		cfg := skills.DefaultConfig()
-		cfg.AutoLoad = true // Auto-load skills on initialization
-
-		// Initialize RAG processor for skill execution (if config is available)
+		// Initialize skills config with multi-path support
 		ragCfg := rag.GetConfig()
+
+		var skillCfg *skills.Config
 		if ragCfg != nil {
-			cfg.Paths = []string{ragCfg.SkillsDir()}
-			cfg.DBPath = filepath.Join(ragCfg.DataDir(), "skills.db")
+			// Use multi-path from global config
+			skillCfg = &skills.Config{
+				Enabled:               ragCfg.Skills.Enabled,
+				Paths:                 ragCfg.SkillsPaths(),
+				AutoLoad:              ragCfg.Skills.AutoLoad,
+				CacheEnabled:          true,
+				DBPath:                filepath.Join(ragCfg.DataDir(), "skills.db"),
+				LogLevel:              "info",
+				AllowCommandInjection: ragCfg.Skills.AllowCommandInjection,
+				RequireConfirmation:   ragCfg.Skills.RequireConfirmation,
+				EnableRAGIntegration:  true,
+				EnableMCPIntegration:  true,
+				EnableAgentIntegration: true,
+			}
+		} else {
+			// Fallback to default config
+			skillCfg = skills.DefaultConfig()
 		}
 
 		// Create in-memory store for skills persistence
 		skillStore := skills.NewMemoryStore()
 
 		var err error
-		skillsService, err = skills.NewService(cfg)
+		skillsService, err = skills.NewService(skillCfg)
 		if err != nil {
 			initErr = fmt.Errorf("failed to create skills service: %w", err)
 			return
@@ -129,6 +142,19 @@ var listCmd = &cobra.Command{
 			return err
 		}
 
+		// Show search paths if requested
+		showPaths, _ := cmd.Flags().GetBool("paths")
+		if showPaths {
+			ragCfg := rag.GetConfig()
+			if ragCfg != nil {
+				fmt.Println("Skills search paths:")
+				for i, p := range ragCfg.SkillsPaths() {
+					fmt.Printf("  %d. %s\n", i+1, p)
+				}
+				fmt.Println()
+			}
+		}
+
 		allSkills, err := skillsService.ListSkills(cmd.Context(), skills.SkillFilter{})
 		if err != nil {
 			return fmt.Errorf("failed to list skills: %w", err)
@@ -136,6 +162,13 @@ var listCmd = &cobra.Command{
 
 		if len(allSkills) == 0 {
 			fmt.Println("No skills loaded. Use 'rago skills load' to load skills.")
+			fmt.Println("\nSearch paths (configure in rago.toml or use --paths):")
+			ragCfg := rag.GetConfig()
+			if ragCfg != nil {
+				for _, p := range ragCfg.SkillsPaths() {
+					fmt.Printf("  - %s\n", p)
+				}
+			}
 			return nil
 		}
 
@@ -267,6 +300,7 @@ var runCmd = &cobra.Command{
 
 func init() {
 	runCmd.Flags().StringArray("var", []string{}, "Variables in format key=value")
+	listCmd.Flags().Bool("paths", false, "Show skills search paths")
 }
 
 // loadCmd loads skills from configured paths
