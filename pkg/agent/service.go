@@ -79,6 +79,29 @@ type Service struct {
 	Prompts *prompt.Manager
 }
 
+// addRAGSources adds sources with deduplication by ID
+func (s *Service) addRAGSources(sources []domain.Chunk) {
+	if len(sources) == 0 {
+		return
+	}
+	s.ragSourcesMu.Lock()
+	defer s.ragSourcesMu.Unlock()
+
+	// Build map of existing IDs
+	existing := make(map[string]bool)
+	for _, src := range s.ragSources {
+		existing[src.ID] = true
+	}
+
+	// Add only new sources
+	for _, src := range sources {
+		if !existing[src.ID] {
+			s.ragSources = append(s.ragSources, src)
+			existing[src.ID] = true
+		}
+	}
+}
+
 // NewService creates a new agent service
 // This matches the signature expected by the CLI:
 // agent.NewService(llmService, mcpService, processor, agentDBPath, memoryService)
@@ -1075,12 +1098,8 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 				resp, ragErr := s.ragProcessor.Query(groupCtx, domain.QueryRequest{Query: query})
 				if ragErr == nil {
 					result = resp.Answer
-					// Collect sources for final result
-					if len(resp.Sources) > 0 {
-						s.ragSourcesMu.Lock()
-						s.ragSources = append(s.ragSources, resp.Sources...)
-						s.ragSourcesMu.Unlock()
-					}
+					// Collect sources for final result (deduplicated)
+					s.addRAGSources(resp.Sources)
 				}
 				err = ragErr
 				toolType = "rag"
@@ -2230,12 +2249,8 @@ func (s *Service) performRAGQuery(ctx context.Context, query string) (string, er
 		return "", nil
 	}
 
-	// Collect sources for final result
-	if len(results.Sources) > 0 {
-		s.ragSourcesMu.Lock()
-		s.ragSources = append(s.ragSources, results.Sources...)
-		s.ragSourcesMu.Unlock()
-	}
+	// Collect sources for final result (deduplicated)
+	s.addRAGSources(results.Sources)
 
 	var context strings.Builder
 	context.WriteString("## Relevant Documents\n\n")
