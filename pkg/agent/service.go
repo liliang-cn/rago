@@ -63,6 +63,8 @@ type Service struct {
 	sessionMu        sync.RWMutex
 	memorySaveMu     sync.RWMutex
 	memorySavedInRun bool
+	ragSourcesMu     sync.RWMutex
+	ragSources       []domain.Chunk // Collect RAG sources during execution
 
 	// Hook system for lifecycle events
 	hooks *HookRegistry
@@ -1073,17 +1075,11 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 				resp, ragErr := s.ragProcessor.Query(groupCtx, domain.QueryRequest{Query: query})
 				if ragErr == nil {
 					result = resp.Answer
-					// Include sources if available
+					// Collect sources for final result
 					if len(resp.Sources) > 0 {
-						var sourcesBuf strings.Builder
-						sourcesBuf.WriteString("\n\n**Sources:**\n")
-						for i, src := range resp.Sources {
-							sourcesBuf.WriteString(fmt.Sprintf("%d. %s\n", i+1, src.Content))
-							if len(sourcesBuf.String()) > 2000 {
-								break // Limit sources length
-							}
-						}
-						result = resp.Answer + sourcesBuf.String()
+						s.ragSourcesMu.Lock()
+						s.ragSources = append(s.ragSources, resp.Sources...)
+						s.ragSourcesMu.Unlock()
 					}
 				}
 				err = ragErr
@@ -2182,6 +2178,18 @@ func (s *Service) finalizeExecution(ctx context.Context, session *Session, goal 
 		FinalResult: finalResult,
 		Duration:    "completed",
 	}
+
+	// Collect RAG sources
+	s.ragSourcesMu.RLock()
+	if len(s.ragSources) > 0 {
+		res.Sources = append([]domain.Chunk{}, s.ragSources...)
+	}
+	s.ragSourcesMu.RUnlock()
+
+	// Clear sources for next run
+	s.ragSourcesMu.Lock()
+	s.ragSources = nil
+	s.ragSourcesMu.Unlock()
 
 	// Emit PostExecution Hook
 	GlobalHookRegistry().Emit(HookEventPostExecution, HookData{

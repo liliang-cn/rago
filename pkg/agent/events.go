@@ -2,6 +2,8 @@ package agent
 
 import (
 	"time"
+
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 // EventType defines the type of event in the runtime loop
@@ -35,16 +37,19 @@ type Event struct {
 	AgentID   string                 `json:"agent_id,omitempty"`
 	AgentName string                 `json:"agent_name,omitempty"`
 	Content   string                 `json:"content,omitempty"` // For text/thinking
-	
+
 	// Tool data
-	ToolName  string                 `json:"tool_name,omitempty"`
-	ToolArgs  map[string]interface{} `json:"tool_args,omitempty"`
-	ToolResult interface{}           `json:"tool_result,omitempty"`
-	
+	ToolName   string                 `json:"tool_name,omitempty"`
+	ToolArgs   map[string]interface{} `json:"tool_args,omitempty"`
+	ToolResult interface{}            `json:"tool_result,omitempty"`
+
+	// RAG sources (for workflow_complete event)
+	Sources []domain.Chunk `json:"sources,omitempty"`
+
 	// State data
 	StateDelta map[string]interface{} `json:"state_delta,omitempty"`
-	
-	Timestamp time.Time              `json:"timestamp"`
+
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // NewEvent creates a basic event

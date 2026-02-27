@@ -2,6 +2,8 @@ package agent
 
 import (
 	"time"
+
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
 // Step status constants
@@ -71,6 +73,7 @@ type ExecutionResult struct {
 	StepsDone   int                    `json:"steps_done"`
 	StepsFailed int                    `json:"steps_failed"`
 	FinalResult interface{}            `json:"final_result,omitempty"`
+	Sources     []domain.Chunk         `json:"sources,omitempty"` // RAG sources when EnableRAG is true
 	Error       string                 `json:"error,omitempty"`
 	Duration    string                 `json:"duration"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
