@@ -199,64 +199,52 @@ func createService() (*agent.Service, error) {
 	})
 }
 
-// registerTools adds the three mock API tools to the service.
+// ── Typed param structs for the new API ──────────────────────────────────────
+
+type getTeamMembersParams struct {
+	Department string `json:"department" desc:"Department name (e.g. engineering, design, product)" required:"true"`
+}
+
+type getExpensesParams struct {
+	MemberID string `json:"member_id" desc:"Employee ID (e.g. emp_001)" required:"true"`
+	Quarter  string `json:"quarter"   desc:"Quarter to filter by (e.g. Q3). Optional."`
+}
+
+type getBudgetParams struct {
+	Department string `json:"department" desc:"Department name" required:"true"`
+	Quarter    string `json:"quarter"    desc:"Quarter (e.g. Q3)"`
+}
+
+// registerTools adds the three mock API tools to the service using the new
+// ergonomic APIs: struct-based (NewTool) and builder-based (BuildTool).
 // They are registered on both the agent (for tool definitions) and
 // the PTC router (for callTool() inside the JS sandbox).
 func registerTools(svc *agent.Service) {
-	svc.AddTool(
+	// Struct-based (typed) — schema is auto-generated from struct tags.
+	svc.Register(agent.NewTool(
 		"get_team_members",
 		"Get a list of team members in a given department. Returns { department, members: [{ id, name, role, department }], count }.",
-		map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"department": map[string]interface{}{
-					"type":        "string",
-					"description": "Department name (e.g. engineering, design, product)",
-				},
-			},
-			"required": []string{"department"},
+		func(ctx context.Context, p *getTeamMembersParams) (any, error) {
+			return handleGetTeamMembers(ctx, map[string]interface{}{"department": p.Department})
 		},
-		handleGetTeamMembers,
-	)
+	))
 
-	svc.AddTool(
+	svc.Register(agent.NewTool(
 		"get_expenses",
 		"Get expense records for a team member, optionally filtered by quarter. Returns { member_id, quarter, expenses: [{ id, member_id, category, amount, quarter, description }], count }.",
-		map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"member_id": map[string]interface{}{
-					"type":        "string",
-					"description": "Employee ID (e.g. emp_001)",
-				},
-				"quarter": map[string]interface{}{
-					"type":        "string",
-					"description": "Quarter to filter by (e.g. Q3). Optional.",
-				},
-			},
-			"required": []string{"member_id"},
+		func(ctx context.Context, p *getExpensesParams) (any, error) {
+			return handleGetExpenses(ctx, map[string]interface{}{"member_id": p.MemberID, "quarter": p.Quarter})
 		},
-		handleGetExpenses,
-	)
+	))
 
-	svc.AddTool(
-		"get_budget",
-		"Get budget allocation for a department and quarter. Returns { department, quarter, total, travel, equipment, training } (all amounts in USD).",
-		map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"department": map[string]interface{}{
-					"type":        "string",
-					"description": "Department name",
-				},
-				"quarter": map[string]interface{}{
-					"type":        "string",
-					"description": "Quarter (e.g. Q3)",
-				},
-			},
-			"required": []string{"department"},
-		},
-		handleGetBudget,
+	// Builder-based (fluent) — equivalent schema, different construction style.
+	svc.Register(
+		agent.BuildTool("get_budget").
+			Description("Get budget allocation for a department and quarter. Returns { department, quarter, total, travel, equipment, training } (all amounts in USD).").
+			Param("department", agent.TypeString, "Department name", agent.Required()).
+			Param("quarter", agent.TypeString, "Quarter (e.g. Q3)").
+			Handler(handleGetBudget).
+			Build(),
 	)
 }
 

@@ -252,6 +252,13 @@ func (s *Service) AddTool(name, description string, parameters map[string]interf
 	}
 }
 
+// Register registers a *Tool (created via NewTool[T] or BuildTool) on the default
+// agent and on the PTC router. It is the preferred alternative to AddTool when
+// using the typed or fluent builder APIs.
+func (s *Service) Register(tool *Tool) {
+	s.AddTool(tool.name, tool.description, tool.parameters, tool.handler)
+}
+
 // SetSkillsService sets the skills service for agent integration
 func (s *Service) SetSkillsService(skillsService *skills.Service) {
 	s.skillsService = skillsService
