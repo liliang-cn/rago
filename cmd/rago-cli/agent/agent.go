@@ -7,6 +7,7 @@ import (
 
 	"github.com/liliang-cn/rago/v2/pkg/agent"
 	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/ptc"
 	"github.com/liliang-cn/rago/v2/pkg/rag"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
 	"github.com/spf13/cobra"
@@ -316,6 +317,72 @@ var reviseCmd = &cobra.Command{
 	},
 }
 
+// ptcChatCmd runs a PTC-enabled chat
+var ptcChatCmd = &cobra.Command{
+	Use:   "ptc-chat [message]",
+	Short: "Chat with PTC (Programmatic Tool Calling) support",
+	Long: `Chat with the agent using PTC mode. The LLM can generate JavaScript code
+instead of JSON tool calls, which will be executed in a secure sandbox.
+
+Example:
+  rago agent ptc-chat "Write code to search for documents and process results"`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		message := args[0]
+		ctx := context.Background()
+
+		// Initialize agent services
+		_, agentService, err := initAgentServices(ctx)
+		if err != nil {
+			return err
+		}
+		defer agentService.Close()
+
+		// Create and configure PTC integration
+		ptcConfig := agent.DefaultPTCConfig()
+		ptcConfig.Enabled = true
+		ptcConfig.MaxToolCalls = 20
+		ptcConfig.Timeout = 30 * 1000000000 // 30 seconds in nanoseconds
+		ptcConfig.Runtime = "goja"
+
+		// Create PTC router with agent services
+		router := ptc.NewRAGORouter(
+			ptc.WithRAGProcessor(agentService.RAG),
+			ptc.WithMCPService(agentService.MCP),
+		)
+
+		ptcIntegration, err := agent.NewPTCIntegration(ptcConfig, router)
+		if err != nil {
+			return fmt.Errorf("failed to create PTC integration: %w", err)
+		}
+
+		// Set PTC on agent service
+		agentService.SetPTC(ptcIntegration)
+
+		fmt.Printf("💬 PTC Chat: %s\n\n", message)
+
+		// Run PTC chat
+		result, err := agentService.ChatWithPTC(ctx, message)
+		if err != nil {
+			return fmt.Errorf("PTC chat failed: %w", err)
+		}
+
+		// Display results
+		fmt.Println("--- Response ---")
+		if result.PTCUsed && result.PTCResult != nil {
+			fmt.Printf("PTC Mode: Enabled\n")
+			fmt.Printf("Result Type: %s\n\n", result.PTCResult.Type)
+			fmt.Println(result.PTCResult.FormatForLLM())
+		} else {
+			fmt.Println(result.LLMResponse)
+		}
+
+		fmt.Printf("\nSession ID: %s\n", result.SessionID)
+
+		return nil
+	},
+}
+
 func init() {
 	runCmd.Flags().BoolVarP(&Debug, "debug", "D", false, "Enable verbose debugging output (show full prompts)")
 	AgentCmd.AddCommand(runCmd)
@@ -328,6 +395,7 @@ func init() {
 	AgentCmd.AddCommand(sessionCmd)
 	sessionCmd.AddCommand(sessionListCmd)
 	sessionCmd.AddCommand(sessionGetCmd)
+	AgentCmd.AddCommand(ptcChatCmd)
 }
 
 // initAgentServices initializes RAG client and agent service

@@ -69,6 +69,9 @@ type Service struct {
 	// Hook system for lifecycle events
 	hooks *HookRegistry
 
+	// PTC (Programmatic Tool Calling) integration
+	ptcIntegration *PTCIntegration
+
 	// Public access to underlying services
 	LLM     domain.Generator
 	MCP     MCPToolExecutor
@@ -77,6 +80,7 @@ type Service struct {
 	Router  *router.Service
 	Skills  *skills.Service
 	Prompts *prompt.Manager
+	PTC     *PTCIntegration
 }
 
 // addRAGSources adds sources with deduplication by ID
@@ -200,6 +204,12 @@ func (s *Service) SetRouter(routerService *router.Service) {
 	s.routerService = routerService
 	s.Router = routerService
 	s.planner.SetRouter(routerService)
+}
+
+// SetPTC sets the PTC integration for programmatic tool calling
+func (s *Service) SetPTC(ptcIntegration *PTCIntegration) {
+	s.ptcIntegration = ptcIntegration
+	s.PTC = ptcIntegration
 }
 
 // RegisterAgent registers a new agent with the service
@@ -1550,6 +1560,128 @@ func (s *Service) ResetSession() {
 	s.sessionMu.Lock()
 	defer s.sessionMu.Unlock()
 	s.currentSessionID = uuid.New().String()
+}
+
+// ChatWithPTC sends a message with PTC (Programmatic Tool Calling) support.
+// If PTC is enabled and LLM returns JavaScript code, it will be executed in sandbox.
+func (s *Service) ChatWithPTC(ctx context.Context, message string) (*PTCChatResult, error) {
+	// Check if PTC is available
+	if s.ptcIntegration == nil || !s.ptcIntegration.config.Enabled {
+		// Fall back to normal chat
+		result, err := s.Chat(ctx, message)
+		if err != nil {
+			return nil, err
+		}
+		return &PTCChatResult{
+			ExecutionResult: result,
+			PTCUsed:         false,
+		}, nil
+	}
+
+	// Get current session
+	s.sessionMu.Lock()
+	if s.currentSessionID == "" {
+		s.currentSessionID = uuid.New().String()
+	}
+	sessionID := s.currentSessionID
+	s.sessionMu.Unlock()
+
+	// Load or create session
+	session, err := s.store.GetSession(sessionID)
+	if err != nil {
+		session = NewSessionWithID(sessionID, s.agent.ID())
+	}
+
+	// Build PTC-aware user message
+	ptcPrompt := message + `
+
+IMPORTANT: Respond with JavaScript code in a code block.
+Your code will be executed in a secure sandbox.
+Use console.log() for output and return the final result.
+Example format:
+` + "```javascript\nfunction main() {\n  // Your code here\n  console.log(\"Processing...\");\n  return { result: \"your result\" };\n}\nmain();\n```"
+
+	// Add user message to session
+	userMsg := domain.Message{
+		Role:    "user",
+		Content: ptcPrompt,
+	}
+	session.AddMessage(userMsg)
+
+	// Build messages for LLM
+	messages := session.GetMessages()
+
+	// Build PTC tools
+	ptcTools := s.ptcIntegration.GetPTCTools()
+
+	// Call LLM with PTC tools
+	opts := &domain.GenerationOptions{
+		Temperature: 0.3,
+		MaxTokens:   2000,
+	}
+
+	llmResp, err := s.llmService.GenerateWithTools(ctx, messages, ptcTools, opts)
+	if err != nil {
+		return nil, fmt.Errorf("LLM generation failed: %w", err)
+	}
+
+	// Get LLM response content
+	content := ""
+	if llmResp != nil && len(llmResp.Content) > 0 {
+		content = llmResp.Content
+	}
+
+	// Process LLM response through PTC
+	ptcResult, err := s.ptcIntegration.ProcessLLMResponse(ctx, content, nil)
+	if err != nil {
+		return nil, fmt.Errorf("PTC processing failed: %w", err)
+	}
+
+	// Add assistant response to session (without the PTC prompt instructions)
+	assistantMsg := domain.Message{
+		Role:    "assistant",
+		Content: content,
+	}
+	session.AddMessage(assistantMsg)
+
+	// Save session
+	if err := s.store.SaveSession(session); err != nil {
+		ragolog.Warn("failed to save session: %v", err)
+	}
+
+	return &PTCChatResult{
+		PTCResult:   ptcResult,
+		PTCUsed:     ptcResult.Type == PTCResultTypeExecuted || ptcResult.Type == PTCResultTypeCode,
+		LLMResponse: content,
+		SessionID:   sessionID,
+	}, nil
+}
+
+// buildPTCSystemPrompt builds the system prompt with PTC instructions
+func (s *Service) buildPTCSystemPrompt() string {
+	var sb strings.Builder
+
+	// Base agent instructions
+	if s.agent != nil {
+		sb.WriteString(s.agent.Instructions())
+		sb.WriteString("\n\n")
+	}
+
+	// PTC instructions
+	if s.ptcIntegration != nil && s.ptcIntegration.config.Enabled {
+		sb.WriteString(s.ptcIntegration.GetPTCSystemPrompt())
+	}
+
+	return sb.String()
+}
+
+// PTCChatResult contains the result of a PTC-aware chat
+type PTCChatResult struct {
+	ExecutionResult *ExecutionResult `json:"execution_result,omitempty"`
+	PTCResult       *PTCResult       `json:"ptc_result,omitempty"`
+	PTCUsed         bool             `json:"ptc_used"`
+	LLMResponse     string           `json:"llm_response"`
+	SessionID       string           `json:"session_id"`
 }
 
 // ConfigureMemory sets the memory bank personality for the current session
