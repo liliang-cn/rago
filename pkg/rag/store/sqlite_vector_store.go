@@ -81,7 +81,6 @@ type SQLiteChatStore struct {
 func (s *SQLiteChatStore) CreateSession(ctx context.Context, session *domain.ChatSession) error {
 	coreSession := &core.Session{
 		ID:        session.ID,
-		UserID:    session.UserID,
 		Metadata:  session.Metadata,
 		CreatedAt: session.CreatedAt,
 		UpdatedAt: session.UpdatedAt,
@@ -96,7 +95,6 @@ func (s *SQLiteChatStore) GetSession(ctx context.Context, id string) (*domain.Ch
 	}
 	return &domain.ChatSession{
 		ID:        sess.ID,
-		UserID:    sess.UserID,
 		Metadata:  sess.Metadata,
 		CreatedAt: sess.CreatedAt,
 		UpdatedAt: sess.UpdatedAt,
