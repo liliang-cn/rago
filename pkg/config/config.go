@@ -15,16 +15,26 @@ import (
 )
 
 type Config struct {
-	Home         string          `mapstructure:"home"`
-	Debug        bool            `mapstructure:"debug"`
-	Server       ServerConfig    `mapstructure:"server"`
-	LLMPool      pool.PoolConfig `mapstructure:"llm_pool"`
+	Home          string          `mapstructure:"home"`
+	Debug         bool            `mapstructure:"debug"`
+	Server        ServerConfig    `mapstructure:"server"`
+	LLMPool       pool.PoolConfig `mapstructure:"llm_pool"`
 	EmbeddingPool pool.PoolConfig `mapstructure:"embedding_pool"`
-	Sqvect       SqvectConfig    `mapstructure:"sqvect"`
-	Chunker      ChunkerConfig   `mapstructure:"chunker"`
-	Ingest       IngestConfig    `mapstructure:"ingest"`
-	MCP          mcp.Config      `mapstructure:"mcp"`
-	VectorStore  *VectorStoreConfig `mapstructure:"vector_store"`
+	Sqvect        SqvectConfig    `mapstructure:"sqvect"`
+	Chunker       ChunkerConfig   `mapstructure:"chunker"`
+	Ingest        IngestConfig    `mapstructure:"ingest"`
+	MCP           mcp.Config      `mapstructure:"mcp"`
+	VectorStore   *VectorStoreConfig `mapstructure:"vector_store"`
+	Skills        SkillsConfig    `mapstructure:"skills"`
+}
+
+// SkillsConfig configures skills paths and behavior
+type SkillsConfig struct {
+	Enabled               bool     `mapstructure:"enabled"`
+	Paths                 []string `mapstructure:"paths"`
+	AutoLoad              bool     `mapstructure:"auto_load"`
+	AllowCommandInjection bool     `mapstructure:"allow_command_injection"`
+	RequireConfirmation   bool     `mapstructure:"require_confirmation"`
 }
 
 // VectorStoreConfig configures the vector storage backend
@@ -232,6 +242,13 @@ func setDefaults() {
 	viper.SetDefault("mcp.max_concurrent_requests", mcpConfig.MaxConcurrentRequests)
 	viper.SetDefault("mcp.health_check_interval", mcpConfig.HealthCheckInterval)
 	viper.SetDefault("mcp.servers", []string{})
+
+	// Skills defaults - multi-path support
+	viper.SetDefault("skills.enabled", true)
+	viper.SetDefault("skills.paths", []string{})
+	viper.SetDefault("skills.auto_load", true)
+	viper.SetDefault("skills.allow_command_injection", false)
+	viper.SetDefault("skills.require_confirmation", true)
 }
 
 func bindEnvVars() {
@@ -277,6 +294,19 @@ func bindEnvVars() {
 	if err := viper.BindEnv("mcp.health_check_interval", "RAGO_MCP_HEALTH_CHECK_INTERVAL"); err != nil {
 		log.Printf("Warning: failed to bind mcp.health_check_interval env var: %v", err)
 	}
+	// Skills environment variables
+	if err := viper.BindEnv("skills.enabled", "RAGO_SKILLS_ENABLED"); err != nil {
+		log.Printf("Warning: failed to bind skills.enabled env var: %v", err)
+	}
+	if err := viper.BindEnv("skills.auto_load", "RAGO_SKILLS_AUTO_LOAD"); err != nil {
+		log.Printf("Warning: failed to bind skills.auto_load env var: %v", err)
+	}
+	if err := viper.BindEnv("skills.allow_command_injection", "RAGO_SKILLS_ALLOW_COMMAND_INJECTION"); err != nil {
+		log.Printf("Warning: failed to bind skills.allow_command_injection env var: %v", err)
+	}
+	if err := viper.BindEnv("skills.require_confirmation", "RAGO_SKILLS_REQUIRE_CONFIRMATION"); err != nil {
+		log.Printf("Warning: failed to bind skills.require_confirmation env var: %v", err)
+	}
 }
 
 // DataDir returns the path to the data directory
@@ -287,6 +317,44 @@ func (c *Config) DataDir() string {
 // SkillsDir returns the path to the skills directory
 func (c *Config) SkillsDir() string {
 	return filepath.Join(c.Home, "skills")
+}
+
+// SkillsPaths returns all skills search paths
+// Returns configured paths + default paths (project local, user global)
+func (c *Config) SkillsPaths() []string {
+	paths := make([]string, 0)
+
+	// 1. Add configured paths first (highest priority)
+	for _, p := range c.Skills.Paths {
+		expanded := expandHomePath(p)
+		if !filepath.IsAbs(expanded) {
+			expanded = filepath.Join(c.Home, expanded)
+		}
+		paths = append(paths, expanded)
+	}
+
+	// 2. Add default paths
+	defaults := []string{
+		".skills",                              // Project root
+		filepath.Join(".rago", "skills"),       // Project .rago
+		c.SkillsDir(),                          // Home/skills
+	}
+	for _, p := range defaults {
+		expanded := expandHomePath(p)
+		// Avoid duplicates
+		found := false
+		for _, existing := range paths {
+			if existing == expanded {
+				found = true
+				break
+			}
+		}
+		if !found {
+			paths = append(paths, expanded)
+		}
+	}
+
+	return paths
 }
 
 // IntentsDir returns the path to the intents directory
