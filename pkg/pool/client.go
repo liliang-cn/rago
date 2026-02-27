@@ -76,7 +76,7 @@ func (c *Client) Generate(ctx context.Context, prompt string, opts *domain.Gener
 	var result struct {
 		Choices []struct {
 			Message struct {
-				Content string `json:"content"`
+				Content          string `json:"content"`
 				ReasoningContent string `json:"reasoning_content"`
 			} `json:"message"`
 		} `json:"choices"`
@@ -171,8 +171,8 @@ func (c *Client) Stream(ctx context.Context, prompt string, opts *domain.Generat
 		var chunk struct {
 			Choices []struct {
 				Delta struct {
-					Content string `json:"content"`
-				ReasoningContent string `json:"reasoning_content"`
+					Content          string `json:"content"`
+					ReasoningContent string `json:"reasoning_content"`
 				} `json:"delta"`
 			} `json:"choices"`
 		}
@@ -247,6 +247,9 @@ func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Messag
 	if opts.MaxTokens > 0 {
 		reqBody["max_tokens"] = opts.MaxTokens
 	}
+	if opts.ToolChoice != "" {
+		reqBody["tool_choice"] = opts.ToolChoice
+	}
 
 	resp, err := c.doRequest(ctx, "/chat/completions", reqBody)
 	if err != nil {
@@ -256,10 +259,10 @@ func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Messag
 	var result struct {
 		Choices []struct {
 			Message struct {
-				Content   string            `json:"content"`
-				Role      string            `json:"role"`
-				ToolCalls []json.RawMessage `json:"tool_calls,omitempty"`
-				ReasoningContent string `json:"reasoning_content"`
+				Content          string            `json:"content"`
+				Role             string            `json:"role"`
+				ToolCalls        []json.RawMessage `json:"tool_calls,omitempty"`
+				ReasoningContent string            `json:"reasoning_content"`
 			} `json:"message"`
 		} `json:"choices"`
 	}
@@ -274,7 +277,7 @@ func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Messag
 
 	choice := result.Choices[0]
 	response := &domain.GenerationResult{
-		Content: choice.Message.Content,
+		Content:          choice.Message.Content,
 		ReasoningContent: choice.Message.ReasoningContent,
 	}
 
@@ -306,6 +309,17 @@ func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Messag
 					}
 				}
 			}
+		}
+	}
+
+	// Some proxies (e.g. api.132999.xyz routing Claude through AWS Bedrock) wrap
+	// the raw Bedrock EventStream binary inside the OpenAI JSON content field
+	// instead of placing tool calls in the tool_calls array.  Detect this and
+	// extract tool calls from the binary so callers see normal ToolCall objects.
+	if len(response.ToolCalls) == 0 && isBedrockEventStream(choice.Message.Content) {
+		if extracted := extractBedrockToolCalls(choice.Message.Content); len(extracted) > 0 {
+			response.ToolCalls = extracted
+			response.Content = "" // clear the binary garbage from content
 		}
 	}
 
@@ -355,7 +369,7 @@ func (c *Client) GenerateStructured(ctx context.Context, prompt string, schema i
 	var result struct {
 		Choices []struct {
 			Message struct {
-				Content string `json:"content"`
+				Content          string `json:"content"`
 				ReasoningContent string `json:"reasoning_content"`
 			} `json:"message"`
 		} `json:"choices"`
@@ -555,4 +569,67 @@ func (c *Client) doRequest(ctx context.Context, path string, body interface{}) (
 	}
 
 	return respBody, nil
+}
+
+// isBedrockEventStream reports whether s looks like an AWS Bedrock EventStream
+// binary blob that was placed inside an OpenAI-compatible JSON content field.
+// Bedrock EventStream frames start with a 4-byte big-endian total-length header
+// followed by a 4-byte headers-length header, both of which are small positive
+// integers.  The frame also always contains the ASCII string ":event-type".
+func isBedrockEventStream(s string) bool {
+	if len(s) < 12 {
+		return false
+	}
+	// The first byte is \x00 (high byte of total-length), which is never valid
+	// UTF-8 text or JSON.
+	if s[0] != 0x00 {
+		return false
+	}
+	// Presence of the EventStream header-name marker is a strong signal.
+	return bytes.Contains([]byte(s), []byte(":event-type"))
+}
+
+// extractBedrockToolCalls extracts tool calls from AWS Bedrock EventStream content
+// by scanning for JSON objects containing toolUseId. This approach works regardless
+// of JSON escaping or byte offsets.
+func extractBedrockToolCalls(content string) []domain.ToolCall {
+	data := []byte(content)
+	seen := make(map[string]bool)
+	var calls []domain.ToolCall
+
+	for i := 0; i < len(data); i++ {
+		if data[i] != '{' {
+			continue
+		}
+		dec := json.NewDecoder(bytes.NewReader(data[i:]))
+		var event struct {
+			Name      string `json:"name"`
+			ToolUseID string `json:"toolUseId"`
+			Stop      bool   `json:"stop"`
+			Input     string `json:"input"`
+		}
+		if err := dec.Decode(&event); err != nil {
+			continue
+		}
+		if event.ToolUseID == "" || event.Stop {
+			continue
+		}
+		if seen[event.ToolUseID] {
+			continue
+		}
+		seen[event.ToolUseID] = true
+		tc := domain.ToolCall{
+			ID:       event.ToolUseID,
+			Type:     "function",
+			Function: domain.FunctionCall{Name: event.Name},
+		}
+		if event.Input != "" {
+			var args map[string]interface{}
+			if json.Unmarshal([]byte(event.Input), &args) == nil {
+				tc.Function.Arguments = args
+			}
+		}
+		calls = append(calls, tc)
+	}
+	return calls
 }

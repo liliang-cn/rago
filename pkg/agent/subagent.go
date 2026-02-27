@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -300,10 +301,14 @@ func (sa *SubAgent) RunAsync(parentCtx context.Context) <-chan *Event {
 	eventChan := make(chan *Event, 50)
 
 	go func() {
-		defer close(eventChan)
+		// Wait for the progress-forwarding goroutine to drain before
+		// closing eventChan, preventing "send on closed channel" panics.
+		var progressDone sync.WaitGroup
+		progressDone.Add(1)
 
 		// Forward progress events
 		go func() {
+			defer progressDone.Done()
 			for progress := range sa.progressChan {
 				eventChan <- &Event{
 					ID:        uuid.New().String(),
@@ -317,6 +322,10 @@ func (sa *SubAgent) RunAsync(parentCtx context.Context) <-chan *Event {
 		}()
 
 		result, err := sa.Run(parentCtx)
+
+		// Run() closes sa.progressChan in its defer, so wait for the
+		// progress goroutine to finish draining before writing to eventChan.
+		progressDone.Wait()
 
 		// Send completion event
 		eventChan <- &Event{
@@ -338,6 +347,8 @@ func (sa *SubAgent) RunAsync(parentCtx context.Context) <-chan *Event {
 				Timestamp: time.Now(),
 			}
 		}
+
+		close(eventChan)
 	}()
 
 	return eventChan
@@ -422,18 +433,18 @@ func (sa *SubAgent) execute(ctx context.Context) (interface{}, error) {
 	// Collect tools with filtering
 	tools := sa.collectFilteredTools(ctx, sa.config.Agent)
 
-	// Build messages
-	messages := []domain.Message{
-		{Role: "user", Content: sa.config.Goal},
-	}
-
-	// Add context if provided
-	if len(sa.config.Context) > 0 {
-		contextStr := formatContext(sa.config.Context)
-		messages[0].Content += "\n\n--- Context ---\n" + contextStr
-	}
+	// Build messages with SubAgent-specific goal framing
+	messages := sa.buildInitialMessages(tools)
 
 	sa.emitProgress("Starting execution")
+
+	// Track whether any tool has actually been invoked.
+	// This is used to decide whether to nudge the LLM when it responds
+	// with text only — a common issue where the model describes what it
+	// *would* do instead of actually calling the tools.
+	toolUsed := false
+	// Only nudge once per execution to avoid infinite nudge loops.
+	nudged := false
 
 	// Execute with turn limit
 	for round := 0; round < sa.config.MaxTurns; round++ {
@@ -450,22 +461,35 @@ func (sa *SubAgent) execute(ctx context.Context) (interface{}, error) {
 
 		sa.emitProgress(fmt.Sprintf("Turn %d/%d", sa.currentTurn, sa.config.MaxTurns))
 
-		// Build system prompt
-		systemMsg := sa.config.Service.buildSystemPrompt(ctx, sa.config.Agent)
+		// Build system prompt with SubAgent-specific tool instructions
+		systemMsg := sa.buildSystemPrompt(ctx, tools)
 		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
 
-		// LLM call
-		result, err := sa.config.Service.llmService.GenerateWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
+		// On the first turn with tools available and before any tool has been used
+		// or nudge has been attempted, set tool_choice=required to force the API
+		// to emit a function call rather than plain text.
+		// After a nudge or once tools have been used, let the model choose freely
+		// ("auto") — forcing "required" beyond Turn 1 can cause some proxies to
+		// return non-standard binary responses.
+		genOpts := &domain.GenerationOptions{
 			Temperature: 0.3,
 			MaxTokens:   2000,
-		})
+		}
+		if len(tools) > 0 && !toolUsed && !nudged {
+			genOpts.ToolChoice = "required"
+		}
+
+		// LLM call
+		result, err := sa.config.Service.llmService.GenerateWithTools(ctx, genMessages, tools, genOpts)
 		if err != nil {
 			return nil, fmt.Errorf("LLM error: %w", err)
 		}
 
 		// Handle tool calls
 		if len(result.ToolCalls) > 0 {
-			// Add assistant message
+			toolUsed = true
+
+			// Add assistant message with tool calls
 			messages = append(messages, domain.Message{
 				Role:      "assistant",
 				Content:   result.Content,
@@ -494,13 +518,91 @@ func (sa *SubAgent) execute(ctx context.Context) (interface{}, error) {
 			continue
 		}
 
-		// No tool calls - done
+		// No tool calls in response.
+		// If tools are available but the LLM hasn't used any yet,
+		// nudge it to actually invoke the tools rather than just
+		// describing what it would do.
+		if len(tools) > 0 && !toolUsed && !nudged {
+			nudged = true
+			sa.emitProgress("Nudging LLM to use available tools")
+
+			// Add the LLM's text as an assistant message
+			messages = append(messages, domain.Message{
+				Role:    "assistant",
+				Content: result.Content,
+			})
+
+			// Add a nudge message to encourage actual tool invocation
+			messages = append(messages, domain.Message{
+				Role: "user",
+				Content: "Do not describe what you would do. " +
+					"You have tools available — call them now to accomplish the goal. " +
+					"Use the tool functions provided to you.",
+			})
+			continue
+		}
+
+		// LLM returned text without tool calls and either:
+		// - No tools are available (pure text task)
+		// - Tools were already used (LLM is summarizing results)
+		// - Nudge was already attempted (LLM genuinely can't/won't use tools)
+		// In all cases, treat as completed.
 		sa.emitProgress("Execution completed")
 		return result.Content, nil
 	}
 
 	return nil, fmt.Errorf("exceeded maximum turns (%d)", sa.config.MaxTurns)
 }
+
+// buildInitialMessages constructs the initial message list for the SubAgent.
+// When tools are available, the goal is framed to encourage tool usage.
+func (sa *SubAgent) buildInitialMessages(tools []domain.ToolDefinition) []domain.Message {
+	content := sa.config.Goal
+
+	// Add context if provided
+	if len(sa.config.Context) > 0 {
+		content += "\n\n--- Context ---\n" + formatContext(sa.config.Context)
+	}
+
+	// When tools are available, append explicit instruction
+	if len(tools) > 0 {
+		toolNames := make([]string, len(tools))
+		for i, t := range tools {
+			toolNames[i] = t.Function.Name
+		}
+		content += "\n\nYou MUST use the available tools (" +
+			strings.Join(toolNames, ", ") +
+			") to accomplish this goal. Do not just describe what you would do — actually call the tools."
+	}
+
+	return []domain.Message{
+		{Role: "user", Content: content},
+	}
+}
+
+// buildSystemPrompt constructs the system prompt with SubAgent-specific
+// instructions layered on top of the base agent system prompt.
+func (sa *SubAgent) buildSystemPrompt(ctx context.Context, tools []domain.ToolDefinition) string {
+	base := sa.config.Service.buildSystemPrompt(ctx, sa.config.Agent)
+
+	if len(tools) == 0 {
+		return base
+	}
+
+	// Append SubAgent-specific tool-use instructions
+	return base + subAgentToolPrompt
+}
+
+// subAgentToolPrompt is appended to the system prompt when tools are available.
+// It overrides the default "summarize and stop" behavior to encourage actual
+// tool invocation — the most common failure mode for SubAgent execution.
+const subAgentToolPrompt = `
+
+## Sub-Agent Execution Rules
+You are executing as a sub-agent with a specific goal. Follow these rules strictly:
+1. You MUST call the provided tool functions to accomplish the goal. Do NOT respond with text describing what you would do.
+2. After receiving tool results, synthesize them into a final answer.
+3. Only respond with a text-only message (no tool calls) when you have gathered all necessary information and are ready to provide the final answer.`
 
 // executeTool executes a single tool call with filtering
 func (sa *SubAgent) executeTool(ctx context.Context, tc domain.ToolCall) (interface{}, error, bool) {
