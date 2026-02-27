@@ -226,3 +226,280 @@ func TestRuntime_Closed(t *testing.T) {
 		t.Errorf("expected ErrSandboxClosed, got %v", err)
 	}
 }
+
+func TestNormalizeForJS(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    interface{}
+		wantType string // "map", "slice", "string", "same"
+	}{
+		{"nil value", nil, "same"},
+		{"integer", 42, "same"},
+		{"plain string", "hello world", "string"},
+		{"empty string", "", "string"},
+		{"JSON object", `{"key": "value", "count": 3}`, "map"},
+		{"JSON array", `[1, 2, 3]`, "slice"},
+		{"JSON with whitespace", `  {"key": "value"}  `, "map"},
+		{"invalid JSON object-like", `{not valid json}`, "string"},
+		{"string starting with letter", `hello {"key": 1}`, "string"},
+		{"number string", `42`, "string"},
+		{"boolean string", `true`, "string"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := normalizeForJS(tt.input)
+			switch tt.wantType {
+			case "map":
+				if _, ok := result.(map[string]interface{}); !ok {
+					t.Errorf("expected map[string]interface{}, got %T: %v", result, result)
+				}
+			case "slice":
+				if _, ok := result.([]interface{}); !ok {
+					t.Errorf("expected []interface{}, got %T: %v", result, result)
+				}
+			case "string":
+				if _, ok := result.(string); !ok {
+					t.Errorf("expected string, got %T: %v", result, result)
+				}
+			case "same":
+				if result != tt.input {
+					t.Errorf("expected same value %v, got %v", tt.input, result)
+				}
+			}
+		})
+	}
+}
+
+func TestNormalizeForJS_GoStruct(t *testing.T) {
+	type Member struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		Role string `json:"role"`
+	}
+
+	t.Run("bare struct", func(t *testing.T) {
+		input := Member{ID: "emp_001", Name: "Alice", Role: "Engineer"}
+		result := normalizeForJS(input)
+
+		m, ok := result.(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected map[string]interface{}, got %T: %v", result, result)
+		}
+		if m["id"] != "emp_001" {
+			t.Errorf("expected id=emp_001, got %v", m["id"])
+		}
+		if m["name"] != "Alice" {
+			t.Errorf("expected name=Alice, got %v", m["name"])
+		}
+		if m["role"] != "Engineer" {
+			t.Errorf("expected role=Engineer, got %v", m["role"])
+		}
+		// Ensure capitalized Go field names are NOT present
+		if _, exists := m["ID"]; exists {
+			t.Error("should not have capitalized field 'ID'")
+		}
+	})
+
+	t.Run("slice of structs", func(t *testing.T) {
+		input := []Member{
+			{ID: "emp_001", Name: "Alice", Role: "Engineer"},
+			{ID: "emp_002", Name: "Bob", Role: "Designer"},
+		}
+		result := normalizeForJS(input)
+
+		s, ok := result.([]interface{})
+		if !ok {
+			t.Fatalf("expected []interface{}, got %T: %v", result, result)
+		}
+		if len(s) != 2 {
+			t.Fatalf("expected 2 elements, got %d", len(s))
+		}
+		first, ok := s[0].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected map element, got %T", s[0])
+		}
+		if first["id"] != "emp_001" {
+			t.Errorf("expected id=emp_001, got %v", first["id"])
+		}
+	})
+
+	t.Run("map with nested structs", func(t *testing.T) {
+		input := map[string]interface{}{
+			"department": "engineering",
+			"members": []Member{
+				{ID: "emp_001", Name: "Alice", Role: "Engineer"},
+			},
+			"count": 1,
+		}
+		result := normalizeForJS(input)
+
+		m, ok := result.(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected map, got %T", result)
+		}
+		if m["department"] != "engineering" {
+			t.Errorf("expected department=engineering, got %v", m["department"])
+		}
+
+		members, ok := m["members"].([]interface{})
+		if !ok {
+			t.Fatalf("expected []interface{} for members, got %T: %v", m["members"], m["members"])
+		}
+		first, ok := members[0].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected map element, got %T", members[0])
+		}
+		if first["id"] != "emp_001" {
+			t.Errorf("expected id=emp_001, got %v", first["id"])
+		}
+	})
+
+	t.Run("primitives pass through", func(t *testing.T) {
+		if v := normalizeForJS(42); v != 42 {
+			t.Errorf("int: expected 42, got %v", v)
+		}
+		if v := normalizeForJS(3.14); v != 3.14 {
+			t.Errorf("float64: expected 3.14, got %v", v)
+		}
+		if v := normalizeForJS(true); v != true {
+			t.Errorf("bool: expected true, got %v", v)
+		}
+		if v := normalizeForJS(nil); v != nil {
+			t.Errorf("nil: expected nil, got %v", v)
+		}
+	})
+}
+
+func TestRuntime_CallToolJSONStringResult(t *testing.T) {
+	runtime := NewRuntime()
+	defer runtime.Close()
+
+	// Simulate an MCP tool that returns a JSON string (like websearch_basic does)
+	err := runtime.RegisterTool("mcp_websearch", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		// This is what MCP tools actually return: a JSON-encoded string
+		return `{"results": [{"title": "Result 1", "url": "https://example.com/1"}, {"title": "Result 2", "url": "https://example.com/2"}], "query": "test"}`, nil
+	})
+	if err != nil {
+		t.Fatalf("failed to register tool: %v", err)
+	}
+
+	ctx := context.Background()
+	req := &ptc.ExecutionRequest{
+		Code: `
+const res = callTool('mcp_websearch', {query: 'test'});
+// This should work because the JSON string is auto-parsed into an object
+return {
+	count: res.results.length,
+	firstTitle: res.results[0].title,
+	query: res.query
+};
+`,
+		Language: ptc.LanguageJavaScript,
+		Timeout:  10 * time.Second,
+	}
+
+	result, err := runtime.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("execution failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Fatalf("expected success, got error: %s", result.Error)
+	}
+
+	rv, ok := result.ReturnValue.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map return value, got %T: %v", result.ReturnValue, result.ReturnValue)
+	}
+
+	// Verify the JS code could access parsed fields
+	if count, ok := rv["count"].(int64); !ok || count != 2 {
+		t.Errorf("expected count=2, got %v (%T)", rv["count"], rv["count"])
+	}
+	if title, ok := rv["firstTitle"].(string); !ok || title != "Result 1" {
+		t.Errorf("expected firstTitle='Result 1', got %v", rv["firstTitle"])
+	}
+	if query, ok := rv["query"].(string); !ok || query != "test" {
+		t.Errorf("expected query='test', got %v", rv["query"])
+	}
+}
+
+func TestRuntime_CallToolMapResult(t *testing.T) {
+	runtime := NewRuntime()
+	defer runtime.Close()
+
+	// Tool that returns a native Go map (not a string) — should still work
+	err := runtime.RegisterTool("native_tool", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		return map[string]interface{}{
+			"status": "ok",
+			"data":   []interface{}{"a", "b", "c"},
+		}, nil
+	})
+	if err != nil {
+		t.Fatalf("failed to register tool: %v", err)
+	}
+
+	ctx := context.Background()
+	req := &ptc.ExecutionRequest{
+		Code: `
+const res = callTool('native_tool', {});
+return { status: res.status, count: res.data.length };
+`,
+		Language: ptc.LanguageJavaScript,
+		Timeout:  10 * time.Second,
+	}
+
+	result, err := runtime.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("execution failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Fatalf("expected success, got error: %s", result.Error)
+	}
+
+	rv, ok := result.ReturnValue.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map return value, got %T: %v", result.ReturnValue, result.ReturnValue)
+	}
+	if rv["status"] != "ok" {
+		t.Errorf("expected status=ok, got %v", rv["status"])
+	}
+}
+
+func TestRuntime_CallToolPlainStringResult(t *testing.T) {
+	runtime := NewRuntime()
+	defer runtime.Close()
+
+	// Tool that returns a plain (non-JSON) string — should remain a string
+	err := runtime.RegisterTool("echo_tool", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		return "Hello, world!", nil
+	})
+	if err != nil {
+		t.Fatalf("failed to register tool: %v", err)
+	}
+
+	ctx := context.Background()
+	req := &ptc.ExecutionRequest{
+		Code: `
+const res = callTool('echo_tool', {});
+return res;
+`,
+		Language: ptc.LanguageJavaScript,
+		Timeout:  10 * time.Second,
+	}
+
+	result, err := runtime.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("execution failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Fatalf("expected success, got error: %s", result.Error)
+	}
+
+	if result.ReturnValue != "Hello, world!" {
+		t.Errorf("expected 'Hello, world!', got %v", result.ReturnValue)
+	}
+}
