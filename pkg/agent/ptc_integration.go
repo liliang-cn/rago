@@ -19,6 +19,7 @@ import (
 type PTCIntegration struct {
 	service *ptc.Service
 	config  *PTCConfig
+	router  *ptc.RAGORouter // used to enumerate callTool()-accessible tools for prompts
 }
 
 // PTCConfig configures PTC integration
@@ -56,7 +57,7 @@ func DefaultPTCConfig() PTCConfig {
 // NewPTCIntegration creates a new PTC integration instance
 func NewPTCIntegration(config PTCConfig, router *ptc.RAGORouter) (*PTCIntegration, error) {
 	if !config.Enabled {
-		return &PTCIntegration{config: &config}, nil
+		return &PTCIntegration{config: &config, router: router}, nil
 	}
 
 	// Create PTC service
@@ -86,47 +87,46 @@ func NewPTCIntegration(config PTCConfig, router *ptc.RAGORouter) (*PTCIntegratio
 	return &PTCIntegration{
 		service: service,
 		config:  &config,
+		router:  router,
 	}, nil
 }
 
 // IsCodeResponse checks if the LLM response contains executable code
 func (p *PTCIntegration) IsCodeResponse(content string) bool {
-	// Check for code block markers
+	// Primary: <code>...</code> tags
+	if strings.Contains(content, "<code>") && strings.Contains(content, "</code>") {
+		return true
+	}
+
+	// Legacy: markdown fences and old PTC markers
 	if strings.Contains(content, "```javascript") ||
 		strings.Contains(content, "```js") ||
 		strings.Contains(content, "```ts") ||
 		strings.Contains(content, "```typescript") {
 		return true
 	}
-
-	// Check for PTC-specific markers
 	if strings.Contains(content, "<ptc_code>") ||
 		strings.Contains(content, "[PTC_CODE]") {
 		return true
 	}
 
-	// Check for common code patterns
-	codePatterns := []string{
-		`callTool\s*\(`,
-		`async\s+function`,
-		`function\s+\w+\s*\(`,
-		`const\s+\w+\s*=`,
-		`let\s+\w+\s*=`,
-		`export\s+default`,
-	}
-
-	for _, pattern := range codePatterns {
-		if matched, _ := regexp.MatchString(pattern, content); matched {
-			return true
-		}
+	// Heuristic: callTool() calls without any wrapper
+	if matched, _ := regexp.MatchString(`callTool\s*\(`, content); matched {
+		return true
 	}
 
 	return false
 }
 
-// ExtractCode extracts JavaScript code from LLM response
+// ExtractCode extracts JavaScript code from LLM response.
+// Priority: <code> tags > markdown fences > legacy markers > bare code heuristic.
 func (p *PTCIntegration) ExtractCode(content string) string {
-	// Try to extract from code blocks first
+	// Priority 1: <code>...</code> tags — the format we explicitly request
+	if code := extractBetweenTags(content, "<code>", "</code>"); code != "" {
+		return code
+	}
+
+	// Priority 2: markdown fences and legacy markers
 	codeBlockPatterns := []struct {
 		start string
 		end   string
@@ -190,6 +190,50 @@ func (p *PTCIntegration) looksLikeCode(content string) bool {
 	return count >= 3
 }
 
+// ExecuteJavascriptTool is the tool-dispatch entry point for the "execute_javascript" tool.
+// It extracts the "code" and optional "context" arguments from the LLM tool call, runs
+// the code in the sandbox, and returns a human-readable string result.
+func (p *PTCIntegration) ExecuteJavascriptTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	if !p.config.Enabled || p.service == nil {
+		return "", fmt.Errorf("PTC is not enabled")
+	}
+
+	code, _ := args["code"].(string)
+	if code == "" {
+		return "", fmt.Errorf("execute_javascript: 'code' argument is required")
+	}
+
+	// Sanitise: some models append free-form text or JSON after the JS code.
+	// Try to extract just the code portion.
+	code = sanitiseJSCode(code)
+
+	// Extract optional context variables
+	var contextVars map[string]interface{}
+	if ctxRaw, ok := args["context"]; ok {
+		if ctxMap, ok := ctxRaw.(map[string]interface{}); ok {
+			contextVars = ctxMap
+		}
+	}
+
+	execResult, err := p.ExecuteCode(ctx, code, contextVars)
+	if err != nil {
+		return fmt.Sprintf("execute_javascript failed: %v", err), nil //nolint:nilerr
+	}
+
+	result := &PTCResult{
+		Type:            PTCResultTypeExecuted,
+		OriginalContent: code,
+		Code:            code,
+		ExecutionResult: execResult,
+	}
+	if !execResult.Success {
+		result.Type = PTCResultTypeError
+		result.Error = execResult.Error
+	}
+
+	return result.FormatForLLM(), nil
+}
+
 // ExecuteCode executes JavaScript code in the PTC sandbox
 func (p *PTCIntegration) ExecuteCode(ctx context.Context, code string, contextVars map[string]interface{}) (*ptc.ExecutionResult, error) {
 	if !p.config.Enabled || p.service == nil {
@@ -238,10 +282,65 @@ func (p *PTCIntegration) ShouldUsePTC(userMessage string, systemPrompt string) b
 	return false
 }
 
-// GetPTCTools returns PTC-specific tool definitions for LLM
-func (p *PTCIntegration) GetPTCTools() []domain.ToolDefinition {
+// GetAvailableCallTools returns all tools accessible via callTool() inside the JS sandbox.
+// This is the dynamic equivalent of Anthropic's allowed_callers field.
+// Tools in BlockedTools or with blocked categories are excluded.
+func (p *PTCIntegration) GetAvailableCallTools(ctx context.Context) []ptc.ToolInfo {
+	if p.router == nil {
+		return nil
+	}
+	all, err := p.router.ListAvailableTools(ctx)
+	if err != nil {
+		return nil
+	}
+
+	// Build blocked set from config
+	blocked := make(map[string]bool, len(p.config.BlockedTools))
+	for _, name := range p.config.BlockedTools {
+		blocked[name] = true
+	}
+
+	// If AllowedTools is set, only include those
+	if len(p.config.AllowedTools) > 0 {
+		allowed := make(map[string]bool, len(p.config.AllowedTools))
+		for _, name := range p.config.AllowedTools {
+			allowed[name] = true
+		}
+		var filtered []ptc.ToolInfo
+		for _, t := range all {
+			if allowed[t.Name] && !blocked[t.Name] {
+				filtered = append(filtered, t)
+			}
+		}
+		return filtered
+	}
+
+	// Otherwise return all except blocked
+	var filtered []ptc.ToolInfo
+	for _, t := range all {
+		if !blocked[t.Name] {
+			filtered = append(filtered, t)
+		}
+	}
+	return filtered
+}
+
+// GetPTCTools returns PTC-specific tool definitions for LLM.
+// availableTools is the list of tools the LLM can call via callTool() inside the sandbox;
+// it is embedded in the description so the model knows what is callable.
+func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.ToolDefinition {
 	if !p.config.Enabled {
 		return nil
+	}
+
+	var toolsDesc string
+	if len(availableTools) > 0 {
+		var sb strings.Builder
+		sb.WriteString("\n\nTools available via callTool(name, args):\n")
+		for _, t := range availableTools {
+			sb.WriteString(fmt.Sprintf("  - %s: %s\n", t.Name, t.Description))
+		}
+		toolsDesc = sb.String()
 	}
 
 	return []domain.ToolDefinition{
@@ -249,17 +348,17 @@ func (p *PTCIntegration) GetPTCTools() []domain.ToolDefinition {
 			Type: "function",
 			Function: domain.ToolFunction{
 				Name:        "execute_javascript",
-				Description: "Execute JavaScript code in a secure sandbox. Use this when you need to perform complex operations, data transformations, or call multiple tools in sequence. Available functions: callTool(toolName, args) - call any registered tool.",
+				Description: "Execute JavaScript code in a secure sandbox. Use this to call multiple tools in one shot, process large results before they reach your context, or orchestrate complex multi-step logic." + toolsDesc,
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
 						"code": map[string]interface{}{
 							"type":        "string",
-							"description": "JavaScript code to execute. Use callTool(name, args) to call tools. Return values with 'return' statement.",
+							"description": "Valid JavaScript code. Use callTool(name, args) to invoke tools. Return a value with the 'return' statement.",
 						},
 						"context": map[string]interface{}{
 							"type":        "object",
-							"description": "Optional context variables to inject into the sandbox",
+							"description": "Optional variables to inject into the sandbox scope",
 						},
 					},
 					"required": []string{"code"},
@@ -269,41 +368,58 @@ func (p *PTCIntegration) GetPTCTools() []domain.ToolDefinition {
 	}
 }
 
-// GetPTCSystemPrompt returns system prompt additions for PTC mode
-func (p *PTCIntegration) GetPTCSystemPrompt() string {
+// GetPTCSystemPrompt returns system prompt additions for PTC mode.
+// availableTools lists what is callable via callTool() in the sandbox.
+func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) string {
 	if !p.config.Enabled {
 		return ""
 	}
 
-	return `
-## Programmatic Tool Calling (PTC) Mode
+	var sb strings.Builder
+	sb.WriteString(`## Programmatic Tool Calling (PTC)
 
-You can execute JavaScript code to perform complex operations. When appropriate, use the execute_javascript tool.
+You have access to a JavaScript sandbox for orchestrating tool calls.
+Respond with ONLY a <code> block — no explanation, no prose, no markdown fences.
 
-### Available in Sandbox:
-- callTool(name, args) - Call any registered tool by name
-- console.log(...args) - Log messages for debugging
+### Response format (MANDATORY)
+<code>
+// your JavaScript here
+return result;
+</code>
 
-### Example:
-` + "```javascript" + `
-// Call a single tool
-const result = callTool('rag_query', { query: 'search term' });
-console.log('Result:', result);
+### Sandbox API
+- callTool(name, args) — synchronous tool call, returns parsed JS object
+- console.log(...) — debug logging
+`)
 
-// Chain multiple tools
-const docs = callTool('rag_list', {});
-const queryResult = callTool('rag_query', { query: docs[0].title });
+	if len(availableTools) > 0 {
+		sb.WriteString("\n### Tools available via callTool()\n")
+		for _, t := range availableTools {
+			sb.WriteString(fmt.Sprintf("- %s: %s\n", t.Name, t.Description))
+		}
+	}
 
-// Return final result
-return queryResult;
-` + "```" + `
+	sb.WriteString(`
+### Example
+<code>
+const data = callTool('get_team_members', { department: 'engineering' });
+const results = data.members.map(m => {
+  const expData = callTool('get_expenses', { member_id: m.id, quarter: 'Q3' });
+  const travel = (expData.expenses || [])
+    .filter(e => e.category === 'travel')
+    .reduce((s, e) => s + e.amount, 0);
+  return { name: m.name, travel };
+});
+return results;
+</code>
 
-### Guidelines:
-1. Use PTC when you need to call multiple tools with complex logic
-2. Handle errors gracefully with try-catch
-3. Always return a meaningful result
-4. Keep code simple and focused
-`
+### Rules
+1. Respond with ONLY a <code>...</code> block — nothing else
+2. The block MUST contain valid JavaScript only — no prose, no other languages
+3. Always end with a return statement
+4. callTool returns the full response object — check its structure (e.g. .members, .expenses) before accessing sub-fields
+`)
+	return sb.String()
 }
 
 // ProcessLLMResponse processes an LLM response and executes any code found
@@ -356,11 +472,11 @@ const (
 
 // PTCResult contains the result of PTC processing
 type PTCResult struct {
-	Type            PTCResultType         `json:"type"`
-	OriginalContent string                `json:"original_content"`
-	Code            string                `json:"code,omitempty"`
-	ExecutionResult *ptc.ExecutionResult  `json:"execution_result,omitempty"`
-	Error           string                `json:"error,omitempty"`
+	Type            PTCResultType        `json:"type"`
+	OriginalContent string               `json:"original_content"`
+	Code            string               `json:"code,omitempty"`
+	ExecutionResult *ptc.ExecutionResult `json:"execution_result,omitempty"`
+	Error           string               `json:"error,omitempty"`
 }
 
 // FormatForLLM formats the PTC result for sending back to LLM

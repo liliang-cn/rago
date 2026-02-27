@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/sync/errgroup"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
+	"golang.org/x/sync/errgroup"
 )
 
 // Runtime orchestrates the event loop for agent execution
@@ -79,7 +79,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		tools := r.svc.collectAllAvailableTools(ctx, r.currentAgent)
 
 		// 4. Build System Prompt for CURRENT agent
-		systemMsg := r.svc.buildSystemPrompt(r.currentAgent)
+		systemMsg := r.svc.buildSystemPrompt(ctx, r.currentAgent)
 		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
 
 		// --- DEBUG: LOG FULL PROMPT ---
@@ -146,6 +146,49 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 		// 6. Handle Result
 		if len(toolCalls) > 0 {
+			// PTC fix: some models (e.g. gpt-5.2) emit valid JS as text content
+			// and then issue a broken execute_javascript tool call with garbage code.
+			// When PTC is active and the text stream contains valid JS, override the
+			// tool call's code with the sanitised text-stream code.
+			if r.svc.isPTCEnabled() {
+				content := fullContent.String()
+				isCode := r.svc.ptcIntegration.IsCodeResponse(content)
+				if r.svc.config != nil && r.svc.config.Debug {
+					fmt.Printf("DEBUG [PTC Override] IsCodeResponse=%v contentLen=%d\n", isCode, len(content))
+				}
+				if isCode {
+					extracted := r.svc.ptcIntegration.ExtractCode(content)
+					if r.svc.config != nil && r.svc.config.Debug {
+						if len(extracted) > 100 {
+							fmt.Printf("DEBUG [PTC Override] ExtractCode len=%d first100=%q\n", len(extracted), extracted[:100])
+						} else {
+							fmt.Printf("DEBUG [PTC Override] ExtractCode len=%d content=%q\n", len(extracted), extracted)
+						}
+					}
+					extracted = sanitiseJSCode(extracted)
+					if r.svc.config != nil && r.svc.config.Debug {
+						if len(extracted) > 100 {
+							fmt.Printf("DEBUG [PTC Override] After sanitise len=%d first100=%q\n", len(extracted), extracted[:100])
+						} else {
+							fmt.Printf("DEBUG [PTC Override] After sanitise len=%d content=%q\n", len(extracted), extracted)
+						}
+					}
+					if extracted != "" {
+						for i, tc := range toolCalls {
+							if tc.Function.Name == "execute_javascript" {
+								if toolCalls[i].Function.Arguments == nil {
+									toolCalls[i].Function.Arguments = make(map[string]interface{})
+								}
+								toolCalls[i].Function.Arguments["code"] = extracted
+								if r.svc.config != nil && r.svc.config.Debug {
+									fmt.Printf("DEBUG [PTC Override] Replaced code for tool call %d\n", i)
+								}
+							}
+						}
+					}
+				}
+			}
+
 			// Add assistant's tool call message to history
 			messages = append(messages, domain.Message{
 				Role:      "assistant",
@@ -155,7 +198,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 			// 7. Process Tool Calls (Parallel Execution)
 			handoffOccurred := false
-			
+
 			// Use errgroup for parallel tool execution
 			g, groupCtx := errgroup.WithContext(ctx)
 			toolResults := make([]struct {
@@ -169,18 +212,22 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 			for i, tc := range toolCalls {
 				idx, toolCall := i, tc
-				
+
 				// Handle Handoff immediately (sequential) as it changes state
 				if strings.HasPrefix(toolCall.Function.Name, "transfer_to_") {
 					res, err, isHandoff := r.executeToolOrHandoff(ctx, toolCall)
 					toolResults[idx].Content = fmt.Sprintf("%v", res)
-					if err != nil { toolResults[idx].Content = fmt.Sprintf("Error: %v", err) }
+					if err != nil {
+						toolResults[idx].Content = fmt.Sprintf("Error: %v", err)
+					}
 					toolResults[idx].IsHandoff = isHandoff
 					toolResults[idx].ToolCallID = toolCall.ID
 					toolResults[idx].ToolName = toolCall.Function.Name
 					toolResults[idx].Result = res
 					toolResults[idx].Error = err
-					if isHandoff { handoffOccurred = true }
+					if isHandoff {
+						handoffOccurred = true
+					}
 					continue
 				}
 
@@ -188,7 +235,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 				g.Go(func() error {
 					r.emitToolCall(toolCall.Function.Name, toolCall.Function.Arguments)
 					res, err, isHandoff := r.executeToolOrHandoff(groupCtx, toolCall)
-					
+
 					content := ""
 					if err != nil {
 						content = fmt.Sprintf("Error: %v", err)
@@ -202,7 +249,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 					toolResults[idx].ToolName = toolCall.Function.Name
 					toolResults[idx].Result = res
 					toolResults[idx].Error = err
-					
+
 					r.emitToolResult(toolCall.Function.Name, res, err)
 					return nil
 				})
@@ -212,8 +259,10 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 			// Collect all results into messages
 			for _, tr := range toolResults {
-				if tr.ToolCallID == "" { continue } // Skip if not handled (shouldn't happen)
-				
+				if tr.ToolCallID == "" {
+					continue
+				} // Skip if not handled (shouldn't happen)
+
 				if tr.IsHandoff {
 					r.session.AgentID = r.currentAgent.ID()
 					messages = append(messages, domain.Message{
@@ -235,6 +284,38 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			}
 
 		} else {
+			// PTC fallback: when PTC is active and the LLM wrote JS code as a
+			// text/markdown response instead of using the execute_javascript
+			// function-call, intercept it, execute it, and inject the result
+			// back so the LLM can produce a grounded final answer.
+			if r.svc.isPTCEnabled() {
+				content := fullContent.String()
+				if r.svc.ptcIntegration.IsCodeResponse(content) {
+					code := r.svc.ptcIntegration.ExtractCode(content)
+					if code != "" {
+						r.emitToolCall("execute_javascript", map[string]interface{}{"code": code})
+						execResult, execErr := r.svc.ptcIntegration.ExecuteJavascriptTool(ctx, map[string]interface{}{"code": code})
+						r.emitToolResult("execute_javascript", execResult, execErr)
+
+						// Append assistant's code message + execution result so
+						// the LLM can synthesise a final answer in the next round.
+						messages = append(messages, domain.Message{
+							Role:    "assistant",
+							Content: content,
+						})
+						resultMsg := execResult
+						if execErr != nil {
+							resultMsg = fmt.Sprintf("execute_javascript error: %v", execErr)
+						}
+						messages = append(messages, domain.Message{
+							Role:    "user",
+							Content: fmt.Sprintf("execute_javascript result:\n%s\n\nBased on these results, please provide the final answer.", resultMsg),
+						})
+						continue // next round → LLM synthesises answer
+					}
+				}
+			}
+
 			// Final Answer - merge sources from runtime and service
 			allSources := r.sources
 			r.svc.ragSourcesMu.RLock()
@@ -368,28 +449,39 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 		if toolName == "memory_save" {
 			content, _ := tc.Function.Arguments["content"].(string)
 			memType, _ := tc.Function.Arguments["type"].(string)
-			if memType == "" { memType = string(domain.MemoryTypeFact) }
+			if memType == "" {
+				memType = string(domain.MemoryTypeFact)
+			}
 			execErr = r.svc.memoryService.Add(ctx, &domain.Memory{
 				Type:       domain.MemoryType(memType),
 				Content:    content,
 				Importance: 0.8,
 			})
-			if execErr == nil { result = "Saved" }
+			if execErr == nil {
+				result = "Saved"
+			}
 		} else if toolName == "memory_update" {
 			id, _ := tc.Function.Arguments["id"].(string)
 			content, _ := tc.Function.Arguments["content"].(string)
 			execErr = r.svc.memoryService.Update(ctx, id, content)
-			if execErr == nil { result = "Updated" }
+			if execErr == nil {
+				result = "Updated"
+			}
 		} else if toolName == "memory_delete" {
 			id, _ := tc.Function.Arguments["id"].(string)
 			execErr = r.svc.memoryService.Delete(ctx, id)
-			if execErr == nil { result = "Deleted" }
+			if execErr == nil {
+				result = "Deleted"
+			}
 		} else if toolName == "memory_recall" {
 			query, _ := tc.Function.Arguments["query"].(string)
 			mContext, _, err := r.svc.memoryService.RetrieveAndInject(ctx, query, "")
 			result = mContext
 			execErr = err
 		}
+	} else if toolName == "execute_javascript" && r.svc.ptcIntegration != nil {
+		// 6. PTC: Execute JavaScript in sandbox
+		result, execErr = r.svc.ptcIntegration.ExecuteJavascriptTool(ctx, tc.Function.Arguments)
 	} else {
 		execErr = fmt.Errorf("unknown tool: %s", toolName)
 	}
@@ -416,11 +508,13 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 
 func (r *Runtime) prepareContext(ctx context.Context, goal string) (string, string) {
 	var ragCtx, memCtx string
-	
+
 	g, groupCtx := errgroup.WithContext(ctx)
 
-	// RAG Retrieval
-	if r.svc.ragProcessor != nil {
+	// RAG Retrieval — skip when PTC is enabled: the LLM will call rag_query
+	// explicitly via execute_javascript / callTool, so pre-injecting the
+	// answer would short-circuit the tool and make it unreachable.
+	if r.svc.ragProcessor != nil && !r.svc.isPTCEnabled() {
 		g.Go(func() error {
 			if res, err := r.svc.performRAGQuery(groupCtx, goal); err == nil {
 				ragCtx = res

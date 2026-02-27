@@ -13,19 +13,20 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/sync/errgroup"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	ragolog "github.com/liliang-cn/rago/v2/pkg/log"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/memory"
+	"github.com/liliang-cn/rago/v2/pkg/prompt"
+	"github.com/liliang-cn/rago/v2/pkg/ptc"
 	ragprocessor "github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	ragstore "github.com/liliang-cn/rago/v2/pkg/rag/store"
-	"github.com/liliang-cn/rago/v2/pkg/prompt"
 	"github.com/liliang-cn/rago/v2/pkg/router"
 	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
 	"github.com/liliang-cn/rago/v2/pkg/store"
+	"golang.org/x/sync/errgroup"
 )
 
 // ProgressEvent 进度事件
@@ -212,10 +213,42 @@ func (s *Service) SetPTC(ptcIntegration *PTCIntegration) {
 	s.PTC = ptcIntegration
 }
 
+// isPTCEnabled reports whether PTC mode is active.
+// When PTC is enabled the agent is expected to call tools explicitly via
+// execute_javascript / callTool, so automatic RAG pre-injection must be
+// suppressed to avoid spoiling the answer before the LLM can act.
+func (s *Service) isPTCEnabled() bool {
+	return s.ptcIntegration != nil && s.ptcIntegration.config != nil && s.ptcIntegration.config.Enabled
+}
+
 // RegisterAgent registers a new agent with the service
 func (s *Service) RegisterAgent(agent *Agent) {
 	if s.registry != nil {
 		s.registry.Register(agent)
+	}
+}
+
+// AddTool registers a custom Go function tool on the default agent.
+// The tool becomes available to the LLM via function calling and, when PTC is
+// enabled, also via callTool() inside the JavaScript sandbox.
+func (s *Service) AddTool(name, description string, parameters map[string]interface{},
+	handler func(context.Context, map[string]interface{}) (interface{}, error)) {
+
+	// Register on the default agent (visible in collectAllAvailableTools)
+	if s.agent != nil {
+		s.agent.AddTool(name, description, parameters, handler)
+	}
+
+	// Also register on the PTC router so callTool(name, ...) works inside JS
+	if s.ptcIntegration != nil && s.ptcIntegration.router != nil {
+		s.ptcIntegration.router.RegisterTool(name, &ptc.ToolInfo{
+			Name:        name,
+			Description: description,
+			Parameters:  parameters,
+			Category:    "custom",
+		}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			return handler(ctx, args)
+		})
 	}
 }
 
@@ -428,7 +461,7 @@ func (s *Service) RunStream(ctx context.Context, goal string) (<-chan *Event, er
 
 	// Create Runtime
 	runtime := NewRuntime(s, session)
-	
+
 	return runtime.RunStream(ctx, goal), nil
 }
 
@@ -476,8 +509,9 @@ func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error
 		return err
 	})
 
-	// 2. RAG Retrieval
-	if s.ragProcessor != nil {
+	// 2. RAG Retrieval — skip when PTC is enabled (same reason as runtime.go:
+	// the LLM must call rag_query explicitly via execute_javascript/callTool).
+	if s.ragProcessor != nil && !s.isPTCEnabled() {
 		g.Go(func() error {
 			s.emitProgress("thinking", "🔍 Searching knowledge base...", 0, "")
 			var err error
@@ -563,9 +597,13 @@ func (s *Service) Cancel() bool {
 	return false
 }
 
-// collectAllAvailableTools collects tools from MCP, Skills, RAG, and Agent Handoffs
+// collectAllAvailableTools collects tools from MCP, Skills, RAG, and Agent Handoffs.
+// When PTC is enabled, RAG/MCP/Skills are NOT exposed as direct function-call tools —
+// the LLM must call them through execute_javascript + callTool(), mirroring Anthropic's
+// allowed_callers: ["code_execution"] behaviour where direct model invocation is removed.
 func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Agent) []domain.ToolDefinition {
 	toolsMap := make(map[string]domain.ToolDefinition)
+	ptcEnabled := s.isPTCEnabled()
 
 	// Helper to add tools with deduplication
 	addTools := func(defs []domain.ToolDefinition) {
@@ -574,17 +612,22 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		}
 	}
 
-	// Agent Handoffs and Tools
+	// Agent Handoffs — always visible so the LLM can route between agents
 	if currentAgent != nil {
 		for _, handoff := range currentAgent.Handoffs() {
 			tool := handoff.ToToolDefinition().ToDomainTool()
 			toolsMap[tool.Function.Name] = tool
 		}
-		addTools(currentAgent.Tools())
+		// Agent custom tools — hidden when PTC is enabled.
+		// When PTC is on, custom tools are accessible ONLY via callTool() inside
+		// execute_javascript, mirroring Anthropic's allowed_callers pattern.
+		if !ptcEnabled {
+			addTools(currentAgent.Tools())
+		}
 	}
 
-	// MCP tools
-	if s.mcpService != nil {
+	// MCP tools — hidden when PTC is enabled; accessible via callTool() inside execute_javascript
+	if s.mcpService != nil && !ptcEnabled {
 		allMCP := s.mcpService.ListTools()
 		if isAllAllowed(currentAgent.mcpTools) {
 			addTools(allMCP)
@@ -597,8 +640,8 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		}
 	}
 
-	// Skills tools
-	if s.skillsService != nil {
+	// Skills tools — hidden when PTC is enabled; accessible via callTool() inside execute_javascript
+	if s.skillsService != nil && !ptcEnabled {
 		skillsList, _ := s.skillsService.ListSkills(ctx, skills.SkillFilter{})
 		allowedAll := isAllAllowed(currentAgent.skills)
 		for _, sk := range skillsList {
@@ -615,8 +658,8 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		}
 	}
 
-	// RAG tools
-	if s.ragProcessor != nil {
+	// RAG tools — hidden when PTC is enabled; accessible via callTool() inside execute_javascript
+	if s.ragProcessor != nil && !ptcEnabled {
 		addTools([]domain.ToolDefinition{
 			{
 				Type: "function",
@@ -740,6 +783,13 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		})
 	}
 
+	// PTC: register execute_javascript as a first-class tool so the LLM can call it.
+	// Pass the dynamic list of callTool()-accessible tools so the description is accurate.
+	if s.ptcIntegration != nil {
+		availableCallTools := s.ptcIntegration.GetAvailableCallTools(ctx)
+		addTools(s.ptcIntegration.GetPTCTools(availableCallTools))
+	}
+
 	// Convert map to slice
 	var tools []domain.ToolDefinition
 	for _, tool := range toolsMap {
@@ -749,8 +799,9 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 	return tools
 }
 
-// buildSystemPrompt 构建包含系统上下文的system prompt
-func (s *Service) buildSystemPrompt(agent *Agent) string {
+// buildSystemPrompt constructs the system prompt for the current agent.
+// ctx is required when PTC is enabled so available callTool() names can be listed dynamically.
+func (s *Service) buildSystemPrompt(ctx context.Context, agent *Agent) string {
 	systemCtx := s.buildSystemContext()
 
 	data := map[string]interface{}{
@@ -761,7 +812,16 @@ func (s *Service) buildSystemPrompt(agent *Agent) string {
 	rendered, err := s.promptManager.Render(prompt.AgentSystemPrompt, data)
 	if err != nil {
 		// Fallback
-		return agent.Instructions() + "\n\n" + systemCtx.FormatForPrompt()
+		rendered = agent.Instructions() + "\n\n" + systemCtx.FormatForPrompt()
+	}
+
+	// Append PTC instructions when enabled so the LLM knows how to use execute_javascript.
+	// Dynamically list what is callable via callTool() so the model doesn't have to guess.
+	if s.ptcIntegration != nil {
+		availableCallTools := s.ptcIntegration.GetAvailableCallTools(ctx)
+		if ptcPrompt := s.ptcIntegration.GetPTCSystemPrompt(availableCallTools); ptcPrompt != "" {
+			rendered += "\n\n" + ptcPrompt
+		}
 	}
 
 	return rendered
@@ -812,7 +872,7 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 		tools := s.collectAllAvailableTools(ctx, currentAgent)
 
 		// Build system message for current agent
-		systemMsg := s.buildSystemPrompt(currentAgent)
+		systemMsg := s.buildSystemPrompt(ctx, currentAgent)
 
 		// Prepare messages for this generation (System + History)
 		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
@@ -1047,7 +1107,7 @@ func extractJSON(resp string, target interface{}) error {
 // executeToolCalls executes the tool calls decided by LLM and returns all results
 func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, toolCalls []domain.ToolCall) ([]ToolExecutionResult, error) {
 	results := make([]ToolExecutionResult, len(toolCalls))
-	
+
 	// Create an errgroup to run tools in parallel
 	g, groupCtx := errgroup.WithContext(ctx)
 
@@ -1079,20 +1139,26 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 			var err error
 			var toolType string
 
-					// 0. Priority: Agent-local Tools
-					if handler, ok := currentAgent.GetHandler(toolName); ok {
-						if s.config != nil && s.config.Debug { fmt.Println("   Type: Local Handler") }
-						result, err = handler(groupCtx, toolCall.Function.Arguments)
-						toolType = "local"
-					} else if s.isMCPTool(toolName) {
-						// 1. MCP tools
-						if s.config != nil && s.config.Debug { fmt.Printf("   Type: MCP Tool\n") }
-						result, err = s.mcpService.CallTool(groupCtx, toolName, toolCall.Function.Arguments)
-						toolType = "mcp"
-					} else if s.isSkill(groupCtx, toolName) && s.skillsService != nil {
-						// 2. Skills
-						if s.config != nil && s.config.Debug { fmt.Printf("   Type: Skill (%s)\n", toolName) }
-			
+			// 0. Priority: Agent-local Tools
+			if handler, ok := currentAgent.GetHandler(toolName); ok {
+				if s.config != nil && s.config.Debug {
+					fmt.Println("   Type: Local Handler")
+				}
+				result, err = handler(groupCtx, toolCall.Function.Arguments)
+				toolType = "local"
+			} else if s.isMCPTool(toolName) {
+				// 1. MCP tools
+				if s.config != nil && s.config.Debug {
+					fmt.Printf("   Type: MCP Tool\n")
+				}
+				result, err = s.mcpService.CallTool(groupCtx, toolName, toolCall.Function.Arguments)
+				toolType = "mcp"
+			} else if s.isSkill(groupCtx, toolName) && s.skillsService != nil {
+				// 2. Skills
+				if s.config != nil && s.config.Debug {
+					fmt.Printf("   Type: Skill (%s)\n", toolName)
+				}
+
 				skillResult, skillErr := s.skillsService.Execute(groupCtx, &skills.ExecutionRequest{
 					SkillID:     toolName,
 					Variables:   toolCall.Function.Arguments,
@@ -1184,6 +1250,10 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 				}
 				err = memErr
 				toolType = "memory"
+			} else if toolName == "execute_javascript" && s.ptcIntegration != nil {
+				// PTC: Execute JavaScript in sandbox
+				result, err = s.ptcIntegration.ExecuteJavascriptTool(groupCtx, toolCall.Function.Arguments)
+				toolType = "ptc"
 			} else {
 				err = fmt.Errorf("unknown tool: %s", toolCall.Function.Name)
 			}
@@ -1192,12 +1262,12 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 				s.logger.Error("Tool execution failed",
 					slog.String("tool", toolName),
 					slog.Any("error", err))
-				
+
 				if s.config != nil && s.config.Debug {
 					fmt.Printf("   ❌ ERROR: %v\n", err)
 					fmt.Println(strings.Repeat("-", 20))
 				}
-				
+
 				return fmt.Errorf("Tool %s (%s) failed: %w", toolCall.Function.Name, toolType, err)
 			}
 
@@ -1612,7 +1682,8 @@ Example format:
 	messages := session.GetMessages()
 
 	// Build PTC tools
-	ptcTools := s.ptcIntegration.GetPTCTools()
+	availableCallTools := s.ptcIntegration.GetAvailableCallTools(ctx)
+	ptcTools := s.ptcIntegration.GetPTCTools(availableCallTools)
 
 	// Call LLM with PTC tools
 	opts := &domain.GenerationOptions{
@@ -1658,7 +1729,7 @@ Example format:
 }
 
 // buildPTCSystemPrompt builds the system prompt with PTC instructions
-func (s *Service) buildPTCSystemPrompt() string {
+func (s *Service) buildPTCSystemPrompt(ctx context.Context) string {
 	var sb strings.Builder
 
 	// Base agent instructions
@@ -1667,9 +1738,10 @@ func (s *Service) buildPTCSystemPrompt() string {
 		sb.WriteString("\n\n")
 	}
 
-	// PTC instructions
+	// PTC instructions with dynamic tool list
 	if s.ptcIntegration != nil && s.ptcIntegration.config.Enabled {
-		sb.WriteString(s.ptcIntegration.GetPTCSystemPrompt())
+		availableCallTools := s.ptcIntegration.GetAvailableCallTools(ctx)
+		sb.WriteString(s.ptcIntegration.GetPTCSystemPrompt(availableCallTools))
 	}
 
 	return sb.String()
@@ -1796,21 +1868,23 @@ func (s *Service) Close() error {
 
 // AgentConfig holds configuration for New()
 type AgentConfig struct {
-	Name            string
-	SystemPrompt    string
-	DBPath          string
-	MemoryDBPath    string
-	MemoryStoreType string // "sqlite" (default) or "file"
-	EnableMCP       bool
-	EnableMemory    bool
-	EnableRAG       bool
-	EnableRouter    bool
-	EnableSkills    bool
-	EnableAutoMemory bool // Automatically save important info to memory
-	Debug           bool // Enable verbose debugging output
-	IntentPaths     []string
-	RouterThreshold float64
-	ProgressCb      ProgressCallback
+	Name             string
+	SystemPrompt     string
+	DBPath           string
+	MemoryDBPath     string
+	MemoryStoreType  string // "sqlite" (default) or "file"
+	EnableMCP        bool
+	EnableMemory     bool
+	EnableRAG        bool
+	EnableRouter     bool
+	EnableSkills     bool
+	EnableAutoMemory bool      // Automatically save important info to memory
+	EnablePTC        bool      // Enable Programmatic Tool Calling via JS sandbox
+	PTCConfig        PTCConfig // PTC configuration (optional, uses defaults if zero-value)
+	Debug            bool      // Enable verbose debugging output
+	IntentPaths      []string
+	RouterThreshold  float64
+	ProgressCb       ProgressCallback
 }
 
 // New creates an agent service with simplified configuration.
@@ -1877,7 +1951,7 @@ func New(cfg *AgentConfig) (*Service, error) {
 				memPath = filepath.Join(ragoCfg.DataDir(), "memories")
 			}
 			memStore, err = store.NewFileMemoryStore(memPath)
-			
+
 			// Initialize Shadow Index (Vector accelerator)
 			sqlitePath := filepath.Join(ragoCfg.DataDir(), "rago.db")
 			if sqliteStore, serr := store.NewMemoryStore(sqlitePath); serr == nil {
@@ -1975,6 +2049,57 @@ func New(cfg *AgentConfig) (*Service, error) {
 		return nil, fmt.Errorf("failed to create agent: %w", err)
 	}
 	svc.config = cfg
+
+	// PTC (Programmatic Tool Calling) integration
+	if cfg.EnablePTC {
+		ptcCfg := cfg.PTCConfig
+		if !ptcCfg.Enabled {
+			// Merge: EnablePTC flag implies Enabled inside PTCConfig
+			ptcCfg = DefaultPTCConfig()
+			ptcCfg.Enabled = true
+			// Preserve any explicit overrides from caller
+			if cfg.PTCConfig.MaxToolCalls > 0 {
+				ptcCfg.MaxToolCalls = cfg.PTCConfig.MaxToolCalls
+			}
+			if cfg.PTCConfig.Timeout > 0 {
+				ptcCfg.Timeout = cfg.PTCConfig.Timeout
+			}
+			if cfg.PTCConfig.Runtime != "" {
+				ptcCfg.Runtime = cfg.PTCConfig.Runtime
+			}
+			if len(cfg.PTCConfig.AllowedTools) > 0 {
+				ptcCfg.AllowedTools = cfg.PTCConfig.AllowedTools
+			}
+			if len(cfg.PTCConfig.BlockedTools) > 0 {
+				ptcCfg.BlockedTools = cfg.PTCConfig.BlockedTools
+			}
+
+			// Auto-block RAG tools when RAG is disabled to avoid confusing the LLM
+			if !cfg.EnableRAG {
+				ragTools := []string{"rag_query", "rag_ingest", "rag_list"}
+				blocked := make(map[string]bool, len(ptcCfg.BlockedTools))
+				for _, t := range ptcCfg.BlockedTools {
+					blocked[t] = true
+				}
+				for _, t := range ragTools {
+					if !blocked[t] {
+						ptcCfg.BlockedTools = append(ptcCfg.BlockedTools, t)
+					}
+				}
+			}
+		}
+
+		// Build the router with available services
+		routerOpts := buildPTCRouterOptions(mcpAdapter, skillsSvc, ragProcessor)
+		ptcRouter := ptc.NewRAGORouter(routerOpts...)
+
+		ptcInteg, ptcErr := NewPTCIntegration(ptcCfg, ptcRouter)
+		if ptcErr != nil {
+			return nil, fmt.Errorf("failed to create PTC integration: %w", ptcErr)
+		}
+		svc.ptcIntegration = ptcInteg
+		svc.PTC = ptcInteg
+	}
 
 	// Load prompts from default directory (~/.rago/prompts)
 	promptDir := filepath.Join(ragoCfg.Home, "prompts")
@@ -2418,4 +2543,103 @@ func countDocuments(ragContext string) int {
 	// Count "### Document" occurrences
 	count := strings.Count(ragContext, "### Document")
 	return count
+}
+
+// buildPTCRouterOptions constructs ptc.RouterOption list from available services.
+// It converts domain.ToolDefinition entries into ptc.ToolInfo so the router can
+// enumerate tools without importing the domain package.
+func buildPTCRouterOptions(mcpSvc MCPToolExecutor, skillsSvc *skills.Service, ragProc domain.Processor) []ptc.RouterOption {
+	var opts []ptc.RouterOption
+
+	if mcpSvc != nil {
+		opts = append(opts, ptc.WithMCPService(mcpSvc))
+
+		// Pre-resolve MCP tool infos
+		mcpInfos := domainToolsToPTCInfos(mcpSvc.ListTools(), "mcp")
+		if len(mcpInfos) > 0 {
+			opts = append(opts, ptc.WithMCPToolInfos(mcpInfos))
+		}
+	}
+
+	if skillsSvc != nil {
+		opts = append(opts, ptc.WithSkillsService(skillsSvc))
+
+		// Pre-resolve skill tool infos
+		skillList, _ := skillsSvc.ListSkills(context.Background(), skills.SkillFilter{})
+		skillInfos := make([]ptc.ToolInfo, 0, len(skillList))
+		for _, sk := range skillList {
+			skillInfos = append(skillInfos, ptc.ToolInfo{
+				Name:        sk.ID,
+				Description: sk.Description,
+				Parameters: map[string]interface{}{
+					"type":       "object",
+					"properties": map[string]interface{}{},
+				},
+				Category: "skill",
+			})
+		}
+		if len(skillInfos) > 0 {
+			opts = append(opts, ptc.WithSkillToolInfos(skillInfos))
+		}
+	}
+
+	if ragProc != nil {
+		opts = append(opts, ptc.WithRAGProcessor(ragProc))
+
+		// Inject real rag_query handler via closure — avoids interface mismatch in router stub
+		opts = append(opts, ptc.WithRAGQueryHandler(func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			query, _ := args["query"].(string)
+			if query == "" {
+				return nil, fmt.Errorf("rag_query: 'query' argument is required")
+			}
+			topK := 5
+			if tk, ok := args["top_k"].(float64); ok {
+				topK = int(tk)
+			} else if tk, ok := args["top_k"].(int); ok {
+				topK = tk
+			}
+			resp, err := ragProc.Query(ctx, domain.QueryRequest{Query: query, TopK: topK})
+			if err != nil {
+				return nil, err
+			}
+			return map[string]interface{}{
+				"answer":  resp.Answer,
+				"sources": len(resp.Sources),
+			}, nil
+		}))
+
+		// Inject real rag_ingest handler
+		opts = append(opts, ptc.WithRAGIngestHandler(func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			content, _ := args["content"].(string)
+			filePath, _ := args["file_path"].(string)
+			if content == "" && filePath == "" {
+				return nil, fmt.Errorf("rag_ingest: 'content' or 'file_path' is required")
+			}
+			_, err := ragProc.Ingest(ctx, domain.IngestRequest{Content: content, FilePath: filePath})
+			if err != nil {
+				return nil, err
+			}
+			return map[string]interface{}{"status": "ingested"}, nil
+		}))
+	}
+
+	return opts
+}
+
+// domainToolsToPTCInfos converts domain.ToolDefinition slice to ptc.ToolInfo slice.
+func domainToolsToPTCInfos(defs []domain.ToolDefinition, category string) []ptc.ToolInfo {
+	infos := make([]ptc.ToolInfo, 0, len(defs))
+	for _, d := range defs {
+		params := d.Function.Parameters
+		if params == nil {
+			params = map[string]interface{}{"type": "object", "properties": map[string]interface{}{}}
+		}
+		infos = append(infos, ptc.ToolInfo{
+			Name:        d.Function.Name,
+			Description: d.Function.Description,
+			Parameters:  params,
+			Category:    category,
+		})
+	}
+	return infos
 }

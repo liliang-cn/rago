@@ -7,7 +7,61 @@ import (
 	"sync"
 )
 
-// RAGORouter routes tool calls to existing RAGO services
+// mcpExecutor is the minimal interface required from an MCP service.
+// It matches mcp.Service / agent.MCPToolExecutor without creating an import cycle.
+type mcpExecutor interface {
+	// CallTool executes an MCP tool by name.
+	CallTool(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error)
+	// ListTools returns domain.ToolDefinition-like structs; we only need Name/Description/Parameters.
+	// We accept interface{} and cast via a helper to remain decoupled.
+	ListToolsRaw() []mcpToolInfo
+}
+
+// mcpToolInfo is a minimal representation of a tool descriptor.
+// Both mcp.Service (via adapter) and any future provider satisfy this.
+type mcpToolInfo struct {
+	Name        string
+	Description string
+	Parameters  map[string]interface{}
+}
+
+// MCPProvider is the real interface we accept — it matches what agent.MCPToolExecutor exposes.
+// We use a structural approach: accept interface{} and try the concrete methods.
+type MCPProvider interface {
+	CallTool(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error)
+}
+
+// MCPListProvider extends MCPProvider with tool listing.
+type MCPListProvider interface {
+	MCPProvider
+	ListTools() []domainToolLike
+}
+
+// domainToolLike is a minimal stand-in for domain.ToolDefinition that avoids the import.
+type domainToolLike interface {
+	GetName() string
+	GetDescription() string
+	GetParameters() map[string]interface{}
+}
+
+// skillsProvider is the minimal interface required from a skills service.
+type skillsProvider interface {
+	// ListSkillsSimple returns simple skill descriptors.
+	ListSkillsSimple(ctx context.Context) ([]skillInfo, error)
+	// ExecuteSkill runs a skill by ID.
+	ExecuteSkill(ctx context.Context, id string, vars map[string]interface{}) (string, error)
+}
+
+// skillInfo is a minimal skill descriptor.
+type skillInfo struct {
+	ID          string
+	Name        string
+	Description string
+}
+
+// RAGORouter routes tool calls to existing RAGO services.
+// External services are stored as interface{} and resolved lazily via type assertions
+// so that pkg/ptc remains free of concrete-package imports.
 type RAGORouter struct {
 	mu sync.RWMutex
 
@@ -16,54 +70,63 @@ type RAGORouter struct {
 	// Tool info cache
 	toolInfo map[string]*ToolInfo
 
-	// External services (optional)
-	mcpService    interface{} // *mcp.Service
-	skillsService interface{} // *skills.Service
+	// External services (stored as interface{} to avoid import cycles)
+	mcpService    interface{} // implements MCPProvider + optional ListTools
+	skillsService interface{} // implements skillsProvider duck type
 	ragProcessor  interface{} // domain.Processor
+
+	// Pre-resolved tool info caches injected from pkg/agent
+	mcpToolInfos   []ToolInfo
+	skillToolInfos []ToolInfo
 }
 
-// RouterOption configures the router
+// RouterOption configures the router.
 type RouterOption func(*RAGORouter)
 
-// WithMCPService sets the MCP service
+// WithMCPService sets the MCP service.
+// The value must implement at minimum:
+//
+//	CallTool(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error)
 func WithMCPService(svc interface{}) RouterOption {
 	return func(r *RAGORouter) {
 		r.mcpService = svc
 	}
 }
 
-// WithSkillsService sets the skills service
+// WithSkillsService sets the skills service.
+// The value must be *skills.Service (or any type with ListSkills / Execute methods).
 func WithSkillsService(svc interface{}) RouterOption {
 	return func(r *RAGORouter) {
 		r.skillsService = svc
 	}
 }
 
-// WithRAGProcessor sets the RAG processor
+// WithRAGProcessor sets the RAG processor.
 func WithRAGProcessor(proc interface{}) RouterOption {
 	return func(r *RAGORouter) {
 		r.ragProcessor = proc
 	}
 }
 
-// NewRAGORouter creates a new tool router
+// NewRAGORouter creates a new tool router.
 func NewRAGORouter(opts ...RouterOption) *RAGORouter {
 	r := &RAGORouter{
 		handlers: make(map[string]ToolHandler),
 		toolInfo: make(map[string]*ToolInfo),
 	}
 
+	// Register built-in stubs first so options can override them
+	r.registerBuiltinTools()
+
+	// Apply options — injected handlers (e.g. WithRAGQueryHandler) override stubs
 	for _, opt := range opts {
 		opt(r)
 	}
 
-	// Register built-in RAG tools
-	r.registerBuiltinTools()
-
 	return r
 }
 
-// registerBuiltinTools registers built-in RAG tools
+// registerBuiltinTools registers built-in RAG tools.
 func (r *RAGORouter) registerBuiltinTools() {
 	// RAG query tool
 	r.RegisterTool("rag_query", &ToolInfo{
@@ -119,20 +182,39 @@ func (r *RAGORouter) registerBuiltinTools() {
 	}, r.ragListHandler)
 }
 
-// Route routes a tool call to the appropriate handler
+// Route routes a tool call to the appropriate handler.
 func (r *RAGORouter) Route(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error) {
+	// 1. Try explicitly registered handlers first
 	r.mu.RLock()
 	handler, ok := r.handlers[toolName]
 	r.mu.RUnlock()
 
-	if !ok {
-		return nil, NewExecutionError(ErrToolNotFound, "route").WithTool(toolName)
+	if ok {
+		return handler(ctx, args)
 	}
 
-	return handler(ctx, args)
+	// 2. Try MCP service
+	if r.mcpService != nil {
+		type callTooler interface {
+			CallTool(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error)
+		}
+		if svc, ok := r.mcpService.(callTooler); ok {
+			return svc.CallTool(ctx, toolName, args)
+		}
+	}
+
+	// 3. Try Skills service (prefixed with "skill_" or direct skill ID)
+	if r.skillsService != nil {
+		skillID := strings.TrimPrefix(toolName, "skill_")
+		if result, err := r.callSkill(ctx, skillID, args); err == nil {
+			return result, nil
+		}
+	}
+
+	return nil, NewExecutionError(ErrToolNotFound, "route").WithTool(toolName)
 }
 
-// RegisterTool registers a tool with the router
+// RegisterTool registers a tool with the router.
 func (r *RAGORouter) RegisterTool(name string, info *ToolInfo, handler ToolHandler) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -142,7 +224,7 @@ func (r *RAGORouter) RegisterTool(name string, info *ToolInfo, handler ToolHandl
 	return nil
 }
 
-// UnregisterTool removes a tool from the router
+// UnregisterTool removes a tool from the router.
 func (r *RAGORouter) UnregisterTool(name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -152,40 +234,37 @@ func (r *RAGORouter) UnregisterTool(name string) error {
 	return nil
 }
 
-// ListAvailableTools returns all available tools
+// ListAvailableTools returns all available tools.
 func (r *RAGORouter) ListAvailableTools(ctx context.Context) ([]ToolInfo, error) {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	tools := make([]ToolInfo, 0, len(r.toolInfo))
-
-	// Add registered tools
+	registeredTools := make([]ToolInfo, 0, len(r.toolInfo))
 	for _, info := range r.toolInfo {
-		tools = append(tools, *info)
+		registeredTools = append(registeredTools, *info)
 	}
+	r.mu.RUnlock()
+
+	tools := registeredTools
 
 	// Add MCP tools if available
 	if r.mcpService != nil {
-		mcpTools := r.getMCPTools(ctx)
-		tools = append(tools, mcpTools...)
+		tools = append(tools, r.getMCPTools(ctx)...)
 	}
 
 	// Add Skills if available
 	if r.skillsService != nil {
-		skillTools := r.getSkillTools(ctx)
-		tools = append(tools, skillTools...)
+		tools = append(tools, r.getSkillTools(ctx)...)
 	}
 
 	return tools, nil
 }
 
-// GetToolInfo returns information about a specific tool
+// GetToolInfo returns information about a specific tool.
 func (r *RAGORouter) GetToolInfo(ctx context.Context, name string) (*ToolInfo, error) {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
+	info, ok := r.toolInfo[name]
+	r.mu.RUnlock()
 
-	// Check registered tools
-	if info, ok := r.toolInfo[name]; ok {
+	if ok {
 		return info, nil
 	}
 
@@ -206,7 +285,7 @@ func (r *RAGORouter) GetToolInfo(ctx context.Context, name string) (*ToolInfo, e
 	return nil, ErrToolNotFound
 }
 
-// HasTool checks if a tool exists
+// HasTool checks if a tool is registered locally.
 func (r *RAGORouter) HasTool(name string) bool {
 	r.mu.RLock()
 	_, ok := r.handlers[name]
@@ -214,7 +293,9 @@ func (r *RAGORouter) HasTool(name string) bool {
 	return ok
 }
 
-// Built-in handlers
+// -------------------------------------------------------------------------
+// Built-in RAG handlers
+// -------------------------------------------------------------------------
 
 func (r *RAGORouter) ragQueryHandler(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	if r.ragProcessor == nil {
@@ -233,29 +314,36 @@ func (r *RAGORouter) ragQueryHandler(ctx context.Context, args map[string]interf
 		topK = tk
 	}
 
-	// Type assertion for RAG processor
-	type Queryer interface {
+	// Use duck-typed Query interface to avoid importing domain package.
+	type queryRequest struct {
+		Query string
+		TopK  int
+	}
+	type queryResponse interface{}
+
+	type queryer interface {
 		Query(ctx context.Context, req interface{}) (interface{}, error)
 	}
 
-	// Try different interfaces
-	switch proc := r.ragProcessor.(type) {
-	case interface {
-		Query(context.Context, interface{}) (interface{}, error)
-	}:
-		// This won't work directly, use domain types
-		return map[string]interface{}{
-			"query":  query,
-			"status": "query_executed",
-		}, nil
-	default:
-		_ = proc
-		return map[string]interface{}{
-			"query":  query,
-			"top_k":  topK,
-			"status": "simulated",
-		}, nil
+	// The real domain.Processor.Query signature doesn't match queryer directly.
+	// Use a more specific interface that matches the actual domain.Processor.
+	type domainQueryer interface {
+		QueryRaw(ctx context.Context, query string, topK int) (string, error)
 	}
+	if dq, ok := r.ragProcessor.(domainQueryer); ok {
+		answer, err := dq.QueryRaw(ctx, query, topK)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{"answer": answer, "query": query}, nil
+	}
+
+	// Fallback: return structured stub so code can still proceed.
+	return map[string]interface{}{
+		"query":  query,
+		"top_k":  topK,
+		"status": "rag_processor_interface_mismatch",
+	}, nil
 }
 
 func (r *RAGORouter) ragIngestHandler(ctx context.Context, args map[string]interface{}) (interface{}, error) {
@@ -288,38 +376,195 @@ func (r *RAGORouter) ragListHandler(ctx context.Context, args map[string]interfa
 	}, nil
 }
 
-// MCP integration helpers
+// -------------------------------------------------------------------------
+// MCP integration
+// -------------------------------------------------------------------------
 
+// getMCPTools returns ToolInfo for every tool exposed by the MCP service.
+// It duck-types against ListTools() []T where T has Function.Name, Function.Description,
+// Function.Parameters — which is how agent.MCPToolExecutor works.
 func (r *RAGORouter) getMCPTools(ctx context.Context) []ToolInfo {
-	// This would use reflection or type assertion to get MCP tools
-	// For now, return empty slice
-	return []ToolInfo{}
+	type domainTool struct {
+		Function struct {
+			Name        string
+			Description string
+			Parameters  map[string]interface{}
+		}
+	}
+	type lister interface {
+		ListTools() interface{}
+	}
+
+	// The concrete type stored is agent.MCPToolExecutor which has:
+	//   ListTools() []domain.ToolDefinition
+	// domain.ToolDefinition has a Function field of type domain.ToolFunction.
+	// We use reflection-free duck typing via a small adapter interface.
+	type mcpLister interface {
+		ListTools() []struct {
+			Type     string
+			Function struct {
+				Name        string
+				Description string
+				Parameters  map[string]interface{}
+			}
+		}
+	}
+
+	// Use the same interface shape as in agent package via anonymous struct matching.
+	// In practice Go doesn't allow this directly, so we use encoding/json round-trip
+	// approach or a more practical helper.
+	// Instead: accept that the stored value is the agent.MCPToolExecutor interface,
+	// which wraps mcp.Service. We call ListTools via a simpler interface.
+	type simpleListTools interface {
+		ListTools() []interface{}
+	}
+
+	// The most robust approach: define an interface that matches agent.MCPToolExecutor.ListTools exactly.
+	// Since domain.ToolDefinition is a concrete struct, we need an exact-match interface.
+	// We define it here to match — if the concrete type changes, this will compile-fail loudly.
+	type toolDefIface interface {
+		GetFunctionName() string
+		GetFunctionDesc() string
+		GetFunctionParams() map[string]interface{}
+	}
+
+	// Practical solution: use fmt.Sprintf / JSON encoding is too heavy.
+	// Best option: a named interface matching domain.ToolDefinition layout via
+	// a concrete assertion against a known minimal interface we control.
+	//
+	// We define a small bridge interface in types.go that callers satisfy.
+	// For now use the ToolLister defined below.
+
+	type toolLister interface {
+		ListToolInfos(ctx context.Context) []ToolInfo
+	}
+	if tl, ok := r.mcpService.(toolLister); ok {
+		return tl.ListToolInfos(ctx)
+	}
+
+	// Fallback: directly call the ListTools() method that returns domain.ToolDefinition
+	// by asserting against a custom interface matching the method signature.
+	// We define it here; this will match any type that has ListTools() returning
+	// a slice of values with a Function field (structural subtyping in Go does NOT
+	// work across packages for concrete structs — only interfaces).
+	//
+	// The only reliable way without importing domain: use an adapter registered at
+	// router construction time. We provide WithMCPToolInfos() for that purpose.
+	return r.mcpToolInfos
 }
 
+// getMCPToolInfo returns ToolInfo for a named MCP tool.
 func (r *RAGORouter) getMCPToolInfo(ctx context.Context, name string) *ToolInfo {
-	// Check if it's an MCP tool name format
-	if !strings.Contains(name, "/") {
-		return nil
+	for _, t := range r.getMCPTools(ctx) {
+		if t.Name == name {
+			t := t
+			return &t
+		}
 	}
 	return nil
 }
 
-// Skills integration helpers
+// mcpToolInfos holds pre-resolved tool infos injected at construction time.
 
+// -------------------------------------------------------------------------
+// Skills integration
+// -------------------------------------------------------------------------
+
+// callSkill executes a skill by ID using duck-typed Execute method.
+func (r *RAGORouter) callSkill(ctx context.Context, skillID string, vars map[string]interface{}) (interface{}, error) {
+	type execRequest struct {
+		SkillID   string
+		Variables map[string]interface{}
+	}
+	type execResult struct {
+		Output string
+	}
+
+	// Duck-type: look for Execute(ctx, *req) (*result, error) using the concrete types
+	// from pkg/skills. We use a named interface matching the exact method signature.
+	type skillExecutor interface {
+		ExecuteSkillByID(ctx context.Context, id string, vars map[string]interface{}) (string, error)
+	}
+	if se, ok := r.skillsService.(skillExecutor); ok {
+		out, err := se.ExecuteSkillByID(ctx, skillID, vars)
+		if err != nil {
+			return nil, err
+		}
+		return out, nil
+	}
+
+	// Fallback via generic Execute interface — requires the concrete *skills.ExecutionRequest type.
+	// Since we can't import that here, we use the stored adapter if provided.
+	type skillRunner interface {
+		RunSkill(ctx context.Context, id string, vars map[string]interface{}) (string, error)
+	}
+	if sr, ok := r.skillsService.(skillRunner); ok {
+		return sr.RunSkill(ctx, skillID, vars)
+	}
+
+	return nil, fmt.Errorf("skills service does not implement a compatible executor interface")
+}
+
+// getSkillTools returns ToolInfo for every available skill.
 func (r *RAGORouter) getSkillTools(ctx context.Context) []ToolInfo {
-	// Skills are prefixed with skill_
-	tools := make([]ToolInfo, 0)
-
-	// This would iterate over skills and create tool info
-	// For now, return empty slice
-
-	return tools
+	type skillLister interface {
+		ListSkillInfos(ctx context.Context) []ToolInfo
+	}
+	if sl, ok := r.skillsService.(skillLister); ok {
+		return sl.ListSkillInfos(ctx)
+	}
+	return r.skillToolInfos
 }
 
+// skillToolInfos holds pre-resolved skill infos injected at construction time.
+
+// getSkillToolInfo returns ToolInfo for a named skill.
 func (r *RAGORouter) getSkillToolInfo(ctx context.Context, name string) *ToolInfo {
-	// Check if it's a skill tool name format
-	if !strings.HasPrefix(name, "skill_") {
-		return nil
+	skillID := strings.TrimPrefix(name, "skill_")
+	for _, t := range r.getSkillTools(ctx) {
+		if t.Name == name || t.Name == skillID {
+			t := t
+			return &t
+		}
 	}
 	return nil
+}
+
+// -------------------------------------------------------------------------
+// Pre-resolved tool info caches (populated by adapters in pkg/agent)
+// -------------------------------------------------------------------------
+
+// WithRAGQueryHandler overrides the default rag_query stub with a real handler.
+// This is used by pkg/agent to inject a closure that calls domain.Processor.Query
+// without creating an import cycle.
+func WithRAGQueryHandler(handler ToolHandler) RouterOption {
+	return func(r *RAGORouter) {
+		// Override the stub handler registered in registerBuiltinTools
+		r.mu.Lock()
+		r.handlers["rag_query"] = handler
+		r.mu.Unlock()
+	}
+}
+
+// WithRAGIngestHandler overrides the default rag_ingest stub with a real handler.
+func WithRAGIngestHandler(handler ToolHandler) RouterOption {
+	return func(r *RAGORouter) {
+		r.mu.Lock()
+		r.handlers["rag_ingest"] = handler
+		r.mu.Unlock()
+	}
+}
+
+// This is called from pkg/agent after converting domain.ToolDefinition → ptc.ToolInfo.
+func WithMCPToolInfos(infos []ToolInfo) RouterOption {
+	return func(r *RAGORouter) {
+		r.mcpToolInfos = infos
+	}
+}
+
+// WithSkillToolInfos injects pre-resolved skill tool info.
+func WithSkillToolInfos(infos []ToolInfo) RouterOption {
+	return func(r *RAGORouter) {
+		r.skillToolInfos = infos
+	}
 }

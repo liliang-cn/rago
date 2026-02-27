@@ -17,6 +17,7 @@ var (
 	Cfg            *config.Config
 	Verbose        bool
 	Debug          bool // New debug flag
+	EnablePTC      bool // Enable Programmatic Tool Calling
 	skillsService  *skills.Service
 	skillsInitOnce sync.Once
 	skillsInitErr  error
@@ -385,6 +386,8 @@ Example:
 
 func init() {
 	runCmd.Flags().BoolVarP(&Debug, "debug", "D", false, "Enable verbose debugging output (show full prompts)")
+	runCmd.Flags().BoolVar(&EnablePTC, "ptc", false, "Enable Programmatic Tool Calling (JS sandbox)")
+	executeCmd.Flags().BoolVar(&EnablePTC, "ptc", false, "Enable Programmatic Tool Calling (JS sandbox)")
 	AgentCmd.AddCommand(runCmd)
 	AgentCmd.AddCommand(planCmd)
 	planCmd.AddCommand(planCreateCmd)
@@ -409,6 +412,7 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 		EnableRouter:     true,
 		EnableSkills:     true,
 		EnableAutoMemory: true,
+		EnablePTC:        EnablePTC,
 		Debug:            Debug,
 	}
 
@@ -420,7 +424,7 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 
 	// For backward compatibility with existing code that needs ragClient
 	var ragClient *rag.Client
-	// Note: ragClient initialization logic might still be needed if other 
+	// Note: ragClient initialization logic might still be needed if other
 	// parts of the system rely on it specifically.
 
 	return ragClient, agentService, nil

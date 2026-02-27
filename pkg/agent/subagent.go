@@ -50,28 +50,28 @@ type SubAgentProgressCallback func(progress SubAgentProgress)
 
 // SubAgentConfig configures a sub-agent execution
 type SubAgentConfig struct {
-	Agent           *Agent                 // Target agent to run
-	Mode            SubAgentMode           // Foreground or background
-	MaxTurns        int                    // Maximum turns (default: 10)
-	Isolated        bool                   // Isolate context from parent (default: true)
-	ToolAllowlist   []string               // Only allow these tools (nil = all)
-	ToolDenylist    []string               // Deny these tools
-	ParentSession   *Session               // Parent session (for context inheritance)
-	Goal            string                 // Task goal
-	Context         map[string]interface{} // Additional context
-	Service         *Service               // Parent service for tool access
-	Timeout         time.Duration          // Execution timeout (0 = no timeout)
+	Agent           *Agent                   // Target agent to run
+	Mode            SubAgentMode             // Foreground or background
+	MaxTurns        int                      // Maximum turns (default: 10)
+	Isolated        bool                     // Isolate context from parent (default: true)
+	ToolAllowlist   []string                 // Only allow these tools (nil = all)
+	ToolDenylist    []string                 // Deny these tools
+	ParentSession   *Session                 // Parent session (for context inheritance)
+	Goal            string                   // Task goal
+	Context         map[string]interface{}   // Additional context
+	Service         *Service                 // Parent service for tool access
+	Timeout         time.Duration            // Execution timeout (0 = no timeout)
 	ProgressCb      SubAgentProgressCallback // Progress callback
-	RetryOnFailure  int                    // Number of retries on failure (default: 0)
-	CancelOnTimeout bool                   // Cancel execution on timeout (default: true)
+	RetryOnFailure  int                      // Number of retries on failure (default: 0)
+	CancelOnTimeout bool                     // Cancel execution on timeout (default: true)
 }
 
 // SubAgent represents a wrapped agent execution with independent context
 type SubAgent struct {
-	id       string
-	config   SubAgentConfig
-	state    SubAgentState
-	session  *Session // Isolated session
+	id      string
+	config  SubAgentConfig
+	state   SubAgentState
+	session *Session // Isolated session
 
 	// State management
 	mu          sync.RWMutex
@@ -82,9 +82,9 @@ type SubAgent struct {
 	endTime     *time.Time
 
 	// Context management
-	ctx        context.Context
-	cancel     context.CancelFunc
-	timeoutCtx context.Context
+	ctx           context.Context
+	cancel        context.CancelFunc
+	timeoutCtx    context.Context
 	timeoutCancel context.CancelFunc
 
 	// Hooks reference (from parent service)
@@ -186,10 +186,10 @@ func (sa *SubAgent) emitProgress(message string) {
 			SubagentName: sa.config.Agent.Name(),
 			Goal:         sa.config.Goal,
 			Metadata: map[string]interface{}{
-				"current_turn":  progress.CurrentTurn,
-				"max_turns":     progress.MaxTurns,
-				"elapsed_time":  progress.ElapsedTime.String(),
-				"message":       message,
+				"current_turn": progress.CurrentTurn,
+				"max_turns":    progress.MaxTurns,
+				"elapsed_time": progress.ElapsedTime.String(),
+				"message":      message,
 			},
 		})
 	}
@@ -451,7 +451,7 @@ func (sa *SubAgent) execute(ctx context.Context) (interface{}, error) {
 		sa.emitProgress(fmt.Sprintf("Turn %d/%d", sa.currentTurn, sa.config.MaxTurns))
 
 		// Build system prompt
-		systemMsg := sa.config.Service.buildSystemPrompt(sa.config.Agent)
+		systemMsg := sa.config.Service.buildSystemPrompt(ctx, sa.config.Agent)
 		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
 
 		// LLM call
