@@ -790,6 +790,49 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		})
 	}
 
+	// Add SubAgent delegation tool — allows Agent to delegate tasks to SubAgents
+	addTools([]domain.ToolDefinition{
+		{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        "delegate_to_subagent",
+				Description: "Delegate a specific task to a sub-agent. The sub-agent will execute the task with a subset of available tools and return the result. Use this for focused, isolated tasks.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"goal": map[string]interface{}{
+							"type":        "string",
+							"description": "The specific task/goal for the sub-agent to accomplish",
+						},
+						"tools_allowlist": map[string]interface{}{
+							"type":        "array",
+							"items":       map[string]interface{}{"type": "string"},
+							"description": "Optional list of tool names the sub-agent is allowed to use. If not specified, all tools are available.",
+						},
+						"tools_denylist": map[string]interface{}{
+							"type":        "array",
+							"items":       map[string]interface{}{"type": "string"},
+							"description": "Optional list of tool names the sub-agent is NOT allowed to use",
+						},
+						"max_turns": map[string]interface{}{
+							"type":        "integer",
+							"description": "Maximum number of turns for the sub-agent (default: 5)",
+						},
+						"timeout_seconds": map[string]interface{}{
+							"type":        "integer",
+							"description": "Timeout in seconds for the sub-agent execution (default: 60)",
+						},
+						"context": map[string]interface{}{
+							"type":        "object",
+							"description": "Optional additional context to pass to the sub-agent",
+						},
+					},
+					"required": []string{"goal"},
+				},
+			},
+		},
+	})
+
 	// PTC: register execute_javascript as a first-class tool so the LLM can call it.
 	// Pass the dynamic list of callTool()-accessible tools so the description is accurate.
 	if s.ptcIntegration != nil {
@@ -1257,6 +1300,9 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 				}
 				err = memErr
 				toolType = "memory"
+			} else if toolName == "delegate_to_subagent" {
+				result, err = s.executeSubAgentDelegation(groupCtx, currentAgent, toolCall.Function.Arguments)
+				toolType = "subagent"
 			} else if toolName == "execute_javascript" && s.ptcIntegration != nil {
 				// PTC: Execute JavaScript in sandbox
 				result, err = s.ptcIntegration.ExecuteJavascriptTool(groupCtx, toolCall.Function.Arguments)
@@ -2649,4 +2695,81 @@ func domainToolsToPTCInfos(defs []domain.ToolDefinition, category string) []ptc.
 		})
 	}
 	return infos
+}
+
+// executeSubAgentDelegation handles the delegate_to_subagent tool call.
+// It creates a SubAgent with the specified configuration, runs it, and returns the result.
+func (s *Service) executeSubAgentDelegation(ctx context.Context, currentAgent *Agent, args map[string]interface{}) (interface{}, error) {
+	goal, _ := args["goal"].(string)
+	if goal == "" {
+		return nil, fmt.Errorf("delegate_to_subagent: 'goal' argument is required")
+	}
+
+	maxTurns := 5
+	if mt, ok := args["max_turns"].(float64); ok {
+		maxTurns = int(mt)
+	} else if mt, ok := args["max_turns"].(int); ok {
+		maxTurns = mt
+	}
+
+	timeoutSeconds := 60
+	if ts, ok := args["timeout_seconds"].(float64); ok {
+		timeoutSeconds = int(ts)
+	} else if ts, ok := args["timeout_seconds"].(int); ok {
+		timeoutSeconds = ts
+	}
+
+	var allowlist, denylist []string
+	if al, ok := args["tools_allowlist"].([]interface{}); ok {
+		for _, v := range al {
+			if s, ok := v.(string); ok {
+				allowlist = append(allowlist, s)
+			}
+		}
+	}
+	if dl, ok := args["tools_denylist"].([]interface{}); ok {
+		for _, v := range dl {
+			if s, ok := v.(string); ok {
+				denylist = append(denylist, s)
+			}
+		}
+	}
+
+	var contextData map[string]interface{}
+	if ctxData, ok := args["context"].(map[string]interface{}); ok {
+		contextData = ctxData
+	}
+
+	s.emitProgress("tool_call", fmt.Sprintf("→ Delegating to SubAgent: %s", truncateGoal(goal, 50)), 0, "delegate_to_subagent")
+
+	subAgent := s.CreateSubAgent(currentAgent, goal,
+		WithSubAgentMaxTurns(maxTurns),
+		WithSubAgentTimeout(time.Duration(timeoutSeconds)*time.Second),
+		WithSubAgentToolAllowlist(allowlist),
+		WithSubAgentToolDenylist(denylist),
+		WithSubAgentContext(contextData),
+	)
+
+	result, err := subAgent.Run(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("sub-agent execution failed: %w", err)
+	}
+
+	s.emitProgress("tool_result", "✓ SubAgent completed", 0, "delegate_to_subagent")
+
+	return map[string]interface{}{
+		"subagent_id":   subAgent.ID(),
+		"subagent_name": subAgent.Name(),
+		"state":         string(subAgent.GetState()),
+		"turns_used":    subAgent.GetCurrentTurn(),
+		"duration_ms":   subAgent.GetDuration().Milliseconds(),
+		"result":        result,
+	}, nil
+}
+
+func truncateGoal(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
