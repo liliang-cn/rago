@@ -885,14 +885,13 @@ func generateEntityID(name, entityType string) string {
 	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(seed)).String()
 }
 
-func (s *Service) StartChat(ctx context.Context, userID string, metadata map[string]interface{}) (*domain.ChatSession, error) {
+func (s *Service) StartChat(ctx context.Context, metadata map[string]interface{}) (*domain.ChatSession, error) {
 	if s.chatStore == nil {
 		return nil, fmt.Errorf("chat store not initialized")
 	}
 
 	session := &domain.ChatSession{
 		ID:        uuid.New().String(),
-		UserID:    userID,
 		Metadata:  metadata,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

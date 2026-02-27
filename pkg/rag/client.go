@@ -564,8 +564,8 @@ func (c *Client) StreamWithContext(ctx context.Context, prompt string, contextDo
 // Chat methods
 
 // StartChat starts a new chat session
-func (c *Client) StartChat(ctx context.Context, userID string, metadata map[string]interface{}) (*domain.ChatSession, error) {
-	return c.processor.StartChat(ctx, userID, metadata)
+func (c *Client) StartChat(ctx context.Context, metadata map[string]interface{}) (*domain.ChatSession, error) {
+	return c.processor.StartChat(ctx, metadata)
 }
 
 // Chat performs a chat interaction with history
