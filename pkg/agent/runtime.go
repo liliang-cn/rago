@@ -235,16 +235,28 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			}
 
 		} else {
-			// Final Answer
+			// Final Answer - merge sources from runtime and service
+			allSources := r.sources
+			r.svc.ragSourcesMu.RLock()
+			if len(r.svc.ragSources) > 0 {
+				allSources = append(allSources, r.svc.ragSources...)
+			}
+			r.svc.ragSourcesMu.RUnlock()
+
 			r.eventChan <- &Event{
 				ID:        uuid.New().String(),
 				Type:      EventTypeComplete,
 				AgentName: r.currentAgent.Name(),
 				AgentID:   r.currentAgent.ID(),
 				Content:   fullContent.String(),
-				Sources:   r.sources, // Include collected RAG sources
+				Sources:   allSources, // Include all collected RAG sources
 				Timestamp: time.Now(),
 			}
+
+			// Clear service sources for next run
+			r.svc.ragSourcesMu.Lock()
+			r.svc.ragSources = nil
+			r.svc.ragSourcesMu.Unlock()
 
 			// Auto-save to memory ASYNC to prevent lag at the end
 			go r.saveToMemory(context.Background(), goal, fullContent.String())

@@ -2230,6 +2230,13 @@ func (s *Service) performRAGQuery(ctx context.Context, query string) (string, er
 		return "", nil
 	}
 
+	// Collect sources for final result
+	if len(results.Sources) > 0 {
+		s.ragSourcesMu.Lock()
+		s.ragSources = append(s.ragSources, results.Sources...)
+		s.ragSourcesMu.Unlock()
+	}
+
 	var context strings.Builder
 	context.WriteString("## Relevant Documents\n\n")
 
