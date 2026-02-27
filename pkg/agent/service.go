@@ -1073,6 +1073,18 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 				resp, ragErr := s.ragProcessor.Query(groupCtx, domain.QueryRequest{Query: query})
 				if ragErr == nil {
 					result = resp.Answer
+					// Include sources if available
+					if len(resp.Sources) > 0 {
+						var sourcesBuf strings.Builder
+						sourcesBuf.WriteString("\n\n**Sources:**\n")
+						for i, src := range resp.Sources {
+							sourcesBuf.WriteString(fmt.Sprintf("%d. %s\n", i+1, src.Content))
+							if len(sourcesBuf.String()) > 2000 {
+								break // Limit sources length
+							}
+						}
+						result = resp.Answer + sourcesBuf.String()
+					}
 				}
 				err = ragErr
 				toolType = "rag"

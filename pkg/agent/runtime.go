@@ -319,6 +319,18 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 			execErr = err
 		} else {
 			result = resp.Answer
+			// Include sources if available
+			if len(resp.Sources) > 0 {
+				var sourcesBuf strings.Builder
+				sourcesBuf.WriteString("\n\n**Sources:**\n")
+				for i, src := range resp.Sources {
+					sourcesBuf.WriteString(fmt.Sprintf("%d. %s\n", i+1, src.Content))
+					if len(sourcesBuf.String()) > 2000 {
+						break // Limit sources length
+					}
+				}
+				result = resp.Answer + sourcesBuf.String()
+			}
 		}
 	} else if toolName == "rag_ingest" && r.svc.ragProcessor != nil {
 		// 4.1 RAG Ingest

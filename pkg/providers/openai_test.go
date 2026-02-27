@@ -334,7 +334,7 @@ func TestOpenAILLMProvider_StreamWithTools(t *testing.T) {
 		{
 			name:        "Empty messages",
 			messages:    []domain.Message{},
-			callback:    func(chunk string, toolCalls []domain.ToolCall) error { return nil },
+				callback:    func(delta *domain.GenerationResult) error { return nil },
 			shouldError: true,
 			errorType:   domain.ErrInvalidInput,
 		},
