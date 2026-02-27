@@ -400,6 +400,17 @@ func runStream(ctx context.Context, goal string) error {
 			fmt.Print(evt.Content)
 		case agent.EventTypeComplete:
 			fmt.Printf("\n\n🏁 Task Completed!\n")
+			// Show RAG sources if available
+			if len(evt.Sources) > 0 {
+				fmt.Printf("\n📚 Sources:\n")
+				for i, src := range evt.Sources {
+					preview := src.Content
+					if len(preview) > 100 {
+						preview = preview[:100] + "..."
+					}
+					fmt.Printf("  %d. %s\n", i+1, preview)
+				}
+			}
 		case agent.EventTypeError:
 			fmt.Printf("\n❌ Error: %s\n", evt.Content)
 		}
