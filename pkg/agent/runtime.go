@@ -18,6 +18,7 @@ type Runtime struct {
 	eventChan    chan *Event
 	currentAgent *Agent
 	session      *Session
+	sources      []domain.Chunk // Collect RAG sources during execution
 }
 
 // NewRuntime creates a new runtime instance
@@ -235,8 +236,16 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 		} else {
 			// Final Answer
-			r.emit(EventTypeComplete, fullContent.String())
-			
+			r.eventChan <- &Event{
+				ID:        uuid.New().String(),
+				Type:      EventTypeComplete,
+				AgentName: r.currentAgent.Name(),
+				AgentID:   r.currentAgent.ID(),
+				Content:   fullContent.String(),
+				Sources:   r.sources, // Include collected RAG sources
+				Timestamp: time.Now(),
+			}
+
 			// Auto-save to memory ASYNC to prevent lag at the end
 			go r.saveToMemory(context.Background(), goal, fullContent.String())
 			return
@@ -319,17 +328,9 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 			execErr = err
 		} else {
 			result = resp.Answer
-			// Include sources if available
+			// Collect sources for final result
 			if len(resp.Sources) > 0 {
-				var sourcesBuf strings.Builder
-				sourcesBuf.WriteString("\n\n**Sources:**\n")
-				for i, src := range resp.Sources {
-					sourcesBuf.WriteString(fmt.Sprintf("%d. %s\n", i+1, src.Content))
-					if len(sourcesBuf.String()) > 2000 {
-						break // Limit sources length
-					}
-				}
-				result = resp.Answer + sourcesBuf.String()
+				r.sources = append(r.sources, resp.Sources...)
 			}
 		}
 	} else if toolName == "rag_ingest" && r.svc.ragProcessor != nil {
