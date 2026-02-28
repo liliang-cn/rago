@@ -197,25 +197,15 @@ func main() {
 	fmt.Println("=== SubAgent Tool Filtering Example ===")
 	fmt.Println("Demonstrating allowlist and denylist tool filtering.\n")
 
-	// 1. Create the Service
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:         "FilterOrchestrator",
-		EnablePTC:    false,
-		EnableMCP:    false,
-		EnableSkills: false,
-		EnableRAG:    false,
-		EnableMemory: false,
-		EnableRouter: false,
-		Debug:        os.Getenv("DEBUG") != "",
-	})
+	svc, err := agent.NewBuilder("FilterOrchestrator").
+		WithDebug(os.Getenv("DEBUG") != "").
+		Build()
 	if err != nil {
 		log.Fatalf("Failed to create service: %v", err)
 	}
 	defer svc.Close()
 
 	store := NewDataStore()
-
-	// 2. Run three SubAgents with different filtering configurations
 
 	specs := []subAgentSpec{
 		{

@@ -274,16 +274,10 @@ func main() {
 }
 
 func createService() (*agent.Service, error) {
-	return agent.New(&agent.AgentConfig{
-		Name:         "SprintAnalyst",
-		EnablePTC:    true,
-		EnableMCP:    false,
-		EnableSkills: false,
-		EnableRAG:    false,
-		EnableMemory: false,
-		EnableRouter: false,
-		Debug:        os.Getenv("DEBUG") != "",
-	})
+	return agent.NewBuilder("SprintAnalyst").
+		WithPTC().
+		WithDebug(os.Getenv("DEBUG") != "").
+		Build()
 }
 
 func registerTools(svc *agent.Service) {

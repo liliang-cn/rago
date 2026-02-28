@@ -130,23 +130,14 @@ func main() {
 	fmt.Println("=== Parallel SubAgents Example ===")
 	fmt.Println("Running 3 specialist SubAgents concurrently for project health check.\n")
 
-	// 1. Create the orchestrator Service
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:         "HealthCheckOrchestrator",
-		EnablePTC:    false,
-		EnableMCP:    false,
-		EnableSkills: false,
-		EnableRAG:    false,
-		EnableMemory: false,
-		EnableRouter: false,
-		Debug:        os.Getenv("DEBUG") != "",
-	})
+	svc, err := agent.NewBuilder("HealthCheckOrchestrator").
+		WithDebug(os.Getenv("DEBUG") != "").
+		Build()
 	if err != nil {
 		log.Fatalf("Failed to create service: %v", err)
 	}
 	defer svc.Close()
 
-	// 2. Define specialist agents
 	specs := []agentSpec{
 		{
 			name:         "CodeQualityAnalyst",

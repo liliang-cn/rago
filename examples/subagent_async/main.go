@@ -188,23 +188,13 @@ func main() {
 
 	fmt.Println("=== Async SubAgent with Events & Timeout Example ===\n")
 
-	// 1. Create Service
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:         "PipelineOrchestrator",
-		EnablePTC:    false,
-		EnableMCP:    false,
-		EnableSkills: false,
-		EnableRAG:    false,
-		EnableMemory: false,
-		EnableRouter: false,
-		Debug:        os.Getenv("DEBUG") != "",
-	})
+	svc, err := agent.NewBuilder("PipelineOrchestrator").
+		WithDebug(os.Getenv("DEBUG") != "").
+		Build()
 	if err != nil {
 		log.Fatalf("Failed to create service: %v", err)
 	}
 	defer svc.Close()
-
-	// ── Demo 1: Async pipeline SubAgent ──────────────────────────────────
 
 	fmt.Println("--- Demo 1: Async Data Pipeline ---")
 

@@ -186,17 +186,10 @@ func main() {
 // createService initialises the agent with PTC enabled and RAG/MCP/Skills disabled.
 // We only want the LLM + PTC sandbox + our custom tools.
 func createService() (*agent.Service, error) {
-	return agent.New(&agent.AgentConfig{
-		Name:      "ExpenseAnalyst",
-		EnablePTC: true,
-		// Disable services that would add noise — we only want custom tools.
-		EnableMCP:    false,
-		EnableSkills: false,
-		EnableRAG:    false,
-		EnableMemory: false,
-		EnableRouter: false,
-		Debug:        os.Getenv("DEBUG") != "",
-	})
+	return agent.NewBuilder("ExpenseAnalyst").
+		WithPTC().
+		WithDebug(os.Getenv("DEBUG") != "").
+		Build()
 }
 
 // ── Typed param structs for the new API ──────────────────────────────────────
