@@ -18,9 +18,17 @@ func main() {
 	agentDBPath := filepath.Join(homeDir, ".rago", "data", "skills_integration.db")
 	os.MkdirAll(filepath.Dir(agentDBPath), 0755)
 
+	// Get absolute path to skills directory
+	// Try ~/.agents/skills first, fallback to examples/.skills
+	skillsPath := filepath.Join(homeDir, ".agents", "skills")
+	if _, err := os.Stat(skillsPath); os.IsNotExist(err) {
+		cwd, _ := os.Getwd()
+		skillsPath = filepath.Join(cwd, "examples", ".skills")
+	}
+
 	svc, err := agent.New("skills-integration-agent").
 		WithDBPath(agentDBPath).
-		WithSkills().
+		WithSkills(agent.WithSkillsPaths(skillsPath)).
 		Build()
 	if err != nil {
 		log.Fatalf("Failed to create agent: %v", err)
