@@ -57,42 +57,73 @@ func main() {
 }
 ```
 
-### 两种创建 Agent 的方式
+---
 
-**方式一：链式构建器（推荐）**
-```go
-svc, err := agent.New("agent-name").
-    WithMCP().
-    WithRAG().
-    WithMemory().
-    WithRouter().
-    WithSkills().
-    Build()
+## 🏗️ 架构设计
+
+### 分层架构
+
+RAGO 采用**可裁剪的分层架构** - 按需使用：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Agent 层                                  │
+│  (规划、执行、Handoffs、SubAgents、PTC)                          │
+├─────────────────────────────────────────────────────────────────┤
+│                     Action 层 (可选)                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │  MCP 工具   │  │   Skills    │  │   自定义工具            │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────┤
+│                     RAG 层 (可选)                                │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │   Chunker   │  │   Embedder  │  │  Vector Store (SQLite)  │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────┤
+│                        LLM 层                                    │
+│  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌─────────┐ ┌──────────┐  │
+│  │ OpenAI  │ │ Ollama  │ │ DeepSeek │ │ Claude  │ │ Azure    │  │
+│  └─────────┘ └─────────┘ └──────────┘ └─────────┘ └──────────┘  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**方式二：配置对象**
-```go
-svc, err := agent.NewWithConfig(&agent.Config{
-    Name: "agent-name",
-    MCP:  &agent.MCPConfig{Enabled: true},
-    RAG:  &agent.RAGConfig{Enabled: true},
-    Memory: &agent.MemoryConfig{
-        Enabled:   true,
-        StoreType: "file",  // "file", "vector", 或 "hybrid"
-    },
-})
-```
+### 支持的 LLM 提供者
+
+| 提供者 | 类型 | 模型 |
+|--------|------|------|
+| OpenAI | 云端 | GPT-4o, GPT-4-turbo, GPT-3.5-turbo |
+| Azure OpenAI | 云端 | GPT-4, GPT-35-turbo |
+| Ollama | 本地 | Llama 3, Mistral, Qwen 等 |
+| DeepSeek | 云端 | DeepSeek-V3, DeepSeek-Coder |
+| Anthropic | 云端 | Claude 3.5 Sonnet, Claude 3 Opus |
 
 ---
 
-## 🏗️ 架构与特性深度解析
+## 🚀 核心特性
 
-### 1. 分层化设计与可选组件
-RAGO 采用严格的层级依赖，允许开发者根据需求“修剪”系统：
-*   **LLM 层**: 统一封装 OpenAI, Ollama, DeepSeek 等模型。
-*   **RAG 层 (可选)**: 注入领域知识。
-*   **Skills/MCP 层 (可选)**: 赋予执行动作的能力。
-*   **Agent 层**: 作为大脑和入口，负责意图识别与任务编排。
+### 1. 多智能体协作
+
+**Handoffs**: 在专业 Agent 之间传递控制权
+```go
+// 注册专业 Agent
+svc.RegisterAgent(researchAgent)
+svc.RegisterAgent(writerAgent)
+
+// Agent 可以相互交接任务
+// 编排器会路由到最适合的 Agent
+```
+
+**SubAgents**: 委托专注任务，可限制工具访问
+```go
+// 创建具有有限工具的 SubAgent
+sub := agent.NewSubAgent("data-collector", parentAgent).
+    WithTools(allowlist).
+    WithMaxTurns(5).
+    Build()
+
+// 委托任务执行
+result := sub.Run(ctx, "收集季度销售数据")
+```
 
 ### 2. 透明文件记忆与智能融合
 记忆不再是黑盒。RAGO 允许将长期记忆存储为人类可读的 **Markdown + YAML** 文件。
@@ -151,22 +182,6 @@ svc, _ := agent.New("data-analyst").
 详见 [PTC 示例](./examples/ptc/) 获取完整演示。
 
 ---
-
-## 💻 CLI 使用
-
-RAGO 提供了一个强大的 CLI 来管理整个生命周期。
-
-```bash
-# 启动任务
-rago agent run "查找当前目录下的重复文件并清理"
-
-# 管理 RAG 知识库
-rago rag ingest ./docs/ --recursive
-rago rag query "如何配置服务器端口？"
-
-# 管理 MCP 工具
-rago mcp list
-```
 
 ## ⚙️ 配置指南
 
