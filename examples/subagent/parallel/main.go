@@ -128,7 +128,7 @@ func main() {
 	defer cancel()
 
 	fmt.Println("=== Parallel SubAgents Example ===")
-	fmt.Println("Running 3 specialist SubAgents concurrently for project health check.\n")
+	fmt.Println("Running 3 specialist SubAgents concurrently for project health check.")
 
 	svc, err := agent.New("HealthCheckOrchestrator").
 		WithDebug(os.Getenv("DEBUG") != "").
