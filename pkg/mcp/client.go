@@ -10,9 +10,63 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// Command availability cache
+var (
+	commandCache     = make(map[string]bool)
+	commandCacheMu   sync.RWMutex
+	commandCheckOnce sync.Once
+)
+
+// CheckCommandAvailable checks if a command is available in PATH
+func CheckCommandAvailable(cmd string) bool {
+	commandCacheMu.RLock()
+	if available, exists := commandCache[cmd]; exists {
+		commandCacheMu.RUnlock()
+		return available
+	}
+	commandCacheMu.RUnlock()
+
+	// Check if command exists
+	_, err := exec.LookPath(cmd)
+	available := err == nil
+
+	commandCacheMu.Lock()
+	commandCache[cmd] = available
+	commandCacheMu.Unlock()
+
+	return available
+}
+
+// CheckRequiredCommands checks if npx and uvx are available
+// Returns a map of command name to availability
+func CheckRequiredCommands() map[string]bool {
+	return map[string]bool{
+		"npx": CheckCommandAvailable("npx"),
+		"uvx": CheckCommandAvailable("uvx"),
+	}
+}
+
+// GetCommandAvailabilityError returns an error message if a required command is not available
+func GetCommandAvailabilityError(cmd string) error {
+	available := CheckCommandAvailable(cmd)
+	if available {
+		return nil
+	}
+
+	switch cmd {
+	case "npx":
+		return fmt.Errorf("npx is not available. Please install Node.js (https://nodejs.org/) which includes npx")
+	case "uvx":
+		return fmt.Errorf("uvx is not available. Please install uv (https://docs.astral.sh/uv/) which includes uvx")
+	default:
+		return fmt.Errorf("%s is not available in PATH", cmd)
+	}
+}
 
 // NewClient creates a new MCP client for the given server configuration
 func NewClient(config *ServerConfig) (*Client, error) {
@@ -20,8 +74,18 @@ func NewClient(config *ServerConfig) (*Client, error) {
 		return nil, fmt.Errorf("server config cannot be nil")
 	}
 
-	if len(config.Command) == 0 {
-		return nil, fmt.Errorf("server command cannot be empty")
+	// Validate based on server type
+	switch config.Type {
+	case ServerTypeHTTP:
+		if config.URL == "" {
+			return nil, fmt.Errorf("URL is required for HTTP server")
+		}
+	case ServerTypeStdio, "":
+		if len(config.Command) == 0 {
+			return nil, fmt.Errorf("command is required for stdio server")
+		}
+	default:
+		return nil, fmt.Errorf("unsupported server type: %s", config.Type)
 	}
 
 	return &Client{
@@ -35,6 +99,10 @@ func NewClient(config *ServerConfig) (*Client, error) {
 }
 
 // Connect establishes connection to the MCP server
+// It follows the MCP protocol: create transport -> initialize handshake -> ready
+// The server is considered "ready" only after a successful initialize handshake.
+// For stdio servers: starts the subprocess and monitors process exit
+// For HTTP servers: initiates SSE connection and starts ping heartbeat
 func (c *Client) Connect(ctx context.Context) error {
 	if c.connected {
 		return nil
@@ -77,14 +145,28 @@ func (c *Client) Connect(ctx context.Context) error {
 	clientOpts := &mcp.ClientOptions{}
 	client := mcp.NewClient(clientImpl, clientOpts)
 
-	// Connect and get session
-	session, err := client.Connect(ctx, transport, nil)
+	// Apply timeout for initialize handshake
+	// This is the key step - the server is only "ready" after successful initialize
+	timeout := c.config.DefaultTimeout
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
+
+	connectCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// Connect and perform initialize handshake
+	// This is where we actually determine if the server is ready/healthy
+	session, err := client.Connect(connectCtx, transport, nil)
 	if err != nil {
-		return fmt.Errorf("failed to connect to MCP server %s: %w", c.config.Name, err)
+		return fmt.Errorf("failed to connect to MCP server %s (initialize handshake failed): %w", c.config.Name, err)
 	}
 
 	c.session = session
 	c.connected = true
+
+	// Start health monitoring based on server type
+	c.startHealthMonitoring()
 
 	// Load tools
 	if err := c.loadTools(ctx); err != nil {
@@ -105,6 +187,9 @@ func (c *Client) Connect(ctx context.Context) error {
 }
 
 // createStdioTransport creates a command transport for stdio-based servers
+// It validates command availability for known package runners (npx, uvx) but does NOT
+// pre-check if the server is running. The actual readiness is determined by the
+// initialize handshake in Connect().
 func (c *Client) createStdioTransport(ctx context.Context) (mcp.Transport, error) {
 	// Parse command and arguments
 	execPath := ""
@@ -127,6 +212,14 @@ func (c *Client) createStdioTransport(ctx context.Context) (mcp.Transport, error
 		return nil, fmt.Errorf("no executable command found for MCP server %s", c.config.Name)
 	}
 
+	// Check availability for known package runners (npx, uvx)
+	// This provides better error messages before attempting to start
+	if execPath == "npx" || execPath == "uvx" {
+		if err := GetCommandAvailabilityError(execPath); err != nil {
+			return nil, err
+		}
+	}
+
 	// Create command for the MCP server
 	cmd := exec.CommandContext(ctx, execPath, args...)
 
@@ -143,7 +236,11 @@ func (c *Client) createStdioTransport(ctx context.Context) (mcp.Transport, error
 		}
 	}
 
+	// Save cmd reference for process monitoring
+	c.cmd = cmd
+
 	// Create command transport
+	// The actual server readiness will be determined by the initialize handshake
 	return &mcp.CommandTransport{Command: cmd}, nil
 }
 
@@ -189,6 +286,96 @@ func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	return t.base.RoundTrip(req)
+}
+
+// ========================================
+// Health Monitoring
+// ========================================
+
+// startHealthMonitoring starts the appropriate health monitoring based on server type
+// - For Stdio servers: monitors process exit
+// - For HTTP servers: starts ping heartbeat
+func (c *Client) startHealthMonitoring() {
+	c.stopHealthCheck = make(chan struct{})
+
+	switch c.config.Type {
+	case ServerTypeStdio, "":
+		go c.monitorProcessExit()
+	case ServerTypeHTTP:
+		go c.startPingHeartbeat()
+	}
+}
+
+// monitorProcessExit monitors the Stdio server process for unexpected exit
+// This is the recommended approach for Stdio servers per MCP best practices
+func (c *Client) monitorProcessExit() {
+	if c.cmd == nil || c.cmd.Process == nil {
+		return
+	}
+
+	// Wait for process to exit
+	state, err := c.cmd.Process.Wait()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if !c.connected {
+		return // Already closed
+	}
+
+	if err != nil {
+		log.Printf("[WARN] MCP server %s process error: %v", c.config.Name, err)
+	} else if state != nil && !state.Success() {
+		log.Printf("[WARN] MCP server %s process exited with code %d", c.config.Name, state.ExitCode())
+	}
+
+	// Mark as disconnected
+	c.connected = false
+}
+
+// startPingHeartbeat starts periodic ping requests for HTTP servers
+// This is the recommended approach for HTTP servers per MCP best practices
+func (c *Client) startPingHeartbeat() {
+	ticker := time.NewTicker(30 * time.Second) // Ping every 30 seconds
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.stopHealthCheck:
+			return
+		case <-ticker.C:
+			if !c.doPing() {
+				c.mu.Lock()
+				c.connected = false
+				c.mu.Unlock()
+				log.Printf("[WARN] MCP server %s ping failed, marking as disconnected", c.config.Name)
+				return
+			}
+		}
+	}
+}
+
+// doPing sends a ping request to the server
+func (c *Client) doPing() bool {
+	if c.session == nil {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Use the SDK's Ping method
+	err := c.session.Ping(ctx, &mcp.PingParams{})
+	return err == nil
+}
+
+// Ping sends a ping request to the server (public method)
+func (c *Client) Ping(ctx context.Context) error {
+	if !c.connected || c.session == nil {
+		return fmt.Errorf("client not connected")
+	}
+
+	return c.session.Ping(ctx, &mcp.PingParams{})
 }
 
 // loadTools fetches and caches the available tools from the server
@@ -393,21 +580,36 @@ func (c *Client) GetPrompt(ctx context.Context, name string, arguments map[strin
 
 // Close closes the connection to the MCP server
 func (c *Client) Close() error {
-	if c.connected {
-		var err error
-		if c.session != nil {
-			// Close the session
-			err = c.session.Close()
-		}
-		c.connected = false
-		c.session = nil
-		return err
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if !c.connected {
+		return nil
 	}
-	return nil
+
+	// Stop health monitoring
+	if c.stopHealthCheck != nil {
+		close(c.stopHealthCheck)
+		c.stopHealthCheck = nil
+	}
+
+	var err error
+	if c.session != nil {
+		// Close the session
+		err = c.session.Close()
+	}
+
+	c.connected = false
+	c.session = nil
+	c.cmd = nil
+
+	return err
 }
 
 // IsConnected returns whether the client is connected
 func (c *Client) IsConnected() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.connected
 }
 

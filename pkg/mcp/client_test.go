@@ -623,13 +623,13 @@ func TestClient_ErrorConditions(t *testing.T) {
 				name:    "empty command array",
 				config:  &ServerConfig{Name: "test", Command: []string{}},
 				wantErr: true,
-				errMsg:  "server command cannot be empty",
+				errMsg:  "command is required for stdio server",
 			},
 			{
 				name:    "nil command array",
 				config:  &ServerConfig{Name: "test", Command: nil},
 				wantErr: true,
-				errMsg:  "server command cannot be empty",
+				errMsg:  "command is required for stdio server",
 			},
 			{
 				name:    "valid config",

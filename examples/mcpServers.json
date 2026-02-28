@@ -1,22 +1,19 @@
 {
   "mcpServers": {
-    "fetch": {
-      "type": "stdio",
-      "command": "npx -y @modelcontextprotocol/server-fetch"
-    },
     "filesystem": {
-      "command": "mcp-filesystem-server",
-      "args": [
-        "./",
-        "./.rago/data"
-      ]
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
     },
     "git": {
       "type": "stdio",
-      "command": "uvx mcp-server-git --repository ."
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "."]
     },
-    "web-search": {
-      "command": "mcp-websearch-server"
+    "everything": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything"]
     }
   }
 }
