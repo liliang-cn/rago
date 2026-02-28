@@ -142,30 +142,20 @@ func main() {
 	fmt.Println("=== SubAgent Basic Example ===")
 	fmt.Printf("Goal: %s\n\n", question)
 
-	// 1. Create the Service (provides LLM, system prompt, etc.)
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:         "Orchestrator",
-		EnablePTC:    false,
-		EnableMCP:    false,
-		EnableSkills: false,
-		EnableRAG:    false,
-		EnableMemory: false,
-		EnableRouter: false,
-		Debug:        os.Getenv("DEBUG") != "",
-	})
+	svc, err := agent.NewBuilder("Orchestrator").
+		WithDebug(os.Getenv("DEBUG") != "").
+		Build()
 	if err != nil {
 		log.Fatalf("Failed to create service: %v", err)
 	}
 	defer svc.Close()
 
-	// 2. Create an Agent for the SubAgent with its own tools
 	researchAgent := agent.NewAgent("ResearchAnalyst")
 	researchAgent.SetInstructions(
 		"You are a research analyst. Use search_knowledge to find relevant articles, " +
 			"then use summarize_findings to produce a concise summary. " +
 			"Always search first, then summarize the results.")
 
-	// Add tools directly to the agent (SubAgent reads from agent.Tools())
 	researchAgent.AddTool(
 		"search_knowledge",
 		"Search the knowledge base for articles matching a query. Returns matching articles with id, title, content, and tags.",

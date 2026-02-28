@@ -8,37 +8,19 @@ import (
 	"path/filepath"
 
 	"github.com/liliang-cn/rago/v2/pkg/agent"
-	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/services"
 )
 
 func main() {
-
 	ctx := context.Background()
 
-	// Load config
-	cfg, err := config.Load("")
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
-	}
-
-	// Initialize global pool
-	globalPool := services.GetGlobalPoolService()
-	if err := globalPool.Initialize(ctx, cfg); err != nil {
-		log.Fatalf("Failed to initialize pool: %v", err)
-	}
-
-	// Create agent service with Router enabled
 	homeDir, _ := os.UserHomeDir()
 	agentDBPath := filepath.Join(homeDir, ".rago", "data", "intent_routing.db")
 	os.MkdirAll(filepath.Dir(agentDBPath), 0755)
 
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:            "intent-routing-agent",
-		DBPath:          agentDBPath,
-		EnableRouter:    true,
-		RouterThreshold: 0.5,
-	})
+	svc, err := agent.NewBuilder("intent-routing-agent").
+		WithDBPath(agentDBPath).
+		WithRouter(0.5).
+		Build()
 	if err != nil {
 		log.Fatalf("Failed to create agent: %v", err)
 	}
@@ -46,14 +28,12 @@ func main() {
 
 	fmt.Println("--- Intent Routing Demo ---")
 
-	// List available intents
 	intents := svc.Router.ListIntents()
 	fmt.Printf("Found %d intents:\n", len(intents))
 	for _, intent := range intents {
 		fmt.Printf("- %s\n", intent.Name)
 	}
 
-	// If weather_lookup intent exists, test routing
 	hasWeather := false
 	for _, intent := range intents {
 		if intent.Name == "weather_lookup" {
