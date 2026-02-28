@@ -18,7 +18,7 @@ func main() {
 	agentDBPath := filepath.Join(homeDir, ".rago", "data", "skills_integration.db")
 	os.MkdirAll(filepath.Dir(agentDBPath), 0755)
 
-	svc, err := agent.NewBuilder("skills-integration-agent").
+	svc, err := agent.New("skills-integration-agent").
 		WithDBPath(agentDBPath).
 		WithSkills().
 		Build()

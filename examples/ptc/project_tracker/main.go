@@ -274,7 +274,7 @@ func main() {
 }
 
 func createService() (*agent.Service, error) {
-	return agent.NewBuilder("SprintAnalyst").
+	return agent.New("SprintAnalyst").
 		WithPTC().
 		WithDebug(os.Getenv("DEBUG") != "").
 		Build()

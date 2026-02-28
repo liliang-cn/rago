@@ -68,7 +68,7 @@ func main() {
 	fmt.Println("=== Agent -> SubAgent Delegation Example ===")
 	fmt.Println("Demonstrating how an Agent can delegate tasks to SubAgents.\n")
 
-	svc, err := agent.NewBuilder("DelegationOrchestrator").
+	svc, err := agent.New("DelegationOrchestrator").
 		WithSystemPrompt(`You are a task orchestrator. You can delegate work to sub-agents using the delegate_to_subagent tool.
 
 When delegating:

@@ -17,15 +17,17 @@ func main() {
 	// 设置独立的测试目录
 	testDataDir := filepath.Join(homeDir, ".rago", "data", "file_memory_test")
 	_ = os.RemoveAll(testDataDir) // 清理旧数据
+	os.MkdirAll(testDataDir, 0755)
 
-	// 1. 初始化使用文件存储的 Agent
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:            "FileMemoryAgent",
-		DBPath:          filepath.Join(testDataDir, "agent.db"),
-		MemoryDBPath:    filepath.Join(testDataDir, "memories"),
-		MemoryStoreType: "file", // 显式启用文件存储
-		EnableMemory:    true,
-	})
+	// 1. 使用链式 Builder API 初始化 Agent
+	// 使用 "file" 存储类型 - 仅 Markdown 文件
+	svc, err := agent.New("FileMemoryAgent").
+		WithDBPath(filepath.Join(testDataDir, "agent.db")).
+		WithMemory(
+			agent.WithMemoryDBPath(filepath.Join(testDataDir, "memories")),
+			agent.WithMemoryStoreType("file"), // file-only storage
+		).
+		Build()
 	if err != nil {
 		log.Fatalf("初始化失败: %v", err)
 	}

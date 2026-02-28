@@ -11,7 +11,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	svc, err := agent.NewBuilder("test-orchestrator").Build()
+	svc, err := agent.New("test-orchestrator").Build()
 	if err != nil {
 		log.Fatalf("Failed to create service: %v", err)
 	}

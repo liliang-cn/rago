@@ -15,13 +15,11 @@ func main() {
 	homeDir, _ := os.UserHomeDir()
 	dbPath := filepath.Join(homeDir, ".rago", "data", "example_chat.db")
 
-	// 1. 初始化 Agent
-	// 它会自动从 rago.toml 加载 LLM 配置
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:         "Alice",
-		DBPath:       dbPath,
-		EnableMemory: true, // 启用记忆功能
-	})
+	// 1. 使用链式 Builder API 创建 Agent
+	svc, err := agent.New("Alice").
+		WithDBPath(dbPath).
+		WithMemory().
+		Build()
 	if err != nil {
 		log.Fatalf("创建 Agent 失败: %v", err)
 	}

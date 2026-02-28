@@ -15,8 +15,8 @@ import (
 
 var (
 	chatSessionID string
-	chatStream     bool
-	chatModel      string
+	chatStream    bool
+	chatModel     string
 )
 
 var chatCmd = &cobra.Command{
@@ -58,16 +58,14 @@ func runChat(cmd *cobra.Command, args []string) error {
 	agentDBPath := cfg.DataDir() + "/agent.db"
 
 	// Create agent with full capabilities
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:         "rago-assistant",
-		DBPath:       agentDBPath,
-		EnableMCP:    true,
-		EnableSkills: true,
-		EnableRouter: true,
-		EnableMemory: true,
-		EnableRAG:    false, // Requires embedding pool to be enabled
-		ProgressCb:   progressCallback,
-	})
+	svc, err := agent.New("rago-assistant").
+		WithDBPath(agentDBPath).
+		WithMCP().
+		WithSkills().
+		WithRouter().
+		WithMemory().
+		WithProgressCallback(progressCallback).
+		Build()
 	if err != nil {
 		return fmt.Errorf("failed to create agent: %w", err)
 	}

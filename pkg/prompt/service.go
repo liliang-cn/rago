@@ -15,6 +15,7 @@ type Manager struct {
 	mu       sync.RWMutex
 	prompts  map[string]string
 	defaults map[string]string
+	funcMap  template.FuncMap
 }
 
 // NewManager creates a new prompt manager
@@ -22,6 +23,12 @@ func NewManager() *Manager {
 	m := &Manager{
 		prompts:  make(map[string]string),
 		defaults: make(map[string]string),
+		funcMap: template.FuncMap{
+			"add": func(a, b int) int { return a + b },
+			"sub": func(a, b int) int { return a - b },
+			"mul": func(a, b int) int { return a * b },
+			"div": func(a, b int) int { return a / b },
+		},
 	}
 	m.loadDefaults()
 	return m
@@ -61,7 +68,7 @@ func (m *Manager) Render(key string, data interface{}) (string, error) {
 		return "", fmt.Errorf("prompt template not found for key: %s", key)
 	}
 
-	tmpl, err := template.New(key).Parse(content)
+	tmpl, err := template.New(key).Funcs(m.funcMap).Parse(content)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse prompt template %s: %w", key, err)
 	}

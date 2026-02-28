@@ -11,26 +11,24 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// 1. 创建具备完整能力的 Agent
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:         "WorkerAgent",
-		EnableMCP:    true,  // 开启 MCP 工具支持
-		EnableSkills: true,  // 开启自定义 Skills 支持
-		EnableRAG:    true,  // 开启 RAG 检索支持
-	})
+	// 1. 使用链式 Builder API 创建具备完整能力的 Agent
+	svc, err := agent.New("WorkerAgent").
+		WithMCP(agent.WithMCPConfigPaths("examples/mcpServers.json")).
+		WithSkills().
+		WithRAG().
+		WithMemory().
+		WithProgressCallback(func(e agent.ProgressEvent) {
+			if e.Type == "thinking" {
+				fmt.Printf("🤔 %s\n", e.Message)
+			} else if e.Type == "tool_call" {
+				fmt.Printf("🛠️  正在使用工具: %s\n", e.Tool)
+			}
+		}).
+		Build()
 	if err != nil {
 		log.Fatalf("创建 Agent 失败: %v", err)
 	}
 	defer svc.Close()
-
-	// 设置一个进度回调，观察 Agent 思考过程
-	svc.SetProgressCallback(func(e agent.ProgressEvent) {
-		if e.Type == "thinking" {
-			fmt.Printf("🤔 %s\n", e.Message)
-		} else if e.Type == "tool_call" {
-			fmt.Printf("🛠️  正在使用工具: %s\n", e.Tool)
-		}
-	})
 
 	fmt.Println("=== 复杂任务执行 ===")
 	// Agent 会根据问题自动决定是直接回答、查知识库还是调工具

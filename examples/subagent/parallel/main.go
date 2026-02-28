@@ -130,7 +130,7 @@ func main() {
 	fmt.Println("=== Parallel SubAgents Example ===")
 	fmt.Println("Running 3 specialist SubAgents concurrently for project health check.\n")
 
-	svc, err := agent.NewBuilder("HealthCheckOrchestrator").
+	svc, err := agent.New("HealthCheckOrchestrator").
 		WithDebug(os.Getenv("DEBUG") != "").
 		Build()
 	if err != nil {

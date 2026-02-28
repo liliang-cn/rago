@@ -404,20 +404,19 @@ func init() {
 // initAgentServices initializes RAG client and agent service
 func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error) {
 	// 1. Setup high-level agent config from CLI and global config
-	agentCfg := &agent.AgentConfig{
-		Name:             "RAGO Agent",
-		EnableMCP:        true,
-		EnableMemory:     true,
-		EnableRAG:        true,
-		EnableRouter:     true,
-		EnableSkills:     true,
-		EnableAutoMemory: true,
-		EnablePTC:        EnablePTC,
-		Debug:            Debug,
+	agentCfg := &agent.Config{
+		Name:   "RAGO Agent",
+		MCP:    &agent.MCPConfig{Enabled: true},
+		Memory: &agent.MemoryConfig{Enabled: true},
+		RAG:    &agent.RAGConfig{Enabled: true},
+		Router: &agent.RouterConfig{Enabled: true},
+		Skills: &agent.SkillsConfig{Enabled: true},
+		PTC:    &agent.PTCConfig{Enabled: EnablePTC},
+		Debug:  Debug,
 	}
 
-	// 2. Initialize using agent.New which handles all service wiring and rago.toml
-	agentService, err := agent.New(agentCfg)
+	// 2. Initialize using agent.NewWithConfig which handles all service wiring and rago.toml
+	agentService, err := agent.NewWithConfig(agentCfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to init agent: %w", err)
 	}

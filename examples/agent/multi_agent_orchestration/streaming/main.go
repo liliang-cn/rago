@@ -12,7 +12,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	svc, err := agent.New(&agent.AgentConfig{
+	svc, err := agent.NewWithConfig(&agent.Config{
 		Name: "stream-tester",
 	})
 	if err != nil {
@@ -36,7 +36,7 @@ func main() {
 	svc.RegisterAgent(writer)
 
 	fmt.Println("--- STARTING REAL STREAMING TEST ---")
-	
+
 	// 使用 RunStream 观察实时输出
 	events, _ := svc.RunStream(ctx, "Write me a long sci-fi story about an AI that learns to dream.")
 

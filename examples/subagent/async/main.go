@@ -188,7 +188,7 @@ func main() {
 
 	fmt.Println("=== Async SubAgent with Events & Timeout Example ===\n")
 
-	svc, err := agent.NewBuilder("PipelineOrchestrator").
+	svc, err := agent.New("PipelineOrchestrator").
 		WithDebug(os.Getenv("DEBUG") != "").
 		Build()
 	if err != nil {
