@@ -84,7 +84,8 @@ func main() {
 
 	if svc.MCP != nil {
 		// Directly call an MCP tool without going through agent planning
-		toolResult, err := svc.MCP.CallTool(ctx, "filesystem__list_directory", map[string]interface{}{
+		// Use the filesystem server's list_directory tool
+		toolResult, err := svc.MCP.CallTool(ctx, "mcp_filesystem_list_directory", map[string]interface{}{
 			"path": ".",
 		})
 		if err != nil {

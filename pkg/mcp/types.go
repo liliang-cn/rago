@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -35,6 +36,7 @@ type ServerConfig struct {
 	RestartOnFailure bool              `toml:"restart_on_failure" json:"restart_on_failure" mapstructure:"restart_on_failure"`
 	MaxRestarts      int               `toml:"max_restarts" json:"max_restarts" mapstructure:"max_restarts"`
 	RestartDelay     time.Duration     `toml:"restart_delay" json:"restart_delay" mapstructure:"restart_delay"`
+	DefaultTimeout   time.Duration     `toml:"default_timeout" json:"default_timeout" mapstructure:"default_timeout"` // Timeout for initialize handshake
 	Capabilities     []string          `toml:"capabilities" json:"capabilities" mapstructure:"capabilities"`
 }
 
@@ -198,6 +200,11 @@ type Client struct {
 	resourceTemplates map[string]*mcp.ResourceTemplate
 	prompts           map[string]*mcp.Prompt
 	connected         bool
+
+	// Health monitoring
+	cmd            *exec.Cmd      // Process for Stdio servers
+	stopHealthCheck chan struct{} // Channel to stop health check goroutine
+	mu             sync.Mutex     // Protects connected state
 }
 
 // ToolInfo represents information about an MCP tool

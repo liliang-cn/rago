@@ -61,11 +61,26 @@ Examples:
 	RunE: runMCPChat,
 }
 
+var mcpCheckCmd = &cobra.Command{
+	Use:   "check",
+	Short: "Check MCP runtime environment (npx, uvx availability)",
+	Long: `Check if required tools for MCP servers are available.
+
+This command checks for:
+  - npx (Node.js package runner) - required for Node.js MCP servers
+  - uvx (uv tool runner) - required for Python MCP servers
+
+Examples:
+  rago mcp check`,
+	RunE: runMCPCheck,
+}
+
 func init() {
 	// Add subcommands to MCP parent command
 	MCPCmd.AddCommand(mcpListCmd)
 	MCPCmd.AddCommand(mcpCallCmd)
 	MCPCmd.AddCommand(mcpChatCmd)
+	MCPCmd.AddCommand(mcpCheckCmd)
 	// Note: mcpChatAdvancedCmd is commented out in mcp_chat.go to avoid duplicate
 
 	// Add flags
@@ -81,6 +96,12 @@ func init() {
 	mcpChatCmd.Flags().IntP("max-tokens", "m", 30000, "Maximum generation length")
 	mcpChatCmd.Flags().BoolP("show-thinking", "t", true, "Show AI thinking process")
 	mcpChatCmd.Flags().StringSliceP("allowed-tools", "a", []string{}, "Comma-separated list of allowed tools")
+}
+
+func runMCPCheck(cmd *cobra.Command, args []string) error {
+	status := CheckMCPEnvironment()
+	PrintMCPEnvironmentStatus(status)
+	return nil
 }
 
 func runMCPChat(cmd *cobra.Command, args []string) error {
