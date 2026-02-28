@@ -24,13 +24,13 @@ const (
 type ServerConfig struct {
 	Name             string            `toml:"name" json:"name" mapstructure:"name"`
 	Description      string            `toml:"description" json:"description" mapstructure:"description"`
-	Type             ServerType        `toml:"type" json:"type" mapstructure:"type"`                       // "stdio" or "http"
-	Command          []string          `toml:"command" json:"command" mapstructure:"command"`               // For stdio type
-	Args             []string          `toml:"args" json:"args" mapstructure:"args"`                       // For stdio type
-	URL              string            `toml:"url" json:"url" mapstructure:"url"`                           // For http type
-	Headers          map[string]string `toml:"headers" json:"headers" mapstructure:"headers"`               // For http type
-	WorkingDir       string            `toml:"working_dir" json:"working_dir" mapstructure:"working_dir"`   // For stdio type
-	Env              map[string]string `toml:"env" json:"env" mapstructure:"env"`                           // For stdio type
+	Type             ServerType        `toml:"type" json:"type" mapstructure:"type"`                      // "stdio" or "http"
+	Command          []string          `toml:"command" json:"command" mapstructure:"command"`             // For stdio type
+	Args             []string          `toml:"args" json:"args" mapstructure:"args"`                      // For stdio type
+	URL              string            `toml:"url" json:"url" mapstructure:"url"`                         // For http type
+	Headers          map[string]string `toml:"headers" json:"headers" mapstructure:"headers"`             // For http type
+	WorkingDir       string            `toml:"working_dir" json:"working_dir" mapstructure:"working_dir"` // For stdio type
+	Env              map[string]string `toml:"env" json:"env" mapstructure:"env"`                         // For stdio type
 	AutoStart        bool              `toml:"auto_start" json:"auto_start" mapstructure:"auto_start"`
 	RestartOnFailure bool              `toml:"restart_on_failure" json:"restart_on_failure" mapstructure:"restart_on_failure"`
 	MaxRestarts      int               `toml:"max_restarts" json:"max_restarts" mapstructure:"max_restarts"`
@@ -119,7 +119,7 @@ func (c *Config) LoadServersFromJSON() error {
 func (c *Config) GetLoadedServers() []ServerConfig {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Return a copy to prevent external modification
 	servers := make([]ServerConfig, len(c.LoadedServers))
 	copy(servers, c.LoadedServers)
@@ -191,10 +191,13 @@ func (c *Config) loadServerFile(serverFile string) error {
 
 // Client represents an MCP client connection to a server
 type Client struct {
-	config    *ServerConfig
-	session   *mcp.ClientSession
-	tools     map[string]*mcp.Tool
-	connected bool
+	config            *ServerConfig
+	session           *mcp.ClientSession
+	tools             map[string]*mcp.Tool
+	resources         map[string]*mcp.Resource
+	resourceTemplates map[string]*mcp.ResourceTemplate
+	prompts           map[string]*mcp.Prompt
+	connected         bool
 }
 
 // ToolInfo represents information about an MCP tool
@@ -212,4 +215,63 @@ type ToolResult struct {
 	Success bool        `json:"success"`
 	Data    interface{} `json:"data"`
 	Error   string      `json:"error,omitempty"`
+}
+
+// ResourceInfo represents information about an MCP resource
+type ResourceInfo struct {
+	ServerName  string                 `json:"server_name"`
+	URI         string                 `json:"uri"`
+	Name        string                 `json:"name"`
+	Title       string                 `json:"title,omitempty"`
+	Description string                 `json:"description"`
+	MIMEType    string                 `json:"mime_type,omitempty"`
+	Annotations map[string]interface{} `json:"annotations,omitempty"`
+}
+
+// ResourceTemplateInfo represents information about an MCP resource template
+type ResourceTemplateInfo struct {
+	ServerName  string                 `json:"server_name"`
+	URITemplate string                 `json:"uri_template"`
+	Name        string                 `json:"name"`
+	Title       string                 `json:"title,omitempty"`
+	Description string                 `json:"description"`
+	MIMEType    string                 `json:"mime_type,omitempty"`
+	Annotations map[string]interface{} `json:"annotations,omitempty"`
+}
+
+// ResourceContent represents the content of a read resource
+type ResourceContent struct {
+	URI      string      `json:"uri"`
+	MIMEType string      `json:"mime_type,omitempty"`
+	Content  interface{} `json:"content"`
+}
+
+// PromptInfo represents information about an MCP prompt
+type PromptInfo struct {
+	ServerName  string               `json:"server_name"`
+	Name        string               `json:"name"`
+	Title       string               `json:"title,omitempty"`
+	Description string               `json:"description"`
+	Arguments   []PromptArgumentInfo `json:"arguments,omitempty"`
+}
+
+// PromptArgumentInfo represents an argument for an MCP prompt
+type PromptArgumentInfo struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Required    bool   `json:"required"`
+}
+
+// PromptContent represents the content of a retrieved prompt
+type PromptContent struct {
+	ServerName  string              `json:"server_name"`
+	Name        string              `json:"name"`
+	Description string              `json:"description,omitempty"`
+	Messages    []PromptMessageInfo `json:"messages"`
+}
+
+// PromptMessageInfo represents a message in a prompt
+type PromptMessageInfo struct {
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"`
 }

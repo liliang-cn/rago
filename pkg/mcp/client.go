@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -24,9 +25,12 @@ func NewClient(config *ServerConfig) (*Client, error) {
 	}
 
 	return &Client{
-		config:    config,
-		tools:     make(map[string]*mcp.Tool),
-		connected: false,
+		config:            config,
+		tools:             make(map[string]*mcp.Tool),
+		resources:         make(map[string]*mcp.Resource),
+		resourceTemplates: make(map[string]*mcp.ResourceTemplate),
+		prompts:           make(map[string]*mcp.Prompt),
+		connected:         false,
 	}, nil
 }
 
@@ -84,7 +88,17 @@ func (c *Client) Connect(ctx context.Context) error {
 
 	// Load tools
 	if err := c.loadTools(ctx); err != nil {
-		return fmt.Errorf("failed to load tools from %s: %w", c.config.Name, err)
+		log.Printf("[WARN] Failed to load tools from %s: %v", c.config.Name, err)
+	}
+
+	// Load resources (optional, may not be supported by all servers)
+	if err := c.loadResources(ctx); err != nil {
+		log.Printf("[DEBUG] Failed to load resources from %s: %v", c.config.Name, err)
+	}
+
+	// Load prompts (optional, may not be supported by all servers)
+	if err := c.loadPrompts(ctx); err != nil {
+		log.Printf("[DEBUG] Failed to load prompts from %s: %v", c.config.Name, err)
 	}
 
 	return nil
@@ -137,10 +151,10 @@ func (c *Client) createStdioTransport(ctx context.Context) (mcp.Transport, error
 func (c *Client) createHTTPTransport() (mcp.Transport, error) {
 	// MCP SDK provides StreamableClientTransport for HTTP connections
 	// This uses Server-Sent Events (SSE) for bidirectional communication
-	
+
 	// Create HTTP client with custom headers if needed
 	httpClient := &http.Client{}
-	
+
 	// If headers are specified, we'll need to wrap the HTTP client
 	// to add them to each request (this would need custom RoundTripper)
 	if len(c.config.Headers) > 0 {
@@ -149,7 +163,7 @@ func (c *Client) createHTTPTransport() (mcp.Transport, error) {
 			base:    http.DefaultTransport,
 		}
 	}
-	
+
 	transport := &mcp.StreamableClientTransport{
 		Endpoint:   c.config.URL,
 		HTTPClient: httpClient,
@@ -168,12 +182,12 @@ type headerTransport struct {
 func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Clone the request to avoid modifying the original
 	req = req.Clone(req.Context())
-	
+
 	// Add custom headers
 	for k, v := range t.headers {
 		req.Header.Set(k, v)
 	}
-	
+
 	return t.base.RoundTrip(req)
 }
 
@@ -197,9 +211,75 @@ func (c *Client) loadTools(ctx context.Context) error {
 	return nil
 }
 
+// loadResources fetches and caches the available resources from the server
+func (c *Client) loadResources(ctx context.Context) error {
+	if !c.connected || c.session == nil {
+		return fmt.Errorf("client not connected")
+	}
+
+	// Load resources
+	resourcesResponse, err := c.session.ListResources(ctx, &mcp.ListResourcesParams{})
+	if err != nil {
+		return fmt.Errorf("failed to list resources: %w", err)
+	}
+
+	c.resources = make(map[string]*mcp.Resource)
+	for _, resource := range resourcesResponse.Resources {
+		c.resources[resource.URI] = resource
+	}
+
+	// Load resource templates
+	templatesResponse, err := c.session.ListResourceTemplates(ctx, &mcp.ListResourceTemplatesParams{})
+	if err != nil {
+		// Templates are optional, don't fail
+		return nil
+	}
+
+	c.resourceTemplates = make(map[string]*mcp.ResourceTemplate)
+	for _, template := range templatesResponse.ResourceTemplates {
+		c.resourceTemplates[template.URITemplate] = template
+	}
+
+	return nil
+}
+
+// loadPrompts fetches and caches the available prompts from the server
+func (c *Client) loadPrompts(ctx context.Context) error {
+	if !c.connected || c.session == nil {
+		return fmt.Errorf("client not connected")
+	}
+
+	promptsResponse, err := c.session.ListPrompts(ctx, &mcp.ListPromptsParams{})
+	if err != nil {
+		return fmt.Errorf("failed to list prompts: %w", err)
+	}
+
+	c.prompts = make(map[string]*mcp.Prompt)
+	for _, prompt := range promptsResponse.Prompts {
+		c.prompts[prompt.Name] = prompt
+	}
+
+	return nil
+}
+
 // GetTools returns the available tools from this server
 func (c *Client) GetTools() map[string]*mcp.Tool {
 	return c.tools
+}
+
+// GetResources returns the available resources from this server
+func (c *Client) GetResources() map[string]*mcp.Resource {
+	return c.resources
+}
+
+// GetResourceTemplates returns the available resource templates from this server
+func (c *Client) GetResourceTemplates() map[string]*mcp.ResourceTemplate {
+	return c.resourceTemplates
+}
+
+// GetPrompts returns the available prompts from this server
+func (c *Client) GetPrompts() map[string]*mcp.Prompt {
+	return c.prompts
 }
 
 // CallTool calls a tool on the MCP server
@@ -242,6 +322,72 @@ func (c *Client) CallTool(ctx context.Context, toolName string, arguments map[st
 	return &ToolResult{
 		Success: true,
 		Data:    data,
+	}, nil
+}
+
+// ReadResource reads a resource from the MCP server
+func (c *Client) ReadResource(ctx context.Context, uri string) (*ResourceContent, error) {
+	if !c.connected || c.session == nil {
+		return nil, fmt.Errorf("client not connected")
+	}
+
+	response, err := c.session.ReadResource(ctx, &mcp.ReadResourceParams{
+		URI: uri,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to read resource %s: %w", uri, err)
+	}
+
+	// Process response contents
+	var content interface{}
+	var mimeType string
+	if len(response.Contents) > 0 {
+		contents := response.Contents[0]
+		// Check if it's text or blob
+		if contents.Text != "" {
+			content = contents.Text
+		} else if len(contents.Blob) > 0 {
+			content = contents.Blob
+		} else {
+			content = contents
+		}
+		mimeType = contents.MIMEType
+	}
+
+	return &ResourceContent{
+		URI:      uri,
+		MIMEType: mimeType,
+		Content:  content,
+	}, nil
+}
+
+// GetPrompt retrieves a prompt from the MCP server
+func (c *Client) GetPrompt(ctx context.Context, name string, arguments map[string]string) (*PromptContent, error) {
+	if !c.connected || c.session == nil {
+		return nil, fmt.Errorf("client not connected")
+	}
+
+	response, err := c.session.GetPrompt(ctx, &mcp.GetPromptParams{
+		Name:      name,
+		Arguments: arguments,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get prompt %s: %w", name, err)
+	}
+
+	// Convert messages
+	messages := make([]PromptMessageInfo, 0, len(response.Messages))
+	for _, msg := range response.Messages {
+		messages = append(messages, PromptMessageInfo{
+			Role:    string(msg.Role),
+			Content: msg.Content,
+		})
+	}
+
+	return &PromptContent{
+		Name:        name,
+		Description: response.Description,
+		Messages:    messages,
 	}, nil
 }
 
@@ -466,11 +612,11 @@ func (m *Manager) GetServerCount() int {
 // GetToolsDescription returns a formatted string description of all available tools
 func (m *Manager) GetToolsDescription(ctx context.Context) string {
 	tools := m.GetAvailableTools(ctx)
-	
+
 	if len(tools) == 0 {
 		return "No MCP tools available"
 	}
-	
+
 	var descriptions []string
 	for _, tool := range tools {
 		desc := fmt.Sprintf("- %s: %s", tool.Name, tool.Description)
@@ -479,7 +625,7 @@ func (m *Manager) GetToolsDescription(ctx context.Context) string {
 		}
 		descriptions = append(descriptions, desc)
 	}
-	
+
 	return strings.Join(descriptions, "\n")
 }
 
@@ -487,13 +633,13 @@ func (m *Manager) GetToolsDescription(ctx context.Context) string {
 func (m *Manager) FindToolProvider(ctx context.Context, toolName string) (*AgentToolInfo, *Client, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	
+
 	// Handle both formats: "mcp_server_tool" and "tool"
 	for serverName, client := range m.clients {
 		if client == nil || !client.IsConnected() {
 			continue
 		}
-		
+
 		tools := client.GetTools()
 		for actualToolName, tool := range tools {
 			// Check exact match
@@ -505,7 +651,7 @@ func (m *Manager) FindToolProvider(ctx context.Context, toolName string) (*Agent
 					Description: tool.Description,
 				}, client, nil
 			}
-			
+
 			// Check prefixed format match (mcp_server_tool)
 			prefixedName := fmt.Sprintf("mcp_%s_%s", serverName, actualToolName)
 			if prefixedName == toolName {
@@ -518,7 +664,7 @@ func (m *Manager) FindToolProvider(ctx context.Context, toolName string) (*Agent
 			}
 		}
 	}
-	
+
 	return nil, nil, fmt.Errorf("tool %s not found in any connected MCP server", toolName)
 }
 
