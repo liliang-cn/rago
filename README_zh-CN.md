@@ -44,18 +44,43 @@ func main() {
     ctx := context.Background()
 
     // 1. 初始化服务 (运行时环境)
-    svc, _ := agent.New(&agent.AgentConfig{
-        Name:            "my-assistant",
-        EnableMCP:       true, 
-        EnableMemory:    true,
-        MemoryStoreType: "file", // 使用透明的 Markdown 文件记忆
-    })
+    // 方式一：链式构建器
+    svc, _ := agent.New("my-assistant").
+        WithMCP().
+        WithMemory(agent.WithMemoryStoreType("file")).
+        Build()
     defer svc.Close()
 
     // 2. 运行任务
     res, _ := svc.Run(ctx, "研究 Go 1.24 的最新特性并写一份总结存入记忆。")
     fmt.Println(res.FinalResult)
 }
+```
+
+### 两种创建 Agent 的方式
+
+**方式一：链式构建器（推荐）**
+```go
+svc, err := agent.New("agent-name").
+    WithMCP().
+    WithRAG().
+    WithMemory().
+    WithRouter().
+    WithSkills().
+    Build()
+```
+
+**方式二：配置对象**
+```go
+svc, err := agent.NewWithConfig(&agent.Config{
+    Name: "agent-name",
+    MCP:  &agent.MCPConfig{Enabled: true},
+    RAG:  &agent.RAGConfig{Enabled: true},
+    Memory: &agent.MemoryConfig{
+        Enabled:   true,
+        StoreType: "file",  // "file", "vector", 或 "hybrid"
+    },
+})
 ```
 
 ---
@@ -137,9 +162,11 @@ model = "gpt-4o"
 ## 📚 示例代码
 
 请查看 `examples/` 目录获取深入的示例：
-*   **[04_file_memory_test](./examples/agent_usage/04_file_memory_test/)**: 演示透明文件记忆的全流程。
-*   **[realtime_chat](./examples/realtime_chat/)**: WebSocket 实时对话演示。
-*   **[multi_agent_orchestration](./examples/multi_agent_orchestration/)**: 包含 Handoffs 和流式输出的完整演示。
+*   **[quickstart](./examples/quickstart/)**: 最简单的入门示例。
+*   **[agent_usage](./examples/agent/agent_usage/)**: 完整的 Agent 使用模式。
+*   **[realtime_chat](./examples/agent/realtime_chat/)**: WebSocket 实时对话演示。
+*   **[multi_agent_orchestration](./examples/agent/multi_agent_orchestration/)**: 包含 Handoffs 和流式输出的完整演示。
+*   **[subagent](./examples/subagent/)**: SubAgent 并行执行模式。
 
 ## 📄 许可证
 MIT License - Copyright (c) 2024-2026 RAGO Authors.
