@@ -57,42 +57,73 @@ func main() {
 }
 ```
 
-### Two Ways to Create an Agent
+---
 
-**Method 1: Chainable Builder (Recommended)**
-```go
-svc, err := agent.New("agent-name").
-    WithMCP().
-    WithRAG().
-    WithMemory().
-    WithRouter().
-    WithSkills().
-    Build()
+## 🏗️ Architecture
+
+### Layered Design
+
+RAGO uses a **trimmable layered architecture** - use only what you need:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Agent Layer                               │
+│  (Planning, Execution, Handoffs, SubAgents, PTC)                │
+├─────────────────────────────────────────────────────────────────┤
+│                     Action Layer (Optional)                      │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │  MCP Tools  │  │   Skills    │  │   Custom Tools          │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────┤
+│                     RAG Layer (Optional)                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
+│  │   Chunker   │  │   Embedder  │  │  Vector Store (SQLite)  │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────┤
+│                        LLM Layer                                 │
+│  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌─────────┐ ┌──────────┐  │
+│  │ OpenAI  │ │ Ollama  │ │ DeepSeek │ │ Claude  │ │ Azure    │  │
+│  └─────────┘ └─────────┘ └──────────┘ └─────────┘ └──────────┘  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Method 2: Config Struct**
-```go
-svc, err := agent.NewWithConfig(&agent.Config{
-    Name: "agent-name",
-    MCP:  &agent.MCPConfig{Enabled: true},
-    RAG:  &agent.RAGConfig{Enabled: true},
-    Memory: &agent.MemoryConfig{
-        Enabled:   true,
-        StoreType: "file",  // "file", "vector", or "hybrid"
-    },
-})
-```
+### Supported LLM Providers
+
+| Provider | Type | Models |
+|----------|------|--------|
+| OpenAI | Cloud | GPT-4o, GPT-4-turbo, GPT-3.5-turbo |
+| Azure OpenAI | Cloud | GPT-4, GPT-35-turbo |
+| Ollama | Local | Llama 3, Mistral, Qwen, etc. |
+| DeepSeek | Cloud | DeepSeek-V3, DeepSeek-Coder |
+| Anthropic | Cloud | Claude 3.5 Sonnet, Claude 3 Opus |
 
 ---
 
-## 🏗️ Architecture & Features
+## 🚀 Key Features
 
-### 1. Layered Logic & Optional Components
-RAGO uses strict hierarchical dependencies, allowing you to "trim" the system as needed:
-*   **LLM Layer**: Unified wrapper for OpenAI, Ollama, DeepSeek, etc.
-*   **RAG Layer (Optional)**: Injects domain knowledge.
-*   **Action Layer (Optional)**: Extends capabilities via MCP/Skills.
-*   **Agent Layer**: The brain handling intent and orchestration.
+### 1. Multi-Agent Orchestration
+
+**Handoffs**: Transfer control between specialized agents
+```go
+// Register specialized agents
+svc.RegisterAgent(researchAgent)
+svc.RegisterAgent(writerAgent)
+
+// Agents can hand off tasks to each other
+// The orchestrator routes to the best agent for each task
+```
+
+**SubAgents**: Delegate focused tasks with restricted tool access
+```go
+// Create a SubAgent with limited tools
+sub := agent.NewSubAgent("data-collector", parentAgent).
+    WithTools(allowlist).
+    WithMaxTurns(5).
+    Build()
+
+// Delegate task execution
+result := sub.Run(ctx, "Collect quarterly sales data")
+```
 
 ### 2. Transparent Memory & Smart Fusion
 Memory is no longer a black box. RAGO stores long-term facts as human-readable **Markdown + YAML** files.
@@ -149,17 +180,6 @@ svc, _ := agent.New("data-analyst").
 See the [PTC examples](./examples/ptc/) for complete demos.
 
 ---
-
-## 💻 CLI Usage
-
-```bash
-# Run a task
-rago agent run "Clean up duplicate files in current directory"
-
-# Manage RAG knowledge base
-rago rag ingest ./docs/ --recursive
-rago rag query "How to configure server ports?"
-```
 
 ## ⚙️ Configuration
 
