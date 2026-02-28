@@ -103,18 +103,18 @@ func (l *Loader) ParseSkill(filePath, content string) (*Skill, error) {
 
 	// Parse YAML frontmatter
 	var metadata struct {
-		Name                   string            `yaml:"name"`
-		Description            string            `yaml:"description"`
-		Version                string            `yaml:"version"`
-		Author                 string            `yaml:"author"`
-		Category               string            `yaml:"category"`
-		Tags                   []string          `yaml:"tags"`
-		Command                string            `yaml:"command"`
-		ForkMode               bool              `yaml:"fork_mode"`
-		UserInvocable          bool              `yaml:"user_invocable"`
-		DisableModelInvocation bool              `yaml:"disable_model_invocation"`
-		Variables              []map[string]any  `yaml:"variables"`
-		Extra                  map[string]string `yaml:",inline"`
+		Name                   string                 `yaml:"name"`
+		Description            string                 `yaml:"description"`
+		Version                string                 `yaml:"version"`
+		Author                 string                 `yaml:"author"`
+		Category               string                 `yaml:"category"`
+		Tags                   []string               `yaml:"tags"`
+		Command                string                 `yaml:"command"`
+		ForkMode               bool                   `yaml:"fork_mode"`
+		UserInvocable          bool                   `yaml:"user_invocable"`
+		DisableModelInvocation bool                   `yaml:"disable_model_invocation"`
+		Variables              []map[string]any       `yaml:"variables"`
+		Extra                  map[string]interface{} `yaml:",inline"`
 	}
 
 	if err := yaml.Unmarshal([]byte(parts[1]), &metadata); err != nil {

@@ -38,19 +38,19 @@ type Skill struct {
 
 // Meta is the YAML frontmatter of SKILL.md
 type Meta struct {
-	Name                   string            `yaml:"name,omitempty"`
-	Description            string            `yaml:"description,omitempty"`
-	ArgumentHint           string            `yaml:"argument-hint,omitempty"`
-	DisableModelInvocation bool              `yaml:"disable-model-invocation,omitempty"`
-	UserInvocable          *bool             `yaml:"user-invocable,omitempty"`
-	AllowedTools           StringOrSlice     `yaml:"allowed-tools,omitempty"`
-	Model                  string            `yaml:"model,omitempty"`
-	Context                string            `yaml:"context,omitempty"`
-	Agent                  string            `yaml:"agent,omitempty"`
-	Hooks                  *Hooks            `yaml:"hooks,omitempty"`
-	Metadata               map[string]string `yaml:"metadata,omitempty"`
-	License                string            `yaml:"license,omitempty"`
-	Compatibility          string            `yaml:"compatibility,omitempty"`
+	Name                   string                 `yaml:"name,omitempty"`
+	Description            string                 `yaml:"description,omitempty"`
+	ArgumentHint           string                 `yaml:"argument-hint,omitempty"`
+	DisableModelInvocation bool                   `yaml:"disable-model-invocation,omitempty"`
+	UserInvocable          *bool                  `yaml:"user-invocable,omitempty"`
+	AllowedTools           StringOrSlice          `yaml:"allowed-tools,omitempty"`
+	Model                  string                 `yaml:"model,omitempty"`
+	Context                string                 `yaml:"context,omitempty"`
+	Agent                  string                 `yaml:"agent,omitempty"`
+	Hooks                  *Hooks                 `yaml:"hooks,omitempty"`
+	Metadata               map[string]interface{} `yaml:"metadata,omitempty"`
+	License                string                 `yaml:"license,omitempty"`
+	Compatibility          string                 `yaml:"compatibility,omitempty"`
 }
 
 // Hooks defines skill lifecycle hooks

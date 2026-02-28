@@ -116,7 +116,7 @@ github.com/liliang-cn/mcp-swagger-server/mcp
 # github.com/liliang-cn/pipeit v0.1.0
 ## explicit; go 1.21
 github.com/liliang-cn/pipeit
-# github.com/liliang-cn/skills-go v1.2.0
+# github.com/liliang-cn/skills-go v1.2.1
 ## explicit; go 1.23.0
 github.com/liliang-cn/skills-go/mcp
 github.com/liliang-cn/skills-go/skill
