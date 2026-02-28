@@ -14,7 +14,7 @@ RAGO solves the core pain points of building complex AI applications with a **La
 | :--- | :--- |
 | **🧠 Reasoning** | **Layered Design**: `LLM (Base)` → `RAG (Optional)` → `Skills/MCP (Optional)` → `Agent (Interface)`. |
 | **📚 Knowledge** | **Hybrid RAG**: Fast vector search combined with **SQLite-based GraphRAG**. Supports massive **Batch Embedding**. |
-| **🛠️ Tools** | Native support for **MCP (Model Context Protocol)**, **[Claude-compatible Skills](SKILLS.md)**, and **WebSocket Realtime Sessions**. |
+| **🛠️ Tools** | Native support for **MCP (Model Context Protocol)**, **[Claude-compatible Skills](SKILLS.md)**, **PTC (Programmatic Tool Calling)**, and **WebSocket Realtime Sessions**. |
 | **💾 Memory** | **Hybrid Storage**: High-performance SQLite or **Transparent Markdown files**. Features self-reflection and Smart Fusion. |
 | **⚡ Runtime** | **Deterministic Workflow**: Unique **Plan -> Review -> Execute** loop to eliminate black-box AI behavior. |
 | **🔒 Local-First** | Run entirely offline (**Ollama**) or connect to the cloud. Your data is physically isolated and protected. |
@@ -120,6 +120,34 @@ plan, _ := svc.Plan(ctx, "Deploy a new web service")
 result, _ := svc.Execute(ctx, plan.ID)
 ```
 
+### 6. Programmatic Tool Calling (PTC)
+
+PTC allows the LLM to write **JavaScript code** that orchestrates multiple tool calls in a single execution, instead of requiring round-trips through the model for each tool invocation. This substantially reduces latency and token consumption.
+
+**Benefits:**
+- **Reduced Latency**: Execute multiple tools in one shot
+- **Lower Token Usage**: Process large results before they hit the context window
+- **Complex Logic**: Write code to filter, aggregate, and transform data
+
+```go
+// Enable PTC when creating an agent
+svc, _ := agent.New("data-analyst").
+    WithPTC().
+    Build()
+
+// The LLM can now respond with code like:
+// <code>
+// const team = callTool('get_team_members', { department: 'engineering' });
+// const results = team.members.map(m => {
+//     const expenses = callTool('get_expenses', { member_id: m.id });
+//     return { name: m.name, total: expenses.total };
+// });
+// return results;
+// </code>
+```
+
+See the [PTC examples](./examples/ptc/) for complete demos.
+
 ---
 
 ## 💻 CLI Usage
@@ -160,6 +188,7 @@ Check the `examples/` directory for deep dives:
 *   **[realtime_chat](./examples/agent/realtime_chat/)**: WebSocket realtime demo.
 *   **[multi_agent_orchestration](./examples/agent/multi_agent_orchestration/)**: Comprehensive demo with Handoffs and streaming.
 *   **[subagent](./examples/subagent/)**: SubAgent patterns for parallel execution.
+*   **[ptc](./examples/ptc/)**: Programmatic Tool Calling examples.
 
 ## 📄 License
 MIT License - Copyright (c) 2024-2026 RAGO Authors.
