@@ -44,18 +44,43 @@ func main() {
     ctx := context.Background()
 
     // 1. Initialize service (Runtime Environment)
-    svc, _ := agent.New(&agent.AgentConfig{
-        Name:            "my-assistant",
-        EnableMCP:       true, 
-        EnableMemory:    true,
-        MemoryStoreType: "file", // Use transparent Markdown-based memory
-    })
+    // Method 1: Chainable builder
+    svc, _ := agent.New("my-assistant").
+        WithMCP().
+        WithMemory(agent.WithMemoryStoreType("file")).
+        Build()
     defer svc.Close()
 
     // 2. Run a task
     res, _ := svc.Run(ctx, "Research Go 1.24 features and save a summary to memory.")
     fmt.Println(res.FinalResult)
 }
+```
+
+### Two Ways to Create an Agent
+
+**Method 1: Chainable Builder (Recommended)**
+```go
+svc, err := agent.New("agent-name").
+    WithMCP().
+    WithRAG().
+    WithMemory().
+    WithRouter().
+    WithSkills().
+    Build()
+```
+
+**Method 2: Config Struct**
+```go
+svc, err := agent.NewWithConfig(&agent.Config{
+    Name: "agent-name",
+    MCP:  &agent.MCPConfig{Enabled: true},
+    RAG:  &agent.RAGConfig{Enabled: true},
+    Memory: &agent.MemoryConfig{
+        Enabled:   true,
+        StoreType: "file",  // "file", "vector", or "hybrid"
+    },
+})
 ```
 
 ---
@@ -130,9 +155,11 @@ model = "gpt-4o"
 ## 📚 Examples
 
 Check the `examples/` directory for deep dives:
-*   **[04_file_memory_test](./examples/agent_usage/04_file_memory_test/)**: Full workflow for transparent memory.
-*   **[realtime_chat](./examples/realtime_chat/)**: WebSocket realtime demo.
-*   **[multi_agent_orchestration](./examples/multi_agent_orchestration/)**: Comprehensive demo with Handoffs and streaming.
+*   **[quickstart](./examples/quickstart/)**: Simplest way to get started.
+*   **[agent_usage](./examples/agent/agent_usage/)**: Complete agent usage patterns.
+*   **[realtime_chat](./examples/agent/realtime_chat/)**: WebSocket realtime demo.
+*   **[multi_agent_orchestration](./examples/agent/multi_agent_orchestration/)**: Comprehensive demo with Handoffs and streaming.
+*   **[subagent](./examples/subagent/)**: SubAgent patterns for parallel execution.
 
 ## 📄 License
 MIT License - Copyright (c) 2024-2026 RAGO Authors.
