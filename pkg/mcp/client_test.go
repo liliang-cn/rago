@@ -47,7 +47,7 @@ func TestNewClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := NewClient(tt.config)
+			client, err := NewClient(tt.config, nil)
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, client)
@@ -154,7 +154,7 @@ func TestClient_IsConnected(t *testing.T) {
 		Command: []string{"echo", "test"},
 	}
 
-	client, err := NewClient(config)
+	client, err := NewClient(config, nil)
 	require.NoError(t, err)
 
 	// Initially not connected
@@ -171,7 +171,7 @@ func TestClient_GetTools(t *testing.T) {
 		Command: []string{"echo", "test"},
 	}
 
-	client, err := NewClient(config)
+	client, err := NewClient(config, nil)
 	require.NoError(t, err)
 
 	// Initially no tools
@@ -198,7 +198,7 @@ func TestClient_GetServerInfo_NotConnected(t *testing.T) {
 		Command: []string{"echo", "test"},
 	}
 
-	client, err := NewClient(config)
+	client, err := NewClient(config, nil)
 	require.NoError(t, err)
 
 	// No session, should return nil
@@ -212,7 +212,7 @@ func TestClient_Close_NotConnected(t *testing.T) {
 		Command: []string{"echo", "test"},
 	}
 
-	client, err := NewClient(config)
+	client, err := NewClient(config, nil)
 	require.NoError(t, err)
 
 	// Not connected, should not error
@@ -226,7 +226,7 @@ func TestClient_Close_Connected(t *testing.T) {
 		Command: []string{"echo", "test"},
 	}
 
-	client, err := NewClient(config)
+	client, err := NewClient(config, nil)
 	require.NoError(t, err)
 
 	// Mock connected state
@@ -248,8 +248,8 @@ func TestManager_ListClients(t *testing.T) {
 	assert.Empty(t, clients)
 
 	// Add some mock clients
-	client1, _ := NewClient(&ServerConfig{Name: "server1", Command: []string{"echo"}})
-	client2, _ := NewClient(&ServerConfig{Name: "server2", Command: []string{"echo"}})
+	client1, _ := NewClient(&ServerConfig{Name: "server1", Command: []string{"echo"}}, nil)
+	client2, _ := NewClient(&ServerConfig{Name: "server2", Command: []string{"echo"}}, nil)
 
 	manager.clients["server1"] = client1
 	manager.clients["server2"] = client2
@@ -274,7 +274,7 @@ func TestManager_StopServer_Success(t *testing.T) {
 	manager := NewManager(nil)
 
 	// Add a client
-	client, _ := NewClient(&ServerConfig{Name: "test-server", Command: []string{"echo"}})
+	client, _ := NewClient(&ServerConfig{Name: "test-server", Command: []string{"echo"}}, nil)
 	manager.clients["test-server"] = client
 
 	_ = manager.StopServer("test-server")
@@ -286,8 +286,8 @@ func TestManager_Close(t *testing.T) {
 	manager := NewManager(nil)
 
 	// Add some clients
-	client1, _ := NewClient(&ServerConfig{Name: "server1", Command: []string{"echo"}})
-	client2, _ := NewClient(&ServerConfig{Name: "server2", Command: []string{"echo"}})
+	client1, _ := NewClient(&ServerConfig{Name: "server1", Command: []string{"echo"}}, nil)
+	client2, _ := NewClient(&ServerConfig{Name: "server2", Command: []string{"echo"}}, nil)
 	manager.clients["server1"] = client1
 	manager.clients["server2"] = client2
 
@@ -306,7 +306,7 @@ func TestManager_StartServer_ExistingConnected(t *testing.T) {
 	manager := NewManager(config)
 
 	// Add existing connected client
-	existingClient, _ := NewClient(&config.LoadedServers[0])
+	existingClient, _ := NewClient(&config.LoadedServers[0], nil)
 	existingClient.connected = true
 	manager.clients["test-server"] = existingClient
 
@@ -328,7 +328,7 @@ func TestManager_StartServer_ExistingDisconnected(t *testing.T) {
 	manager := NewManager(config)
 
 	// Add existing disconnected client
-	existingClient, _ := NewClient(&config.LoadedServers[0])
+	existingClient, _ := NewClient(&config.LoadedServers[0], nil)
 	existingClient.connected = false
 	manager.clients["test-server"] = existingClient
 
@@ -371,7 +371,7 @@ func TestClient_EdgeCases(t *testing.T) {
 			Name:    "minimal",
 			Command: []string{"echo"},
 		}
-		client, err := NewClient(minimalConfig)
+		client, err := NewClient(minimalConfig, nil)
 		require.NoError(t, err)
 		assert.Equal(t, minimalConfig, client.config)
 		assert.False(t, client.connected)
@@ -392,7 +392,7 @@ func TestClient_EdgeCases(t *testing.T) {
 			RestartDelay:     10 * time.Second,
 			Capabilities:     []string{"tools", "prompts", "resources"},
 		}
-		client, err = NewClient(fullConfig)
+		client, err = NewClient(fullConfig, nil)
 		require.NoError(t, err)
 		assert.Equal(t, fullConfig, client.config)
 		assert.False(t, client.connected)
@@ -403,7 +403,7 @@ func TestClient_EdgeCases(t *testing.T) {
 			Name:    "test-server",
 			Command: []string{"echo"},
 		}
-		client, _ := NewClient(config)
+		client, _ := NewClient(config, nil)
 
 		// Test CallTool when not connected
 		ctx := context.Background()
@@ -423,7 +423,7 @@ func TestClient_EdgeCases(t *testing.T) {
 			Name:    "test-server",
 			Command: []string{"echo"},
 		}
-		client, _ := NewClient(config)
+		client, _ := NewClient(config, nil)
 
 		// Test GetServerInfo when session is nil
 		serverInfo := client.GetServerInfo()
@@ -492,8 +492,8 @@ func TestManager_ComprehensiveEdgeCases(t *testing.T) {
 		manager := NewManager(&Config{Enabled: true})
 
 		// Add some mock clients
-		client1, _ := NewClient(&ServerConfig{Name: "client1", Command: []string{"echo"}})
-		client2, _ := NewClient(&ServerConfig{Name: "client2", Command: []string{"echo"}})
+		client1, _ := NewClient(&ServerConfig{Name: "client1", Command: []string{"echo"}}, nil)
+		client2, _ := NewClient(&ServerConfig{Name: "client2", Command: []string{"echo"}}, nil)
 		manager.clients["client1"] = client1
 		manager.clients["client2"] = client2
 
@@ -527,7 +527,7 @@ func TestClient_ConcurrentOperations(t *testing.T) {
 			Name:    "concurrent-server",
 			Command: []string{"echo"},
 		}
-		client, _ := NewClient(config)
+		client, _ := NewClient(config, nil)
 
 		// Add some tools
 		client.tools = map[string]*mcp.Tool{
@@ -558,7 +558,7 @@ func TestClient_ConcurrentOperations(t *testing.T) {
 			Name:    "concurrent-server",
 			Command: []string{"echo"},
 		}
-		client, _ := NewClient(config)
+		client, _ := NewClient(config, nil)
 
 		const numGoroutines = 20
 		wg := sync.WaitGroup{}
@@ -594,7 +594,7 @@ func TestClient_ErrorConditions(t *testing.T) {
 			Name:    "test-server",
 			Command: []string{"echo"},
 		}
-		client, _ := NewClient(config)
+		client, _ := NewClient(config, nil)
 		client.connected = true
 		// Set session to nil to test error handling
 		client.session = nil
@@ -640,7 +640,7 @@ func TestClient_ErrorConditions(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				client, err := NewClient(tc.config)
+				client, err := NewClient(tc.config, nil)
 				if tc.wantErr {
 					assert.Error(t, err)
 					assert.Contains(t, err.Error(), tc.errMsg)
@@ -729,8 +729,8 @@ func (suite *ClientTestSuite) TestManagerConcurrentOperations() {
 
 func (suite *ClientTestSuite) TestManagerStateConsistency() {
 	// Add some mock clients to test state management
-	client1, _ := NewClient(&ServerConfig{Name: "mock1", Command: []string{"echo"}})
-	client2, _ := NewClient(&ServerConfig{Name: "mock2", Command: []string{"echo"}})
+	client1, _ := NewClient(&ServerConfig{Name: "mock1", Command: []string{"echo"}}, nil)
+	client2, _ := NewClient(&ServerConfig{Name: "mock2", Command: []string{"echo"}}, nil)
 
 	suite.manager.clients["mock1"] = client1
 	suite.manager.clients["mock2"] = client2
@@ -763,7 +763,7 @@ func BenchmarkClient_GetTools(b *testing.B) {
 		Name:    "bench-server",
 		Command: []string{"echo"},
 	}
-	client, _ := NewClient(config)
+	client, _ := NewClient(config, nil)
 
 	// Add many tools for realistic benchmark
 	for i := 0; i < 1000; i++ {
@@ -790,7 +790,7 @@ func BenchmarkManager_GetClient(b *testing.B) {
 		client, _ := NewClient(&ServerConfig{
 			Name:    fmt.Sprintf("client%d", i),
 			Command: []string{"echo"},
-		})
+		}, nil)
 		manager.clients[fmt.Sprintf("client%d", i)] = client
 	}
 

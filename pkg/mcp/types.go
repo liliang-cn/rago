@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,21 @@ type ServerConfig struct {
 	RestartDelay     time.Duration     `toml:"restart_delay" json:"restart_delay" mapstructure:"restart_delay"`
 	DefaultTimeout   time.Duration     `toml:"default_timeout" json:"default_timeout" mapstructure:"default_timeout"` // Timeout for initialize handshake
 	Capabilities     []string          `toml:"capabilities" json:"capabilities" mapstructure:"capabilities"`
+}
+
+// ClientOptions configures the MCP client behavior
+type ClientOptions struct {
+	// Sampling - allows server to request LLM completions through the client
+	CreateMessageHandler func(ctx context.Context, req *mcp.CreateMessageRequest) (*mcp.CreateMessageResult, error)
+
+	// Elicitation - allows server to request information from users
+	ElicitationHandler func(ctx context.Context, req *mcp.ElicitRequest) (*mcp.ElicitResult, error)
+
+	// Logging - receive log messages from server
+	LoggingMessageHandler func(ctx context.Context, req *mcp.LoggingMessageRequest)
+
+	// Roots - filesystem boundaries for server operations
+	Roots []*mcp.Root
 }
 
 // Config represents the overall MCP configuration
@@ -205,6 +221,10 @@ type Client struct {
 	cmd            *exec.Cmd      // Process for Stdio servers
 	stopHealthCheck chan struct{} // Channel to stop health check goroutine
 	mu             sync.Mutex     // Protects connected state
+
+	// SDK client (for adding roots dynamically)
+	mcpClient *mcp.Client
+	options   *ClientOptions
 }
 
 // ToolInfo represents information about an MCP tool

@@ -69,7 +69,7 @@ func GetCommandAvailabilityError(cmd string) error {
 }
 
 // NewClient creates a new MCP client for the given server configuration
-func NewClient(config *ServerConfig) (*Client, error) {
+func NewClient(config *ServerConfig, opts *ClientOptions) (*Client, error) {
 	if config == nil {
 		return nil, fmt.Errorf("server config cannot be nil")
 	}
@@ -88,6 +88,10 @@ func NewClient(config *ServerConfig) (*Client, error) {
 		return nil, fmt.Errorf("unsupported server type: %s", config.Type)
 	}
 
+	if opts == nil {
+		opts = &ClientOptions{}
+	}
+
 	return &Client{
 		config:            config,
 		tools:             make(map[string]*mcp.Tool),
@@ -95,6 +99,7 @@ func NewClient(config *ServerConfig) (*Client, error) {
 		resourceTemplates: make(map[string]*mcp.ResourceTemplate),
 		prompts:           make(map[string]*mcp.Prompt),
 		connected:         false,
+		options:           opts,
 	}, nil
 }
 
@@ -142,8 +147,30 @@ func (c *Client) Connect(ctx context.Context) error {
 		Name:    "rago",
 		Version: "1.0.0",
 	}
-	clientOpts := &mcp.ClientOptions{}
-	client := mcp.NewClient(clientImpl, clientOpts)
+
+	// Build SDK client options from our ClientOptions
+	sdkOpts := &mcp.ClientOptions{}
+	if c.options != nil {
+		if c.options.CreateMessageHandler != nil {
+			sdkOpts.CreateMessageHandler = c.options.CreateMessageHandler
+		}
+		if c.options.ElicitationHandler != nil {
+			sdkOpts.ElicitationHandler = c.options.ElicitationHandler
+		}
+		if c.options.LoggingMessageHandler != nil {
+			sdkOpts.LoggingMessageHandler = c.options.LoggingMessageHandler
+		}
+	}
+
+	client := mcp.NewClient(clientImpl, sdkOpts)
+
+	// Add roots if provided
+	if c.options != nil && len(c.options.Roots) > 0 {
+		client.AddRoots(c.options.Roots...)
+	}
+
+	// Store client reference for dynamic root additions
+	c.mcpClient = client
 
 	// Apply timeout for initialize handshake
 	// This is the key step - the server is only "ready" after successful initialize
@@ -175,12 +202,18 @@ func (c *Client) Connect(ctx context.Context) error {
 
 	// Load resources (optional, may not be supported by all servers)
 	if err := c.loadResources(ctx); err != nil {
-		log.Printf("[DEBUG] Failed to load resources from %s: %v", c.config.Name, err)
+		// Method not found is expected for servers that don't support resources
+		if !strings.Contains(err.Error(), "Method not found") {
+			log.Printf("[DEBUG] Failed to load resources from %s: %v", c.config.Name, err)
+		}
 	}
 
 	// Load prompts (optional, may not be supported by all servers)
 	if err := c.loadPrompts(ctx); err != nil {
-		log.Printf("[DEBUG] Failed to load prompts from %s: %v", c.config.Name, err)
+		// Method not found is expected for servers that don't support prompts
+		if !strings.Contains(err.Error(), "Method not found") {
+			log.Printf("[DEBUG] Failed to load prompts from %s: %v", c.config.Name, err)
+		}
 	}
 
 	return nil
@@ -376,6 +409,15 @@ func (c *Client) Ping(ctx context.Context) error {
 	}
 
 	return c.session.Ping(ctx, &mcp.PingParams{})
+}
+
+// AddRoots adds filesystem roots that the server should focus on
+// Roots define filesystem boundaries for server operations
+// This can be called before or after Connect
+func (c *Client) AddRoots(roots ...*mcp.Root) {
+	if c.mcpClient != nil {
+		c.mcpClient.AddRoots(roots...)
+	}
 }
 
 // loadTools fetches and caches the available tools from the server
@@ -671,7 +713,7 @@ func (m *Manager) StartServer(ctx context.Context, serverName string) (*Client, 
 	}
 
 	// Create and connect client
-	client, err := NewClient(serverConfig)
+	client, err := NewClient(serverConfig, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client for %s: %w", serverName, err)
 	}
