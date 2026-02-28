@@ -16,8 +16,7 @@ func main() {
 	ctx := context.Background()
 
 	fmt.Println("Creating agent...")
-	svc, err := agent.NewBuilder("assistant").
-		Build()
+	svc, err := agent.New("assistant").Build()
 	if err != nil {
 		log.Fatalf("Failed to create agent: %v", err)
 	}

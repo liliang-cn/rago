@@ -11,10 +11,10 @@ import (
 func main() {
 	ctx := context.Background()
 
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:      "PlannerAgent",
-		EnableRAG: true,
-	})
+	svc, err := agent.New("PlannerAgent").
+		WithRAG().
+		WithMCP(agent.WithMCPConfigPaths("examples/mcpServers.json")).
+		Build()
 	if err != nil {
 		log.Fatalf("初始化失败: %v", err)
 	}

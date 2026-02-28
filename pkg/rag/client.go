@@ -643,6 +643,11 @@ func (c *Client) initAgentService(ctx context.Context) error {
 		return fmt.Errorf("failed to create agent service: %w", err)
 	}
 
+	// Set MCP service for full public access
+	if c.mcpService != nil {
+		svc.SetMCPService(c.mcpService)
+	}
+
 	c.agentService = svc
 	return nil
 }

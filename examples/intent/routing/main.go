@@ -17,9 +17,9 @@ func main() {
 	agentDBPath := filepath.Join(homeDir, ".rago", "data", "intent_routing.db")
 	os.MkdirAll(filepath.Dir(agentDBPath), 0755)
 
-	svc, err := agent.NewBuilder("intent-routing-agent").
+	svc, err := agent.New("intent-routing-agent").
 		WithDBPath(agentDBPath).
-		WithRouter(0.5).
+		WithRouter(agent.WithRouterThreshold(0.5)).
 		Build()
 	if err != nil {
 		log.Fatalf("Failed to create agent: %v", err)

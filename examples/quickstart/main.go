@@ -28,7 +28,7 @@ func main() {
 	fmt.Println()
 
 	// Create an agent - that's it! Configuration is loaded from ~/.rago/config/rago.toml
-	svc, err := agent.NewBuilder("quickstart").Build()
+	svc, err := agent.New("quickstart").Build()
 	if err != nil {
 		log.Fatalf("Failed to create agent: %v", err)
 	}

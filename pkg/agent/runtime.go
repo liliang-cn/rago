@@ -83,7 +83,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
 
 		// --- DEBUG: LOG FULL PROMPT ---
-		if r.svc.config != nil && r.svc.config.Debug {
+		if r.svc.debug {
 			fmt.Println("\n" + strings.Repeat("=", 40))
 			fmt.Printf("DEBUG [Runtime Round %d] LLM FULL PROMPT\n", round+1)
 			fmt.Println(strings.Repeat("-", 40))
@@ -130,7 +130,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		}
 
 		// --- DEBUG: LOG LLM RESPONSE ---
-		if r.svc.config != nil && r.svc.config.Debug {
+		if r.svc.debug {
 			fmt.Println("\n" + strings.Repeat("=", 40))
 			fmt.Printf("DEBUG [Runtime Round %d] LLM RESPONSE\n", round+1)
 			fmt.Println(strings.Repeat("-", 40))
@@ -153,12 +153,12 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			if r.svc.isPTCEnabled() {
 				content := fullContent.String()
 				isCode := r.svc.ptcIntegration.IsCodeResponse(content)
-				if r.svc.config != nil && r.svc.config.Debug {
+				if r.svc.debug {
 					fmt.Printf("DEBUG [PTC Override] IsCodeResponse=%v contentLen=%d\n", isCode, len(content))
 				}
 				if isCode {
 					extracted := r.svc.ptcIntegration.ExtractCode(content)
-					if r.svc.config != nil && r.svc.config.Debug {
+					if r.svc.debug {
 						if len(extracted) > 100 {
 							fmt.Printf("DEBUG [PTC Override] ExtractCode len=%d first100=%q\n", len(extracted), extracted[:100])
 						} else {
@@ -166,7 +166,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 						}
 					}
 					extracted = sanitiseJSCode(extracted)
-					if r.svc.config != nil && r.svc.config.Debug {
+					if r.svc.debug {
 						if len(extracted) > 100 {
 							fmt.Printf("DEBUG [PTC Override] After sanitise len=%d first100=%q\n", len(extracted), extracted[:100])
 						} else {
@@ -180,7 +180,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 									toolCalls[i].Function.Arguments = make(map[string]interface{})
 								}
 								toolCalls[i].Function.Arguments["code"] = extracted
-								if r.svc.config != nil && r.svc.config.Debug {
+								if r.svc.debug {
 									fmt.Printf("DEBUG [PTC Override] Replaced code for tool call %d\n", i)
 								}
 							}
@@ -351,7 +351,7 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 	toolName := tc.Function.Name
 
 	// --- DEBUG: LOG TOOL START ---
-	if r.svc.config != nil && r.svc.config.Debug {
+	if r.svc.debug {
 		fmt.Printf("\n🛠️  DEBUG RUNTIME TOOL CALL: %s\n", toolName)
 		fmt.Printf("   Arguments: %v\n", tc.Function.Arguments)
 	}
@@ -494,7 +494,7 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 	}
 
 	// --- DEBUG: LOG TOOL RESULT ---
-	if r.svc.config != nil && r.svc.config.Debug {
+	if r.svc.debug {
 		if execErr != nil {
 			fmt.Printf("   ❌ ERROR: %v\n", execErr)
 		} else {

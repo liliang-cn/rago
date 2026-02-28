@@ -541,3 +541,14 @@ func unmarshalProviders(raw interface{}, target *[]pool.Provider) error {
 
 	return nil
 }
+
+// LoadMCPConfig loads MCP configuration from specific paths (supports multiple)
+func LoadMCPConfig(paths ...string) (*mcp.Config, error) {
+	cfg := mcp.DefaultConfig()
+	cfg.Enabled = true
+	cfg.Servers = paths
+	if err := cfg.LoadServersFromJSON(); err != nil {
+		return nil, fmt.Errorf("failed to load MCP servers: %w", err)
+	}
+	return &cfg, nil
+}

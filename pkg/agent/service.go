@@ -13,19 +13,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	ragolog "github.com/liliang-cn/rago/v2/pkg/log"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
-	"github.com/liliang-cn/rago/v2/pkg/memory"
 	"github.com/liliang-cn/rago/v2/pkg/prompt"
 	"github.com/liliang-cn/rago/v2/pkg/ptc"
-	ragprocessor "github.com/liliang-cn/rago/v2/pkg/rag/processor"
-	ragstore "github.com/liliang-cn/rago/v2/pkg/rag/store"
 	"github.com/liliang-cn/rago/v2/pkg/router"
-	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
-	"github.com/liliang-cn/rago/v2/pkg/store"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -43,7 +37,7 @@ type ProgressCallback func(ProgressEvent)
 // Service is the main agent service that handles planning and execution
 // This matches the interface expected by the CLI in cmd/rago-cli/agent/agent.go
 type Service struct {
-	config           *AgentConfig
+	debug            bool
 	llmService       domain.Generator
 	mcpService       MCPToolExecutor
 	ragProcessor     domain.Processor
@@ -75,7 +69,7 @@ type Service struct {
 
 	// Public access to underlying services
 	LLM     domain.Generator
-	MCP     MCPToolExecutor
+	MCP     *mcp.Service // Full access to MCP service (Chat, StartServers, etc.)
 	RAG     domain.Processor
 	Memory  domain.MemoryService
 	Router  *router.Service
@@ -171,7 +165,6 @@ Available tools include:
 	logger := ragolog.WithModule("agent.service")
 
 	return &Service{
-		config:        &AgentConfig{}, // Default empty config
 		llmService:    llmService,
 		mcpService:    mcpService,
 		ragProcessor:  ragProcessor,
@@ -184,20 +177,18 @@ Available tools include:
 		registry:      registry,
 		logger:        logger,
 		hooks:         GlobalHookRegistry(),
-		// Public fields
+		// Public fields - MCP is set separately via SetMCPService
 		LLM:     llmService,
-		MCP:     mcpService,
+		MCP:     nil, // Set via SetMCPService for full access
 		RAG:     ragProcessor,
 		Memory:  memoryService,
 		Prompts: promptMgr,
 	}, nil
 }
 
-// SetConfig updates the agent's runtime configuration
-func (s *Service) SetConfig(cfg *AgentConfig) {
-	if cfg != nil {
-		s.config = cfg
-	}
+// SetMCPService sets the MCP service for full public access
+func (s *Service) SetMCPService(mcpSvc *mcp.Service) {
+	s.MCP = mcpSvc
 }
 
 // SetRouter sets the semantic router for improved intent recognition
@@ -284,6 +275,11 @@ func (s *Service) SetSkillsService(skillsService *skills.Service) {
 // SetProgressCallback sets the progress callback for execution events
 func (s *Service) SetProgressCallback(cb ProgressCallback) {
 	s.progressCb = cb
+}
+
+// SetDebug sets debug mode
+func (s *Service) SetDebug(debug bool) {
+	s.debug = debug
 }
 
 // SetAgentInstructions sets the instructions for the default agent
@@ -928,7 +924,7 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
 
 		// --- DEBUG: LOG FULL PROMPT ---
-		if s.config.Debug {
+		if s.debug {
 			fmt.Println("\n" + strings.Repeat("=", 40))
 			fmt.Printf("DEBUG: [ROUND %d] LLM FULL PROMPT\n", round+1)
 			fmt.Println(strings.Repeat("-", 40))
@@ -954,7 +950,7 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 		}
 
 		// --- DEBUG: LOG RAW RESPONSE ---
-		if s.config.Debug && err == nil {
+		if s.debug && err == nil {
 			fmt.Println("\n" + strings.Repeat("=", 40))
 			fmt.Printf("DEBUG: [ROUND %d] LLM RAW RESPONSE\n", round+1)
 			fmt.Println(strings.Repeat("-", 40))
@@ -1176,7 +1172,7 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 			s.emitProgress("tool_call", fmt.Sprintf("→ %s", toolDesc), 0, toolName)
 
 			// --- DEBUG: LOG TOOL CALL ---
-			if s.config != nil && s.config.Debug {
+			if s.debug {
 				fmt.Printf("\n🛠️  DEBUG TOOL CALL: %s\n", toolName)
 				fmt.Printf("   Arguments: %v\n", toolCall.Function.Arguments)
 			}
@@ -1191,21 +1187,21 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 
 			// 0. Priority: Agent-local Tools
 			if handler, ok := currentAgent.GetHandler(toolName); ok {
-				if s.config != nil && s.config.Debug {
+				if s.debug {
 					fmt.Println("   Type: Local Handler")
 				}
 				result, err = handler(groupCtx, toolCall.Function.Arguments)
 				toolType = "local"
 			} else if s.isMCPTool(toolName) {
 				// 1. MCP tools
-				if s.config != nil && s.config.Debug {
+				if s.debug {
 					fmt.Printf("   Type: MCP Tool\n")
 				}
 				result, err = s.mcpService.CallTool(groupCtx, toolName, toolCall.Function.Arguments)
 				toolType = "mcp"
 			} else if s.isSkill(groupCtx, toolName) && s.skillsService != nil {
 				// 2. Skills
-				if s.config != nil && s.config.Debug {
+				if s.debug {
 					fmt.Printf("   Type: Skill (%s)\n", toolName)
 				}
 
@@ -1316,7 +1312,7 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 					slog.String("tool", toolName),
 					slog.Any("error", err))
 
-				if s.config != nil && s.config.Debug {
+				if s.debug {
 					fmt.Printf("   ❌ ERROR: %v\n", err)
 					fmt.Println(strings.Repeat("-", 20))
 				}
@@ -1329,7 +1325,7 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 				slog.Any("result", result))
 
 			// --- DEBUG: LOG TOOL SUCCESS ---
-			if s.config != nil && s.config.Debug {
+			if s.debug {
 				fmt.Printf("   ✅ RESULT: %v\n", result)
 				fmt.Println(strings.Repeat("-", 20))
 			}
@@ -1825,7 +1821,7 @@ func (s *Service) ReflectMemory(ctx context.Context) (string, error) {
 	return s.memoryService.Reflect(ctx, s.CurrentSessionID())
 }
 
-// CompactSession summarizes a session into key points
+// CompactSession summarizes a session into key points using LLM
 func (s *Service) CompactSession(ctx context.Context, sessionID string) (string, error) {
 	// Load session
 	session, err := s.store.GetSession(sessionID)
@@ -1838,18 +1834,30 @@ func (s *Service) CompactSession(ctx context.Context, sessionID string) (string,
 		return "", nil
 	}
 
-	// Check if llmService supports Compact
-	llmSvc, ok := s.llmService.(interface {
-		Compact(ctx context.Context, messages []domain.Message) (string, error)
-	})
-	if !ok {
-		return "", fmt.Errorf("underlying LLM service does not support Compact")
+	// Build conversation text for summarization
+	var conversationText strings.Builder
+	for _, msg := range messages {
+		switch msg.Role {
+		case "user":
+			conversationText.WriteString(fmt.Sprintf("User: %s\n", msg.Content))
+		case "assistant":
+			conversationText.WriteString(fmt.Sprintf("Assistant: %s\n", msg.Content))
+		}
 	}
 
-	// Generate summary
-	summary, err := llmSvc.Compact(ctx, messages)
+	// Get compact prompt template
+	compactPrompt := s.promptManager.Get(prompt.LLMCompact)
+	if compactPrompt == "" {
+		compactPrompt = "You are a helpful assistant that summarizes long conversations. Your goal is to extract key points and important information from the conversation, keeping it concise but comprehensive. Focus on what was discussed, what decisions were made, and any important context that should be preserved."
+	}
+
+	// Build full prompt
+	fullPrompt := fmt.Sprintf("%s\n\nConversation to summarize:\n%s\n\nPlease provide a concise summary of the key points:", compactPrompt, conversationText.String())
+
+	// Generate summary using LLM
+	summary, err := s.llmService.Generate(ctx, fullPrompt, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to compact session: %w", err)
+		return "", fmt.Errorf("failed to generate summary: %w", err)
 	}
 
 	// Update session
@@ -1913,284 +1921,6 @@ func (s *Service) SaveToFile(content, filePath string) error {
 // Close closes the service and releases resources
 func (s *Service) Close() error {
 	return s.store.Close()
-}
-
-// ========================================
-// Simplified API
-// ========================================
-
-// AgentConfig holds configuration for New()
-type AgentConfig struct {
-	Name             string
-	SystemPrompt     string
-	DBPath           string
-	MemoryDBPath     string
-	MemoryStoreType  string // "sqlite" (default) or "file"
-	EnableMCP        bool
-	EnableMemory     bool
-	EnableRAG        bool
-	EnableRouter     bool
-	EnableSkills     bool
-	EnableAutoMemory bool      // Automatically save important info to memory
-	EnablePTC        bool      // Enable Programmatic Tool Calling via JS sandbox
-	PTCConfig        PTCConfig // PTC configuration (optional, uses defaults if zero-value)
-	Debug            bool      // Enable verbose debugging output
-	IntentPaths      []string
-	RouterThreshold  float64
-	ProgressCb       ProgressCallback
-}
-
-// New creates an agent service with simplified configuration.
-// It automatically initializes LLM, Embedding, MCP, Memory, and Router services from rago.toml.
-//
-// Example:
-//
-//	svc, err := agent.New(&agent.AgentConfig{
-//	    Name: "my-agent",
-//	    EnableMCP: true,
-//	    EnableMemory: true,
-//	})
-//	result, _ := svc.Run(ctx, "Hello!")
-func New(cfg *AgentConfig) (*Service, error) {
-	if cfg == nil || cfg.Name == "" {
-		return nil, fmt.Errorf("agent name is required")
-	}
-
-	// Load config
-	ragoCfg, err := config.Load("")
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
-	}
-
-	// Initialize global pool
-	globalPool := services.GetGlobalPoolService()
-	if err := globalPool.Initialize(context.Background(), ragoCfg); err != nil {
-		return nil, fmt.Errorf("failed to initialize pool: %w", err)
-	}
-
-	// Get LLM service
-	llmSvc, err := globalPool.GetLLMService()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get LLM: %w", err)
-	}
-
-	// Get Embedding service
-	embedSvc, err := globalPool.GetEmbeddingService(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get embedder: %w", err)
-	}
-
-	// MCP service
-	var mcpSvc *mcp.Service
-	var mcpAdapter MCPToolExecutor
-	if cfg.EnableMCP {
-		mcpSvc, err = mcp.NewService(&ragoCfg.MCP, llmSvc)
-		if err == nil {
-			mcpSvc.StartServers(context.Background(), nil)
-			mcpAdapter = &mcpToolAdapter{service: mcpSvc}
-		}
-	}
-
-	// Memory service
-	var memSvc domain.MemoryService
-	if cfg.EnableMemory {
-		var memStore domain.MemoryStore
-		var shadowStore domain.MemoryStore // New: optional shadow index
-		var err error
-
-		if cfg.MemoryStoreType == "file" {
-			memPath := cfg.MemoryDBPath
-			if memPath == "" {
-				memPath = filepath.Join(ragoCfg.DataDir(), "memories")
-			}
-			memStore, err = store.NewFileMemoryStore(memPath)
-
-			// Initialize Shadow Index (Vector accelerator)
-			sqlitePath := filepath.Join(ragoCfg.DataDir(), "rago.db")
-			if sqliteStore, serr := store.NewMemoryStore(sqlitePath); serr == nil {
-				_ = sqliteStore.InitSchema(context.Background())
-				shadowStore = sqliteStore
-			}
-		} else {
-			// (Old logic for direct SQLite storage...)
-			memDBPath := cfg.MemoryDBPath
-			if memDBPath == "" {
-				memDBPath = ragoCfg.Sqvect.DBPath
-			}
-			sqliteStore, serr := store.NewMemoryStore(memDBPath)
-			if serr == nil {
-				_ = sqliteStore.InitSchema(context.Background())
-				memStore = sqliteStore
-			}
-			err = serr
-		}
-
-		if err == nil && memStore != nil {
-			memSvcInstance := memory.NewService(memStore, llmSvc, embedSvc, memory.DefaultConfig())
-			// Inject shadow index if available
-			if shadowStore != nil {
-				memSvcInstance.SetShadowIndex(shadowStore)
-			}
-			memSvc = memSvcInstance
-		}
-	}
-
-	// Router service
-	var routerSvc *router.Service
-	if cfg.EnableRouter {
-		routerCfg := router.DefaultConfig()
-		if cfg.RouterThreshold > 0 {
-			routerCfg.Threshold = cfg.RouterThreshold
-		}
-		routerSvc, err = router.NewService(embedSvc, routerCfg)
-		if err == nil {
-			_ = routerSvc.RegisterDefaultIntents()
-		}
-	}
-
-	// RAG processor
-	var ragProcessor domain.Processor
-	if cfg.EnableRAG {
-		// Create RAG stores using the unified DB path
-		vectorStore, err := ragstore.NewVectorStore(ragstore.StoreConfig{
-			Type: "sqlite",
-			Parameters: map[string]interface{}{
-				"db_path": ragoCfg.Sqvect.DBPath,
-			},
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create vector store: %w", err)
-		}
-		if vectorStore != nil {
-			docStore := ragstore.NewDocumentStoreFor(vectorStore)
-			// Create RAG processor with proper stores
-			ragProcessor = ragprocessor.New(
-				embedSvc,
-				llmSvc,
-				nil,         // chunker - will use default
-				vectorStore, // vector store
-				docStore,    // document store
-				ragoCfg,
-				nil,    // llmService for metadata extraction (optional)
-				memSvc, // memory service
-			)
-		}
-	}
-
-	// Skills service
-	var skillsSvc *skills.Service
-	if cfg.EnableSkills {
-		skillsCfg := skills.DefaultConfig()
-		skillsCfg.Paths = []string{ragoCfg.SkillsDir()}
-		// Use the unified DB path
-		skillsCfg.DBPath = ragoCfg.Sqvect.DBPath
-		skillsSvc, err = skills.NewService(skillsCfg)
-		if err == nil {
-			_ = skillsSvc.LoadAll(context.Background())
-		}
-	}
-
-	// Agent DB path - use the unified DB path
-	agentDBPath := cfg.DBPath
-	if agentDBPath == "" {
-		agentDBPath = ragoCfg.Sqvect.DBPath
-	}
-
-	// Create agent service
-	svc, err := NewService(llmSvc, mcpAdapter, ragProcessor, agentDBPath, memSvc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create agent: %w", err)
-	}
-	svc.config = cfg
-
-	// PTC (Programmatic Tool Calling) integration
-	if cfg.EnablePTC {
-		ptcCfg := cfg.PTCConfig
-		if !ptcCfg.Enabled {
-			// Merge: EnablePTC flag implies Enabled inside PTCConfig
-			ptcCfg = DefaultPTCConfig()
-			ptcCfg.Enabled = true
-			// Preserve any explicit overrides from caller
-			if cfg.PTCConfig.MaxToolCalls > 0 {
-				ptcCfg.MaxToolCalls = cfg.PTCConfig.MaxToolCalls
-			}
-			if cfg.PTCConfig.Timeout > 0 {
-				ptcCfg.Timeout = cfg.PTCConfig.Timeout
-			}
-			if cfg.PTCConfig.Runtime != "" {
-				ptcCfg.Runtime = cfg.PTCConfig.Runtime
-			}
-			if len(cfg.PTCConfig.AllowedTools) > 0 {
-				ptcCfg.AllowedTools = cfg.PTCConfig.AllowedTools
-			}
-			if len(cfg.PTCConfig.BlockedTools) > 0 {
-				ptcCfg.BlockedTools = cfg.PTCConfig.BlockedTools
-			}
-
-			// Auto-block RAG tools when RAG is disabled to avoid confusing the LLM
-			if !cfg.EnableRAG {
-				ragTools := []string{"rag_query", "rag_ingest", "rag_list"}
-				blocked := make(map[string]bool, len(ptcCfg.BlockedTools))
-				for _, t := range ptcCfg.BlockedTools {
-					blocked[t] = true
-				}
-				for _, t := range ragTools {
-					if !blocked[t] {
-						ptcCfg.BlockedTools = append(ptcCfg.BlockedTools, t)
-					}
-				}
-			}
-		}
-
-		// Build the router with available services
-		routerOpts := buildPTCRouterOptions(mcpAdapter, skillsSvc, ragProcessor)
-		ptcRouter := ptc.NewRAGORouter(routerOpts...)
-
-		ptcInteg, ptcErr := NewPTCIntegration(ptcCfg, ptcRouter)
-		if ptcErr != nil {
-			return nil, fmt.Errorf("failed to create PTC integration: %w", ptcErr)
-		}
-		svc.ptcIntegration = ptcInteg
-		svc.PTC = ptcInteg
-	}
-
-	// Load prompts from default directory (~/.rago/prompts)
-	promptDir := filepath.Join(ragoCfg.Home, "prompts")
-	_ = svc.promptManager.LoadFromDir(promptDir)
-
-	// Set skills service
-	if skillsSvc != nil {
-		svc.SetSkillsService(skillsSvc)
-	}
-
-	// Set router
-	if routerSvc != nil {
-		svc.SetRouter(routerSvc)
-
-		// Load custom intents if provided or from default path
-		intentPaths := cfg.IntentPaths
-		if len(intentPaths) == 0 {
-			intentPaths = []string{ragoCfg.IntentsDir()}
-		}
-		_ = svc.Router.LoadIntentsFromPaths(intentPaths)
-	}
-
-	// Set progress callback
-	if cfg.ProgressCb != nil {
-		svc.SetProgressCallback(cfg.ProgressCb)
-	}
-
-	// Set custom system prompt if provided
-	if cfg.SystemPrompt != "" {
-		svc.SetAgentInstructions(cfg.SystemPrompt)
-	}
-
-	// Register auto-memory hook if enabled
-	if cfg.EnableAutoMemory {
-		svc.RegisterAutoMemoryHook()
-	}
-
-	return svc, nil
 }
 
 // mcpToolAdapter wraps mcp.Service to implement MCPToolExecutor

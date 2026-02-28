@@ -8,36 +8,20 @@ import (
 	"path/filepath"
 
 	"github.com/liliang-cn/rago/v2/pkg/agent"
-	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/services"
 )
 
 func main() {
-
 	ctx := context.Background()
 
-	// Load config
-	cfg, err := config.Load("")
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
-	}
-
-	// Initialize global pool
-	globalPool := services.GetGlobalPoolService()
-	if err := globalPool.Initialize(ctx, cfg); err != nil {
-		log.Fatalf("Failed to initialize pool: %v", err)
-	}
-
-	// Create agent service
+	// Create agent service using fluent builder
 	homeDir, _ := os.UserHomeDir()
 	agentDBPath := filepath.Join(homeDir, ".rago", "data", "compact_session.db")
 
 	os.MkdirAll(filepath.Dir(agentDBPath), 0755)
 
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:   "compact-session-agent",
-		DBPath: agentDBPath,
-	})
+	svc, err := agent.New("compact-session-agent").
+		WithDBPath(agentDBPath).
+		Build()
 	if err != nil {
 		log.Fatalf("Failed to create agent: %v", err)
 	}

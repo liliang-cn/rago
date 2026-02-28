@@ -343,7 +343,7 @@ func main() {
 }
 
 func createService() (*agent.Service, error) {
-	return agent.NewBuilder("TravelPlanner").
+	return agent.New("TravelPlanner").
 		WithPTC().
 		WithDebug(os.Getenv("DEBUG") != "").
 		Build()

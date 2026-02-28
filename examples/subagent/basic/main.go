@@ -142,7 +142,7 @@ func main() {
 	fmt.Println("=== SubAgent Basic Example ===")
 	fmt.Printf("Goal: %s\n\n", question)
 
-	svc, err := agent.NewBuilder("Orchestrator").
+	svc, err := agent.New("Orchestrator").
 		WithDebug(os.Getenv("DEBUG") != "").
 		Build()
 	if err != nil {

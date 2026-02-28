@@ -14,12 +14,11 @@ func main() {
 
 	// 1. 初始化全功能 Agent
 	fmt.Println("正在初始化全功能 Agent...")
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:         "RealtimeAgent",
-		EnableMCP:    true, // 实时会话也可以调 MCP 工具
-		EnableMemory: true,
-		EnableRAG:    true,
-	})
+	svc, err := agent.New("RealtimeAgent").
+		WithMCP().
+		WithMemory().
+		WithRAG().
+		Build()
 	if err != nil {
 		log.Fatalf("初始化失败: %v", err)
 	}
@@ -61,7 +60,7 @@ func main() {
 		if len(result.ToolCalls) > 0 {
 			for _, tc := range result.ToolCalls {
 				fmt.Printf("\n[工具调用] → %s(%v)\n", tc.Function.Name, tc.Function.Arguments)
-				
+
 				// 在实际应用中，这里应该调用 svc.ExecuteToolCalls
 				// 为了演示，我们回复一个模拟结果
 				session.Send(ctx, domain.Message{
