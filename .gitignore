@@ -5,4 +5,4 @@ rago.toml
 
 .DS_Store
 
-.rago/
+.rago/vendor/
