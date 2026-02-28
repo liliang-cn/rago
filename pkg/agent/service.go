@@ -67,6 +67,9 @@ type Service struct {
 	// PTC (Programmatic Tool Calling) integration
 	ptcIntegration *PTCIntegration
 
+	// Execution history storage
+	historyStore *HistoryStore
+
 	// Public access to underlying services
 	LLM     domain.Generator
 	MCP     *mcp.Service // Full access to MCP service (Chat, StartServers, etc.)
@@ -202,6 +205,16 @@ func (s *Service) SetRouter(routerService *router.Service) {
 func (s *Service) SetPTC(ptcIntegration *PTCIntegration) {
 	s.ptcIntegration = ptcIntegration
 	s.PTC = ptcIntegration
+}
+
+// SetHistoryStore sets the history store for execution recording
+func (s *Service) SetHistoryStore(historyStore *HistoryStore) {
+	s.historyStore = historyStore
+}
+
+// GetHistoryStore returns the current history store
+func (s *Service) GetHistoryStore() *HistoryStore {
+	return s.historyStore
 }
 
 // isPTCEnabled reports whether PTC mode is active.
@@ -472,11 +485,28 @@ func (s *Service) RunStream(ctx context.Context, goal string) (<-chan *Event, er
 // 1. Intent Recognition
 // 2. Check Memory
 // 3. RAG Query
-// Run executes a goal - simple and dynamic:
+// Run executes a goal with default configuration
+func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error) {
+	return s.RunWithConfig(ctx, goal, DefaultRunConfig())
+}
+
+// RunWithOptions executes a goal with the specified options
+func (s *Service) RunWithOptions(ctx context.Context, goal string, opts ...RunOption) (*ExecutionResult, error) {
+	cfg := DefaultRunConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return s.RunWithConfig(ctx, goal, cfg)
+}
+
+// RunWithConfig executes a goal with explicit configuration
 // 1. Collect all available tools (MCP + Skills + RAG)
 // 2. Intent Recognition
 // 3. Let LLM match intent to tools and execute
-func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error) {
+func (s *Service) RunWithConfig(ctx context.Context, goal string, cfg *RunConfig) (*ExecutionResult, error) {
+	if cfg == nil {
+		cfg = DefaultRunConfig()
+	}
 	s.resetRunMemorySaved()
 
 	// Create cancellable context for this run
@@ -541,7 +571,7 @@ func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error
 	}
 
 	// Step 5: Let LLM decide and execute (with gathered context)
-	finalResult, err := s.executeWithLLM(runCtx, goal, intent, session, memoryContext, ragContext)
+	finalResult, err := s.executeWithLLM(runCtx, goal, intent, session, memoryContext, ragContext, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -874,8 +904,11 @@ func (s *Service) buildSystemPrompt(ctx context.Context, agent *Agent) string {
 }
 
 // executeWithLLM lets LLM decide which tool to use and executes with multi-round support
-func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *IntentRecognitionResult, session *Session, memoryContext string, ragContext string) (interface{}, error) {
-	const maxRounds = 20 // Maximum rounds to prevent infinite loops
+func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *IntentRecognitionResult, session *Session, memoryContext string, ragContext string, cfg *RunConfig) (interface{}, error) {
+	maxRounds := cfg.MaxTurns
+	if maxRounds <= 0 {
+		maxRounds = 20 // Default
+	}
 
 	// Determine starting agent
 	currentAgent := s.agent
@@ -903,6 +936,14 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 		messages[len(messages)-1].Content += "\n\nRelevant context from memory:\n" + memoryContext
 	}
 
+	// Record initial user message if history is enabled
+	if cfg.StoreHistory && s.historyStore != nil {
+		s.historyStore.RecordMessage(ctx, session.GetID(), currentAgent.ID(), goal, messages[0], 0)
+	}
+
+	// Track tool call count for session summary
+	toolCallCount := 0
+
 	// Multi-round conversation loop
 	for round := 0; round < maxRounds; round++ {
 		// Check for cancellation
@@ -924,7 +965,7 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
 
 		// --- DEBUG: LOG FULL PROMPT ---
-		if s.debug {
+		if s.debug || cfg.Debug {
 			fmt.Println("\n" + strings.Repeat("=", 40))
 			fmt.Printf("DEBUG: [ROUND %d] LLM FULL PROMPT\n", round+1)
 			fmt.Println(strings.Repeat("-", 40))
@@ -938,9 +979,17 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 		}
 
 		// Let LLM decide
+		temperature := cfg.Temperature
+		if temperature == 0 {
+			temperature = 0.3
+		}
+		maxTokens := cfg.MaxTokens
+		if maxTokens == 0 {
+			maxTokens = 2000
+		}
 		result, err := s.llmService.GenerateWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
-			Temperature: 0.3,
-			MaxTokens:   2000,
+			Temperature: temperature,
+			MaxTokens:   maxTokens,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("LLM generation failed: %w", err)
@@ -950,7 +999,7 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 		}
 
 		// --- DEBUG: LOG RAW RESPONSE ---
-		if s.debug && err == nil {
+		if (s.debug || cfg.Debug) && err == nil {
 			fmt.Println("\n" + strings.Repeat("=", 40))
 			fmt.Printf("DEBUG: [ROUND %d] LLM RAW RESPONSE\n", round+1)
 			fmt.Println(strings.Repeat("-", 40))
@@ -1059,16 +1108,70 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 					Content:    resStr,
 					ToolCallID: tr.ToolCallID,
 				})
+
+				// Record tool result if history is enabled
+				if cfg.StoreHistory && s.historyStore != nil {
+					// Determine success based on result type
+					success := true
+					var errMsg string
+					if errMap, ok := tr.Result.(map[string]interface{}); ok {
+						if errVal, exists := errMap["error"]; exists && errVal != nil {
+							success = false
+							errMsg = fmt.Sprintf("%v", errVal)
+						}
+					}
+					s.historyStore.RecordToolResult(ctx, session.GetID(), currentAgent.ID(), goal,
+						tr.ToolName, tr.ToolCallID, nil, tr.Result, success, errMsg, round+1)
+				}
 			}
 
+			toolCallCount += len(toolResults)
 			continue
 		}
 
 		// No more tool calls - LLM is done
+		// Complete session history if enabled
+		if cfg.StoreHistory && s.historyStore != nil {
+			s.historyStore.CompleteSession(ctx, session.GetID(), currentAgent.ID(), goal,
+				round+1, toolCallCount, true, 0)
+		}
 		return result.Content, nil
 	}
 
-	return nil, fmt.Errorf("exceeded maximum rounds (%d) - conversation may be stuck", maxRounds)
+	// Max turns exceeded - check for error handler
+	errExceeded := NewMaxTurnsExceeded(maxRounds, maxRounds, goal)
+	if handler, ok := cfg.ErrorHandlers["max_turns"]; ok {
+		handlerResult := handler(ErrorHandlerInput{
+			Kind:         "max_turns",
+			Round:        maxRounds,
+			MaxTurns:     maxRounds,
+			MessageCount: len(messages),
+			Goal:         goal,
+		})
+		if handlerResult.FinalOutput != nil {
+			// Complete session history with success=false but provided output
+			if cfg.StoreHistory && s.historyStore != nil {
+				s.historyStore.CompleteSession(ctx, session.GetID(), currentAgent.ID(), goal,
+					maxRounds, toolCallCount, false, 0)
+			}
+			return handlerResult.FinalOutput, nil
+		}
+		if handlerResult.Error != nil {
+			if cfg.StoreHistory && s.historyStore != nil {
+				s.historyStore.CompleteSession(ctx, session.GetID(), currentAgent.ID(), goal,
+					maxRounds, toolCallCount, false, 0)
+			}
+			return nil, handlerResult.Error
+		}
+	}
+
+	// Complete session history with failure
+	if cfg.StoreHistory && s.historyStore != nil {
+		s.historyStore.CompleteSession(ctx, session.GetID(), currentAgent.ID(), goal,
+			maxRounds, toolCallCount, false, 0)
+	}
+
+	return nil, errExceeded
 }
 
 // verifyResult verifies the result with LLM

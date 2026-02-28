@@ -78,3 +78,114 @@ type ExecutionResult struct {
 	Duration    string                 `json:"duration"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
+
+// ============================================================
+// RunConfig - Configuration for agent runs
+// ============================================================
+
+// RunConfig holds configuration for a single agent run
+type RunConfig struct {
+	// MaxTurns limits the number of agent loop iterations (default: 20)
+	MaxTurns int
+
+	// ErrorHandlers allows custom handling of specific error conditions
+	// Key: error kind (e.g., "max_turns")
+	// Value: function that returns a fallback result
+	ErrorHandlers map[string]ErrorHandlerFunc
+
+	// Temperature for LLM generation
+	Temperature float64
+
+	// MaxTokens for LLM generation
+	MaxTokens int
+
+	// Debug enables verbose logging
+	Debug bool
+
+	// StoreHistory enables storing execution history to database
+	StoreHistory bool
+
+	// HistoryDBPath specifies the database path for history storage
+	HistoryDBPath string
+}
+
+// ErrorHandlerFunc handles errors during agent execution
+type ErrorHandlerFunc func(ErrorHandlerInput) ErrorHandlerResult
+
+// ErrorHandlerInput provides context for error handling
+type ErrorHandlerInput struct {
+	// Kind of error (e.g., "max_turns")
+	Kind string
+	// Current round number
+	Round int
+	// MaxTurns limit
+	MaxTurns int
+	// Messages in conversation so far
+	MessageCount int
+	// Original goal
+	Goal string
+}
+
+// ErrorHandlerResult specifies how to handle the error
+type ErrorHandlerResult struct {
+	// FinalOutput to return instead of error
+	FinalOutput interface{}
+	// IncludeInHistory determines if the fallback output is added to conversation
+	IncludeInHistory bool
+	// Error to return (if FinalOutput is nil)
+	Error error
+}
+
+// DefaultRunConfig returns the default run configuration
+func DefaultRunConfig() *RunConfig {
+	return &RunConfig{
+		MaxTurns:     20,
+		Temperature:  0.3,
+		MaxTokens:    2000,
+		Debug:        false,
+		StoreHistory: false,
+	}
+}
+
+// RunOption modifies RunConfig
+type RunOption func(*RunConfig)
+
+// WithMaxTurns sets the maximum number of turns
+func WithMaxTurns(n int) RunOption {
+	return func(c *RunConfig) { c.MaxTurns = n }
+}
+
+// WithTemperature sets the LLM temperature
+func WithTemperature(t float64) RunOption {
+	return func(c *RunConfig) { c.Temperature = t }
+}
+
+// WithMaxTokens sets the maximum tokens for LLM generation
+func WithMaxTokens(n int) RunOption {
+	return func(c *RunConfig) { c.MaxTokens = n }
+}
+
+// WithDebug enables debug mode for this run
+func WithDebug(debug bool) RunOption {
+	return func(c *RunConfig) { c.Debug = debug }
+}
+
+// WithErrorHandler adds an error handler for a specific error kind
+func WithErrorHandler(kind string, handler ErrorHandlerFunc) RunOption {
+	return func(c *RunConfig) {
+		if c.ErrorHandlers == nil {
+			c.ErrorHandlers = make(map[string]ErrorHandlerFunc)
+		}
+		c.ErrorHandlers[kind] = handler
+	}
+}
+
+// WithStoreHistory enables storing execution history
+func WithStoreHistory(store bool) RunOption {
+	return func(c *RunConfig) { c.StoreHistory = store }
+}
+
+// WithHistoryDBPath sets the database path for history storage
+func WithHistoryDBPath(path string) RunOption {
+	return func(c *RunConfig) { c.HistoryDBPath = path }
+}
