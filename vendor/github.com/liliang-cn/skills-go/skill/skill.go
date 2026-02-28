@@ -19,7 +19,7 @@ const (
 // Skill represents a complete skill with metadata, content, and resources
 type Skill struct {
 	// Metadata
-	Meta Meta  `yaml:"frontmatter" json:"meta"`
+	Meta Meta   `yaml:"frontmatter" json:"meta"`
 	Path string `json:"path"`
 	Name string `json:"name"`
 
@@ -38,23 +38,121 @@ type Skill struct {
 
 // Meta is the YAML frontmatter of SKILL.md
 type Meta struct {
-	Name                  string   `yaml:"name,omitempty"`
-	Description           string   `yaml:"description,omitempty"`
-	ArgumentHint          string   `yaml:"argument-hint,omitempty"`
-	DisableModelInvocation bool   `yaml:"disable-model-invocation,omitempty"`
-	UserInvocable         *bool    `yaml:"user-invocable,omitempty"`
-	AllowedTools          []string `yaml:"allowed-tools,omitempty"`
-	Model                 string   `yaml:"model,omitempty"`
-	Context               string   `yaml:"context,omitempty"`
-	Agent                 string   `yaml:"agent,omitempty"`
-	Hooks                 *Hooks   `yaml:"hooks,omitempty"`
+	Name                   string            `yaml:"name,omitempty"`
+	Description            string            `yaml:"description,omitempty"`
+	ArgumentHint           string            `yaml:"argument-hint,omitempty"`
+	DisableModelInvocation bool              `yaml:"disable-model-invocation,omitempty"`
+	UserInvocable          *bool             `yaml:"user-invocable,omitempty"`
+	AllowedTools           StringOrSlice     `yaml:"allowed-tools,omitempty"`
+	Model                  string            `yaml:"model,omitempty"`
+	Context                string            `yaml:"context,omitempty"`
+	Agent                  string            `yaml:"agent,omitempty"`
+	Hooks                  *Hooks            `yaml:"hooks,omitempty"`
+	Metadata               map[string]string `yaml:"metadata,omitempty"`
+	License                string            `yaml:"license,omitempty"`
+	Compatibility          string            `yaml:"compatibility,omitempty"`
 }
 
 // Hooks defines skill lifecycle hooks
 type Hooks struct {
-	BeforeInvoke []string `yaml:"before_invoke,omitempty"`
-	AfterInvoke  []string `yaml:"after_invoke,omitempty"`
-	OnError      []string `yaml:"on_error,omitempty"`
+	BeforeInvoke []string     `yaml:"before_invoke,omitempty"`
+	AfterInvoke  []string     `yaml:"after_invoke,omitempty"`
+	OnError      []string     `yaml:"on_error,omitempty"`
+	PreToolUse   []HookAction `yaml:"PreToolUse,omitempty"`
+	PostToolUse  []HookAction `yaml:"PostToolUse,omitempty"`
+	Stop         []HookAction `yaml:"Stop,omitempty"`
+}
+
+// HookAction defines a single hook action
+type HookAction struct {
+	Matcher string       `yaml:"matcher,omitempty"`
+	Hooks   []HookConfig `yaml:"hooks,omitempty"`
+}
+
+// HookConfig defines hook configuration
+type HookConfig struct {
+	Type    string `yaml:"type,omitempty"`
+	Command string `yaml:"command,omitempty"`
+}
+
+// StringOrSlice allows a field to be either a string or a slice of strings
+type StringOrSlice []string
+
+func (s *StringOrSlice) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var single string
+	if err := unmarshal(&single); err == nil {
+		*s = parseDelimitedString(single)
+		return nil
+	}
+
+	var multi []string
+	if err := unmarshal(&multi); err != nil {
+		return err
+	}
+	*s = multi
+	return nil
+}
+
+func parseDelimitedString(s string) []string {
+	s = trimSpace(s)
+	if s == "" {
+		return nil
+	}
+
+	if stringsContains(s, ",") {
+		return splitAndTrim(s, ",")
+	}
+	return splitAndTrim(s, " ")
+}
+
+func splitAndTrim(s, sep string) []string {
+	parts := stringsSplit(s, sep)
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = trimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+func stringsContains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+func stringsSplit(s, sep string) []string {
+	if sep == "" {
+		return []string{s}
+	}
+	var result []string
+	start := 0
+	for i := 0; i <= len(s)-len(sep); i++ {
+		if s[i:i+len(sep)] == sep {
+			result = append(result, s[start:i])
+			start = i + len(sep)
+			i += len(sep) - 1
+		}
+	}
+	result = append(result, s[start:])
+	return result
+}
+
+func trimSpace(s string) string {
+	start := 0
+	end := len(s)
+	for start < end && (s[start] == ' ' || s[start] == '\t') {
+		start++
+	}
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t') {
+		end--
+	}
+	return s[start:end]
 }
 
 // Resources contains additional skill resources

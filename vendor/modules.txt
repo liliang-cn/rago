@@ -116,7 +116,7 @@ github.com/liliang-cn/mcp-swagger-server/mcp
 # github.com/liliang-cn/pipeit v0.1.0
 ## explicit; go 1.21
 github.com/liliang-cn/pipeit
-# github.com/liliang-cn/skills-go v1.1.0
+# github.com/liliang-cn/skills-go v1.2.0
 ## explicit; go 1.23.0
 github.com/liliang-cn/skills-go/mcp
 github.com/liliang-cn/skills-go/skill
@@ -145,9 +145,10 @@ github.com/mattn/go-runewidth
 # github.com/mattn/go-sqlite3 v1.14.32
 ## explicit; go 1.19
 github.com/mattn/go-sqlite3
-# github.com/modelcontextprotocol/go-sdk v1.3.0-pre.1
+# github.com/modelcontextprotocol/go-sdk v1.3.1
 ## explicit; go 1.23.0
 github.com/modelcontextprotocol/go-sdk/auth
+github.com/modelcontextprotocol/go-sdk/internal/json
 github.com/modelcontextprotocol/go-sdk/internal/jsonrpc2
 github.com/modelcontextprotocol/go-sdk/internal/util
 github.com/modelcontextprotocol/go-sdk/internal/xcontext
@@ -219,6 +220,22 @@ github.com/robfig/cron/v3
 # github.com/sagikazarmark/locafero v0.7.0
 ## explicit; go 1.21
 github.com/sagikazarmark/locafero
+# github.com/segmentio/asm v1.1.3
+## explicit; go 1.17
+github.com/segmentio/asm/ascii
+github.com/segmentio/asm/base64
+github.com/segmentio/asm/cpu
+github.com/segmentio/asm/cpu/arm
+github.com/segmentio/asm/cpu/arm64
+github.com/segmentio/asm/cpu/cpuid
+github.com/segmentio/asm/cpu/x86
+github.com/segmentio/asm/internal/unsafebytes
+github.com/segmentio/asm/keyset
+# github.com/segmentio/encoding v0.5.3
+## explicit; go 1.23
+github.com/segmentio/encoding/ascii
+github.com/segmentio/encoding/iso8601
+github.com/segmentio/encoding/json
 # github.com/sourcegraph/conc v0.3.0
 ## explicit; go 1.19
 github.com/sourcegraph/conc
