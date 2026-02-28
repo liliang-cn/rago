@@ -195,7 +195,7 @@ func main() {
 	defer cancel()
 
 	fmt.Println("=== SubAgent Tool Filtering Example ===")
-	fmt.Println("Demonstrating allowlist and denylist tool filtering.\n")
+	fmt.Println("Demonstrating allowlist and denylist tool filtering.")
 
 	svc, err := agent.New("FilterOrchestrator").
 		WithDebug(os.Getenv("DEBUG") != "").

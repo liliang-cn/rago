@@ -66,7 +66,7 @@ func main() {
 	defer cancel()
 
 	fmt.Println("=== Agent -> SubAgent Delegation Example ===")
-	fmt.Println("Demonstrating how an Agent can delegate tasks to SubAgents.\n")
+	fmt.Println("Demonstrating how an Agent can delegate tasks to SubAgents.")
 
 	svc, err := agent.New("DelegationOrchestrator").
 		WithSystemPrompt(`You are a task orchestrator. You can delegate work to sub-agents using the delegate_to_subagent tool.
@@ -186,7 +186,7 @@ Use delegate_to_subagent with tools_denylist=["write_data", "delete_data"] to en
 		}
 	})
 
-	fmt.Println("Starting execution...\n")
+	fmt.Println("Starting execution...")
 
 	result, err := svc.Run(ctx, goal)
 

@@ -186,7 +186,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	fmt.Println("=== Async SubAgent with Events & Timeout Example ===\n")
+	fmt.Println("=== Async SubAgent with Events & Timeout Example ===")
 
 	svc, err := agent.New("PipelineOrchestrator").
 		WithDebug(os.Getenv("DEBUG") != "").
