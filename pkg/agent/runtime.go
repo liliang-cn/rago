@@ -404,8 +404,9 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 		result, execErr = r.svc.mcpService.CallTool(ctx, tc.Function.Name, tc.Function.Arguments)
 	} else if r.svc.isSkill(ctx, tc.Function.Name) && r.svc.skillsService != nil {
 		// 3. Skills
+		skillID := strings.TrimPrefix(tc.Function.Name, "skill_")
 		res, err := r.svc.skillsService.Execute(ctx, &skills.ExecutionRequest{
-			SkillID:   tc.Function.Name,
+			SkillID:   skillID,
 			Variables: tc.Function.Arguments,
 		})
 		if err != nil {
