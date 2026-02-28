@@ -1327,8 +1327,9 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 					fmt.Printf("   Type: Skill (%s)\n", toolName)
 				}
 
+				skillID := strings.TrimPrefix(toolName, "skill_")
 				skillResult, skillErr := s.skillsService.Execute(groupCtx, &skills.ExecutionRequest{
-					SkillID:     toolName,
+					SkillID:     skillID,
 					Variables:   toolCall.Function.Arguments,
 					Interactive: false,
 				})
@@ -1556,9 +1557,11 @@ func (s *Service) isSkill(ctx context.Context, name string) bool {
 	if s.skillsService == nil {
 		return false
 	}
+	// Remove "skill_" prefix if present
+	skillID := strings.TrimPrefix(name, "skill_")
 	skills, _ := s.skillsService.ListSkills(ctx, skills.SkillFilter{})
 	for _, sk := range skills {
-		if sk.ID == name {
+		if sk.ID == skillID {
 			return true
 		}
 	}
