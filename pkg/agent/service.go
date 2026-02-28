@@ -61,6 +61,10 @@ type Service struct {
 	ragSourcesMu     sync.RWMutex
 	ragSources       []domain.Chunk // Collect RAG sources during execution
 
+	// Model metadata for Info()
+	modelName string
+	baseURL   string
+
 	// Hook system for lifecycle events
 	hooks *HookRegistry
 
@@ -205,6 +209,12 @@ func (s *Service) SetRouter(routerService *router.Service) {
 func (s *Service) SetPTC(ptcIntegration *PTCIntegration) {
 	s.ptcIntegration = ptcIntegration
 	s.PTC = ptcIntegration
+}
+
+// SetModelInfo sets the model metadata for Info()
+func (s *Service) SetModelInfo(modelName, baseURL string) {
+	s.modelName = modelName
+	s.baseURL = baseURL
 }
 
 // SetHistoryStore sets the history store for execution recording
@@ -481,29 +491,28 @@ func (s *Service) RunStream(ctx context.Context, goal string) (<-chan *Event, er
 	return runtime.RunStream(ctx, goal), nil
 }
 
-// Run executes a goal using a fixed workflow:
-// 1. Intent Recognition
-// 2. Check Memory
-// 3. RAG Query
-// Run executes a goal with default configuration
-func (s *Service) Run(ctx context.Context, goal string) (*ExecutionResult, error) {
-	return s.RunWithConfig(ctx, goal, DefaultRunConfig())
-}
-
-// RunWithOptions executes a goal with the specified options
-func (s *Service) RunWithOptions(ctx context.Context, goal string, opts ...RunOption) (*ExecutionResult, error) {
+// Run executes a goal with optional configuration.
+// Usage:
+//
+//	// Simple
+//	result, err := svc.Run(ctx, "goal")
+//
+//	// With options
+//	result, err := svc.Run(ctx, "goal",
+//	    agent.WithMaxTurns(10),
+//	    agent.WithSessionID("session-123"),
+//	    agent.WithStoreHistory(true),
+//	)
+func (s *Service) Run(ctx context.Context, goal string, opts ...RunOption) (*ExecutionResult, error) {
 	cfg := DefaultRunConfig()
 	for _, opt := range opts {
 		opt(cfg)
 	}
-	return s.RunWithConfig(ctx, goal, cfg)
+	return s.runWithConfig(ctx, goal, cfg)
 }
 
-// RunWithConfig executes a goal with explicit configuration
-// 1. Collect all available tools (MCP + Skills + RAG)
-// 2. Intent Recognition
-// 3. Let LLM match intent to tools and execute
-func (s *Service) RunWithConfig(ctx context.Context, goal string, cfg *RunConfig) (*ExecutionResult, error) {
+// runWithConfig is the internal implementation
+func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig) (*ExecutionResult, error) {
 	if cfg == nil {
 		cfg = DefaultRunConfig()
 	}
@@ -523,7 +532,17 @@ func (s *Service) RunWithConfig(ctx context.Context, goal string, cfg *RunConfig
 		s.cancelMu.Unlock()
 	}()
 
-	session := NewSession(s.agent.ID())
+	// Load or create session based on SessionID
+	var session *Session
+	if cfg.SessionID != "" {
+		var err error
+		session, err = s.store.GetSession(cfg.SessionID)
+		if err != nil {
+			session = NewSessionWithID(cfg.SessionID, s.agent.ID())
+		}
+	} else {
+		session = NewSession(s.agent.ID())
+	}
 
 	// Parallel Context Collection
 	var (
@@ -1651,79 +1670,6 @@ func (s *Service) executeSkills(ctx context.Context, intent *IntentRecognitionRe
 	return nil, fmt.Errorf("no suitable skill found for intent: %s", intent.IntentType)
 }
 
-// RunWithSession executes a goal with an existing session ID
-func (s *Service) RunWithSession(ctx context.Context, goal, sessionID string) (*ExecutionResult, error) {
-	s.resetRunMemorySaved()
-
-	// Load or create session
-	session, err := s.store.GetSession(sessionID)
-	if err != nil {
-		session = NewSessionWithID(sessionID, s.agent.ID())
-	}
-
-	// Add user message to session
-	userMsg := domain.Message{
-		Role:    "user",
-		Content: goal,
-	}
-	session.AddMessage(userMsg)
-
-	// Step 1: Retrieve memory context before planning
-	if s.memoryService != nil {
-		ragolog.Debug("[RunWithSession] Retrieving memory context for goal: %q, sessionID: %q", goal, sessionID)
-		memoryContext, memoryMemories, _ := s.memoryService.RetrieveAndInject(ctx, goal, sessionID)
-		ragolog.Debug("[RunWithSession] Memory context retrieved - context length: %d, memories: %d", len(memoryContext), len(memoryMemories))
-		if memoryContext != "" {
-			// Inject memory context into the session messages
-			session.AddMessage(domain.Message{
-				Role:    "system",
-				Content: memoryContext,
-			})
-		}
-	} else {
-		ragolog.Debug("[RunWithSession] Memory service is nil, skipping memory retrieval")
-	}
-
-	// Generate plan
-	plan, err := s.planner.PlanWithFallback(ctx, goal, session)
-	if err != nil {
-		return nil, fmt.Errorf("planning failed: %w", err)
-	}
-
-	// Save plan
-	if err := s.store.SavePlan(plan); err != nil {
-		return nil, fmt.Errorf("failed to save plan: %w", err)
-	}
-
-	// Execute plan
-	result, err := s.executor.ExecutePlan(ctx, plan, session)
-	if err != nil {
-		return nil, fmt.Errorf("execution failed: %w", err)
-	}
-
-	// Add assistant response to session
-	if result.FinalResult != nil {
-		assistantContent := fmt.Sprintf("%v", result.FinalResult)
-		assistantMsg := domain.Message{
-			Role:    "assistant",
-			Content: assistantContent,
-		}
-		session.AddMessage(assistantMsg)
-	}
-
-	// Save updated plan
-	if err := s.store.SavePlan(plan); err != nil {
-		return nil, fmt.Errorf("failed to save plan: %w", err)
-	}
-
-	// Save session
-	if err := s.store.SaveSession(session); err != nil {
-		return nil, fmt.Errorf("failed to save session: %w", err)
-	}
-
-	return result, nil
-}
-
 // GetSession retrieves a session by ID
 func (s *Service) GetSession(sessionID string) (*Session, error) {
 	return s.store.GetSession(sessionID)
@@ -1760,7 +1706,7 @@ func (s *Service) Chat(ctx context.Context, message string) (*ExecutionResult, e
 	sessionID := s.currentSessionID
 	s.sessionMu.Unlock()
 
-	return s.RunWithSession(ctx, message, sessionID)
+	return s.Run(ctx, message, WithSessionID(sessionID))
 }
 
 // CurrentSessionID returns the current session UUID used by Chat()
@@ -1784,8 +1730,8 @@ func (s *Service) ResetSession() {
 	s.currentSessionID = uuid.New().String()
 }
 
-// ChatWithPTC sends a message with PTC (Programmatic Tool Calling) support.
-// If PTC is enabled and LLM returns JavaScript code, it will be executed in sandbox.
+// ChatWithPTC sends a message with PTC (Parallel Tool Calling) support.
+// This method uses JavaScript code execution for tool orchestration.
 func (s *Service) ChatWithPTC(ctx context.Context, message string) (*PTCChatResult, error) {
 	// Check if PTC is available
 	if s.ptcIntegration == nil || !s.ptcIntegration.config.Enabled {
@@ -1817,11 +1763,12 @@ func (s *Service) ChatWithPTC(ctx context.Context, message string) (*PTCChatResu
 	// Build PTC-aware user message
 	ptcPrompt := message + `
 
-IMPORTANT: Respond with JavaScript code in a code block.
+IMPORTANT: Respond with JavaScript code in <code> tags.
 Your code will be executed in a secure sandbox.
-Use console.log() for output and return the final result.
+Use console.log() for output and return the final result with a top-level return statement.
+DO NOT wrap code in function main(){...}main().
 Example format:
-` + "```javascript\nfunction main() {\n  // Your code here\n  console.log(\"Processing...\");\n  return { result: \"your result\" };\n}\nmain();\n```"
+` + "<code>\nconst data = callTool('some_tool', { arg: 'value' });\nconsole.log(\"Processing:\", data);\nreturn { result: data };\n</code>"
 
 	// Add user message to session
 	userMsg := domain.Message{
@@ -1843,15 +1790,64 @@ Example format:
 		MaxTokens:   2000,
 	}
 
-	llmResp, err := s.llmService.GenerateWithTools(ctx, messages, ptcTools, opts)
+	var fullContent strings.Builder
+	var toolCalls []domain.ToolCall
+
+	err = s.llmService.StreamWithTools(ctx, messages, ptcTools, opts, func(delta *domain.GenerationResult) error {
+		if delta.Content != "" {
+			fullContent.WriteString(delta.Content)
+			s.emitProgress("partial", delta.Content, 0, "")
+		}
+		if len(delta.ToolCalls) > 0 {
+			for _, tc := range delta.ToolCalls {
+				// Simplified merging logic for PTC: find by index or ID
+				found := false
+				for j, existing := range toolCalls {
+					if (existing.ID != "" && existing.ID == tc.ID) || (existing.ID == "" && existing.Function.Name == tc.Function.Name) {
+						if existing.Function.Arguments == nil {
+							existing.Function.Arguments = make(map[string]interface{})
+						}
+						for k, v := range tc.Function.Arguments {
+							existing.Function.Arguments[k] = v
+						}
+						toolCalls[j] = existing
+						found = true
+						break
+					}
+				}
+				if !found {
+					toolCalls = append(toolCalls, tc)
+				}
+			}
+		}
+		return nil
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("LLM generation failed: %w", err)
+		return nil, fmt.Errorf("LLM streaming failed: %w", err)
 	}
 
-	// Get LLM response content
-	content := ""
-	if llmResp != nil && len(llmResp.Content) > 0 {
-		content = llmResp.Content
+	content := fullContent.String()
+
+	if os.Getenv("DEBUG") != "" {
+		fmt.Printf("\nDEBUG [ChatWithPTC] raw content: %q\n", content)
+		if len(toolCalls) > 0 {
+			fmt.Printf("DEBUG [ChatWithPTC] tool calls: %v\n", toolCalls)
+		}
+	}
+
+	// 1. Try to get code from tool calls first (preferred for structured responses)
+	// Some LLMs return thinking text in content + code in execute_javascript tool call
+	if len(toolCalls) > 0 {
+		for _, tc := range toolCalls {
+			if tc.Function.Name == "execute_javascript" {
+				if code, ok := tc.Function.Arguments["code"].(string); ok {
+					// Re-wrap in <code> to ensure ProcessLLMResponse handles it
+					content = "<code>" + code + "</code>"
+					break
+				}
+			}
+		}
 	}
 
 	// Process LLM response through PTC
@@ -1874,7 +1870,7 @@ Example format:
 
 	return &PTCChatResult{
 		PTCResult:   ptcResult,
-		PTCUsed:     ptcResult.Type == PTCResultTypeExecuted || ptcResult.Type == PTCResultTypeCode,
+		PTCUsed:     ptcResult.Code != "" || ptcResult.Type == PTCResultTypeExecuted || ptcResult.Type == PTCResultTypeCode,
 		LLMResponse: content,
 		SessionID:   sessionID,
 	}, nil
@@ -2606,3 +2602,37 @@ func truncateGoal(s string, maxLen int) string {
 	}
 	return s[:maxLen] + "..."
 }
+
+// AgentInfo contains information about the agent configuration
+type AgentInfo struct {
+	Name           string `json:"name"`
+	Model          string `json:"model"`
+	BaseURL        string `json:"base_url"`
+	Debug          bool   `json:"debug"`
+	PTCEnabled     bool   `json:"ptc_enabled"`
+	MCPEnabled     bool   `json:"mcp_enabled"`
+	RAGEnabled     bool   `json:"rag_enabled"`
+	MemoryEnabled  bool   `json:"memory_enabled"`
+	SkillsEnabled  bool   `json:"skills_enabled"`
+	RouterEnabled  bool   `json:"router_enabled"`
+	SystemPrompt   string `json:"system_prompt,omitempty"`
+}
+
+// Info returns the current agent configuration information
+func (s *Service) Info() AgentInfo {
+	info := AgentInfo{
+		Name:          s.agent.Name(),
+		Model:         s.modelName,
+		BaseURL:       s.baseURL,
+		Debug:         s.debug,
+		PTCEnabled:    s.ptcIntegration != nil && s.ptcIntegration.config.Enabled,
+		MCPEnabled:    s.mcpService != nil,
+		RAGEnabled:    s.ragProcessor != nil,
+		MemoryEnabled: s.memoryService != nil,
+		SkillsEnabled: s.skillsService != nil,
+		RouterEnabled: s.routerService != nil,
+		SystemPrompt:  s.agent.Instructions(),
+	}
+	return info
+}
+

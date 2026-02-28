@@ -21,9 +21,10 @@ func extractBetweenTags(content, startTag, endTag string) string {
 }
 
 // sanitiseJSCode strips non-JavaScript content that models sometimes append to the
-// code argument. It handles two common failure modes:
+// code argument. It handles three common failure modes:
 //  1. The model wraps code in markdown fences (```javascript ... ```)
 //  2. The model appends free-form prose or JSON after valid JS
+//  3. The model uses async/await which is not supported by the synchronous sandbox
 //
 // The function is conservative — if no obvious contamination is detected, the input
 // is returned unchanged so we don't accidentally break valid code.
@@ -38,7 +39,8 @@ func sanitiseJSCode(code string) string {
 		if strings.HasPrefix(trimmed, prefix) {
 			rest := trimmed[len(prefix):]
 			if endIdx := strings.Index(rest, "```"); endIdx != -1 {
-				return strings.TrimSpace(rest[:endIdx])
+				trimmed = strings.TrimSpace(rest[:endIdx])
+				break
 			}
 		}
 	}
@@ -46,10 +48,13 @@ func sanitiseJSCode(code string) string {
 	// Pattern 2: valid JS followed by a bare JSON block (e.g. {"queries": [...]})
 	// or natural language. Detect by finding the last 'return' statement,
 	// then trim everything after the statement's expression ends.
-	// Also handle trailing prose that starts with common English sentence patterns.
 	if idx := findTrailingNonJS(trimmed); idx > 0 {
-		return strings.TrimSpace(trimmed[:idx])
+		trimmed = strings.TrimSpace(trimmed[:idx])
 	}
+
+	// Pattern 3: strip async/await for the synchronous Goja sandbox
+	trimmed = strings.ReplaceAll(trimmed, "async ", "")
+	trimmed = strings.ReplaceAll(trimmed, "await ", "")
 
 	return trimmed
 }

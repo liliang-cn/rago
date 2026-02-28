@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -33,6 +34,9 @@ type PTCConfig struct {
 	// Timeout is the maximum execution time
 	Timeout time.Duration `json:"timeout" mapstructure:"timeout"`
 
+	// Debug enables verbose logging for PTC execution
+	Debug bool `json:"debug" mapstructure:"debug"`
+
 	// AllowedTools is a whitelist of tools that can be called from code
 	AllowedTools []string `json:"allowed_tools" mapstructure:"allowed_tools"`
 
@@ -48,7 +52,7 @@ func DefaultPTCConfig() PTCConfig {
 	return PTCConfig{
 		Enabled:      false,
 		MaxToolCalls: 20,
-		Timeout:      30 * time.Second,
+		Timeout:      600 * time.Second,
 		Runtime:      "goja",
 		AllowedTools: []string{}, // Empty means all tools allowed
 	}
@@ -94,24 +98,19 @@ func NewPTCIntegration(config PTCConfig, router *ptc.RAGORouter) (*PTCIntegratio
 // IsCodeResponse checks if the LLM response contains executable code
 func (p *PTCIntegration) IsCodeResponse(content string) bool {
 	// Primary: <code>...</code> tags
-	if strings.Contains(content, "<code>") && strings.Contains(content, "</code>") {
+	if strings.Contains(content, "<code>") {
 		return true
 	}
 
-	// Legacy: markdown fences and old PTC markers
+	// Fallback: markdown fences
 	if strings.Contains(content, "```javascript") ||
 		strings.Contains(content, "```js") ||
-		strings.Contains(content, "```ts") ||
-		strings.Contains(content, "```typescript") {
-		return true
-	}
-	if strings.Contains(content, "<ptc_code>") ||
-		strings.Contains(content, "[PTC_CODE]") {
+		strings.Contains(content, "```") {
 		return true
 	}
 
-	// Heuristic: callTool() calls without any wrapper
-	if matched, _ := regexp.MatchString(`callTool\s*\(`, content); matched {
+	// Heuristic: callTool() calls
+	if strings.Contains(content, "callTool(") {
 		return true
 	}
 
@@ -234,15 +233,20 @@ func (p *PTCIntegration) ExecuteJavascriptTool(ctx context.Context, args map[str
 	return result.FormatForLLM(), nil
 }
 
-// ExecuteCode executes JavaScript code in the PTC sandbox
+// ExecuteCode executes JavaScript code in the sandbox.
 func (p *PTCIntegration) ExecuteCode(ctx context.Context, code string, contextVars map[string]interface{}) (*ptc.ExecutionResult, error) {
 	if !p.config.Enabled || p.service == nil {
 		return nil, fmt.Errorf("PTC is not enabled")
 	}
 
+	// WRAPPER: Goja returns the value of the last statement.
+	// If the code defines a main function and calls it at the end, 
+	// we wrap it to ensure that value is returned.
+	wrappedCode := fmt.Sprintf("return (function(){\n%s\n})()", code)
+
 	// Build execution request
 	req := &ptc.ExecutionRequest{
-		Code:        code,
+		Code:        wrappedCode,
 		Language:    ptc.LanguageJavaScript,
 		Context:     contextVars,
 		Tools:       p.config.AllowedTools,
@@ -369,7 +373,6 @@ func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.Too
 }
 
 // GetPTCSystemPrompt returns system prompt additions for PTC mode.
-// availableTools lists what is callable via callTool() in the sandbox.
 func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) string {
 	if !p.config.Enabled {
 		return ""
@@ -378,47 +381,97 @@ func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) strin
 	var sb strings.Builder
 	sb.WriteString(`## Programmatic Tool Calling (PTC)
 
-You have access to a JavaScript sandbox for orchestrating tool calls.
-Respond with ONLY a <code> block — no explanation, no prose, no markdown fences.
+You have access to a Goja (JavaScript ES5.1+) sandbox. Use it to orchestrate tools and process data.
 
-### Response format (MANDATORY)
+### ⚠️ PERFORMANCE & TIMEOUT (CRITICAL)
+- **NO REASONING**: DO NOT use chain-of-thought, reasoning content, or long explanations.
+- **NO PREAMBLE**: Start your response directly with the <code> block.
+- **IMMEDIATE CODE**: Output the <code> block immediately to avoid 504 Gateway Timeouts.
+
+### ⚠️ SANDBOX CONSTRAINTS
+1. **NO ASYNC/AWAIT**: The environment is synchronous. Do NOT use "async" or "await".
+2. **NO PROMISES**: Do NOT use Promises, .then(), or .catch().
+3. **NO MODULES**: No "require()", "import", or Node.js built-ins (fs, path, etc.).
+4. **NO MARKDOWN FENCES**: Do NOT wrap your response in ` + "```" + `javascript or ` + "```" + `.
+5. **ONLY USE <code>**: Your entire response MUST be wrapped in <code>...</code> tags.
+6. **NO FUNCTION WRAPPER**: NEVER write ` + "`function main(){...}main()`" + `. Write top-level code directly.
+7. **TOP-LEVEL RETURN**: Your code MUST end with a ` + "`return`" + ` statement at the top level.
+
+### API REFERENCE
+- callTool(name, args): Executes a tool synchronously and returns the result object.
+- console.log(msg): Logs to the debug console.
+
+### EXAMPLE 1: Single Tool Call
 <code>
-// your JavaScript here
-return result;
+const result = callTool('echo', { message: 'hello' });
+return { echoed: result };
 </code>
 
-### Sandbox API
-- callTool(name, args) — synchronous tool call, returns parsed JS object
-- console.log(...) — debug logging
+### EXAMPLE 2: Multiple Parallel Tool Calls
+<code>
+const r1 = callTool('mcp_everything_echo', { message: 'Hello' });
+const r2 = callTool('mcp_everything_echo', { message: 'World' });
+const combined = r1 + ' ' + r2;
+return { combined: combined, parts: [r1, r2] };
+</code>
+
+### EXAMPLE 3: File Processing
+<code>
+const file = callTool('mcp_filesystem_read_text_file', { path: 'go.mod' });
+const lines = file.split('\n');
+const moduleName = lines[0].split(' ')[1];
+return { module: moduleName, totalLines: lines.length };
+</code>
+
+### EXAMPLE 4: Filtering with Loop
+<code>
+const files = callTool('mcp_filesystem_search_files', { pattern: '**/*.go' });
+const testFiles = [];
+for (var i = 0; i < files.length; i++) {
+  if (files[i].indexOf('_test.go') !== -1) {
+    testFiles.push(files[i]);
+  }
+}
+return { total: files.length, testCount: testFiles.length };
+</code>
+
+### EXAMPLE 5: Tool Chaining
+<code>
+const content = callTool('mcp_filesystem_read_text_file', { path: 'main.go' });
+const review = callTool('code_review', { code: content });
+return { filename: 'main.go', review: review };
+</code>
+
+### EXAMPLE 6: Skill Invocation
+<code>
+const code = 'func add(a, b int) int { return a + b }';
+const review = callTool('code-reviewer', { code: code });
+return { code: code, review: review };
+</code>
+
+### EXAMPLE 7: Conditional Logic
+<code>
+const status = callTool('check_status', {});
+var result;
+if (status.active) {
+  result = callTool('start_process', { id: status.id });
+} else {
+  result = 'inactive';
+}
+return { status: status, result: result };
+</code>
+
+### MANDATORY RULE
+Respond ONLY with the <code> block. No preamble. No postamble. No markdown. No function wrappers.
 `)
 
 	if len(availableTools) > 0 {
-		sb.WriteString("\n### Tools available via callTool()\n")
+		sb.WriteString("\n### Available Tools for callTool()\n")
 		for _, t := range availableTools {
 			sb.WriteString(fmt.Sprintf("- %s: %s\n", t.Name, t.Description))
 		}
 	}
 
-	sb.WriteString(`
-### Example
-<code>
-const data = callTool('get_team_members', { department: 'engineering' });
-const results = data.members.map(m => {
-  const expData = callTool('get_expenses', { member_id: m.id, quarter: 'Q3' });
-  const travel = (expData.expenses || [])
-    .filter(e => e.category === 'travel')
-    .reduce((s, e) => s + e.amount, 0);
-  return { name: m.name, travel };
-});
-return results;
-</code>
-
-### Rules
-1. Respond with ONLY a <code>...</code> block — nothing else
-2. The block MUST contain valid JavaScript only — no prose, no other languages
-3. Always end with a return statement
-4. callTool returns the full response object — check its structure (e.g. .members, .expenses) before accessing sub-fields
-`)
 	return sb.String()
 }
 
@@ -441,11 +494,17 @@ func (p *PTCIntegration) ProcessLLMResponse(ctx context.Context, content string,
 		return result, nil
 	}
 
+	// CLEANUP: Automatically fix LLM "bad habits"
+	code = sanitiseJSCode(code)
+
 	result.Code = code
 	result.Type = PTCResultTypeCode
 
 	// Execute code if PTC is enabled
 	if p.config.Enabled && p.service != nil {
+		if os.Getenv("DEBUG") != "" {
+			fmt.Printf("\n--- [DEBUG] Executing PTC JavaScript (Sanitized) ---\n%s\n---------------------------------------\n\n", code)
+		}
 		execResult, err := p.ExecuteCode(ctx, code, contextVars)
 		if err != nil {
 			result.Error = err.Error()
@@ -494,14 +553,17 @@ func (r *PTCResult) FormatForLLM() string {
 		sb.WriteString("Code execution completed.\n")
 
 		if r.ExecutionResult.Success {
-			sb.WriteString("**Status:** Success\n")
+			sb.WriteString("**Status:** Success ✅\n")
 		} else {
-			sb.WriteString("**Status:** Failed\n")
+			sb.WriteString("**Status:** Failed ❌\n")
 			sb.WriteString(fmt.Sprintf("**Error:** %s\n", r.ExecutionResult.Error))
 		}
 
+		// Always show Return Value section
 		if r.ExecutionResult.ReturnValue != nil {
-			sb.WriteString(fmt.Sprintf("**Return Value:** %v\n", r.ExecutionResult.ReturnValue))
+			sb.WriteString(fmt.Sprintf("**Return Value:** %+v\n", r.ExecutionResult.ReturnValue))
+		} else {
+			sb.WriteString("**Return Value:** (none - did you forget to 'return' in JS?)\n")
 		}
 
 		if len(r.ExecutionResult.ToolCalls) > 0 {
