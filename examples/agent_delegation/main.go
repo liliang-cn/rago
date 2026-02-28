@@ -68,16 +68,17 @@ func main() {
 	fmt.Println("=== Agent -> SubAgent Delegation Example ===")
 	fmt.Println("Demonstrating how an Agent can delegate tasks to SubAgents.\n")
 
-	svc, err := agent.New(&agent.AgentConfig{
-		Name:         "DelegationOrchestrator",
-		EnablePTC:    false,
-		EnableMCP:    false,
-		EnableSkills: false,
-		EnableRAG:    false,
-		EnableMemory: false,
-		EnableRouter: false,
-		Debug:        os.Getenv("DEBUG") != "",
-	})
+	svc, err := agent.NewBuilder("DelegationOrchestrator").
+		WithSystemPrompt(`You are a task orchestrator. You can delegate work to sub-agents using the delegate_to_subagent tool.
+
+When delegating:
+1. Provide a clear, specific goal for the sub-agent
+2. Use tools_denylist to restrict dangerous operations when appropriate
+3. After the sub-agent completes, you can continue with additional work
+
+You also have direct access to data tools (read_data, write_data, list_data, delete_data) for simple operations.`).
+		WithDebug(os.Getenv("DEBUG") != "").
+		Build()
 	if err != nil {
 		log.Fatalf("Failed to create service: %v", err)
 	}
@@ -150,15 +151,6 @@ func main() {
 			return map[string]interface{}{"keys": store.List()}, nil
 		},
 	)
-
-	svc.SetAgentInstructions(`You are a task orchestrator. You can delegate work to sub-agents using the delegate_to_subagent tool.
-
-When delegating:
-1. Provide a clear, specific goal for the sub-agent
-2. Use tools_denylist to restrict dangerous operations when appropriate
-3. After the sub-agent completes, you can continue with additional work
-
-You also have direct access to data tools (read_data, write_data, list_data, delete_data) for simple operations.`)
 
 	fmt.Println("--- Scenario: Multi-step Task with Delegation ---")
 	fmt.Println("Task: Research data via SubAgent (read-only), then write a summary")
