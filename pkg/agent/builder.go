@@ -280,8 +280,14 @@ func (b *Builder) build() (*Service, error) {
 			mcpCfg = loadedCfg
 		}
 		mcpSvc, err = mcp.NewService(mcpCfg, llmSvc)
-		if err == nil {
-			mcpSvc.StartServers(context.Background(), nil)
+		if err != nil {
+			log.Printf("[WARN] Failed to create MCP service: %v", err)
+		} else {
+			if startErr := mcpSvc.StartServers(context.Background(), nil); startErr != nil {
+				log.Printf("[WARN] Failed to start MCP servers: %v", startErr)
+			} else {
+				log.Printf("[INFO] MCP servers started successfully")
+			}
 			mcpAdapter = &mcpToolAdapter{service: mcpSvc}
 		}
 	}
