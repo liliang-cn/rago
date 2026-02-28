@@ -6,3 +6,4 @@ rago.toml
 .DS_Store
 
 .rago/vendor/
+delegation
