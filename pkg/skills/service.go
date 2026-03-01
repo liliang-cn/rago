@@ -7,23 +7,24 @@ import (
 	"sync"
 	"time"
 
+	skillgo "github.com/liliang-cn/skills-go/skill"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 )
 
-// Service orchestrates all skill functionality
+// Service orchestrates all skill functionality using skills-go as the backend
 type Service struct {
 	config     *Config
 	store      SkillStore
-	loader     *Loader
-	registry   *Registry
+	registry   *skillgo.Registry
+	loader     *skillgo.Loader
 
 	// Integration services (optional)
 	ragService interface{} // domain.RAGProcessor
 	mcpService interface{} // mcp.Service
 	agentSvc   interface{} // agent.Service
 
-	mu         sync.RWMutex
-	loaded     bool
+	mu     sync.RWMutex
+	loaded bool
 }
 
 // NewService creates a new skills service
@@ -32,31 +33,22 @@ func NewService(cfg *Config) (*Service, error) {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
-	svc := &Service{
-		config: cfg,
-		loader: NewLoader(cfg.Paths),
-	}
+	// Create skills-go loader and registry
+	loader := skillgo.NewLoader(skillgo.WithPaths(cfg.Paths...))
+	registry := skillgo.NewRegistry(loader)
 
-	// Create registry
-	svc.registry = NewRegistry()
+	svc := &Service{
+		config:   cfg,
+		loader:   loader,
+		registry: registry,
+	}
 
 	return svc, nil
 }
 
 // RegisterFunction registers a Go function as a skill
 func (s *Service) RegisterFunction(id, name, description string, fn func(ctx context.Context, vars map[string]interface{}) (string, error)) {
-	skill := &Skill{
-		ID:            id,
-		Name:          name,
-		Description:   description,
-		Enabled:       true,
-		UserInvocable: true,
-		Handler:       fn,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
-		Variables:     make(map[string]VariableDef), // Can be enhanced to accept variable defs
-	}
-	s.registry.Register(skill)
+	s.registry.RegisterFunction(id, description, skillgo.HandlerFunc(fn))
 }
 
 // SetStore sets the skill store
@@ -92,21 +84,8 @@ func (s *Service) LoadAll(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	skills, err := s.loader.LoadAll(ctx)
-	if err != nil {
+	if err := s.registry.Load(ctx); err != nil {
 		return fmt.Errorf("failed to load skills: %w", err)
-	}
-
-	// Register skills
-	for _, skill := range skills {
-		s.registry.Register(skill)
-
-		// Save to store if available
-		if s.store != nil {
-			if err := s.store.SaveSkill(ctx, skill); err != nil {
-				return fmt.Errorf("failed to save skill %s: %w", skill.ID, err)
-			}
-		}
 	}
 
 	s.loaded = true
@@ -130,10 +109,11 @@ func (s *Service) ListSkills(ctx context.Context, filter SkillFilter) ([]*Skill,
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	allSkills := s.registry.List()
+	skills := s.registry.ListSkills()
 	var result []*Skill
 
-	for _, skill := range allSkills {
+	for _, sk := range skills {
+		skill := convertFromSkillGo(sk)
 		if s.matchesFilter(skill, filter) {
 			result = append(result, skill)
 		}
@@ -181,12 +161,12 @@ func (s *Service) GetSkill(ctx context.Context, id string) (*Skill, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	skill := s.registry.Get(id)
-	if skill == nil {
+	sk, err := s.registry.Get(id)
+	if err != nil {
 		return nil, fmt.Errorf("skill not found: %s", id)
 	}
 
-	return skill, nil
+	return convertFromSkillGo(sk), nil
 }
 
 // Resolve resolves skills for a given query
@@ -197,7 +177,6 @@ func (s *Service) Resolve(ctx context.Context, query string) ([]*Skill, error) {
 	}
 
 	// Simple keyword matching for now
-	// Can be enhanced with embeddings/semantic search
 	queryLower := strings.ToLower(query)
 	var matched []*Skill
 
@@ -229,8 +208,13 @@ func (s *Service) Resolve(ctx context.Context, query string) ([]*Skill, error) {
 func (s *Service) Execute(ctx context.Context, req *ExecutionRequest) (*ExecutionResult, error) {
 	start := time.Now()
 
-	// Get skill
-	skill, err := s.GetSkill(ctx, req.SkillID)
+	// Check if it's a handler skill first
+	if handler := s.registry.GetHandler(req.SkillID); handler != nil {
+		return s.executeHandler(ctx, req, handler, start)
+	}
+
+	// Get skill from registry
+	sk, err := s.registry.Get(req.SkillID)
 	if err != nil {
 		return &ExecutionResult{
 			Success:    false,
@@ -241,6 +225,8 @@ func (s *Service) Execute(ctx context.Context, req *ExecutionRequest) (*Executio
 		}, err
 	}
 
+	// Convert to rago skill for consistency
+	skill := convertFromSkillGo(sk)
 	if !skill.Enabled {
 		return &ExecutionResult{
 			Success:    false,
@@ -254,21 +240,13 @@ func (s *Service) Execute(ctx context.Context, req *ExecutionRequest) (*Executio
 	var output string
 	var execErr error
 
-	// Handle different skill types
-	if skill.Handler != nil {
-		output, execErr = skill.Handler(ctx, req.Variables)
-	} else {
-		switch skill.ID {
-		case "rag-query", "rag":
-			output, execErr = s.executeRAGQuery(ctx, req)
-		default:
-			// Generic skill execution
-			if skill.Command != "" {
-				output = fmt.Sprintf("Command: %s\nVariables: %v", skill.Command, req.Variables)
-			} else {
-				output = fmt.Sprintf("Skill '%s' executed. Variables: %v", skill.Name, req.Variables)
-			}
-		}
+	// Handle built-in skills
+	switch skill.ID {
+	case "rag-query", "rag":
+		output, execErr = s.executeRAGQuery(ctx, req)
+	default:
+		// For file-based skills, return the rendered content
+		output = sk.Content
 	}
 
 	result := &ExecutionResult{
@@ -290,6 +268,42 @@ func (s *Service) Execute(ctx context.Context, req *ExecutionRequest) (*Executio
 	}
 
 	return result, nil
+}
+
+// executeHandler executes a Go function handler
+func (s *Service) executeHandler(ctx context.Context, req *ExecutionRequest, handler skillgo.HandlerFunc, start time.Time) (*ExecutionResult, error) {
+	output, err := handler(ctx, req.Variables)
+	if err != nil {
+		return &ExecutionResult{
+			Success:    false,
+			SkillID:    req.SkillID,
+			Error:      err.Error(),
+			ExecutedAt: start,
+			Duration:   time.Since(start),
+		}, err
+	}
+
+	return &ExecutionResult{
+		Success:    true,
+		SkillID:    req.SkillID,
+		Output:     output,
+		Variables:  req.Variables,
+		ExecutedAt: start,
+		Duration:   time.Since(start),
+	}, nil
+}
+
+// RunSkill is a simplified entry point for executing a skill by ID
+func (s *Service) RunSkill(ctx context.Context, id string, vars map[string]interface{}) (string, error) {
+	req := &ExecutionRequest{
+		SkillID:   id,
+		Variables: vars,
+	}
+	res, err := s.Execute(ctx, req)
+	if err != nil {
+		return "", err
+	}
+	return res.Output, nil
 }
 
 // executeRAGQuery executes a RAG query
@@ -318,8 +332,7 @@ func (s *Service) executeRAGQuery(ctx context.Context, req *ExecutionRequest) (s
 		temperature = temp
 	}
 
-	// Call RAG service - need to use the processor interface
-	// The ragService should be a processor.Service or similar
+	// Call RAG service
 	if ragProc, ok := s.ragService.(interface {
 		Query(ctx context.Context, req domain.QueryRequest) (domain.QueryResponse, error)
 	}); ok {
@@ -446,7 +459,6 @@ func (s *Service) GetExecutionHistory(ctx context.Context, skillID string, limit
 
 // Close closes the skills service
 func (s *Service) Close() error {
-	// Close store if it has a Close method
 	if s.store != nil {
 		if closer, ok := s.store.(interface{ Close() error }); ok {
 			return closer.Close()
@@ -473,4 +485,38 @@ func getTypeString(typ string) string {
 	default:
 		return "string"
 	}
+}
+
+// convertFromSkillGo converts a skills-go Skill to rago Skill
+func convertFromSkillGo(sk *skillgo.Skill) *Skill {
+	skill := &Skill{
+		ID:          sk.Name,
+		Name:        sk.Name,
+		Description: sk.Meta.Description,
+		Version:     sk.Version,
+		Path:        sk.Path,
+		Enabled:     true,
+		UserInvocable: sk.IsUserInvocable(),
+		DisableModelInvocation: !sk.IsModelInvocable(),
+		ForkMode:    sk.ShouldFork(),
+		CreatedAt:   sk.LoadedAt,
+		UpdatedAt:   sk.LoadedAt,
+		Variables:   make(map[string]VariableDef),
+	}
+
+	// Extract category/tags from metadata
+	if sk.Meta.Metadata != nil {
+		if cat, ok := sk.Meta.Metadata["category"].(string); ok {
+			skill.Category = cat
+		}
+		if tags, ok := sk.Meta.Metadata["tags"].([]interface{}); ok {
+			for _, t := range tags {
+				if ts, ok := t.(string); ok {
+					skill.Tags = append(skill.Tags, ts)
+				}
+			}
+		}
+	}
+
+	return skill
 }
