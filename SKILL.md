@@ -1,5 +1,5 @@
 ---
-name: rago-rag
+name: rago
 description: Use Rago for local RAG (Retrieval Augmented Generation) operations including document ingestion, semantic search, and Q&A. Supports multi-provider LLM, MCP tools, Skills, and autonomous LongRun mode. Use when building local knowledge bases, semantic search, or AI assistants with memory.
 license: MIT
 metadata:
