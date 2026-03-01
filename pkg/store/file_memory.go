@@ -90,7 +90,7 @@ func (s *FileMemoryStore) Store(ctx context.Context, memory *domain.Memory) erro
 
 	// Double check content isn't empty
 	content := fmt.Sprintf("---\n%s---\n\n%s", string(frontmatter), memory.Content)
-	
+
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
@@ -107,10 +107,10 @@ func (s *FileMemoryStore) Search(ctx context.Context, vector []float64, topK int
 	for _, m := range all {
 		results = append(results, &domain.MemoryWithScore{
 			Memory: m,
-			Score:  1.0, 
+			Score:  1.0,
 		})
 	}
-	
+
 	if len(results) > topK {
 		results = results[:topK]
 	}
@@ -274,12 +274,12 @@ func (s *FileMemoryStore) List(ctx context.Context, limit, offset int) ([]*domai
 	if offset >= total {
 		return nil, total, nil
 	}
-	
+
 	end := offset + limit
 	if end > total {
 		end = total
 	}
-	
+
 	return all[offset:end], total, nil
 }
 

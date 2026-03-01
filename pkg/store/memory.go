@@ -385,7 +385,7 @@ func (s *MemoryStore) List(ctx context.Context, limit, offset int) ([]*domain.Me
 		if err := rows.Scan(&id, &content, &metadataJSON, &createdAt); err == nil {
 			var metadata map[string]interface{}
 			_ = json.Unmarshal([]byte(metadataJSON), &metadata)
-			
+
 			bankID, _ := metadata["bank_id"].(string)
 			memType, _ := metadata["type"].(string)
 

@@ -39,8 +39,8 @@ type ClassifierConfig struct {
 	Enabled bool // Enable adaptive retrieval
 
 	// Thresholds
-	MinQueryLength    int     // Minimum query length to consider for memory retrieval
-	KeywordThreshold  float64 // Minimum keyword ratio for information query
+	MinQueryLength   int     // Minimum query length to consider for memory retrieval
+	KeywordThreshold float64 // Minimum keyword ratio for information query
 }
 
 // DefaultClassifierConfig returns default classifier configuration
@@ -54,10 +54,10 @@ func DefaultClassifierConfig() *ClassifierConfig {
 
 // QueryClassifier classifies queries to determine if memory retrieval is needed
 type QueryClassifier struct {
-	config           *ClassifierConfig
-	greetingPatterns []*regexp.Regexp
-	commandPatterns  []*regexp.Regexp
-	casualPatterns   []*regexp.Regexp
+	config               *ClassifierConfig
+	greetingPatterns     []*regexp.Regexp
+	commandPatterns      []*regexp.Regexp
+	casualPatterns       []*regexp.Regexp
 	confirmationPatterns []*regexp.Regexp
 }
 

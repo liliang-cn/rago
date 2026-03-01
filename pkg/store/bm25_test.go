@@ -44,7 +44,7 @@ func TestTokenize(t *testing.T) {
 
 func TestCalculateBM25(t *testing.T) {
 	searcher := NewBM25Searcher("mock.db", nil)
-	
+
 	// Mock corpus stats
 	docFreq := map[string]int{
 		"golang": 1,
@@ -57,7 +57,7 @@ func TestCalculateBM25(t *testing.T) {
 	t.Run("High relevance match", func(t *testing.T) {
 		docContent := "RAGO is a golang system"
 		queryTerms := []string{"rago", "golang"}
-		
+
 		score := searcher.calculateBM25(docContent, queryTerms, docFreq, totalDocs, avgDocLength)
 		assert.True(t, score > 0)
 	})
@@ -65,7 +65,7 @@ func TestCalculateBM25(t *testing.T) {
 	t.Run("No match", func(t *testing.T) {
 		docContent := "Python is another language"
 		queryTerms := []string{"rago"}
-		
+
 		score := searcher.calculateBM25(docContent, queryTerms, docFreq, totalDocs, avgDocLength)
 		assert.Equal(t, 0.0, score)
 	})
@@ -73,13 +73,13 @@ func TestCalculateBM25(t *testing.T) {
 	t.Run("IDF effect - rare terms score higher", func(t *testing.T) {
 		// "rago" appears in 1/3 docs, "system" appears in 2/3 docs.
 		// Matching "rago" should typically yield a higher score contribution than "system".
-		
+
 		doc1 := "rago is here"
 		doc2 := "system is here"
-		
+
 		scoreRago := searcher.calculateBM25(doc1, []string{"rago"}, docFreq, totalDocs, avgDocLength)
 		scoreSystem := searcher.calculateBM25(doc2, []string{"system"}, docFreq, totalDocs, avgDocLength)
-		
+
 		assert.True(t, scoreRago > scoreSystem, "Rare term 'rago' should have higher score than common term 'system'")
 	})
 }
@@ -90,7 +90,7 @@ func TestRRFFusion(t *testing.T) {
 		{Memory: &domain.Memory{ID: "mem-A", Content: "A"}, Score: 0.9},
 		{Memory: &domain.Memory{ID: "mem-B", Content: "B"}, Score: 0.8},
 	}
-	
+
 	bm25Results := []*domain.MemoryWithScore{
 		{Memory: &domain.Memory{ID: "mem-B", Content: "B"}, Score: 15.0},
 		{Memory: &domain.Memory{ID: "mem-C", Content: "C"}, Score: 10.0},
@@ -103,9 +103,9 @@ func TestRRFFusion(t *testing.T) {
 		// RRF Score for A: 1/(60+1) -> approx 0.0163
 		// RRF Score for C: 1/(60+2) -> approx 0.0161
 		// Expected Order: B, A, C
-		
+
 		fused := RRFFusion(vectorResults, bm25Results, 60.0)
-		
+
 		assert.Len(t, fused, 3)
 		assert.Equal(t, "mem-B", fused[0].ID)
 		assert.Equal(t, "mem-A", fused[1].ID)

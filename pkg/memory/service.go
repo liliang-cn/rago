@@ -251,7 +251,7 @@ func (s *Service) Add(ctx context.Context, memory *domain.Memory) error {
 	if memory.CreatedAt.IsZero() {
 		memory.CreatedAt = time.Now()
 	}
-	
+
 	// Always generate embedding if possible
 	if len(memory.Vector) == 0 && s.embedder != nil {
 		vec, _ := s.embedder.Embed(ctx, memory.Content)
