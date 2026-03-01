@@ -26,6 +26,7 @@ type Config struct {
 	MCP           mcp.Config      `mapstructure:"mcp"`
 	VectorStore   *VectorStoreConfig `mapstructure:"vector_store"`
 	Skills        SkillsConfig    `mapstructure:"skills"`
+	Memory        MemoryConfig    `mapstructure:"memory"`
 }
 
 // SkillsConfig configures skills paths and behavior
@@ -71,6 +72,57 @@ type ChunkerConfig struct {
 	ChunkSize int    `mapstructure:"chunk_size"`
 	Overlap   int    `mapstructure:"overlap"`
 	Method    string `mapstructure:"method"`
+}
+
+// MemoryConfig configures the memory system
+type MemoryConfig struct {
+	StoreType   string             `mapstructure:"store_type"` // "file", "vector", "hybrid"
+	MemoryPath  string             `mapstructure:"memory_path"`
+	MinScore    float64            `mapstructure:"min_score"`
+	MaxMemories int                `mapstructure:"max_memories"`
+	Scoring     MemoryScoringConfig    `mapstructure:"scoring"`
+	NoiseFilter MemoryNoiseFilterConfig `mapstructure:"noise_filter"`
+	Adaptive    MemoryAdaptiveConfig   `mapstructure:"adaptive"`
+	Hybrid      MemoryHybridConfig     `mapstructure:"hybrid"`
+}
+
+// MemoryScoringConfig configures memory scoring
+type MemoryScoringConfig struct {
+	Enabled          bool    `mapstructure:"enabled"`
+	RecencyWeight    float64 `mapstructure:"recency_weight"`
+	HalfLifeDays     float64 `mapstructure:"half_life_days"`
+	EnableRecency    bool    `mapstructure:"enable_recency"`
+	ImportanceWeight float64 `mapstructure:"importance_weight"`
+	MinImportance    float64 `mapstructure:"min_importance"`
+	EnableImportance bool    `mapstructure:"enable_importance"`
+	LengthNormWeight float64 `mapstructure:"length_norm_weight"`
+	AnchorLength     int     `mapstructure:"anchor_length"`
+	EnableLengthNorm bool    `mapstructure:"enable_length_norm"`
+	AccessBoostWeight float64 `mapstructure:"access_boost_weight"`
+	EnableAccessBoost bool    `mapstructure:"enable_access_boost"`
+}
+
+// MemoryNoiseFilterConfig configures noise filtering
+type MemoryNoiseFilterConfig struct {
+	Enabled          bool `mapstructure:"enabled"`
+	MinContentLength int  `mapstructure:"min_content_length"`
+	FilterRefusals   bool `mapstructure:"filter_refusals"`
+	FilterMeta       bool `mapstructure:"filter_meta"`
+	FilterDuplicates bool `mapstructure:"filter_duplicates"`
+}
+
+// MemoryAdaptiveConfig configures adaptive retrieval
+type MemoryAdaptiveConfig struct {
+	Enabled        bool    `mapstructure:"enabled"`
+	MinQueryLength int     `mapstructure:"min_query_length"`
+}
+
+// MemoryHybridConfig configures hybrid search (BM25 + Vector)
+type MemoryHybridConfig struct {
+	Enabled  bool    `mapstructure:"enabled"`
+	RRF_K    float64 `mapstructure:"rrf_k"`    // RRF fusion parameter
+	VectorWeight float64 `mapstructure:"vector_weight"`
+	BM25Weight   float64 `mapstructure:"bm25_weight"`
 }
 
 func Load(configPath string) (*Config, error) {
@@ -249,6 +301,42 @@ func setDefaults() {
 	viper.SetDefault("skills.auto_load", true)
 	viper.SetDefault("skills.allow_command_injection", false)
 	viper.SetDefault("skills.require_confirmation", true)
+
+	// Memory defaults
+	viper.SetDefault("memory.store_type", "file")
+	viper.SetDefault("memory.min_score", 0.01)
+	viper.SetDefault("memory.max_memories", 5)
+
+	// Memory scoring defaults
+	viper.SetDefault("memory.scoring.enabled", true)
+	viper.SetDefault("memory.scoring.recency_weight", 0.3)
+	viper.SetDefault("memory.scoring.half_life_days", 30.0)
+	viper.SetDefault("memory.scoring.enable_recency", true)
+	viper.SetDefault("memory.scoring.importance_weight", 0.3)
+	viper.SetDefault("memory.scoring.min_importance", 0.7)
+	viper.SetDefault("memory.scoring.enable_importance", true)
+	viper.SetDefault("memory.scoring.length_norm_weight", 0.1)
+	viper.SetDefault("memory.scoring.anchor_length", 100)
+	viper.SetDefault("memory.scoring.enable_length_norm", true)
+	viper.SetDefault("memory.scoring.access_boost_weight", 0.1)
+	viper.SetDefault("memory.scoring.enable_access_boost", true)
+
+	// Memory noise filter defaults
+	viper.SetDefault("memory.noise_filter.enabled", true)
+	viper.SetDefault("memory.noise_filter.min_content_length", 20)
+	viper.SetDefault("memory.noise_filter.filter_refusals", true)
+	viper.SetDefault("memory.noise_filter.filter_meta", true)
+	viper.SetDefault("memory.noise_filter.filter_duplicates", true)
+
+	// Memory adaptive retrieval defaults
+	viper.SetDefault("memory.adaptive.enabled", true)
+	viper.SetDefault("memory.adaptive.min_query_length", 5)
+
+	// Memory hybrid search defaults
+	viper.SetDefault("memory.hybrid.enabled", false)
+	viper.SetDefault("memory.hybrid.rrf_k", 60.0)
+	viper.SetDefault("memory.hybrid.vector_weight", 0.7)
+	viper.SetDefault("memory.hybrid.bm25_weight", 0.3)
 }
 
 func bindEnvVars() {
@@ -306,6 +394,25 @@ func bindEnvVars() {
 	}
 	if err := viper.BindEnv("skills.require_confirmation", "RAGO_SKILLS_REQUIRE_CONFIRMATION"); err != nil {
 		log.Printf("Warning: failed to bind skills.require_confirmation env var: %v", err)
+	}
+	// Memory environment variables
+	if err := viper.BindEnv("memory.min_score", "RAGO_MEMORY_MIN_SCORE"); err != nil {
+		log.Printf("Warning: failed to bind memory.min_score env var: %v", err)
+	}
+	if err := viper.BindEnv("memory.max_memories", "RAGO_MEMORY_MAX_MEMORIES"); err != nil {
+		log.Printf("Warning: failed to bind memory.max_memories env var: %v", err)
+	}
+	if err := viper.BindEnv("memory.scoring.enabled", "RAGO_MEMORY_SCORING_ENABLED"); err != nil {
+		log.Printf("Warning: failed to bind memory.scoring.enabled env var: %v", err)
+	}
+	if err := viper.BindEnv("memory.noise_filter.enabled", "RAGO_MEMORY_NOISE_FILTER_ENABLED"); err != nil {
+		log.Printf("Warning: failed to bind memory.noise_filter.enabled env var: %v", err)
+	}
+	if err := viper.BindEnv("memory.adaptive.enabled", "RAGO_MEMORY_ADAPTIVE_ENABLED"); err != nil {
+		log.Printf("Warning: failed to bind memory.adaptive.enabled env var: %v", err)
+	}
+	if err := viper.BindEnv("memory.hybrid.enabled", "RAGO_MEMORY_HYBRID_ENABLED"); err != nil {
+		log.Printf("Warning: failed to bind memory.hybrid.enabled env var: %v", err)
 	}
 }
 
@@ -481,17 +588,29 @@ func (c *Config) validateMCPConfig() error {
 }
 
 func (c *Config) resolveDatabasePath() {
-	if c.Sqvect.DBPath != "" {
-		return
+	if c.Sqvect.DBPath == "" {
+		c.Sqvect.DBPath = filepath.Join(c.DataDir(), "rago.db")
 	}
 
-	c.Sqvect.DBPath = filepath.Join(c.DataDir(), "rago.db")
+	if c.Memory.MemoryPath == "" {
+		if c.Memory.StoreType == "vector" {
+			c.Memory.MemoryPath = c.Sqvect.DBPath
+		} else {
+			c.Memory.MemoryPath = filepath.Join(c.DataDir(), "memories")
+		}
+	}
 }
 
 func (c *Config) expandPaths() {
 	c.Home = expandHomePath(c.Home)
 	c.Sqvect.DBPath = expandHomePath(c.Sqvect.DBPath)
+	c.Memory.MemoryPath = expandHomePath(c.Memory.MemoryPath)
 	ensureParentDir(c.Sqvect.DBPath)
+	if c.Memory.StoreType != "vector" {
+		os.MkdirAll(c.Memory.MemoryPath, 0755)
+	} else {
+		ensureParentDir(c.Memory.MemoryPath)
+	}
 }
 
 func expandHomePath(path string) string {

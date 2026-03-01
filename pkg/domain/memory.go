@@ -61,6 +61,23 @@ func (f FlexibleStringArray) Strings() []string {
 	return []string(f)
 }
 
+// MemoryScopeType defines the type of memory scope
+type MemoryScopeType string
+
+const (
+	MemoryScopeGlobal   MemoryScopeType = "global"
+	MemoryScopeAgent    MemoryScopeType = "agent"
+	MemoryScopeProject  MemoryScopeType = "project"
+	MemoryScopeUser     MemoryScopeType = "user"
+	MemoryScopeSession  MemoryScopeType = "session"
+)
+
+// MemoryScope represents a memory isolation scope
+type MemoryScope struct {
+	Type MemoryScopeType `json:"type"`
+	ID   string          `json:"id,omitempty"`
+}
+
 // MemoryBankConfig represents the configuration for a Hindsight memory bank
 type MemoryBankConfig struct {
 	Mission     string `json:"mission"`     // The identity/purpose of this memory bank
@@ -162,6 +179,17 @@ type MemoryStore interface {
 
 	// SearchBySession searches memories within a specific session
 	SearchBySession(ctx context.Context, sessionID string, vector []float64, topK int) ([]*MemoryWithScore, error)
+
+	// SearchByScope searches memories within specific scopes
+	// Scopes are searched in priority order (higher priority first)
+	SearchByScope(ctx context.Context, vector []float64, scopes []MemoryScope, topK int) ([]*MemoryWithScore, error)
+
+	// StoreWithScope stores a memory with a specific scope
+	StoreWithScope(ctx context.Context, memory *Memory, scope MemoryScope) error
+
+	// SearchByText performs full-text search (BM25)
+	// Returns memories matching the query text
+	SearchByText(ctx context.Context, query string, topK int) ([]*MemoryWithScore, error)
 
 	// Get retrieves a memory by ID
 	Get(ctx context.Context, id string) (*Memory, error)

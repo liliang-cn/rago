@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,7 +16,7 @@ import (
 
 // CommandOptions holds the options for memory commands
 type CommandOptions struct {
-	dbPath string
+	DBPath string
 }
 
 // NewCommand creates the memory command
@@ -275,20 +276,40 @@ func newDeleteCommand(opts *CommandOptions) *cobra.Command {
 
 // createMemoryService creates a memory service with default settings
 func createMemoryService(opts *CommandOptions) (*memory.Service, error) {
-	// For CLI commands, we need a simple memory service without LLM/embedder
-	// Create store only
-	path := opts.dbPath
-	if path == "" {
-		path = "./.rago/data/memory.db"
+	var memStore domain.MemoryStore
+	var err error
+
+	path := opts.DBPath
+	storeType := "file" // Default
+
+	if path != "" && (strings.HasSuffix(path, ".db") || strings.HasSuffix(path, ".sqlite")) {
+		storeType = "vector"
+	} else if Cfg != nil {
+		if path == "" {
+			path = Cfg.Memory.MemoryPath
+		}
+		storeType = Cfg.Memory.StoreType
 	}
 
-	db, err := store.NewMemoryStore(path)
+	if path == "" {
+		path = "./.rago/data/memories"
+	}
+
+	switch storeType {
+	case "vector":
+		memStore, err = store.NewMemoryStore(path)
+	case "file", "hybrid":
+		memStore, err = store.NewFileMemoryStore(path)
+	default:
+		memStore, err = store.NewFileMemoryStore(path)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to create memory store: %w", err)
 	}
 
 	// Create service with nil LLM/embedder (will only work for basic operations)
-	return memory.NewService(db, nil, nil, memory.DefaultConfig()), nil
+	return memory.NewService(memStore, nil, nil, memory.DefaultConfig()), nil
 }
 
 // isValidMemoryType checks if the memory type is valid

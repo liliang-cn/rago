@@ -6,6 +6,7 @@ import (
 
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/agent"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/mcp"
+	"github.com/liliang-cn/rago/v2/cmd/rago-cli/memory"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/ptc"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/rag"
 	"github.com/liliang-cn/rago/v2/cmd/rago-cli/skills"
@@ -62,6 +63,7 @@ var RootCmd = &cobra.Command{
 		rag.SetSharedVariables(cfg, verbose, quiet, version)
 		mcp.SetSharedVariables(cfg, verbose, quiet)
 		agent.SetSharedVariables(cfg, verbose)
+		memory.SetSharedVariables(cfg, verbose)
 		ptc.SetSharedVariables(cfg, verbose)
 
 		return nil
@@ -116,4 +118,10 @@ func init() {
 
 	RootCmd.AddCommand(llmCmd)
 	RootCmd.AddCommand(statusCmd)
+
+	// Add Memory command
+	memoryOpts := &memory.CommandOptions{}
+	memoryCmd := memory.NewCommand(memoryOpts)
+	memoryCmd.PersistentFlags().StringVar(&memoryOpts.DBPath, "db-path", "", "Memory database path (default: ./.rago/data/memory.db)")
+	RootCmd.AddCommand(memoryCmd)
 }

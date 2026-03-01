@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
@@ -148,6 +149,165 @@ func (s *MemoryStore) SearchBySession(ctx context.Context, sessionID string, vec
 	}
 
 	return memories, nil
+}
+
+// SearchByScope searches memories within specific scopes
+func (s *MemoryStore) SearchByScope(ctx context.Context, vector []float64, scopes []domain.MemoryScope, topK int) ([]*domain.MemoryWithScore, error) {
+	var allMemories []*domain.MemoryWithScore
+	seen := make(map[string]bool)
+
+	// Search each scope in order
+	for _, scope := range scopes {
+		bankID := scopeToBankID(scope)
+
+		req := &hindsight.RecallRequest{
+			BankID:      bankID,
+			QueryVector: toFloat32(vector),
+			TopK:        topK,
+			Strategy:    hindsight.DefaultStrategy(),
+		}
+
+		results, err := s.sys.Recall(ctx, req)
+		if err != nil {
+			continue // Skip failed scope searches
+		}
+
+		for _, res := range results {
+			// Deduplicate
+			if seen[res.Memory.ID] {
+				continue
+			}
+			seen[res.Memory.ID] = true
+
+			allMemories = append(allMemories, &domain.MemoryWithScore{
+				Memory: toDomainMemory(toInternalMemory(res.Memory)),
+				Score:  float64(res.Score),
+			})
+		}
+	}
+
+	return allMemories, nil
+}
+
+// StoreWithScope stores a memory with a specific scope
+func (s *MemoryStore) StoreWithScope(ctx context.Context, memory *domain.Memory, scope domain.MemoryScope) error {
+	bankID := scopeToBankID(scope)
+
+	hMem := &hindsight.Memory{
+		ID:         memory.ID,
+		BankID:     bankID,
+		Type:       hindsight.MemoryType(memory.Type),
+		Content:    memory.Content,
+		Vector:     toFloat32(memory.Vector),
+		Confidence: memory.Importance,
+		Metadata:   memory.Metadata,
+		CreatedAt:  memory.CreatedAt,
+	}
+
+	return s.sys.Retain(ctx, hMem)
+}
+
+// SearchByText performs full-text search using LIKE (fallback from BM25)
+func (s *MemoryStore) SearchByText(ctx context.Context, query string, topK int) ([]*domain.MemoryWithScore, error) {
+	db, err := sql.Open("sqlite", s.dbPath)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	// Simple LIKE-based search (fallback if FTS5 not available)
+	searchPattern := "%" + strings.ToLower(query) + "%"
+
+	rows, err := db.Query(`
+		SELECT id, content, metadata, created_at
+		FROM embeddings
+		WHERE LOWER(content) LIKE ?
+		ORDER BY created_at DESC
+		LIMIT ?`, searchPattern, topK)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []*domain.MemoryWithScore
+	for rows.Next() {
+		var id, content, metadataJSON string
+		var createdAt time.Time
+		if err := rows.Scan(&id, &content, &metadataJSON, &createdAt); err != nil {
+			continue
+		}
+
+		var metadata map[string]interface{}
+		_ = json.Unmarshal([]byte(metadataJSON), &metadata)
+
+		bankID, _ := metadata["bank_id"].(string)
+		memType, _ := metadata["type"].(string)
+
+		// Calculate simple relevance score based on term frequency
+		score := calculateTextScore(query, content)
+
+		results = append(results, &domain.MemoryWithScore{
+			Memory: &domain.Memory{
+				ID:        id,
+				Content:   content,
+				Metadata:  metadata,
+				SessionID: bankID,
+				Type:      domain.MemoryType(memType),
+				CreatedAt: createdAt,
+			},
+			Score: score,
+		})
+	}
+
+	return results, nil
+}
+
+// scopeToBankID converts MemoryScope to bank ID
+func scopeToBankID(scope domain.MemoryScope) string {
+	if scope.Type == domain.MemoryScopeGlobal {
+		return "global"
+	}
+	if scope.ID == "" {
+		return string(scope.Type)
+	}
+	return fmt.Sprintf("%s:%s", scope.Type, scope.ID)
+}
+
+// calculateTextScore calculates a simple text relevance score
+func calculateTextScore(query, content string) float64 {
+	queryLower := strings.ToLower(query)
+	contentLower := strings.ToLower(content)
+
+	// Count query terms in content
+	queryTerms := strings.Fields(queryLower)
+	contentTerms := strings.Fields(contentLower)
+
+	if len(queryTerms) == 0 {
+		return 0
+	}
+
+	matches := 0
+	for _, qt := range queryTerms {
+		for _, ct := range contentTerms {
+			if strings.Contains(ct, qt) {
+				matches++
+				break
+			}
+		}
+	}
+
+	// Normalize score
+	score := float64(matches) / float64(len(queryTerms))
+
+	// Boost for exact phrase match
+	if strings.Contains(contentLower, queryLower) {
+		score = score * 1.5
+		if score > 1.0 {
+			score = 1.0
+		}
+	}
+
+	return score
 }
 
 func (s *MemoryStore) Get(ctx context.Context, id string) (*domain.Memory, error) {

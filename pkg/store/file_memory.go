@@ -135,6 +135,90 @@ func (s *FileMemoryStore) SearchBySession(ctx context.Context, sessionID string,
 	return results, nil
 }
 
+// SearchByScope searches memories within specific scopes
+func (s *FileMemoryStore) SearchByScope(ctx context.Context, vector []float64, scopes []domain.MemoryScope, topK int) ([]*domain.MemoryWithScore, error) {
+	all, _, err := s.List(ctx, 1000, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build a map of scope bank IDs for quick lookup
+	scopeMap := make(map[string]bool)
+	for _, scope := range scopes {
+		bankID := scopeToBankIDFile(scope)
+		scopeMap[bankID] = true
+	}
+
+	var results []*domain.MemoryWithScore
+	for _, m := range all {
+		// Check if memory's session/bank matches any scope
+		bankID := m.SessionID
+		if bankID == "" {
+			bankID = "global"
+		}
+		if scopeMap[bankID] {
+			results = append(results, &domain.MemoryWithScore{
+				Memory: m,
+				Score:  1.0,
+			})
+		}
+	}
+
+	if len(results) > topK {
+		results = results[:topK]
+	}
+	return results, nil
+}
+
+// StoreWithScope stores a memory with a specific scope
+func (s *FileMemoryStore) StoreWithScope(ctx context.Context, memory *domain.Memory, scope domain.MemoryScope) error {
+	// Set the session ID based on scope
+	memory.SessionID = scopeToBankIDFile(scope)
+	return s.Store(ctx, memory)
+}
+
+// SearchByText performs full-text search on file-based memories
+func (s *FileMemoryStore) SearchByText(ctx context.Context, query string, topK int) ([]*domain.MemoryWithScore, error) {
+	all, _, err := s.List(ctx, 1000, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	queryLower := strings.ToLower(query)
+	var results []*domain.MemoryWithScore
+
+	for _, m := range all {
+		contentLower := strings.ToLower(m.Content)
+		if strings.Contains(contentLower, queryLower) {
+			// Simple scoring based on substring match
+			score := 0.5
+			if strings.Contains(contentLower, queryLower) {
+				score = 0.8
+			}
+			results = append(results, &domain.MemoryWithScore{
+				Memory: m,
+				Score:  score,
+			})
+		}
+	}
+
+	if len(results) > topK {
+		results = results[:topK]
+	}
+	return results, nil
+}
+
+// scopeToBankIDFile converts MemoryScope to bank ID for file store
+func scopeToBankIDFile(scope domain.MemoryScope) string {
+	if scope.Type == domain.MemoryScopeGlobal {
+		return "global"
+	}
+	if scope.ID == "" {
+		return string(scope.Type)
+	}
+	return fmt.Sprintf("%s:%s", scope.Type, scope.ID)
+}
+
 func (s *FileMemoryStore) Get(ctx context.Context, id string) (*domain.Memory, error) {
 	for _, cat := range []string{"streams", "entities"} {
 		path := filepath.Join(s.baseDir, cat, id+".md")

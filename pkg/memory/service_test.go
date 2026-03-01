@@ -1,0 +1,345 @@
+package memory
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+)
+
+// MockMemoryStore is a mock implementation of domain.MemoryStore
+type MockMemoryStore struct {
+	mock.Mock
+}
+
+func (m *MockMemoryStore) Store(ctx context.Context, memory *domain.Memory) error {
+	args := m.Called(ctx, memory)
+	return args.Error(0)
+}
+
+func (m *MockMemoryStore) Search(ctx context.Context, vector []float64, topK int, minScore float64) ([]*domain.MemoryWithScore, error) {
+	args := m.Called(ctx, vector, topK, minScore)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.MemoryWithScore), args.Error(1)
+}
+
+func (m *MockMemoryStore) SearchBySession(ctx context.Context, sessionID string, vector []float64, topK int) ([]*domain.MemoryWithScore, error) {
+	args := m.Called(ctx, sessionID, vector, topK)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.MemoryWithScore), args.Error(1)
+}
+
+func (m *MockMemoryStore) SearchByScope(ctx context.Context, vector []float64, scopes []domain.MemoryScope, topK int) ([]*domain.MemoryWithScore, error) {
+	args := m.Called(ctx, vector, scopes, topK)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.MemoryWithScore), args.Error(1)
+}
+
+func (m *MockMemoryStore) StoreWithScope(ctx context.Context, memory *domain.Memory, scope domain.MemoryScope) error {
+	args := m.Called(ctx, memory, scope)
+	return args.Error(0)
+}
+
+func (m *MockMemoryStore) SearchByText(ctx context.Context, query string, topK int) ([]*domain.MemoryWithScore, error) {
+	args := m.Called(ctx, query, topK)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.MemoryWithScore), args.Error(1)
+}
+
+func (m *MockMemoryStore) Get(ctx context.Context, id string) (*domain.Memory, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Memory), args.Error(1)
+}
+
+func (m *MockMemoryStore) Update(ctx context.Context, memory *domain.Memory) error {
+	args := m.Called(ctx, memory)
+	return args.Error(0)
+}
+
+func (m *MockMemoryStore) IncrementAccess(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockMemoryStore) GetByType(ctx context.Context, memoryType domain.MemoryType, limit int) ([]*domain.Memory, error) {
+	args := m.Called(ctx, memoryType, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Memory), args.Error(1)
+}
+
+func (m *MockMemoryStore) List(ctx context.Context, limit, offset int) ([]*domain.Memory, int, error) {
+	args := m.Called(ctx, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Int(1), args.Error(2)
+	}
+	return args.Get(0).([]*domain.Memory), args.Int(1), args.Error(2)
+}
+
+func (m *MockMemoryStore) Delete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockMemoryStore) DeleteBySession(ctx context.Context, sessionID string) error {
+	args := m.Called(ctx, sessionID)
+	return args.Error(0)
+}
+
+func (m *MockMemoryStore) ConfigureBank(ctx context.Context, sessionID string, config *domain.MemoryBankConfig) error {
+	args := m.Called(ctx, sessionID, config)
+	return args.Error(0)
+}
+
+func (m *MockMemoryStore) Reflect(ctx context.Context, sessionID string) (string, error) {
+	args := m.Called(ctx, sessionID)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockMemoryStore) AddMentalModel(ctx context.Context, model *domain.MentalModel) error {
+	args := m.Called(ctx, model)
+	return args.Error(0)
+}
+
+func (m *MockMemoryStore) InitSchema(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+// MockGenerator is a mock implementation of domain.Generator
+type MockGenerator struct {
+	mock.Mock
+}
+
+func (m *MockGenerator) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
+	args := m.Called(ctx, prompt, opts)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockGenerator) Stream(ctx context.Context, prompt string, opts *domain.GenerationOptions, callback func(string)) error {
+	args := m.Called(ctx, prompt, opts, callback)
+	return args.Error(0)
+}
+
+func (m *MockGenerator) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
+	args := m.Called(ctx, messages, tools, opts)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.GenerationResult), args.Error(1)
+}
+
+func (m *MockGenerator) StreamWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
+	args := m.Called(ctx, messages, tools, opts, callback)
+	return args.Error(0)
+}
+
+func (m *MockGenerator) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	args := m.Called(ctx, prompt, schema, opts)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.StructuredResult), args.Error(1)
+}
+
+func (m *MockGenerator) RecognizeIntent(ctx context.Context, request string) (*domain.IntentResult, error) {
+	args := m.Called(ctx, request)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.IntentResult), args.Error(1)
+}
+
+// MockEmbedder is a mock implementation of domain.Embedder
+type MockEmbedder struct {
+	mock.Mock
+}
+
+func (m *MockEmbedder) Embed(ctx context.Context, text string) ([]float64, error) {
+	args := m.Called(ctx, text)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]float64), args.Error(1)
+}
+
+func (m *MockEmbedder) EmbedBatch(ctx context.Context, texts []string) ([][]float64, error) {
+	args := m.Called(ctx, texts)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([][]float64), args.Error(1)
+}
+
+func TestService_RetrieveAndInject(t *testing.T) {
+	ctx := context.Background()
+	store := new(MockMemoryStore)
+	llm := new(MockGenerator)
+	embedder := new(MockEmbedder)
+	
+	config := DefaultConfig()
+	service := NewService(store, llm, embedder, config)
+
+	t.Run("Skip retrieval for greetings", func(t *testing.T) {
+		query := "hello"
+		sessionID := "session-1"
+		
+		formatted, memories, err := service.RetrieveAndInject(ctx, query, sessionID)
+		
+		assert.NoError(t, err)
+		assert.Empty(t, formatted)
+		assert.Nil(t, memories)
+		store.AssertNotCalled(t, "SearchByScope")
+	})
+
+	t.Run("Perform retrieval for information query", func(t *testing.T) {
+		query := "what is the project status?"
+		sessionID := "session-1"
+		vector := []float64{0.1, 0.2, 0.3}
+		
+		embedder.On("Embed", ctx, query).Return(vector, nil)
+		
+		// Mock Entity Search (which calls Search)
+		store.On("Search", ctx, vector, 3, 0.5).Return([]*domain.MemoryWithScore{}, nil)
+		
+		expectedMemories := []*domain.MemoryWithScore{
+			{
+				Memory: &domain.Memory{
+					ID:        "mem-1",
+					Type:      domain.MemoryTypeFact,
+					Content:   "The project is 50% complete.",
+					CreatedAt: time.Now(),
+				},
+				Score: 0.9,
+			},
+		}
+		
+		store.On("SearchByScope", ctx, vector, mock.Anything, mock.Anything).Return(expectedMemories, nil)
+		store.On("IncrementAccess", ctx, "mem-1").Return(nil)
+
+		formatted, memories, err := service.RetrieveAndInject(ctx, query, sessionID)
+		
+		assert.NoError(t, err)
+		assert.Contains(t, formatted, "The project is 50% complete.")
+		assert.Len(t, memories, 1)
+		assert.Equal(t, "mem-1", memories[0].ID)
+		
+		embedder.AssertExpectations(t)
+		store.AssertExpectations(t)
+	})
+}
+
+func TestService_Add(t *testing.T) {
+	ctx := context.Background()
+	store := new(MockMemoryStore)
+	llm := new(MockGenerator)
+	embedder := new(MockEmbedder)
+	
+	service := NewService(store, llm, embedder, nil)
+
+	t.Run("Add memory with embedding", func(t *testing.T) {
+		memory := &domain.Memory{
+			Content: "This is a new memory.",
+			Type:    domain.MemoryTypeFact,
+		}
+		vector := []float64{0.5, 0.6, 0.7}
+		
+		embedder.On("Embed", ctx, memory.Content).Return(vector, nil)
+		store.On("Store", ctx, mock.MatchedBy(func(m *domain.Memory) bool {
+			return m.Content == memory.Content && len(m.Vector) > 0
+		})).Return(nil)
+
+		err := service.Add(ctx, memory)
+		
+		assert.NoError(t, err)
+		embedder.AssertExpectations(t)
+		store.AssertExpectations(t)
+	})
+}
+
+func TestService_StoreIfWorthwhile(t *testing.T) {
+	ctx := context.Background()
+	store := new(MockMemoryStore)
+	llm := new(MockGenerator)
+	embedder := new(MockEmbedder)
+	
+	service := NewService(store, llm, embedder, nil)
+
+	t.Run("Store worthwhile memory", func(t *testing.T) {
+		req := &domain.MemoryStoreRequest{
+			SessionID:  "session-1",
+			TaskGoal:   "Update project status",
+			TaskResult: "The project is now 60% complete after implementing the memory module.",
+		}
+		
+		structuredResult := &domain.StructuredResult{
+			Data: map[string]interface{}{
+				"should_store": true,
+				"memories": []interface{}{
+					map[string]interface{}{
+						"type":       "fact",
+						"content":    "Project status updated to 60%.",
+						"importance": 0.9,
+					},
+				},
+			},
+			Raw:   `{"should_store": true, "memories": [{"type": "fact", "content": "Project status updated to 60%.", "importance": 0.9}]}`,
+			Valid: true,
+		}
+		
+		llm.On("GenerateStructured", ctx, mock.Anything, mock.Anything, mock.Anything).Return(structuredResult, nil)
+		
+		// Add() will be called internally, which calls Embed and Store
+		embedder.On("Embed", ctx, "Project status updated to 60%.").Return([]float64{0.1, 0.2, 0.3}, nil)
+		store.On("Store", ctx, mock.MatchedBy(func(m *domain.Memory) bool {
+			return m.Content == "Project status updated to 60%."
+		})).Return(nil)
+
+		err := service.StoreIfWorthwhile(ctx, req)
+		
+		assert.NoError(t, err)
+		llm.AssertExpectations(t)
+		embedder.AssertExpectations(t)
+		store.AssertExpectations(t)
+	})
+
+	t.Run("Do not store if not worthwhile", func(t *testing.T) {
+		req := &domain.MemoryStoreRequest{
+			SessionID:  "session-1",
+			TaskGoal:   "Say hello",
+			TaskResult: "The user said hello.",
+		}
+		
+		structuredResult := &domain.StructuredResult{
+			Data: map[string]interface{}{
+				"should_store": false,
+				"memories":     []interface{}{},
+			},
+			Raw:   `{"should_store": false, "memories": []}`,
+			Valid: true,
+		}
+		
+		llm.On("GenerateStructured", ctx, mock.Anything, mock.Anything, mock.Anything).Return(structuredResult, nil)
+
+		err := service.StoreIfWorthwhile(ctx, req)
+		
+		assert.NoError(t, err)
+		llm.AssertExpectations(t)
+		store.AssertNotCalled(t, "Store")
+	})
+}
