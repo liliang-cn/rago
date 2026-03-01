@@ -52,11 +52,11 @@ func TestMemoryScorer_Score(t *testing.T) {
 			config: DefaultScoringConfig(),
 			memory: &domain.MemoryWithScore{
 				Memory: &domain.Memory{
-					ID:           "3",
-					Content:      "Frequently accessed memory",
-					Importance:   0.5,
-					AccessCount:  10,
-					CreatedAt:    now.Add(-10 * 24 * time.Hour),
+					ID:          "3",
+					Content:     "Frequently accessed memory",
+					Importance:  0.5,
+					AccessCount: 10,
+					CreatedAt:   now.Add(-10 * 24 * time.Hour),
 				},
 				Score: 0.6,
 			},

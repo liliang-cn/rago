@@ -31,10 +31,10 @@ func DefaultNoiseFilterConfig() *NoiseFilterConfig {
 
 // NoiseFilter filters out low-quality memories
 type NoiseFilter struct {
-	config           *NoiseFilterConfig
-	refusalPatterns  []*regexp.Regexp
-	metaPatterns     []*regexp.Regexp
-	genericPatterns  []*regexp.Regexp
+	config          *NoiseFilterConfig
+	refusalPatterns []*regexp.Regexp
+	metaPatterns    []*regexp.Regexp
+	genericPatterns []*regexp.Regexp
 }
 
 // NewNoiseFilter creates a new noise filter

@@ -8,7 +8,7 @@ func TestQueryClassifier_Classify(t *testing.T) {
 	classifier := NewQueryClassifier(nil)
 
 	tests := []struct {
-		query       string
+		query        string
 		expectedType QueryType
 	}{
 		// Greetings

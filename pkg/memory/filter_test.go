@@ -10,8 +10,8 @@ func TestNoiseFilter_Filter(t *testing.T) {
 	filter := NewNoiseFilter(nil)
 
 	tests := []struct {
-		name       string
-		memories   []*domain.MemoryWithScore
+		name        string
+		memories    []*domain.MemoryWithScore
 		expectCount int
 	}{
 		{
@@ -72,13 +72,13 @@ func TestNoiseFilter_IsNoisy(t *testing.T) {
 	filter := NewNoiseFilter(nil)
 
 	tests := []struct {
-		content      string
+		content       string
 		expectedNoisy bool
 	}{
-		{"ok", true},                            // Too short
-		{"thanks!", true},                       // Generic
-		{"I can't help with that", true},        // Refusal
-		{"Who are you?", true},                  // Meta
+		{"ok", true},                     // Too short
+		{"thanks!", true},                // Generic
+		{"I can't help with that", true}, // Refusal
+		{"Who are you?", true},           // Meta
 		{"This is a valid memory about something important", false},
 		{"The configuration settings are stored in a JSON file", false},
 	}

@@ -191,16 +191,16 @@ func TestService_RetrieveAndInject(t *testing.T) {
 	store := new(MockMemoryStore)
 	llm := new(MockGenerator)
 	embedder := new(MockEmbedder)
-	
+
 	config := DefaultConfig()
 	service := NewService(store, llm, embedder, config)
 
 	t.Run("Skip retrieval for greetings", func(t *testing.T) {
 		query := "hello"
 		sessionID := "session-1"
-		
+
 		formatted, memories, err := service.RetrieveAndInject(ctx, query, sessionID)
-		
+
 		assert.NoError(t, err)
 		assert.Empty(t, formatted)
 		assert.Nil(t, memories)
@@ -211,12 +211,12 @@ func TestService_RetrieveAndInject(t *testing.T) {
 		query := "what is the project status?"
 		sessionID := "session-1"
 		vector := []float64{0.1, 0.2, 0.3}
-		
+
 		embedder.On("Embed", ctx, query).Return(vector, nil)
-		
+
 		// Mock Entity Search (which calls Search)
 		store.On("Search", ctx, vector, 3, 0.5).Return([]*domain.MemoryWithScore{}, nil)
-		
+
 		expectedMemories := []*domain.MemoryWithScore{
 			{
 				Memory: &domain.Memory{
@@ -228,17 +228,17 @@ func TestService_RetrieveAndInject(t *testing.T) {
 				Score: 0.9,
 			},
 		}
-		
+
 		store.On("SearchByScope", ctx, vector, mock.Anything, mock.Anything).Return(expectedMemories, nil)
 		store.On("IncrementAccess", ctx, "mem-1").Return(nil)
 
 		formatted, memories, err := service.RetrieveAndInject(ctx, query, sessionID)
-		
+
 		assert.NoError(t, err)
 		assert.Contains(t, formatted, "The project is 50% complete.")
 		assert.Len(t, memories, 1)
 		assert.Equal(t, "mem-1", memories[0].ID)
-		
+
 		embedder.AssertExpectations(t)
 		store.AssertExpectations(t)
 	})
@@ -249,7 +249,7 @@ func TestService_Add(t *testing.T) {
 	store := new(MockMemoryStore)
 	llm := new(MockGenerator)
 	embedder := new(MockEmbedder)
-	
+
 	service := NewService(store, llm, embedder, nil)
 
 	t.Run("Add memory with embedding", func(t *testing.T) {
@@ -258,14 +258,14 @@ func TestService_Add(t *testing.T) {
 			Type:    domain.MemoryTypeFact,
 		}
 		vector := []float64{0.5, 0.6, 0.7}
-		
+
 		embedder.On("Embed", ctx, memory.Content).Return(vector, nil)
 		store.On("Store", ctx, mock.MatchedBy(func(m *domain.Memory) bool {
 			return m.Content == memory.Content && len(m.Vector) > 0
 		})).Return(nil)
 
 		err := service.Add(ctx, memory)
-		
+
 		assert.NoError(t, err)
 		embedder.AssertExpectations(t)
 		store.AssertExpectations(t)
@@ -277,7 +277,7 @@ func TestService_StoreIfWorthwhile(t *testing.T) {
 	store := new(MockMemoryStore)
 	llm := new(MockGenerator)
 	embedder := new(MockEmbedder)
-	
+
 	service := NewService(store, llm, embedder, nil)
 
 	t.Run("Store worthwhile memory", func(t *testing.T) {
@@ -286,7 +286,7 @@ func TestService_StoreIfWorthwhile(t *testing.T) {
 			TaskGoal:   "Update project status",
 			TaskResult: "The project is now 60% complete after implementing the memory module.",
 		}
-		
+
 		structuredResult := &domain.StructuredResult{
 			Data: map[string]interface{}{
 				"should_store": true,
@@ -301,9 +301,9 @@ func TestService_StoreIfWorthwhile(t *testing.T) {
 			Raw:   `{"should_store": true, "memories": [{"type": "fact", "content": "Project status updated to 60%.", "importance": 0.9}]}`,
 			Valid: true,
 		}
-		
+
 		llm.On("GenerateStructured", ctx, mock.Anything, mock.Anything, mock.Anything).Return(structuredResult, nil)
-		
+
 		// Add() will be called internally, which calls Embed and Store
 		embedder.On("Embed", ctx, "Project status updated to 60%.").Return([]float64{0.1, 0.2, 0.3}, nil)
 		store.On("Store", ctx, mock.MatchedBy(func(m *domain.Memory) bool {
@@ -311,7 +311,7 @@ func TestService_StoreIfWorthwhile(t *testing.T) {
 		})).Return(nil)
 
 		err := service.StoreIfWorthwhile(ctx, req)
-		
+
 		assert.NoError(t, err)
 		llm.AssertExpectations(t)
 		embedder.AssertExpectations(t)
@@ -324,7 +324,7 @@ func TestService_StoreIfWorthwhile(t *testing.T) {
 			TaskGoal:   "Say hello",
 			TaskResult: "The user said hello.",
 		}
-		
+
 		structuredResult := &domain.StructuredResult{
 			Data: map[string]interface{}{
 				"should_store": false,
@@ -333,11 +333,11 @@ func TestService_StoreIfWorthwhile(t *testing.T) {
 			Raw:   `{"should_store": false, "memories": []}`,
 			Valid: true,
 		}
-		
+
 		llm.On("GenerateStructured", ctx, mock.Anything, mock.Anything, mock.Anything).Return(structuredResult, nil)
 
 		err := service.StoreIfWorthwhile(ctx, req)
-		
+
 		assert.NoError(t, err)
 		llm.AssertExpectations(t)
 		store.AssertNotCalled(t, "Store")
