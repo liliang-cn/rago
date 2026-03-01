@@ -335,6 +335,15 @@ func main() {
 	}
 	defer svc.Close()
 
+	// Show agent info
+	info := svc.Info()
+	fmt.Printf("--- Agent Configuration ---\n")
+	fmt.Printf("  Model:    %s\n", info.Model)
+	fmt.Printf("  Base URL: %s\n", info.BaseURL)
+	fmt.Printf("  PTC:      %v\n", info.PTCEnabled)
+	fmt.Println("---------------------------")
+	fmt.Println()
+
 	registerTools(svc)
 
 	if err := runWithStream(ctx, svc, question); err != nil {

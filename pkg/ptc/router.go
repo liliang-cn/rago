@@ -199,15 +199,27 @@ func (r *RAGORouter) Route(ctx context.Context, toolName string, args map[string
 			CallTool(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error)
 		}
 		if svc, ok := r.mcpService.(callTooler); ok {
-			return svc.CallTool(ctx, toolName, args)
+			result, err := svc.CallTool(ctx, toolName, args)
+			if err == nil {
+				return result, nil
+			}
+			// If tool found but failed, propagate the real error
+			if !strings.Contains(err.Error(), "not found") {
+				return nil, err
+			}
 		}
 	}
 
-	// 3. Try Skills service (prefixed with "skill_" or direct skill ID)
+	// 3. Try Skills service
 	if r.skillsService != nil {
 		skillID := strings.TrimPrefix(toolName, "skill_")
-		if result, err := r.callSkill(ctx, skillID, args); err == nil {
+		result, err := r.callSkill(ctx, skillID, args)
+		if err == nil {
 			return result, nil
+		}
+		// If skill found but failed, propagate the real error
+		if !strings.Contains(err.Error(), "not found") {
+			return nil, err
 		}
 	}
 
@@ -472,37 +484,16 @@ func (r *RAGORouter) getMCPToolInfo(ctx context.Context, name string) *ToolInfo 
 
 // callSkill executes a skill by ID using duck-typed Execute method.
 func (r *RAGORouter) callSkill(ctx context.Context, skillID string, vars map[string]interface{}) (interface{}, error) {
-	type execRequest struct {
-		SkillID   string
-		Variables map[string]interface{}
-	}
-	type execResult struct {
-		Output string
-	}
-
-	// Duck-type: look for Execute(ctx, *req) (*result, error) using the concrete types
-	// from pkg/skills. We use a named interface matching the exact method signature.
-	type skillExecutor interface {
-		ExecuteSkillByID(ctx context.Context, id string, vars map[string]interface{}) (string, error)
-	}
-	if se, ok := r.skillsService.(skillExecutor); ok {
-		out, err := se.ExecuteSkillByID(ctx, skillID, vars)
-		if err != nil {
-			return nil, err
-		}
-		return out, nil
-	}
-
-	// Fallback via generic Execute interface — requires the concrete *skills.ExecutionRequest type.
-	// Since we can't import that here, we use the stored adapter if provided.
+	// The skills.Service has a RunSkill(context.Context, string, map[string]interface{}) (string, error) method.
 	type skillRunner interface {
 		RunSkill(ctx context.Context, id string, vars map[string]interface{}) (string, error)
 	}
+
 	if sr, ok := r.skillsService.(skillRunner); ok {
 		return sr.RunSkill(ctx, skillID, vars)
 	}
 
-	return nil, fmt.Errorf("skills service does not implement a compatible executor interface")
+	return nil, fmt.Errorf("skill '%s' not found or service interface mismatch", skillID)
 }
 
 // getSkillTools returns ToolInfo for every available skill.

@@ -708,7 +708,7 @@ func (c *Client) RunAgent(ctx context.Context, goal string, opts *AgentOptions) 
 
 	// Run with session if provided
 	if opts.SessionID != "" {
-		return c.agentService.RunWithSession(ctx, goal, opts.SessionID)
+		return c.agentService.Run(ctx, goal, agent.WithSessionID(opts.SessionID))
 	}
 
 	return c.agentService.Run(ctx, goal)
@@ -819,6 +819,6 @@ func (c *Client) AgentChat(ctx context.Context, sessionID, message string) (*age
 		return nil, err
 	}
 
-	return c.agentService.RunWithSession(ctx, message, sessionID)
+	return c.agentService.Run(ctx, message, agent.WithSessionID(sessionID))
 }
 
