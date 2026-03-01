@@ -82,8 +82,6 @@ github.com/liliang-cn/mcp-swagger-server v0.4.0 h1:vgcUvQp+ped++O1+hQz29oWtXiHE+
 github.com/liliang-cn/mcp-swagger-server v0.4.0/go.mod h1:/ulyr2I9rj9LFAY4mdT875hewZGYgMi08uNKBa203Ew=
 github.com/liliang-cn/pipeit v0.1.0 h1:ZU5hkL5SXr6vHtn/gcJBX9i55l0HM4rVsYTfxqn5M34=
 github.com/liliang-cn/pipeit v0.1.0/go.mod h1:ghxqa1CKTztR5me4vl8srIYQhfv89tc37SnocoXv4/E=
-github.com/liliang-cn/skills-go v1.2.1 h1:XZNonBWpZnnC9irLZGP8YaYIqXpEcTm5TmUJeNRsZCI=
-github.com/liliang-cn/skills-go v1.2.1/go.mod h1:40SAsuEfUKZTC84c02f5rJtIFX0uk7jGhlgih4LbvyQ=
 github.com/liliang-cn/skills-go v1.3.0 h1:UWLgz7JYAqoPXHiOuu8Mj6McJXp4hxo0bck+HBx7xik=
 github.com/liliang-cn/skills-go v1.3.0/go.mod h1:40SAsuEfUKZTC84c02f5rJtIFX0uk7jGhlgih4LbvyQ=
 github.com/liliang-cn/sqvect/v2 v2.6.1 h1:s63XK9wXkzAXe+0ylHoNaSLN6Z+kTVaek59lHOmX9kY=
