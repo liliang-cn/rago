@@ -24,6 +24,16 @@ type Service struct {
 	minScore      float64
 	maxMemories   int
 
+	// Enhanced memory components
+	scorer       *MemoryScorer
+	classifier   *QueryClassifier
+	noiseFilter  *NoiseFilter
+	scopeWeights *ScopeWeightConfig
+
+	// Hybrid search
+	enableHybrid bool
+	rrfK         float64
+
 	mu sync.RWMutex
 }
 
@@ -31,13 +41,29 @@ type Service struct {
 type Config struct {
 	MinScore    float64 // Minimum relevance score for memory retrieval (default 0.7)
 	MaxMemories int     // Maximum memories to inject (default 5)
+
+	// Enhanced features
+	ScoringConfig     *ScoringConfig
+	ClassifierConfig  *ClassifierConfig
+	NoiseFilterConfig *NoiseFilterConfig
+	ScopeWeights      *ScopeWeightConfig
+
+	// Hybrid search
+	EnableHybrid bool
+	RRFK         float64
 }
 
 // DefaultConfig returns default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		MinScore:    0.01,
-		MaxMemories: 5,
+		MinScore:          0.01,
+		MaxMemories:       5,
+		ScoringConfig:     DefaultScoringConfig(),
+		ClassifierConfig:  DefaultClassifierConfig(),
+		NoiseFilterConfig: DefaultNoiseFilterConfig(),
+		ScopeWeights:      DefaultScopeWeightConfig(),
+		EnableHybrid:      false,
+		RRFK:              60.0,
 	}
 }
 
@@ -60,6 +86,12 @@ func NewService(
 		promptManager: prompt.NewManager(),
 		minScore:      config.MinScore,
 		maxMemories:   config.MaxMemories,
+		scorer:        NewMemoryScorer(config.ScoringConfig),
+		classifier:    NewQueryClassifier(config.ClassifierConfig),
+		noiseFilter:   NewNoiseFilter(config.NoiseFilterConfig),
+		scopeWeights:  config.ScopeWeights,
+		enableHybrid:  config.EnableHybrid,
+		rrfK:          config.RRFK,
 	}
 }
 
@@ -75,6 +107,11 @@ func (s *Service) SetShadowIndex(idx domain.MemoryStore) {
 
 // RetrieveAndInject searches relevant memories and formats them for LLM context
 func (s *Service) RetrieveAndInject(ctx context.Context, query string, sessionID string) (string, []*domain.MemoryWithScore, error) {
+	// 0. Adaptive retrieval - skip if query doesn't need memory
+	if s.classifier != nil && !s.classifier.NeedsMemory(query) {
+		return "", nil, nil
+	}
+
 	var allMemories []*domain.MemoryWithScore
 
 	// 1. Entity Search (if query is not empty)
@@ -100,14 +137,18 @@ func (s *Service) RetrieveAndInject(ctx context.Context, query string, sessionID
 	if s.embedder != nil {
 		vector, err := s.embedder.Embed(ctx, query)
 		if err == nil {
-			// Session memories
-			if sessionID != "" {
-				mems, _ := s.store.SearchBySession(ctx, sessionID, vector, s.maxMemories/2)
-				allMemories = append(allMemories, mems...)
+			// Build scope chain for search
+			scopes := DefaultScopeChain(sessionID, "", "", "")
+
+			// Use scope-based search
+			memScopes, _ := s.store.SearchByScope(ctx, vector, scopes.ToSlice(), s.maxMemories*2)
+			allMemories = append(allMemories, memScopes...)
+
+			// Hybrid search: combine with text search
+			if s.enableHybrid {
+				textMems, _ := s.store.SearchByText(ctx, query, s.maxMemories)
+				allMemories = s.rrfFusion(allMemories, textMems)
 			}
-			// Global memories
-			mems, _ := s.store.Search(ctx, vector, s.maxMemories, s.minScore)
-			allMemories = append(allMemories, mems...)
 		}
 	} else {
 		// Fallback to List (Memory Sitemap mode)
@@ -117,12 +158,26 @@ func (s *Service) RetrieveAndInject(ctx context.Context, query string, sessionID
 		}
 	}
 
-	// 3. Merge and rank
-	allMemories = s.mergeAndRank(allMemories)
+	// 3. Noise filtering
+	if s.noiseFilter != nil {
+		allMemories = s.noiseFilter.Filter(allMemories)
+	}
+
+	// 4. Scoring and ranking
+	if s.scorer != nil {
+		allMemories = s.scorer.ScoreAll(allMemories)
+	} else {
+		allMemories = s.mergeAndRank(allMemories)
+	}
+
+	// 5. Limit results
+	if len(allMemories) > s.maxMemories {
+		allMemories = allMemories[:s.maxMemories]
+	}
 
 	// Update access count
 	for _, m := range allMemories {
-		if m.ID != "" {
+		if m.ID != "" && !strings.HasPrefix(m.ID, "ent_") {
 			_ = s.store.IncrementAccess(ctx, m.ID)
 		}
 	}
@@ -333,6 +388,73 @@ func (s *Service) mergeAndRank(memories []*domain.MemoryWithScore) []*domain.Mem
 		}
 	}
 	return unique
+}
+
+// rrfFusion performs Reciprocal Rank Fusion for hybrid search
+// RRF score = sum(1 / (k + rank)) for each list
+func (s *Service) rrfFusion(vector, text []*domain.MemoryWithScore) []*domain.MemoryWithScore {
+	k := s.rrfK
+	if k <= 0 {
+		k = 60.0
+	}
+
+	// Calculate RRF scores
+	scores := make(map[string]float64)
+	memories := make(map[string]*domain.MemoryWithScore)
+
+	// Vector results
+	for rank, m := range vector {
+		if m == nil || m.Memory == nil {
+			continue
+		}
+		id := m.ID
+		if id == "" {
+			id = m.Content // Fallback to content as ID
+		}
+		scores[id] += 1.0 / (k + float64(rank+1))
+		if _, exists := memories[id]; !exists {
+			memories[id] = m
+		}
+	}
+
+	// Text results
+	for rank, m := range text {
+		if m == nil || m.Memory == nil {
+			continue
+		}
+		id := m.ID
+		if id == "" {
+			id = m.Content
+		}
+		scores[id] += 1.0 / (k + float64(rank+1))
+		if _, exists := memories[id]; !exists {
+			memories[id] = m
+		}
+	}
+
+	// Build result list
+	var results []*domain.MemoryWithScore
+	for id, score := range scores {
+		if m, exists := memories[id]; exists {
+			// Create copy to avoid modifying original
+			result := &domain.MemoryWithScore{
+				Memory: m.Memory,
+				Score:  score,
+			}
+			results = append(results, result)
+		}
+	}
+
+	// Sort by RRF score
+	for i := 0; i < len(results)-1; i++ {
+		for j := i + 1; j < len(results); j++ {
+			if results[i].Score < results[j].Score {
+				results[i], results[j] = results[j], results[i]
+			}
+		}
+	}
+
+	return results
 }
 
 func (s *Service) formatMemories(memories []*domain.MemoryWithScore) string {
