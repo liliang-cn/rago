@@ -107,6 +107,12 @@ type RunConfig struct {
 
 	// HistoryDBPath specifies the database path for history storage
 	HistoryDBPath string
+
+	// SessionID specifies a session ID for multi-turn conversations
+	SessionID string
+
+	// Stream enables streaming mode for real-time events
+	Stream bool
 }
 
 // ErrorHandlerFunc handles errors during agent execution
@@ -150,7 +156,7 @@ func DefaultRunConfig() *RunConfig {
 // RunOption modifies RunConfig
 type RunOption func(*RunConfig)
 
-// WithMaxTurns sets the maximum number of turns
+// WithMaxTurns sets the maximum number of turns (default: 20)
 func WithMaxTurns(n int) RunOption {
 	return func(c *RunConfig) { c.MaxTurns = n }
 }
@@ -180,7 +186,7 @@ func WithErrorHandler(kind string, handler ErrorHandlerFunc) RunOption {
 	}
 }
 
-// WithStoreHistory enables storing execution history
+// WithStoreHistory enables storing execution history to database
 func WithStoreHistory(store bool) RunOption {
 	return func(c *RunConfig) { c.StoreHistory = store }
 }
@@ -188,4 +194,14 @@ func WithStoreHistory(store bool) RunOption {
 // WithHistoryDBPath sets the database path for history storage
 func WithHistoryDBPath(path string) RunOption {
 	return func(c *RunConfig) { c.HistoryDBPath = path }
+}
+
+// WithSessionID sets a specific session ID for the run
+func WithSessionID(sessionID string) RunOption {
+	return func(c *RunConfig) { c.SessionID = sessionID }
+}
+
+// WithStream enables streaming mode, returns events via the returned channel
+func WithStream() RunOption {
+	return func(c *RunConfig) { c.Stream = true }
 }

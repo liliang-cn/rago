@@ -249,6 +249,7 @@ func (p *Planner) buildSystemPrompt() string {
 
 	data := map[string]interface{}{
 		"ToolDescriptions": toolDescriptions,
+		"HasRAG":           p.hasRAGTools(),
 	}
 
 	rendered, err := p.promptManager.Render(prompt.PlannerSystemPrompt, data)
@@ -449,13 +450,16 @@ func (p *Planner) llmIntentRecognition(ctx context.Context, goal string, session
 	// Build intent recognition prompt
 	prompt := p.buildIntentRecognitionPrompt(goal, session)
 
+	// Build available intent types based on available tools
+	intentTypes := p.getAvailableIntentTypes()
+
 	// Define schema for intent recognition
 	schema := map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
 			"intent_type": map[string]interface{}{
-				"type": "string",
-				"enum": []string{"file_create", "file_read", "file_edit", "web_search", "rag_query", "analysis", "general_qa"},
+				"type":        "string",
+				"enum":        intentTypes,
 				"description": "The primary intent type",
 			},
 			"target_file": map[string]interface{}{
@@ -504,7 +508,8 @@ func (p *Planner) llmIntentRecognition(ctx context.Context, goal string, session
 // buildIntentRecognitionPrompt creates the prompt for LLM-based intent recognition
 func (p *Planner) buildIntentRecognitionPrompt(goal string, session *Session) string {
 	data := map[string]interface{}{
-		"Goal": goal,
+		"Goal":  goal,
+		"HasRAG": p.hasRAGTools(),
 	}
 
 	// Add session context if available
@@ -533,6 +538,29 @@ func (p *Planner) buildIntentRecognitionPrompt(goal string, session *Session) st
 	}
 
 	return rendered
+}
+
+// getAvailableIntentTypes returns available intent types based on configured tools
+func (p *Planner) getAvailableIntentTypes() []string {
+	// Base intent types always available
+	intents := []string{"file_create", "file_read", "file_edit", "web_search", "analysis", "general_qa"}
+
+	// Check if RAG tools are available
+	if p.hasRAGTools() {
+		intents = append([]string{"rag_query"}, intents...)
+	}
+
+	return intents
+}
+
+// hasRAGTools checks if RAG tools are available
+func (p *Planner) hasRAGTools() bool {
+	for _, tool := range p.tools {
+		if tool.Function.Name == "rag_query" {
+			return true
+		}
+	}
+	return false
 }
 
 // fallbackIntentRecognition provides basic regex-based intent recognition as fallback

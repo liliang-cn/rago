@@ -181,7 +181,7 @@ func (b *Builder) WithSkills(opts ...SkillsOption) *Builder {
 // WithPTC enables PTC
 func (b *Builder) WithPTC(opts ...PTCOption) *Builder {
 	b.enablePTC = true
-	cfg := &PTCConfig{Enabled: true, MaxToolCalls: 10, Timeout: 30 * time.Second}
+	cfg := &PTCConfig{Enabled: true, MaxToolCalls: 20, Timeout: 600 * time.Second}
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -346,6 +346,12 @@ func (b *Builder) build() (*Service, error) {
 	svc, err := NewService(llmSvc, mcpAdapter, ragProcessor, dbPath, memSvc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create service: %w", err)
+	}
+
+	// Store model metadata for Info()
+	if len(ragoCfg.LLMPool.Providers) > 0 {
+		p := ragoCfg.LLMPool.Providers[0]
+		svc.SetModelInfo(p.ModelName, p.BaseURL)
 	}
 
 	// Apply config

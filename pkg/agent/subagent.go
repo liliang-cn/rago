@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -755,6 +756,269 @@ func copyMap(m map[string]interface{}) map[string]interface{} {
 		result[k] = v
 	}
 	return result
+}
+
+// ============================================================
+// SubAgentCoordinator - Manages concurrent SubAgent execution
+// ============================================================
+
+// SubAgentResult represents the result of a SubAgent execution
+type SubAgentResult struct {
+	ID     string
+	Name   string
+	Result interface{}
+	Error  error
+	State  SubAgentState
+}
+
+// SubAgentCoordinator manages multiple SubAgents running concurrently
+type SubAgentCoordinator struct {
+	mu       sync.RWMutex
+	subagents map[string]*SubAgent
+	results   map[string]*SubAgentResult
+	running   map[string]context.CancelFunc
+
+	logger *slog.Logger
+}
+
+// NewSubAgentCoordinator creates a new coordinator
+func NewSubAgentCoordinator() *SubAgentCoordinator {
+	return &SubAgentCoordinator{
+		subagents: make(map[string]*SubAgent),
+		results:   make(map[string]*SubAgentResult),
+		running:   make(map[string]context.CancelFunc),
+		logger:    slog.Default().With("module", "subagent.coordinator"),
+	}
+}
+
+// Add adds a SubAgent to the coordinator
+func (c *SubAgentCoordinator) Add(sa *SubAgent) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.subagents[sa.id] = sa
+}
+
+// Remove removes a SubAgent from the coordinator
+func (c *SubAgentCoordinator) Remove(id string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.subagents, id)
+	delete(c.results, id)
+	if cancel, ok := c.running[id]; ok {
+		cancel()
+		delete(c.running, id)
+	}
+}
+
+// RunAsync starts a SubAgent in a separate goroutine
+func (c *SubAgentCoordinator) RunAsync(ctx context.Context, sa *SubAgent) <-chan *SubAgentResult {
+	resultChan := make(chan *SubAgentResult, 1)
+
+	c.mu.Lock()
+	c.subagents[sa.id] = sa
+	c.mu.Unlock()
+
+	go func() {
+		defer close(resultChan)
+
+		// Create cancellable context
+		runCtx, cancel := context.WithCancel(ctx)
+		c.mu.Lock()
+		c.running[sa.id] = cancel
+		c.mu.Unlock()
+
+		// Cleanup on exit
+		defer func() {
+			c.mu.Lock()
+			delete(c.running, sa.id)
+			c.mu.Unlock()
+		}()
+
+		// Execute SubAgent
+		result, err := sa.Run(runCtx)
+
+		// Store result
+		r := &SubAgentResult{
+			ID:     sa.id,
+			Name:   sa.config.Agent.Name(),
+			Result: result,
+			Error:  err,
+			State:  sa.GetState(),
+		}
+
+		c.mu.Lock()
+		c.results[sa.id] = r
+		c.mu.Unlock()
+
+		resultChan <- r
+	}()
+
+	return resultChan
+}
+
+// RunAllAsync starts all SubAgents concurrently in separate goroutines
+func (c *SubAgentCoordinator) RunAllAsync(ctx context.Context) <-chan *SubAgentResult {
+	resultChan := make(chan *SubAgentResult, len(c.subagents))
+
+	c.mu.RLock()
+	count := len(c.subagents)
+	c.mu.RUnlock()
+
+	if count == 0 {
+		close(resultChan)
+		return resultChan
+	}
+
+	go func() {
+		var wg sync.WaitGroup
+
+		c.mu.RLock()
+		for _, sa := range c.subagents {
+			wg.Add(1)
+			go func(subagent *SubAgent) {
+				defer wg.Done()
+
+				runCtx, cancel := context.WithCancel(ctx)
+				c.mu.Lock()
+				c.running[subagent.id] = cancel
+				c.mu.Unlock()
+
+				defer func() {
+					c.mu.Lock()
+					delete(c.running, subagent.id)
+					c.mu.Unlock()
+				}()
+
+				result, err := subagent.Run(runCtx)
+
+				r := &SubAgentResult{
+					ID:     subagent.id,
+					Name:   subagent.config.Agent.Name(),
+					Result: result,
+					Error:  err,
+					State:  subagent.GetState(),
+				}
+
+				c.mu.Lock()
+				c.results[subagent.id] = r
+				c.mu.Unlock()
+
+				resultChan <- r
+			}(sa)
+		}
+		c.mu.RUnlock()
+
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	return resultChan
+}
+
+// WaitAll waits for all SubAgents to complete
+func (c *SubAgentCoordinator) WaitAll(ctx context.Context) map[string]*SubAgentResult {
+	results := make(map[string]*SubAgentResult)
+
+	for result := range c.RunAllAsync(ctx) {
+		results[result.ID] = result
+	}
+
+	return results
+}
+
+// WaitAny waits for any SubAgent to complete and returns its result
+func (c *SubAgentCoordinator) WaitAny(ctx context.Context) *SubAgentResult {
+	resultChan := c.RunAllAsync(ctx)
+
+	select {
+	case result, ok := <-resultChan:
+		if ok {
+			// Cancel remaining SubAgents
+			c.CancelAll()
+			return result
+		}
+	case <-ctx.Done():
+		c.CancelAll()
+		return &SubAgentResult{
+			Error: ctx.Err(),
+			State: SubAgentStateCancelled,
+		}
+	}
+
+	return nil
+}
+
+// CancelAll cancels all running SubAgents
+func (c *SubAgentCoordinator) CancelAll() {
+	c.mu.RLock()
+	cancels := make([]context.CancelFunc, 0, len(c.running))
+	for _, cancel := range c.running {
+		cancels = append(cancels, cancel)
+	}
+	c.mu.RUnlock()
+
+	for _, cancel := range cancels {
+		cancel()
+	}
+}
+
+// Cancel cancels a specific SubAgent
+func (c *SubAgentCoordinator) Cancel(id string) bool {
+	c.mu.RLock()
+	cancel, ok := c.running[id]
+	c.mu.RUnlock()
+
+	if ok {
+		cancel()
+		return true
+	}
+	return false
+}
+
+// GetResult returns the result of a specific SubAgent
+func (c *SubAgentCoordinator) GetResult(id string) (*SubAgentResult, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	r, ok := c.results[id]
+	return r, ok
+}
+
+// GetAllResults returns all results
+func (c *SubAgentCoordinator) GetAllResults() map[string]*SubAgentResult {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	results := make(map[string]*SubAgentResult, len(c.results))
+	for k, v := range c.results {
+		results[k] = v
+	}
+	return results
+}
+
+// ListRunning returns IDs of all running SubAgents
+func (c *SubAgentCoordinator) ListRunning() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	ids := make([]string, 0, len(c.running))
+	for id := range c.running {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+// Count returns the number of managed SubAgents
+func (c *SubAgentCoordinator) Count() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.subagents)
+}
+
+// CountRunning returns the number of currently running SubAgents
+func (c *SubAgentCoordinator) CountRunning() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.running)
 }
 
 func formatContext(ctx map[string]interface{}) string {
