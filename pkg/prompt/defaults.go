@@ -27,8 +27,8 @@ Intent Types:
 - file_read: User wants to read, view, or analyze an existing file
 - file_edit: User wants to modify or update an existing file
 - web_search: User wants to search the web for current information
-- rag_query: User wants to query the knowledge base/vector store
-- analysis: User wants to analyze, summarize, or compare something
+{{if .HasRAG}}- rag_query: User wants to query the knowledge base/vector store
+{{end}}- analysis: User wants to analyze, summarize, or compare something
 - general_qa: General question that doesn't fit other categories
 
 User Goal: {{.Goal}}
@@ -56,8 +56,8 @@ CRITICAL - Match Your Tools to the Task:
 - Creating/Saving/Writing files -> MUST use filesystem tools (NOT llm!)
 - Reading/Opening files -> use filesystem tools
 - Searching the web -> use web search tools
-- Querying your knowledge base -> use rag_query
-- Generating content -> use llm
+{{if .HasRAG}}- Querying your knowledge base -> use rag_query
+{{end}}- Generating content -> use llm
 - Analyzing data -> use llm
 
 Return your response as JSON with:
