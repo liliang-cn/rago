@@ -246,7 +246,7 @@ func handleGetSprintSummary(_ context.Context, args map[string]interface{}) (int
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 func main() {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
 	question := "Give me a sprint health report for S24. " +
@@ -265,6 +265,18 @@ func main() {
 		log.Fatalf("Failed to create agent service: %v", err)
 	}
 	defer svc.Close()
+
+	// Show agent info
+	info := svc.Info()
+	fmt.Printf("--- Agent Configuration ---\n")
+	fmt.Printf("  Model:    %s\n", info.Model)
+	fmt.Printf("  Base URL: %s\n", info.BaseURL)
+	fmt.Printf("  PTC:      %v\n", info.PTCEnabled)
+	fmt.Printf("  MCP:      %v\n", info.MCPEnabled)
+	fmt.Printf("  RAG:      %v\n", info.RAGEnabled)
+	fmt.Printf("  Debug:    %v\n", info.Debug)
+	fmt.Println("---------------------------")
+	fmt.Println()
 
 	registerTools(svc)
 

@@ -36,7 +36,7 @@ func NewClient(baseURL, key, modelName string) (*Client, error) {
 		key:       key,
 		modelName: modelName,
 		http: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout: 600 * time.Second,
 		},
 		promptManager: prompt.NewManager(),
 	}, nil

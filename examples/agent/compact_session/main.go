@@ -55,7 +55,7 @@ func main() {
 	// Verify the summary is used in a new prompt
 	fmt.Println("--- Verifying Summary Usage ---")
 
-	res3, err := svc.RunWithSession(ctx, "Based on what we've discussed, what do you know about me?", sessionID)
+	res3, err := svc.Run(ctx, "Based on what we've discussed, what do you know about me?", agent.WithSessionID(sessionID))
 	if err != nil {
 		log.Fatalf("Chat failed: %v", err)
 	}
