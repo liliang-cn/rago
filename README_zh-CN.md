@@ -251,6 +251,71 @@ result, _ := svc.Execute(ctx, plan.ID)
 
 ---
 
+## 配置与存储
+
+配置文件：`rago.toml`（自动发现路径：`./` → `~/.rago/` → `~/.rago/config/`）
+
+### 目录结构（默认 `home = ~/.rago`）
+
+```
+~/.rago/
+├── rago.toml              ← 配置文件
+├── mcpServers.json        ← MCP 服务器定义
+├── data/
+│   ├── rago.db            ← RAG 向量库（sqlite-vec）；memory.store_type=vector 时共用
+│   ├── agent.db           ← Agent 会话 + 执行计划
+│   └── memories/          ← Memory 文件存储（每个 session 一个 JSON）
+├── skills/                ← SKILL.md 技能文件
+├── intents/               ← Intent 意图文件
+└── workspace/             ← Agent 工作目录
+```
+
+### SQLite 文件说明
+
+| 文件 | 默认路径 | 用途 |
+|------|---------|------|
+| `rago.db` | `$home/data/rago.db` | RAG 文档 + 向量索引；`memory.store_type=vector` 时同时作为 Memory 向量库 |
+| `agent.db` | `$home/data/agent.db` | Agent 会话消息历史和执行计划 |
+| `history.db` *(可选)* | 通过 `WithHistoryDBPath()` 指定 | 详细工具调用日志，仅在 `WithStoreHistory(true)` 时创建 |
+
+### Memory 存储类型
+
+| `store_type` | 存储方式 | 是否需要 Embedder |
+|-------------|---------|-----------------|
+| `file` *(默认)* | `data/memories/{session}.json` | 否 |
+| `vector` | `data/rago.db`（共用） | 是 |
+| `hybrid` | 文件为主 + `rago.db` 影子索引 | 是 |
+
+### 核心配置字段
+
+```toml
+home = "~/.rago"             # 所有相对路径的基准目录
+
+[sqvect]
+db_path   = ""               # RAG 数据库，默认 $home/data/rago.db
+                             # 环境变量：RAGO_SQVECT_DB_PATH
+
+[memory]
+store_type  = "file"         # file | vector | hybrid
+memory_path = ""             # 默认 $home/data/memories
+
+[chunker]
+chunk_size = 512
+overlap    = 64
+method     = "sentence"
+
+[skills]
+enabled   = true
+auto_load = true
+
+[mcp]
+servers = ["~/.rago/mcpServers.json"]
+```
+
+完整带注释的配置参见 [`references/CONFIG.md`](references/CONFIG.md)。
+
+---
+
 ## Provider 配置
 
 `rago.toml` 自动发现路径：`./`、`~/.rago/`、`~/.rago/config/`
