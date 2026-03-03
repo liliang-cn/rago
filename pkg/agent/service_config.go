@@ -45,6 +45,12 @@ func (s *Service) GetHistoryStore() *HistoryStore {
 	return s.historyStore
 }
 
+// MemoryService returns the agent's DB-backed memory service (may be nil).
+// Use this to integrate external components with the same memory store.
+func (s *Service) MemoryService() domain.MemoryService {
+	return s.memoryService
+}
+
 // isPTCEnabled reports whether PTC mode is active.
 // When PTC is enabled the agent is expected to call tools explicitly via
 // execute_javascript / callTool, so automatic RAG pre-injection must be

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
 	"github.com/robfig/cron/v3"
 )
@@ -69,7 +71,8 @@ type LongRunService struct {
 	agent       *Service
 	scheduler   *cron.Cron
 	queue       *TaskQueue
-	memory      *MemoryManager
+	memory      *MemoryManager    // file-based: SOUL.md / AGENTS.md / TOOLS.md persona config
+	memSvc      domain.MemoryService // DB-based: same store as agent (may be nil)
 	coordinator *SubAgentCoordinator // Manages concurrent SubAgent execution
 	logger      *slog.Logger
 
@@ -191,10 +194,11 @@ func NewLongRunService(agent *Service, cfg *LongRunConfig) (*LongRunService, err
 		agent:       agent,
 		queue:       queue,
 		memory:      memory,
+		memSvc:      agent.MemoryService(), // may be nil; used for DB-backed memory
 		coordinator: NewSubAgentCoordinator(),
 		logger:      slog.Default().With("module", "longrun"),
-		scheduler: cron.New(cron.WithSeconds()),
-		stopChan:  make(chan struct{}),
+		scheduler:   cron.New(cron.WithSeconds()),
+		stopChan:    make(chan struct{}),
 	}
 
 	return svc, nil
@@ -357,10 +361,10 @@ func (s *LongRunService) processChecklistItem(ctx context.Context, item Checklis
 
 	s.logger.Info("Item processed", "id", item.ID, "success", result.Success)
 
-	// Save result to memory
+	// Save result to unified memory
 	if result.Success && result.FinalResult != nil {
-		entry := fmt.Sprintf("Checklist item '%s': %v", item.Description, result.FinalResult)
-		if err := s.memory.AppendMemory(entry); err != nil {
+		entry := fmt.Sprintf("Checklist item '%s': %s", item.Description, result.Text())
+		if err := s.saveMemory(context.Background(), entry); err != nil {
 			s.logger.Warn("Failed to save to memory", "error", err)
 		}
 	}
@@ -400,7 +404,11 @@ func (s *LongRunService) executeTask(ctx context.Context, task *Task) error {
 		if result.Error != nil {
 			return result.Error
 		}
-		task.Result = fmt.Sprintf("%v", result.Result)
+		if execResult, ok := result.Result.(*ExecutionResult); ok {
+			task.Result = execResult.Text()
+		} else {
+			task.Result = fmt.Sprintf("%v", result.Result)
+		}
 
 	case <-ctx.Done():
 		s.coordinator.Cancel(task.ID)
@@ -420,10 +428,10 @@ func (s *LongRunService) executeTask(ctx context.Context, task *Task) error {
 	fmt.Printf("%s\n", task.Result)
 	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
 
-	// Save result to memory
+	// Save result to unified memory
 	if task.Result != "" {
 		entry := fmt.Sprintf("Task '%s': %s", task.Goal, task.Result)
-		if err := s.memory.AppendMemory(entry); err != nil {
+		if err := s.saveMemory(context.Background(), entry); err != nil {
 			s.logger.Warn("Failed to save to memory", "error", err)
 		}
 	}
@@ -481,17 +489,54 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-// buildContextPrompt builds a prompt with memory context
+// saveMemory saves a memory entry, preferring DB memory when available,
+// falling back to the file-based MEMORY.md.
+func (s *LongRunService) saveMemory(ctx context.Context, content string) error {
+	if s.memSvc != nil {
+		return s.memSvc.Add(ctx, &domain.Memory{
+			ID:         uuid.New().String(),
+			SessionID:  "longrun",
+			Type:       domain.MemoryTypeContext,
+			Content:    content,
+			Importance: 0.7,
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		})
+	}
+	return s.memory.AppendMemory(content)
+}
+
+// buildContextPrompt builds a prompt with unified memory context.
+// Persona files (SOUL/AGENTS/TOOLS) come from file-based memory.
+// Recent relevant memories come from DB memory when available.
 func (s *LongRunService) buildContextPrompt(goal string) (string, error) {
-	memoryContext, err := s.memory.BuildContext()
-	if err != nil {
-		return goal, err
+	var sb strings.Builder
+
+	// 1. Persona & static config from files (SOUL.md / AGENTS.md / TOOLS.md)
+	//    Exclude MEMORY.md and HEARTBEAT.md (DB handles memories; heartbeat is runtime state)
+	for _, name := range []string{"SOUL.md", "AGENTS.md", "TOOLS.md"} {
+		file, err := s.memory.Get(name)
+		if err == nil && file.Content != "" {
+			sb.WriteString(fmt.Sprintf("\n\n# %s\n\n%s", name, file.Content))
+		}
 	}
 
-	var sb strings.Builder
-	sb.WriteString(memoryContext)
+	// 2. Relevant memories from DB (semantic search), or fall back to file MEMORY.md
+	if s.memSvc != nil {
+		memContext, _, err := s.memSvc.RetrieveAndInject(context.Background(), goal, "longrun")
+		if err == nil && memContext != "" {
+			sb.WriteString("\n\n# Relevant Memory\n\n")
+			sb.WriteString(memContext)
+		}
+	} else {
+		// fall back to file-based MEMORY.md
+		if file, err := s.memory.Get("MEMORY.md"); err == nil && file.Content != "" {
+			sb.WriteString("\n\n# MEMORY.md\n\n")
+			sb.WriteString(file.Content)
+		}
+	}
 
-	// Get available skills
+	// 3. Available skills
 	if s.agent.Skills != nil {
 		skillList, _ := s.agent.Skills.ListSkills(context.Background(), skills.SkillFilter{})
 		if len(skillList) > 0 {
@@ -502,7 +547,7 @@ func (s *LongRunService) buildContextPrompt(goal string) (string, error) {
 		}
 	}
 
-	// Get available MCP tools (only if MCP is enabled)
+	// 4. Available MCP tools
 	if s.agent.MCP != nil {
 		tools := s.agent.MCP.GetAvailableTools(context.Background())
 		if len(tools) > 0 {
@@ -513,7 +558,7 @@ func (s *LongRunService) buildContextPrompt(goal string) (string, error) {
 		}
 	}
 
-	// Add RAG context only if RAG is enabled
+	// 5. RAG availability hint
 	if s.agent.RAG != nil {
 		sb.WriteString("\n\n## RAG Knowledge Base\n")
 		sb.WriteString("You have access to a RAG knowledge base. Use rag_query tool to search for relevant information when needed.\n")
@@ -558,9 +603,15 @@ func (s *LongRunService) GetStatus() map[string]interface{} {
 	}
 }
 
-// GetMemory returns the memory manager
+// GetMemory returns the file-based memory manager (persona files: SOUL/AGENTS/TOOLS/HEARTBEAT).
 func (s *LongRunService) GetMemory() *MemoryManager {
 	return s.memory
+}
+
+// GetMemoryService returns the DB-backed memory service (same store as the agent).
+// Returns nil if the agent was built without WithMemory().
+func (s *LongRunService) GetMemoryService() domain.MemoryService {
+	return s.memSvc
 }
 
 // createDefaultHeartbeatFile creates a default HEARTBEAT.md

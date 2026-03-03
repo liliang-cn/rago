@@ -126,7 +126,42 @@ RunStream()                  ← full Event channel (tool calls, partial text, e
 Stream() / ChatStream()      ← text-only <-chan string (filter EventTypePartial)
 ```
 
-## HookRegistry
+## Memory Systems
+
+Rago has **two complementary memory layers**, both accessible through a unified interface:
+
+| Layer | Storage | Purpose | API |
+|-------|---------|---------|-----|
+| **DB Memory** | SQLite (`pkg/memory`) | Conversation history, auto-learned facts, semantic search | `MemoryModule` via `WithMemory()` |
+| **File Memory** | Markdown files | Human-editable persona: SOUL.md, AGENTS.md, TOOLS.md | `MemoryManager` in LongRun |
+
+### DB Memory (agent + LongRun share the same store)
+
+When the agent is built with `WithMemory()`, **LongRun automatically uses the same DB**:
+- Task results saved via `memSvc.Add()` (vector-indexed, searchable)
+- Context built via `memSvc.RetrieveAndInject()` (semantic recall)
+- Falls back to MEMORY.md if agent has no DB memory
+
+### File Memory (persona config, human-editable)
+
+LongRun reads `~/.rago/longrun/`:
+- `SOUL.md` — personality
+- `AGENTS.md` — agent identity & constraints
+- `TOOLS.md` — available tools documentation
+- `HEARTBEAT.md` — checklist for autonomous operation (runtime state)
+
+`MEMORY.md` is only used as fallback when DB memory is unavailable.
+
+### Access
+
+```go
+// From LongRunService:
+lr.GetMemory()        // *MemoryManager (file-based persona files)
+lr.GetMemoryService() // domain.MemoryService (DB, same as agent — may be nil)
+
+// From agent Service:
+svc.MemoryService()   // domain.MemoryService
+```
 
 Each `Service` instance has its own `HookRegistry` (created in `NewService`).
 No global state in the hot path — tests can run isolated services without hook cross-contamination.
