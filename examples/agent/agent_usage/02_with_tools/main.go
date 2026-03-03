@@ -17,7 +17,7 @@ func main() {
 		WithSkills().
 		WithRAG().
 		WithMemory().
-		WithProgressCallback(func(e agent.ProgressEvent) {
+		WithProgress(func(e agent.ProgressEvent) {
 			if e.Type == "thinking" {
 				fmt.Printf("🤔 %s\n", e.Message)
 			} else if e.Type == "tool_call" {

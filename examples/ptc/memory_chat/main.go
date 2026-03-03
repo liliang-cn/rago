@@ -22,7 +22,13 @@ func main() {
 
 	fmt.Println("=== PTC + Memory + Chat 综合测试 ===\n")
 
-	// 1. 创建带 PTC + Memory 的 Agent
+	// 定义工具参数类型（在 builder 链之前声明）
+	type calcArgs struct {
+		A int `json:"a"`
+		B int `json:"b"`
+	}
+
+	// 1. 创建带 PTC + Memory 的 Agent — 工具在 builder 链中直接注册
 	svc, err := agent.New("PTCMemoryBot").
 		WithDBPath(filepath.Join(testDir, "agent.db")).
 		WithPTC().
@@ -30,37 +36,26 @@ func main() {
 			agent.WithMemoryDBPath(filepath.Join(testDir, "memories")),
 			agent.WithMemoryStoreType("file"),
 		).
-		WithDebug(true).
+		WithTool(agent.NewTool(
+			"add_numbers",
+			"Add two numbers and return the result",
+			func(ctx context.Context, args *calcArgs) (interface{}, error) {
+				return map[string]interface{}{"sum": args.A + args.B}, nil
+			},
+		)).
+		WithTool(agent.NewTool(
+			"multiply_numbers",
+			"Multiply two numbers and return the result",
+			func(ctx context.Context, args *calcArgs) (interface{}, error) {
+				return map[string]interface{}{"product": args.A * args.B}, nil
+			},
+		)).
+		WithDebug().
 		Build()
 	if err != nil {
 		log.Fatalf("创建 Agent 失败: %v", err)
 	}
 	defer svc.Close()
-
-	// 注册自定义工具
-	type calcArgs struct {
-		A int `json:"a"`
-		B int `json:"b"`
-	}
-	svc.Register(agent.NewTool(
-		"add_numbers",
-		"Add two numbers and return the result",
-		func(ctx context.Context, args *calcArgs) (interface{}, error) {
-			return map[string]interface{}{
-				"sum":    args.A + args.B,
-			}, nil
-		},
-	))
-
-	svc.Register(agent.NewTool(
-		"multiply_numbers",
-		"Multiply two numbers and return the result",
-		func(ctx context.Context, args *calcArgs) (interface{}, error) {
-			return map[string]interface{}{
-				"product": args.A * args.B,
-			}, nil
-		},
-	))
 
 	fmt.Println("--- Agent Configuration ---")
 	fmt.Println("  PTC:      true")

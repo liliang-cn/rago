@@ -64,7 +64,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 		WithSkills().
 		WithRouter().
 		WithMemory().
-		WithProgressCallback(progressCallback).
+		WithProgress(progressCallback).
 		Build()
 	if err != nil {
 		return fmt.Errorf("failed to create agent: %w", err)
