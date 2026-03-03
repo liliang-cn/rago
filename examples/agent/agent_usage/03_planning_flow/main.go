@@ -55,5 +55,5 @@ func main() {
 	}
 
 	fmt.Printf("\n执行状态: %s\n", result.Duration)
-	fmt.Println("结果预览:", result.FinalResult)
+	fmt.Println("结果预览:", result.Text())
 }

@@ -35,7 +35,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Run failed: %v", err)
 	}
-	fmt.Printf("Agent Result: %v\n", res.FinalResult)
+	fmt.Printf("Agent Result: %s\n", res.Text())
 
 	// 2. 检查磁盘
 	files, _ := filepath.Glob(filepath.Join(testDir, "memories", "entities", "*.md"))

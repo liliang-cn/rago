@@ -35,8 +35,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("Execute failed: %v", err)
 	}
-	fmt.Printf("Result:\n%v\n", result.FinalResult)
+	fmt.Printf("Result:\n%s\n", result.Text())
 
-	svc.SaveToFile(fmt.Sprintf("%v", result.FinalResult), "./hello.go")
+	svc.SaveToFile(result.Text(), "./hello.go")
 	fmt.Println("Saved to ./hello.go")
 }

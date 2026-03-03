@@ -56,7 +56,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("SkillMemoryBot: %v\n\n", res.FinalResult)
+	fmt.Printf("SkillMemoryBot: %s\n\n", res.Text())
 
 	// 4. 检查记忆文件
 	fmt.Println("【检查记忆文件】")
@@ -79,7 +79,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("SkillMemoryBot: %v\n\n", res.FinalResult)
+	fmt.Printf("SkillMemoryBot: %s\n\n", res.Text())
 
 	// 6. 第三轮：使用另一个 Skill
 	fmt.Println("【第三轮对话】使用 code-reviewer Skill")
@@ -89,7 +89,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("SkillMemoryBot: %v\n", res.FinalResult)
+	fmt.Printf("SkillMemoryBot: %s\n", res.Text())
 
 	fmt.Println("\n=== 测试完成 ===")
 	fmt.Println("Skills + Memory 集成正常工作！")

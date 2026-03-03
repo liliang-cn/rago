@@ -42,6 +42,13 @@ func (s *Service) ListPlans(sessionID string, limit int) ([]*Plan, error) {
 //	svc, _ := agent.New(&agent.AgentConfig{Name: "assistant"})
 //	result, _ := svc.Chat(ctx, "My name is Alice")
 //	result, _ = svc.Chat(ctx, "What's my name?") // Will remember "Alice"
+// Chat sends a message and returns the full ExecutionResult (with session, sources, PTC details).
+// For simple text extraction, call result.Text() on the returned value.
+//
+// Example:
+//
+//	result, err := svc.Chat(ctx, "My name is Alice")
+//	fmt.Println(result.Text()) // "Hi Alice! How can I help you?"
 func (s *Service) Chat(ctx context.Context, message string) (*ExecutionResult, error) {
 	s.sessionMu.Lock()
 	if s.currentSessionID == "" {
@@ -51,6 +58,22 @@ func (s *Service) Chat(ctx context.Context, message string) (*ExecutionResult, e
 	s.sessionMu.Unlock()
 
 	return s.Run(ctx, message, WithSessionID(sessionID))
+}
+
+// Ask sends a one-off message and returns the agent's reply as a plain string.
+// It is the simplest possible API for library integrations — no session management,
+// no rich result struct. Each call is independent (no conversation history).
+//
+//	reply, err := svc.Ask(ctx, "What is the capital of France?")
+//	// reply == "The capital of France is Paris."
+//
+// For multi-turn conversations with memory, use Chat() instead.
+func (s *Service) Ask(ctx context.Context, message string) (string, error) {
+	result, err := s.Run(ctx, message)
+	if err != nil {
+		return "", err
+	}
+	return result.Text(), result.Err()
 }
 
 // CurrentSessionID returns the current session UUID used by Chat()

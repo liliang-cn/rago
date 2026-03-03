@@ -70,7 +70,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("查询失败: %v", err)
 	}
-	fmt.Printf("Agent 回答: %v\n", res.FinalResult)
+	fmt.Printf("Agent 回答: %s\n", res.Text())
 
 	fmt.Println("\n=== 步骤 4: 物理删除 ===")
 	if memID != "" {

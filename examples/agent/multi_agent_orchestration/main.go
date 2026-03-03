@@ -49,9 +49,9 @@ func main() {
 		return
 	}
 
-	fmt.Printf("\n--- Final Response ---\n%v\n", result.FinalResult)
+	fmt.Printf("\n--- Final Response ---\n%s\n", result.Text())
 
-	if contains(fmt.Sprintf("%v", result.FinalResult), "RAGO-DYNAMIC-TOOL-SUCCESS-999") {
+	if contains(result.Text(), "RAGO-DYNAMIC-TOOL-SUCCESS-999") {
 		fmt.Println("\n✅ SUCCESS: Logical proof confirmed! Multi-agent handoff and Custom Tool both worked.")
 	} else {
 		fmt.Println("\n❌ FAILED: The agent answered without using the dynamic tool.")
