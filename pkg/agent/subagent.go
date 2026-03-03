@@ -126,7 +126,7 @@ func NewSubAgent(cfg SubAgentConfig, opts ...SubAgentOption) *SubAgent {
 	if cfg.Service != nil {
 		hooks = cfg.Service.GetHooks()
 	} else {
-		hooks = GlobalHookRegistry()
+		hooks = NewHookRegistry()
 	}
 
 	return &SubAgent{
