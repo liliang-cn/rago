@@ -4,7 +4,7 @@ description: Use Rago for local RAG (Retrieval Augmented Generation) operations 
 license: MIT
 metadata:
   author: liliang-cn
-  version: "2.46.0"
+  version: "2.47.0"
   github: https://github.com/liliang-cn/rago
 ---
 
@@ -29,24 +29,30 @@ package main
 
 import (
     "context"
+    "fmt"
     "github.com/liliang-cn/rago/v2/pkg/agent"
 )
 
 func main() {
     ctx := context.Background()
 
-    // Create agent with RAG, MCP, and Skills
     svc, _ := agent.New("my-agent").
+        WithPrompt("You are a helpful assistant.").
         WithRAG().
         WithMCP().
         WithSkills().
         WithMemory().
+        WithDebug(false).
         Build()
     defer svc.Close()
 
-    // Run a query
-    result, _ := svc.Run(ctx, "Summarize my documents")
-    println(result.FinalResult)
+    // Simple one-shot Q&A
+    reply, _ := svc.Ask(ctx, "Summarize my documents")
+    fmt.Println(reply)
+
+    // Full agentic run (tool calls, RAG, planning)
+    result, _ := svc.Run(ctx, "Analyze and summarize")
+    fmt.Println(result.Text())  // or result.Err() to check errors
 }
 ```
 
@@ -116,16 +122,20 @@ longRun.Start(ctx)
 ## Architecture
 
 ```
-┌─────────────────────────────────────┐
-│           Rago System               │
-├─────────────────────────────────────┤
-│  RAG Store │ LLM Pool │ MCP Tools   │
-│       ┌────┴──────────┴────┐        │
-│       │    Agent Service   │        │
-│       │    Skills Service  │        │
-│       └────────────────────┘        │
-└─────────────────────────────────────┘
+┌──────────────────────────────────────────┐
+│              Rago System                 │
+├──────────────────────────────────────────┤
+│  RAG Store │ LLM Pool │ MCP Tools        │
+│       ┌────┴──────────┴────┐             │
+│       │    Agent Service   │             │
+│       │  ToolRegistry      │ ← Module    │
+│       │  HookRegistry      │   interface │
+│       │  MemoryService     │             │
+│       └────────────────────┘             │
+└──────────────────────────────────────────┘
 ```
+
+Tools are self-registered via the `Module` interface (`RAGModule`, `MemoryModule`). Each `Service` has its own isolated `HookRegistry`.
 
 ## Builder Pattern
 
@@ -135,13 +145,49 @@ svc, _ := agent.New("name").Build()
 
 // Full features
 svc, _ := agent.New("name").
+    WithPrompt("You are a helpful assistant."). // system prompt
     WithRAG().
     WithMCP().
     WithSkills().
     WithMemory().
     WithDBPath("~/.rago/data/agent.db").
     WithDebug(true).
+    WithTool(myDef, myHandler, "category").     // single tool
+    WithTools(agent.ToolRegistration{...}).     // bulk tools
+    WithProgress(func(e *agent.ProgressEvent) { fmt.Println(e) }).
     Build()
+```
+
+## Invocation API
+
+```go
+// Simple Q&A — returns (string, error)
+reply, err := svc.Ask(ctx, "What is Go?")
+
+// Multi-turn chat — session memory, returns (string, error)
+reply, err := svc.Chat(ctx, "Tell me more")
+
+// Full agent run — tool calls, RAG, planning
+result, err := svc.Run(ctx, "goal", agent.WithMaxTurns(20))
+fmt.Println(result.Text())      // final answer
+fmt.Println(result.Err())       // first tool/LLM error
+fmt.Println(result.HasSources()) // true if RAG sources attached
+
+// Streaming — live token output
+for token := range svc.Stream(ctx, "Write a poem") {
+    fmt.Print(token)
+}
+
+// Streaming chat — session memory + live tokens
+for token := range svc.ChatStream(ctx, "Continue the story") {
+    fmt.Print(token)
+}
+
+// Full event stream — tool calls, sources, errors
+events, err := svc.RunStream(ctx, "Complex task")
+for e := range events {
+    fmt.Println(e.Type, e.Content)
+}
 ```
 
 ## Run Options
@@ -157,4 +203,5 @@ result, _ := svc.Run(ctx, "goal",
 ## See Also
 
 - [API Reference](references/API.md) - Detailed API
+- [Architecture](references/ARCHITECTURE.md) - Design decisions
 - [Configuration](references/CONFIG.md) - Config options
