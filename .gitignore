@@ -9,3 +9,6 @@ rago.toml
 delegation/
 *.db
 
+data/
+logs/
+
