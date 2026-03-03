@@ -33,7 +33,7 @@ func main() {
 	// Use WithMCPConfigPaths to load MCP servers from custom config files
 	svc, err := agent.New("mcp-demo").
 		WithMCP(agent.WithMCPConfigPaths("examples/mcpServers.json")).
-		WithDebug(true).
+		WithDebug().
 		Build()
 	if err != nil {
 		log.Fatalf("Failed to create agent: %v", err)

@@ -104,7 +104,8 @@ type Builder struct {
 	enablePTC       bool
 	ptcCfg          *PTCConfig
 
-	extraModules []Module // additional modules registered via WithModule()
+	tools        []*Tool // pre-registered via WithTool/WithTools
+	extraModules []Module
 
 	// cached result
 	svc *Service
@@ -210,20 +211,41 @@ func (b *Builder) WithDBPath(path string) *Builder {
 	return b
 }
 
-// WithSystemPrompt sets system prompt
+// WithSystemPrompt sets the agent system prompt.
 func (b *Builder) WithSystemPrompt(prompt string) *Builder {
 	b.systemPrompt = prompt
 	return b
 }
 
-// WithDebug enables debug mode
-func (b *Builder) WithDebug(debug bool) *Builder {
-	b.debug = debug
+// WithSystem is a concise alias for WithSystemPrompt.
+func (b *Builder) WithSystem(prompt string) *Builder {
+	b.systemPrompt = prompt
 	return b
 }
 
-// WithProgressCallback sets progress callback
+// WithDebug enables or disables debug mode.
+// Called with no arguments (WithDebug()) it defaults to true.
+//
+//	agent.New("bot").WithDebug()           // enable
+//	agent.New("bot").WithDebug(false)      // disable
+//	agent.New("bot").WithDebug(os.Getenv("DEBUG") != "")
+func (b *Builder) WithDebug(on ...bool) *Builder {
+	if len(on) == 0 {
+		b.debug = true
+	} else {
+		b.debug = on[0]
+	}
+	return b
+}
+
+// WithProgressCallback sets the progress callback.
 func (b *Builder) WithProgressCallback(cb ProgressCallback) *Builder {
+	b.progressCb = cb
+	return b
+}
+
+// WithProgress is a concise alias for WithProgressCallback.
+func (b *Builder) WithProgress(cb ProgressCallback) *Builder {
 	b.progressCb = cb
 	return b
 }
@@ -231,6 +253,36 @@ func (b *Builder) WithProgressCallback(cb ProgressCallback) *Builder {
 // WithConfig sets rago config
 func (b *Builder) WithConfig(cfg *config.Config) *Builder {
 	b.ragoCfg = cfg
+	return b
+}
+
+// WithTool adds a single tool to the agent inline in the builder chain.
+// Tools registered here are available at Build() time, before PTC sync,
+// so they are reachable via callTool() in JS sandboxes as well.
+//
+//	svc, err := agent.New("bot").
+//	    WithPTC().
+//	    WithTool(agent.NewTool("weather", "Get weather", handler)).
+//	    WithTool(agent.BuildTool("search").Description("...").Handler(h).Build()).
+//	    Build()
+func (b *Builder) WithTool(tool *Tool) *Builder {
+	if tool != nil {
+		b.tools = append(b.tools, tool)
+	}
+	return b
+}
+
+// WithTools adds multiple tools inline in the builder chain.
+//
+//	svc, err := agent.New("bot").
+//	    WithTools(tool1, tool2, tool3).
+//	    Build()
+func (b *Builder) WithTools(tools ...*Tool) *Builder {
+	for _, t := range tools {
+		if t != nil {
+			b.tools = append(b.tools, t)
+		}
+	}
 	return b
 }
 
@@ -383,6 +435,12 @@ func (b *Builder) build() (*Service, error) {
 		if err := mod.RegisterTools(svc.toolRegistry); err != nil {
 			return nil, fmt.Errorf("module %q registration failed: %w", mod.ID(), err)
 		}
+	}
+
+	// Register tools added inline via WithTool/WithTools. This runs after built-in
+	// modules but before PTC sync so all tools are reachable via callTool() in JS.
+	for _, t := range b.tools {
+		svc.Register(t)
 	}
 
 	// Store model metadata for Info()
