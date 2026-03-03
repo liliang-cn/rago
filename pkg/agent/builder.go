@@ -217,8 +217,8 @@ func (b *Builder) WithSystemPrompt(prompt string) *Builder {
 	return b
 }
 
-// WithSystem is a concise alias for WithSystemPrompt.
-func (b *Builder) WithSystem(prompt string) *Builder {
+// WithPrompt is a concise alias for WithSystemPrompt.
+func (b *Builder) WithPrompt(prompt string) *Builder {
 	b.systemPrompt = prompt
 	return b
 }
