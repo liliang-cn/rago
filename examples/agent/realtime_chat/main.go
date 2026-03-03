@@ -28,7 +28,9 @@ func main() {
 	fmt.Println("正在建立有状态的实时 WebSocket 连接...")
 	session, err := svc.RunRealtime(ctx, nil)
 	if err != nil {
-		log.Fatalf("建立连接失败: %v", err)
+		fmt.Printf("建立连接失败: %v\n", err)
+		fmt.Println("注意: Realtime 模式需要支持 WebSocket 的 provider（如 OpenAI gpt-4o-realtime-preview）")
+		return
 	}
 	defer session.Close()
 
