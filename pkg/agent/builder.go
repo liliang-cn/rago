@@ -104,6 +104,8 @@ type Builder struct {
 	enablePTC       bool
 	ptcCfg          *PTCConfig
 
+	extraModules []Module // additional modules registered via WithModule()
+
 	// cached result
 	svc *Service
 	err error
@@ -186,6 +188,19 @@ func (b *Builder) WithPTC(opts ...PTCOption) *Builder {
 		opt(cfg)
 	}
 	b.ptcCfg = cfg
+	return b
+}
+
+// WithModule registers an additional Module whose tools are self-registered
+// into the ToolRegistry before PTC sync. Use this to add custom RAG, Memory,
+// or domain-specific tool sets without modifying the builder internals.
+//
+//	agent.New("bot").
+//	    WithModule(NewRAGModule(proc, nil)).
+//	    WithModule(NewMemoryModule(memSvc, nil)).
+//	    Build()
+func (b *Builder) WithModule(mod Module) *Builder {
+	b.extraModules = append(b.extraModules, mod)
 	return b
 }
 
@@ -349,9 +364,26 @@ func (b *Builder) build() (*Service, error) {
 	}
 
 	// Register module tools into the unified ToolRegistry.
-	// This is the single registration point for all module tools — both
-	// collectAllAvailableTools() and PTC's callTool() read from here.
-	registerModuleTools(svc, ragProcessor, memSvc)
+	// Built-in modules (RAG, Memory) are registered first, then any extra
+	// modules added via WithModule(). All registered tools are available to
+	// both collectAllAvailableTools() and PTC's callTool().
+	if ragProcessor != nil {
+		ragMod := NewRAGModule(ragProcessor, svc.addRAGSources)
+		if err := ragMod.RegisterTools(svc.toolRegistry); err != nil {
+			return nil, fmt.Errorf("rag module registration failed: %w", err)
+		}
+	}
+	if memSvc != nil {
+		memMod := NewMemoryModule(memSvc, svc.markRunMemorySaved)
+		if err := memMod.RegisterTools(svc.toolRegistry); err != nil {
+			return nil, fmt.Errorf("memory module registration failed: %w", err)
+		}
+	}
+	for _, mod := range b.extraModules {
+		if err := mod.RegisterTools(svc.toolRegistry); err != nil {
+			return nil, fmt.Errorf("module %q registration failed: %w", mod.ID(), err)
+		}
+	}
 
 	// Store model metadata for Info()
 	if len(ragoCfg.LLMPool.Providers) > 0 {
