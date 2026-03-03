@@ -365,7 +365,7 @@ func (b *Builder) build() (*Service, error) {
 
 	// PTC
 	if b.enablePTC && b.ptcCfg != nil {
-		routerOpts := buildPTCRouterOptions(mcpAdapter, skillsSvc, ragProcessor)
+		routerOpts := buildPTCRouterOptions(mcpAdapter, skillsSvc, ragProcessor, memSvc)
 		ptcRouter := ptc.NewRAGORouter(routerOpts...)
 		ptcInteg, ptcErr := NewPTCIntegration(*b.ptcCfg, ptcRouter)
 		if ptcErr != nil {

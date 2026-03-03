@@ -559,3 +559,25 @@ func WithSkillToolInfos(infos []ToolInfo) RouterOption {
 		r.skillToolInfos = infos
 	}
 }
+
+// WithToolHandler registers a custom tool handler.
+func WithToolHandler(name string, handler ToolHandler) RouterOption {
+	return func(r *RAGORouter) {
+		r.mu.Lock()
+		r.handlers[name] = handler
+		r.mu.Unlock()
+	}
+}
+
+// WithMemoryToolInfos injects pre-resolved memory tool info into the router so
+// they appear in ListAvailableTools and are visible to the LLM via callTool().
+func WithMemoryToolInfos(infos []ToolInfo) RouterOption {
+	return func(r *RAGORouter) {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		for i := range infos {
+			info := infos[i]
+			r.toolInfo[info.Name] = &info
+		}
+	}
+}

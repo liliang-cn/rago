@@ -379,90 +379,48 @@ func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) strin
 	}
 
 	var sb strings.Builder
-	sb.WriteString(`## Programmatic Tool Calling (PTC)
+	sb.WriteString(`## Programmatic Tool Calling (PTC) - STRICT MODE
 
-You have access to a Goja (JavaScript ES5.1+) sandbox. Use it to orchestrate tools and process data.
+You have access to a Goja (JavaScript ES5.1+) sandbox. ALL tool operations MUST go through JavaScript code execution.
 
-### ⚠️ PERFORMANCE & TIMEOUT (CRITICAL)
-- **NO REASONING**: DO NOT use chain-of-thought, reasoning content, or long explanations.
-- **NO PREAMBLE**: Start your response directly with the <code> block.
-- **IMMEDIATE CODE**: Output the <code> block immediately to avoid 504 Gateway Timeouts.
+### ⚠️ CRITICAL: PTC-ONLY MODE (MANDATORY)
+**YOU MUST USE execute_javascript FOR ALL TOOL OPERATIONS.**
+
+1. **NO DIRECT TOOL CALLS**: You CANNOT directly invoke tools like get_budget, get_team_members, etc.
+2. **ONLY execute_javascript**: The ONLY tool you can call directly is ` + "`execute_javascript`" + `
+3. **ALL TOOLS VIA callTool()**: All other tools MUST be called from inside JavaScript using ` + "`callTool(name, args)`" + `
+
+### ⚠️ RESPONSE FORMAT (MANDATORY)
+- **ALWAYS respond with <code> block containing JavaScript**
+- **NO thinking/reasoning tags before or after code**
+- **NO markdown fences** - Use ONLY ` + "`<code>...</code>`" + ` tags
+- **NO preamble** - Start immediately with ` + "`<code>`" + `
+- **NO postamble** - End immediately after ` + "`</code>`" + `
 
 ### ⚠️ SANDBOX CONSTRAINTS
-1. **NO ASYNC/AWAIT**: The environment is synchronous. Do NOT use "async" or "await".
-2. **NO PROMISES**: Do NOT use Promises, .then(), or .catch().
-3. **NO MODULES**: No "require()", "import", or Node.js built-ins (fs, path, etc.).
-4. **NO MARKDOWN FENCES**: Do NOT wrap your response in ` + "```" + `javascript or ` + "```" + `.
-5. **ONLY USE <code>**: Your entire response MUST be wrapped in <code>...</code> tags.
-6. **NO FUNCTION WRAPPER**: NEVER write ` + "`function main(){...}main()`" + `. Write top-level code directly.
-7. **TOP-LEVEL RETURN**: Your code MUST end with a ` + "`return`" + ` statement at the top level.
+1. **NO ASYNC/AWAIT**: The environment is synchronous
+2. **NO PROMISES**: No .then() or .catch()
+3. **NO MODULES**: No require() or import
+4. **TOP-LEVEL RETURN**: Your code MUST end with a return statement
 
 ### API REFERENCE
-- callTool(name, args): Executes a tool synchronously and returns the result object.
-- console.log(msg): Logs to the debug console.
+- callTool(name, args): Executes a tool synchronously and returns the result
+- console.log(msg): Debug logging
 
-### EXAMPLE 1: Single Tool Call
+### CORRECT USAGE EXAMPLE
+User: "Get the engineering team members and their budget"
 <code>
-const result = callTool('echo', { message: 'hello' });
-return { echoed: result };
+const team = callTool('get_team_members', { department: 'engineering' });
+const budget = callTool('get_budget', { department: 'engineering' });
+return { team: team, budget: budget };
 </code>
 
-### EXAMPLE 2: Multiple Parallel Tool Calls
-<code>
-const r1 = callTool('mcp_everything_echo', { message: 'Hello' });
-const r2 = callTool('mcp_everything_echo', { message: 'World' });
-const combined = r1 + ' ' + r2;
-return { combined: combined, parts: [r1, r2] };
-</code>
-
-### EXAMPLE 3: File Processing
-<code>
-const file = callTool('mcp_filesystem_read_text_file', { path: 'go.mod' });
-const lines = file.split('\n');
-const moduleName = lines[0].split(' ')[1];
-return { module: moduleName, totalLines: lines.length };
-</code>
-
-### EXAMPLE 4: Filtering with Loop
-<code>
-const files = callTool('mcp_filesystem_search_files', { pattern: '**/*.go' });
-const testFiles = [];
-for (var i = 0; i < files.length; i++) {
-  if (files[i].indexOf('_test.go') !== -1) {
-    testFiles.push(files[i]);
-  }
-}
-return { total: files.length, testCount: testFiles.length };
-</code>
-
-### EXAMPLE 5: Tool Chaining
-<code>
-const content = callTool('mcp_filesystem_read_text_file', { path: 'main.go' });
-const review = callTool('code_review', { code: content });
-return { filename: 'main.go', review: review };
-</code>
-
-### EXAMPLE 6: Skill Invocation
-<code>
-const code = 'func add(a, b int) int { return a + b }';
-const review = callTool('code-reviewer', { code: code });
-return { code: code, review: review };
-</code>
-
-### EXAMPLE 7: Conditional Logic
-<code>
-const status = callTool('check_status', {});
-var result;
-if (status.active) {
-  result = callTool('start_process', { id: status.id });
-} else {
-  result = 'inactive';
-}
-return { status: status, result: result };
-</code>
+### INCORRECT USAGE (FORBIDDEN)
+❌ DO NOT call tools directly like: get_team_members({ department: 'engineering' })
+✅ ALWAYS use: execute_javascript with callTool() inside
 
 ### MANDATORY RULE
-Respond ONLY with the <code> block. No preamble. No postamble. No markdown. No function wrappers.
+Respond ONLY with the <code> block. No preamble. No postamble. No markdown. No function wrappers. No direct tool calls.
 `)
 
 	if len(availableTools) > 0 {
