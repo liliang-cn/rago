@@ -68,6 +68,11 @@ type Service struct {
 	// Hook system for lifecycle events
 	hooks *HookRegistry
 
+	// toolRegistry is the unified registry for custom, RAG, and Memory tools.
+	// All modules register here so that both LLM listing and PTC callTool()
+	// dispatch go through a single source of truth.
+	toolRegistry *ToolRegistry
+
 	// PTC (Programmatic Tool Calling) integration
 	ptcIntegration *PTCIntegration
 
@@ -191,6 +196,7 @@ func NewService(
 		registry:      registry,
 		logger:        logger,
 		hooks:         GlobalHookRegistry(),
+		toolRegistry:  NewToolRegistry(),
 		// Public fields - MCP is set separately via SetMCPService
 		LLM:     llmService,
 		MCP:     nil, // Set via SetMCPService for full access
@@ -255,18 +261,35 @@ func (s *Service) RegisterAgent(agent *Agent) {
 func (s *Service) AddTool(name, description string, parameters map[string]interface{},
 	handler func(context.Context, map[string]interface{}) (interface{}, error)) {
 
-	// Register on the default agent (visible in collectAllAvailableTools)
+	def := domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        name,
+			Description: description,
+			Parameters:  parameters,
+		},
+	}
+
+	// Single registration point: the ToolRegistry.
+	// collectAllAvailableTools() reads from here; PTC's callTool() routes through
+	// the registry too (via SyncToPTCRouter called at build time, and for tools
+	// added after build we also sync to the ptcRouter directly below).
+	s.toolRegistry.Register(def, handler, CategoryCustom)
+
+	// Also keep a handler on the default agent so currentAgent.GetHandler() still
+	// works for multi-agent priority dispatch in executeToolCalls().
 	if s.agent != nil {
 		s.agent.AddTool(name, description, parameters, handler)
 	}
 
-	// Also register on the PTC router so callTool(name, ...) works inside JS
+	// If PTC is already configured, register directly on the router so that
+	// tools added after Build() are immediately accessible via callTool().
 	if s.ptcIntegration != nil && s.ptcIntegration.router != nil {
-		s.ptcIntegration.router.RegisterTool(name, &ptc.ToolInfo{
+		_ = s.ptcIntegration.router.RegisterTool(name, &ptc.ToolInfo{
 			Name:        name,
 			Description: description,
 			Parameters:  parameters,
-			Category:    "custom",
+			Category:    CategoryCustom,
 		}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 			return handler(ctx, args)
 		})
@@ -671,24 +694,31 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		}
 	}
 
-	// Agent Handoffs — always visible so the LLM can route between agents
+	// ToolRegistry (custom, RAG, Memory tools) — registry handles visibility per mode.
+	addTools(s.toolRegistry.ListForLLM(ptcEnabled))
+
+	// Agent Handoffs — always visible so the LLM can route between agents.
 	if currentAgent != nil {
 		for _, handoff := range currentAgent.Handoffs() {
 			tool := handoff.ToToolDefinition().ToDomainTool()
 			toolsMap[tool.Function.Name] = tool
 		}
-		// Agent custom tools — hidden when PTC is enabled.
-		// When PTC is on, custom tools are accessible ONLY via callTool() inside
-		// execute_javascript, mirroring Anthropic's allowed_callers pattern.
+		// Per-agent custom tools (e.g. tools added directly to an Agent in multi-agent
+		// scenarios) — hidden when PTC is enabled.
 		if !ptcEnabled {
-			addTools(currentAgent.Tools())
+			for _, def := range currentAgent.Tools() {
+				// Skip if already in registry (AddTool registers in both places).
+				if !s.toolRegistry.Has(def.Function.Name) {
+					toolsMap[def.Function.Name] = def
+				}
+			}
 		}
 	}
 
-	// MCP tools — hidden when PTC is enabled; accessible via callTool() inside execute_javascript
+	// MCP tools — dynamic (servers may change at runtime); hidden in PTC mode.
 	if s.mcpService != nil && !ptcEnabled {
 		allMCP := s.mcpService.ListTools()
-		if isAllAllowed(currentAgent.mcpTools) {
+		if currentAgent == nil || isAllAllowed(currentAgent.mcpTools) {
 			addTools(allMCP)
 		} else {
 			for _, tool := range allMCP {
@@ -699,10 +729,10 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		}
 	}
 
-	// Skills tools — hidden when PTC is enabled; accessible via callTool() inside execute_javascript
+	// Skills tools — dynamic; hidden in PTC mode.
 	if s.skillsService != nil && !ptcEnabled {
 		skillsList, _ := s.skillsService.ListSkills(ctx, skills.SkillFilter{})
-		allowedAll := isAllAllowed(currentAgent.skills)
+		allowedAll := currentAgent == nil || isAllAllowed(currentAgent.skills)
 		for _, sk := range skillsList {
 			if allowedAll || containsStr(currentAgent.skills, sk.ID) {
 				toolsMap[sk.ID] = domain.ToolDefinition{
@@ -717,135 +747,9 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		}
 	}
 
-	// RAG tools — hidden when PTC is enabled; accessible via callTool() inside execute_javascript
-	if s.ragProcessor != nil && !ptcEnabled {
-		addTools([]domain.ToolDefinition{
-			{
-				Type: "function",
-				Function: domain.ToolFunction{
-					Name:        "rag_query",
-					Description: "Search knowledge base for information",
-					Parameters: map[string]interface{}{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"query": map[string]interface{}{
-								"type":        "string",
-								"description": "Search query",
-							},
-						},
-					},
-				},
-			},
-			{
-				Type: "function",
-				Function: domain.ToolFunction{
-					Name:        "rag_ingest",
-					Description: "Ingest a document into the RAG system",
-					Parameters: map[string]interface{}{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"content": map[string]interface{}{
-								"type":        "string",
-								"description": "The document content",
-							},
-							"file_path": map[string]interface{}{
-								"type":        "string",
-								"description": "Path to the document file",
-							},
-						},
-					},
-				},
-			},
-		})
-	}
-
-	// Add Memory tools — hidden when PTC is enabled; accessible via callTool() inside execute_javascript
-	if s.memoryService != nil && !ptcEnabled {
-		addTools([]domain.ToolDefinition{
-			{
-				Type: "function",
-				Function: domain.ToolFunction{
-					Name:        "memory_save",
-					Description: "Save information to long-term memory for future reference",
-					Parameters: map[string]interface{}{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"content": map[string]interface{}{
-								"type":        "string",
-								"description": "The information to remember",
-							},
-							"type": map[string]interface{}{
-								"type":        "string",
-								"description": "Type of memory (fact, preference, skill, pattern, context)",
-								"enum":        []string{"fact", "preference", "skill", "pattern", "context"},
-							},
-						},
-						"required": []string{"content"},
-					},
-				},
-			},
-			{
-				Type: "function",
-				Function: domain.ToolFunction{
-					Name:        "memory_update",
-					Description: "Update an existing memory entry by its ID",
-					Parameters: map[string]interface{}{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"id": map[string]interface{}{
-								"type":        "string",
-								"description": "The ID of the memory to update (e.g., 'mem_123')",
-							},
-							"content": map[string]interface{}{
-								"type":        "string",
-								"description": "The new content for the memory",
-							},
-						},
-						"required": []string{"id", "content"},
-					},
-				},
-			},
-			{
-				Type: "function",
-				Function: domain.ToolFunction{
-					Name:        "memory_delete",
-					Description: "Permanently remove a memory entry by its ID",
-					Parameters: map[string]interface{}{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"id": map[string]interface{}{
-								"type":        "string",
-								"description": "The ID of the memory to delete",
-							},
-						},
-						"required": []string{"id"},
-					},
-				},
-			},
-			{
-				Type: "function",
-				Function: domain.ToolFunction{
-					Name:        "memory_recall",
-					Description: "Recall information from long-term memory",
-					Parameters: map[string]interface{}{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"query": map[string]interface{}{
-								"type":        "string",
-								"description": "The query to search memory for",
-							},
-						},
-						"required": []string{"query"},
-					},
-				},
-			},
-		})
-	}
-
-	// Add SubAgent delegation tool — hidden when PTC is enabled; accessible via callTool() inside execute_javascript
+	// SubAgent delegation — hidden in PTC mode.
 	if !ptcEnabled {
-		addTools([]domain.ToolDefinition{
-		{
+		toolsMap["delegate_to_subagent"] = domain.ToolDefinition{
 			Type: "function",
 			Function: domain.ToolFunction{
 				Name:        "delegate_to_subagent",
@@ -883,12 +787,11 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 					"required": []string{"goal"},
 				},
 			},
-		},
-	})
+		}
 	}
 
-	// PTC: register execute_javascript as a first-class tool so the LLM can call it.
-	// Pass the dynamic list of callTool()-accessible tools so the description is accurate.
+	// PTC: expose execute_javascript as a direct LLM tool. Embed the dynamic
+	// callTool() list so the model knows exactly what it can call.
 	if s.ptcIntegration != nil {
 		availableCallTools := s.ptcIntegration.GetAvailableCallTools(ctx)
 		addTools(s.ptcIntegration.GetPTCTools(availableCallTools))
@@ -1316,7 +1219,7 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 			var err error
 			var toolType string
 
-			// 0. Priority: Agent-local Tools
+			// 0. Priority: Agent-local handler (multi-agent override scenarios).
 			if handler, ok := currentAgent.GetHandler(toolName); ok {
 				if s.debug {
 					fmt.Println("   Type: Local Handler")
@@ -1324,18 +1227,17 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 				result, err = handler(groupCtx, toolCall.Function.Arguments)
 				toolType = "local"
 			} else if s.isMCPTool(toolName) {
-				// 1. MCP tools
+				// 1. MCP tools — dynamic (managed externally via mcpService).
 				if s.debug {
 					fmt.Printf("   Type: MCP Tool\n")
 				}
 				result, err = s.mcpService.CallTool(groupCtx, toolName, toolCall.Function.Arguments)
 				toolType = "mcp"
 			} else if s.isSkill(groupCtx, toolName) && s.skillsService != nil {
-				// 2. Skills
+				// 2. Skills — dynamic (managed via skillsService).
 				if s.debug {
 					fmt.Printf("   Type: Skill (%s)\n", toolName)
 				}
-
 				skillID := strings.TrimPrefix(toolName, "skill_")
 				skillResult, skillErr := s.skillsService.Execute(groupCtx, &skills.ExecutionRequest{
 					SkillID:     skillID,
@@ -1344,97 +1246,21 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 				})
 				if skillErr == nil {
 					result = skillResult.Output
-					err = skillErr
 				}
+				err = skillErr
 				toolType = "skill"
-			} else if toolName == "rag_query" && s.ragProcessor != nil {
-				query, _ := toolCall.Function.Arguments["query"].(string)
-				resp, ragErr := s.ragProcessor.Query(groupCtx, domain.QueryRequest{Query: query})
-				if ragErr == nil {
-					result = resp.Answer
-					// Collect sources for final result (deduplicated)
-					s.addRAGSources(resp.Sources)
-				}
-				err = ragErr
-				toolType = "rag"
-			} else if toolName == "rag_ingest" && s.ragProcessor != nil {
-				content, _ := toolCall.Function.Arguments["content"].(string)
-				filePath, _ := toolCall.Function.Arguments["file_path"].(string)
-				_, err = s.ragProcessor.Ingest(groupCtx, domain.IngestRequest{
-					Content:  content,
-					FilePath: filePath,
-				})
-				if err == nil {
-					result = "Successfully ingested document"
-				}
-				toolType = "rag"
-			} else if toolName == "memory_save" && s.memoryService != nil {
-				s.markRunMemorySaved()
-				content, _ := toolCall.Function.Arguments["content"].(string)
-				memType := "preference"
-				if t, ok := toolCall.Function.Arguments["type"].(string); ok {
-					memType = t
-				}
-				err = s.memoryService.Add(groupCtx, &domain.Memory{
-					Type:       domain.MemoryType(memType),
-					Content:    content,
-					Importance: 0.8,
-					Metadata: map[string]interface{}{
-						"source": "tool_call",
-					},
-				})
-				if err == nil {
-					result = fmt.Sprintf("Saved to memory: %s", content)
-				}
-				toolType = "memory"
-			} else if toolName == "memory_update" && s.memoryService != nil {
-				id, _ := toolCall.Function.Arguments["id"].(string)
-				content, _ := toolCall.Function.Arguments["content"].(string)
-				err = s.memoryService.Update(groupCtx, id, content)
-				if err == nil {
-					result = fmt.Sprintf("Memory %s updated successfully.", id)
-				}
-				toolType = "memory"
-			} else if toolName == "memory_delete" && s.memoryService != nil {
-				id, _ := toolCall.Function.Arguments["id"].(string)
-				err = s.memoryService.Delete(groupCtx, id)
-				if err == nil {
-					result = fmt.Sprintf("Memory %s deleted successfully.", id)
-				}
-				toolType = "memory"
-			} else if toolName == "memory_recall" && s.memoryService != nil {
-				query, _ := toolCall.Function.Arguments["query"].(string)
-				memories, memErr := s.memoryService.Search(groupCtx, query, 5)
-				if memErr == nil {
-					if len(memories) == 0 {
-						// Fallback: list all recent memories
-						allMems, _, listErr := s.memoryService.List(groupCtx, 10, 0)
-						if listErr == nil && len(allMems) > 0 {
-							var memResults []string
-							for _, m := range allMems {
-								memResults = append(memResults, fmt.Sprintf("- [%s] %s", m.Type, m.Content))
-							}
-							result = fmt.Sprintf("Recent memories:\n%s", strings.Join(memResults, "\n"))
-						} else {
-							result = "No relevant memories found"
-						}
-					} else {
-						var memResults []string
-						for _, m := range memories {
-							memResults = append(memResults, fmt.Sprintf("- [%s: %.2f] %s", m.Type, m.Score, m.Content))
-						}
-						result = fmt.Sprintf("Found %d memories:\n%s", len(memories), strings.Join(memResults, "\n"))
-					}
-				}
-				err = memErr
-				toolType = "memory"
-			} else if toolName == "delegate_to_subagent" {
-				result, err = s.executeSubAgentDelegation(groupCtx, currentAgent, toolCall.Function.Arguments)
-				toolType = "subagent"
 			} else if toolName == "execute_javascript" && s.ptcIntegration != nil {
-				// PTC: Execute JavaScript in sandbox
+				// 3. PTC: execute JavaScript in the goja sandbox.
 				result, err = s.ptcIntegration.ExecuteJavascriptTool(groupCtx, toolCall.Function.Arguments)
 				toolType = "ptc"
+			} else if toolName == "delegate_to_subagent" {
+				// 4. SubAgent delegation (needs reference to currentAgent).
+				result, err = s.executeSubAgentDelegation(groupCtx, currentAgent, toolCall.Function.Arguments)
+				toolType = "subagent"
+			} else if s.toolRegistry.Has(toolName) {
+				// 5. Unified ToolRegistry — custom tools, RAG, Memory.
+				result, err = s.toolRegistry.Call(groupCtx, toolName, toolCall.Function.Arguments)
+				toolType = s.toolRegistry.CategoryOf(toolName)
 			} else {
 				err = fmt.Errorf("unknown tool: %s", toolCall.Function.Name)
 			}
@@ -2234,48 +2060,18 @@ func (s *Service) executeLLMToolCalls(ctx context.Context, toolCalls []domain.To
 	for _, tc := range toolCalls {
 		log.Printf("[Agent] Calling tool: %s", tc.Function.Name)
 
-		// Handle memory tools
-		if tc.Function.Name == "memory_save" {
-			s.markRunMemorySaved()
-			content, _ := tc.Function.Arguments["content"].(string)
-			memType := "preference"
-			if t, ok := tc.Function.Arguments["type"].(string); ok {
-				memType = t
-			}
-			err := s.memoryService.Add(ctx, &domain.Memory{
-				Type:       domain.MemoryType(memType),
-				Content:    content,
-				Importance: 0.8,
-				Metadata: map[string]interface{}{
-					"source": "tool_call",
-				},
-			})
+		// Route through ToolRegistry first (covers custom, RAG, Memory tools).
+		if s.toolRegistry.Has(tc.Function.Name) {
+			result, err := s.toolRegistry.Call(ctx, tc.Function.Name, tc.Function.Arguments)
 			if err != nil {
-				results = append(results, fmt.Sprintf("Failed to save memory: %v", err))
+				results = append(results, fmt.Sprintf("Tool %s failed: %v", tc.Function.Name, err))
 			} else {
-				results = append(results, fmt.Sprintf("Saved to memory: %s", content))
+				results = append(results, result)
 			}
 			continue
 		}
 
-		if tc.Function.Name == "memory_recall" {
-			query, _ := tc.Function.Arguments["query"].(string)
-			memories, err := s.memoryService.Search(ctx, query, 5)
-			if err != nil {
-				results = append(results, fmt.Sprintf("Memory search failed: %v", err))
-			} else if len(memories) == 0 {
-				results = append(results, "No relevant memories found")
-			} else {
-				var memResults []string
-				for _, m := range memories {
-					memResults = append(memResults, fmt.Sprintf("- [%s: %.2f] %s", m.Type, m.Score, m.Content))
-				}
-				results = append(results, fmt.Sprintf("Found %d memories:\n%s", len(memories), strings.Join(memResults, "\n")))
-			}
-			continue
-		}
-
-		// Handle MCP tools
+		// MCP tools — handled by mcpService.
 		result, err := s.mcpService.CallTool(ctx, tc.Function.Name, tc.Function.Arguments)
 		if err != nil {
 			return nil, fmt.Errorf("tool call failed: %w", err)
@@ -2439,49 +2235,26 @@ func countDocuments(ragContext string) int {
 	return count
 }
 
-// buildPTCRouterOptions constructs ptc.RouterOption list from available services.
-// It converts domain.ToolDefinition entries into ptc.ToolInfo so the router can
-// enumerate tools without importing the domain package.
-func buildPTCRouterOptions(mcpSvc MCPToolExecutor, skillsSvc *skills.Service, ragProc domain.Processor, memSvc domain.MemoryService) []ptc.RouterOption {
-	var opts []ptc.RouterOption
-
-	if mcpSvc != nil {
-		opts = append(opts, ptc.WithMCPService(mcpSvc))
-
-		// Pre-resolve MCP tool infos
-		mcpInfos := domainToolsToPTCInfos(mcpSvc.ListTools(), "mcp")
-		if len(mcpInfos) > 0 {
-			opts = append(opts, ptc.WithMCPToolInfos(mcpInfos))
-		}
-	}
-
-	if skillsSvc != nil {
-		opts = append(opts, ptc.WithSkillsService(skillsSvc))
-
-		// Pre-resolve skill tool infos
-		skillList, _ := skillsSvc.ListSkills(context.Background(), skills.SkillFilter{})
-		skillInfos := make([]ptc.ToolInfo, 0, len(skillList))
-		for _, sk := range skillList {
-			skillInfos = append(skillInfos, ptc.ToolInfo{
-				Name:        sk.ID,
-				Description: sk.Description,
-				Parameters: map[string]interface{}{
-					"type":       "object",
-					"properties": map[string]interface{}{},
-				},
-				Category: "skill",
-			})
-		}
-		if len(skillInfos) > 0 {
-			opts = append(opts, ptc.WithSkillToolInfos(skillInfos))
-		}
-	}
-
+// registerModuleTools populates the service's ToolRegistry with handlers for
+// RAG and Memory module tools. This must be called after NewService() and before
+// PTC setup (so SyncToPTCRouter picks them up).
+func registerModuleTools(svc *Service, ragProc domain.Processor, memSvc domain.MemoryService) {
 	if ragProc != nil {
-		opts = append(opts, ptc.WithRAGProcessor(ragProc))
-
-		// Inject real rag_query handler via closure — avoids interface mismatch in router stub
-		opts = append(opts, ptc.WithRAGQueryHandler(func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		svc.toolRegistry.Register(domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        "rag_query",
+				Description: "Search the knowledge base for information",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"query": map[string]interface{}{"type": "string", "description": "Search query"},
+						"top_k": map[string]interface{}{"type": "integer", "description": "Number of results (default 5)"},
+					},
+					"required": []string{"query"},
+				},
+			},
+		}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 			query, _ := args["query"].(string)
 			if query == "" {
 				return nil, fmt.Errorf("rag_query: 'query' argument is required")
@@ -2496,14 +2269,24 @@ func buildPTCRouterOptions(mcpSvc MCPToolExecutor, skillsSvc *skills.Service, ra
 			if err != nil {
 				return nil, err
 			}
-			return map[string]interface{}{
-				"answer":  resp.Answer,
-				"sources": len(resp.Sources),
-			}, nil
-		}))
+			svc.addRAGSources(resp.Sources)
+			return map[string]interface{}{"answer": resp.Answer, "sources": len(resp.Sources)}, nil
+		}, CategoryRAG)
 
-		// Inject real rag_ingest handler
-		opts = append(opts, ptc.WithRAGIngestHandler(func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		svc.toolRegistry.Register(domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        "rag_ingest",
+				Description: "Ingest a document into the RAG knowledge base",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"content":   map[string]interface{}{"type": "string", "description": "Document content"},
+						"file_path": map[string]interface{}{"type": "string", "description": "Path to document file"},
+					},
+				},
+			},
+		}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 			content, _ := args["content"].(string)
 			filePath, _ := args["file_path"].(string)
 			if content == "" && filePath == "" {
@@ -2514,78 +2297,15 @@ func buildPTCRouterOptions(mcpSvc MCPToolExecutor, skillsSvc *skills.Service, ra
 				return nil, err
 			}
 			return map[string]interface{}{"status": "ingested"}, nil
-		}))
+		}, CategoryRAG)
 	}
 
-	// Memory tools — accessible via callTool() inside execute_javascript
 	if memSvc != nil {
-		// memory_save handler
-		opts = append(opts, ptc.WithToolHandler("memory_save", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-			content, _ := args["content"].(string)
-			if content == "" {
-				return nil, fmt.Errorf("memory_save: 'content' argument is required")
-			}
-			memType := "fact"
-			if t, ok := args["type"].(string); ok && t != "" {
-				memType = t
-			}
-			err := memSvc.Add(ctx, &domain.Memory{
-				Type:       domain.MemoryType(memType),
-				Content:    content,
-				Importance: 0.8,
-			})
-			if err != nil {
-				return nil, err
-			}
-			return map[string]interface{}{"status": "saved", "content": content}, nil
-		}))
-
-		// memory_recall handler
-		opts = append(opts, ptc.WithToolHandler("memory_recall", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-			query, _ := args["query"].(string)
-			if query == "" {
-				return nil, fmt.Errorf("memory_recall: 'query' argument is required")
-			}
-			mContext, _, err := memSvc.RetrieveAndInject(ctx, query, "")
-			if err != nil {
-				return nil, err
-			}
-			return map[string]interface{}{"memories": mContext}, nil
-		}))
-
-		// memory_update handler
-		opts = append(opts, ptc.WithToolHandler("memory_update", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-			id, _ := args["id"].(string)
-			content, _ := args["content"].(string)
-			if id == "" || content == "" {
-				return nil, fmt.Errorf("memory_update: 'id' and 'content' arguments are required")
-			}
-			err := memSvc.Update(ctx, id, content)
-			if err != nil {
-				return nil, err
-			}
-			return map[string]interface{}{"status": "updated", "id": id}, nil
-		}))
-
-		// memory_delete handler
-		opts = append(opts, ptc.WithToolHandler("memory_delete", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-			id, _ := args["id"].(string)
-			if id == "" {
-				return nil, fmt.Errorf("memory_delete: 'id' argument is required")
-			}
-			err := memSvc.Delete(ctx, id)
-			if err != nil {
-				return nil, err
-			}
-			return map[string]interface{}{"status": "deleted", "id": id}, nil
-		}))
-
-		// Add memory tool infos for enumeration
-		memInfos := []ptc.ToolInfo{
-			{
+		svc.toolRegistry.Register(domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
 				Name:        "memory_save",
 				Description: "Save information to long-term memory for future reference",
-				Category:    "memory",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
@@ -2595,45 +2315,148 @@ func buildPTCRouterOptions(mcpSvc MCPToolExecutor, skillsSvc *skills.Service, ra
 					"required": []string{"content"},
 				},
 			},
-			{
+		}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			content, _ := args["content"].(string)
+			if content == "" {
+				return nil, fmt.Errorf("memory_save: 'content' argument is required")
+			}
+			memType := "fact"
+			if t, ok := args["type"].(string); ok && t != "" {
+				memType = t
+			}
+			svc.markRunMemorySaved()
+			err := memSvc.Add(ctx, &domain.Memory{
+				Type:       domain.MemoryType(memType),
+				Content:    content,
+				Importance: 0.8,
+				Metadata:   map[string]interface{}{"source": "tool_call"},
+			})
+			if err != nil {
+				return nil, err
+			}
+			return map[string]interface{}{"status": "saved", "content": content}, nil
+		}, CategoryMemory)
+
+		svc.toolRegistry.Register(domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
 				Name:        "memory_recall",
 				Description: "Recall information from long-term memory",
-				Category:    "memory",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"query": map[string]interface{}{"type": "string", "description": "The query to search memory for"},
+						"query": map[string]interface{}{"type": "string", "description": "Query to search memory for"},
 					},
 					"required": []string{"query"},
 				},
 			},
-			{
+		}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			query, _ := args["query"].(string)
+			if query == "" {
+				return nil, fmt.Errorf("memory_recall: 'query' argument is required")
+			}
+			memories, err := memSvc.Search(ctx, query, 5)
+			if err != nil {
+				return nil, err
+			}
+			if len(memories) == 0 {
+				allMems, _, listErr := memSvc.List(ctx, 10, 0)
+				if listErr == nil && len(allMems) > 0 {
+					var out []string
+					for _, m := range allMems {
+						out = append(out, fmt.Sprintf("- [%s] %s", m.Type, m.Content))
+					}
+					return map[string]interface{}{"memories": strings.Join(out, "\n")}, nil
+				}
+				return map[string]interface{}{"memories": ""}, nil
+			}
+			var out []string
+			for _, m := range memories {
+				out = append(out, fmt.Sprintf("- [%s: %.2f] %s", m.Type, m.Score, m.Content))
+			}
+			return map[string]interface{}{"memories": strings.Join(out, "\n"), "count": len(memories)}, nil
+		}, CategoryMemory)
+
+		svc.toolRegistry.Register(domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
 				Name:        "memory_update",
 				Description: "Update an existing memory entry by its ID",
-				Category:    "memory",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"id":      map[string]interface{}{"type": "string", "description": "The ID of the memory to update"},
-						"content": map[string]interface{}{"type": "string", "description": "The new content for the memory"},
+						"id":      map[string]interface{}{"type": "string", "description": "Memory ID to update"},
+						"content": map[string]interface{}{"type": "string", "description": "New content"},
 					},
 					"required": []string{"id", "content"},
 				},
 			},
-			{
+		}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			id, _ := args["id"].(string)
+			content, _ := args["content"].(string)
+			if id == "" || content == "" {
+				return nil, fmt.Errorf("memory_update: 'id' and 'content' are required")
+			}
+			if err := memSvc.Update(ctx, id, content); err != nil {
+				return nil, err
+			}
+			return map[string]interface{}{"status": "updated", "id": id}, nil
+		}, CategoryMemory)
+
+		svc.toolRegistry.Register(domain.ToolDefinition{
+			Type: "function",
+			Function: domain.ToolFunction{
 				Name:        "memory_delete",
 				Description: "Permanently remove a memory entry by its ID",
-				Category:    "memory",
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
-						"id": map[string]interface{}{"type": "string", "description": "The ID of the memory to delete"},
+						"id": map[string]interface{}{"type": "string", "description": "Memory ID to delete"},
 					},
 					"required": []string{"id"},
 				},
 			},
+		}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			id, _ := args["id"].(string)
+			if id == "" {
+				return nil, fmt.Errorf("memory_delete: 'id' argument is required")
+			}
+			if err := memSvc.Delete(ctx, id); err != nil {
+				return nil, err
+			}
+			return map[string]interface{}{"status": "deleted", "id": id}, nil
+		}, CategoryMemory)
+	}
+}
+
+// buildPTCRouterOptions constructs ptc.RouterOption list for dynamic providers only.
+// Static tools (RAG, Memory, custom) are registered via ToolRegistry.SyncToPTCRouter.
+func buildPTCRouterOptions(mcpSvc MCPToolExecutor, skillsSvc *skills.Service) []ptc.RouterOption {
+	var opts []ptc.RouterOption
+
+	if mcpSvc != nil {
+		opts = append(opts, ptc.WithMCPService(mcpSvc))
+		mcpInfos := domainToolsToPTCInfos(mcpSvc.ListTools(), CategoryMCP)
+		if len(mcpInfos) > 0 {
+			opts = append(opts, ptc.WithMCPToolInfos(mcpInfos))
 		}
-		opts = append(opts, ptc.WithMemoryToolInfos(memInfos))
+	}
+
+	if skillsSvc != nil {
+		opts = append(opts, ptc.WithSkillsService(skillsSvc))
+		skillList, _ := skillsSvc.ListSkills(context.Background(), skills.SkillFilter{})
+		skillInfos := make([]ptc.ToolInfo, 0, len(skillList))
+		for _, sk := range skillList {
+			skillInfos = append(skillInfos, ptc.ToolInfo{
+				Name:        sk.ID,
+				Description: sk.Description,
+				Parameters:  map[string]interface{}{"type": "object", "properties": map[string]interface{}{}},
+				Category:    CategorySkill,
+			})
+		}
+		if len(skillInfos) > 0 {
+			opts = append(opts, ptc.WithSkillToolInfos(skillInfos))
+		}
 	}
 
 	return opts

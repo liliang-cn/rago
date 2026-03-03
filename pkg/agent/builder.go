@@ -348,6 +348,11 @@ func (b *Builder) build() (*Service, error) {
 		return nil, fmt.Errorf("failed to create service: %w", err)
 	}
 
+	// Register module tools into the unified ToolRegistry.
+	// This is the single registration point for all module tools — both
+	// collectAllAvailableTools() and PTC's callTool() read from here.
+	registerModuleTools(svc, ragProcessor, memSvc)
+
 	// Store model metadata for Info()
 	if len(ragoCfg.LLMPool.Providers) > 0 {
 		p := ragoCfg.LLMPool.Providers[0]
@@ -365,8 +370,12 @@ func (b *Builder) build() (*Service, error) {
 
 	// PTC
 	if b.enablePTC && b.ptcCfg != nil {
-		routerOpts := buildPTCRouterOptions(mcpAdapter, skillsSvc, ragProcessor, memSvc)
+		// Build the PTC router: MCP and Skills are dynamic providers; all static
+		// tools (RAG, Memory, custom) are synced from the ToolRegistry below.
+		routerOpts := buildPTCRouterOptions(mcpAdapter, skillsSvc)
 		ptcRouter := ptc.NewRAGORouter(routerOpts...)
+		// Sync registry tools into the ptcRouter so callTool() can reach them.
+		svc.toolRegistry.SyncToPTCRouter(ptcRouter)
 		ptcInteg, ptcErr := NewPTCIntegration(*b.ptcCfg, ptcRouter)
 		if ptcErr != nil {
 			return nil, fmt.Errorf("failed to create PTC integration: %w", ptcErr)
