@@ -87,9 +87,11 @@ type Service struct {
 	PTC     *PTCIntegration
 }
 
-// NewService creates a new agent service
-// This matches the signature expected by the CLI:
-// agent.NewService(llmService, mcpService, processor, agentDBPath, memoryService)
+// NewService creates a new agent service with the given dependencies.
+//
+// Deprecated: Prefer agent.New("name").WithRAG().WithMemory().Build() for
+// a more ergonomic and composable construction. NewService is kept for
+// internal use by the CLI and advanced callers that need fine-grained control.
 func NewService(
 	llmService domain.Generator,
 	mcpService MCPToolExecutor,

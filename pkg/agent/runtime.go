@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -527,7 +528,11 @@ func (r *Runtime) prepareContext(ctx context.Context, goal string) (string, stri
 	// Memory Retrieval
 	if r.svc.memoryService != nil {
 		g.Go(func() error {
-			memCtx, _, _ = r.svc.memoryService.RetrieveAndInject(groupCtx, goal, r.session.GetID())
+			var err error
+			memCtx, _, err = r.svc.memoryService.RetrieveAndInject(groupCtx, goal, r.session.GetID())
+			if err != nil {
+				r.svc.logger.Warn("memory retrieval failed", slog.String("error", err.Error()))
+			}
 			return nil
 		})
 	}
@@ -538,11 +543,13 @@ func (r *Runtime) prepareContext(ctx context.Context, goal string) (string, stri
 
 func (r *Runtime) saveToMemory(ctx context.Context, goal, result string) {
 	if r.svc.memoryService != nil {
-		_ = r.svc.memoryService.StoreIfWorthwhile(ctx, &domain.MemoryStoreRequest{
+		if err := r.svc.memoryService.StoreIfWorthwhile(ctx, &domain.MemoryStoreRequest{
 			SessionID:  r.session.GetID(),
 			TaskGoal:   goal,
 			TaskResult: result,
-		})
+		}); err != nil {
+			r.svc.logger.Warn("failed to store memory after run", slog.String("error", err.Error()))
+		}
 	}
 }
 

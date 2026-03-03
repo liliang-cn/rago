@@ -45,6 +45,9 @@ func NewToolRegistry() *ToolRegistry {
 // Register adds (or replaces) a tool. Tools registered here are:
 //   - Visible to the LLM in non-PTC mode
 //   - Accessible via callTool() inside the PTC JavaScript sandbox
+// Register adds (or replaces) a tool. The tool will be:
+//   - returned by ListForLLM(false) for native function calling
+//   - accessible via callTool() in the PTC JavaScript sandbox after SyncToPTCRouter
 func (r *ToolRegistry) Register(def domain.ToolDefinition, handler ToolHandler, category string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

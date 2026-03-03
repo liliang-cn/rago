@@ -20,7 +20,7 @@ import (
 func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *IntentRecognitionResult, session *Session, memoryContext string, ragContext string, cfg *RunConfig) (interface{}, error) {
 	maxRounds := cfg.MaxTurns
 	if maxRounds <= 0 {
-		maxRounds = 20 // Default
+		maxRounds = 20
 	}
 
 	// Determine starting agent
@@ -31,35 +31,16 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 		}
 	}
 
-	// Track tool calls to detect duplicates
 	prevToolCalls := make(map[string]int)
+	messages := s.buildConversationMessages(goal, ragContext, memoryContext)
 
-	// Build initial user message
-	messages := []domain.Message{
-		{Role: "user", Content: goal},
-	}
-
-	// Add RAG context if available
-	if ragContext != "" {
-		messages[len(messages)-1].Content += "\n\n--- Relevant documents from knowledge base ---\n" + ragContext + "\n--- End of documents ---"
-	}
-
-	// Add memory context if available
-	if memoryContext != "" {
-		messages[len(messages)-1].Content += "\n\nRelevant context from memory:\n" + memoryContext
-	}
-
-	// Record initial user message if history is enabled
 	if cfg.StoreHistory && s.historyStore != nil {
 		s.historyStore.RecordMessage(ctx, session.GetID(), currentAgent.ID(), goal, messages[0], 0)
 	}
 
-	// Track tool call count for session summary
 	toolCallCount := 0
 
-	// Multi-round conversation loop
 	for round := 0; round < maxRounds; round++ {
-		// Check for cancellation
 		select {
 		case <-ctx.Done():
 			return nil, fmt.Errorf("execution cancelled by user")
@@ -68,133 +49,27 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 
 		s.emitProgress("thinking", fmt.Sprintf("[%s] Thinking...", currentAgent.Name()), round+1, "")
 
-		// Collect tools for current agent
-		tools := s.collectAllAvailableTools(ctx, currentAgent)
-
-		// Build system message for current agent
-		systemMsg := s.buildSystemPrompt(ctx, currentAgent)
-
-		// Prepare messages for this generation (System + History)
-		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
-
-		// --- DEBUG: LOG FULL PROMPT ---
-		if s.debug || cfg.Debug {
-			fmt.Println("\n" + strings.Repeat("=", 40))
-			fmt.Printf("DEBUG: [ROUND %d] LLM FULL PROMPT\n", round+1)
-			fmt.Println(strings.Repeat("-", 40))
-			for _, m := range genMessages {
-				fmt.Printf("[%s]:\n%s\n", strings.ToUpper(m.Role), m.Content)
-				if len(m.ToolCalls) > 0 {
-					fmt.Printf("  (ToolCalls: %d)\n", len(m.ToolCalls))
-				}
-			}
-			fmt.Println(strings.Repeat("=", 40) + "\n")
-		}
-
-		// Let LLM decide
-		temperature := cfg.Temperature
-		if temperature == 0 {
-			temperature = 0.3
-		}
-		maxTokens := cfg.MaxTokens
-		if maxTokens == 0 {
-			maxTokens = 2000
-		}
-		result, err := s.llmService.GenerateWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
-			Temperature: temperature,
-			MaxTokens:   maxTokens,
-		})
+		result, err := s.runOneLLMTurn(ctx, currentAgent, messages, cfg, round)
 		if err != nil {
-			return nil, fmt.Errorf("LLM generation failed: %w", err)
-		}
-		if result == nil {
-			return nil, fmt.Errorf("LLM generation returned nil result")
+			return nil, err
 		}
 
-		// --- DEBUG: LOG RAW RESPONSE ---
-		if (s.debug || cfg.Debug) && err == nil {
-			fmt.Println("\n" + strings.Repeat("=", 40))
-			fmt.Printf("DEBUG: [ROUND %d] LLM RAW RESPONSE\n", round+1)
-			fmt.Println(strings.Repeat("-", 40))
-			if result.ReasoningContent != "" {
-				fmt.Printf("REASONING: %s\n", result.ReasoningContent)
-			}
-			fmt.Printf("CONTENT: %s\n", result.Content)
-			if len(result.ToolCalls) > 0 {
-				fmt.Println("TOOL CALLS:")
-				for _, tc := range result.ToolCalls {
-					fmt.Printf("  - %s(%v)\n", tc.Function.Name, tc.Function.Arguments)
-				}
-			}
-			fmt.Println(strings.Repeat("=", 40) + "\n")
-		}
-
-		// If LLM made tool calls, execute them and continue the conversation
 		if len(result.ToolCalls) > 0 {
-
-			// Check for Handoffs FIRST
-			handoffOccurred := false
-			for _, tc := range result.ToolCalls {
-				if strings.HasPrefix(tc.Function.Name, "transfer_to_") {
-					// Find target agent in current agent's handoffs
-					for _, h := range currentAgent.Handoffs() {
-						if h.ToolName() == tc.Function.Name {
-							// Perform Handoff
-							targetAgent := h.TargetAgent()
-							reason := tc.Function.Arguments["reason"]
-
-							s.emitProgress("tool_call", fmt.Sprintf("Transferring to %s", targetAgent.Name()), round+1, "handoff")
-
-							// Update state
-							currentAgent = targetAgent
-							if session != nil {
-								session.AgentID = targetAgent.ID()
-							}
-
-							// Add transfer message to history
-							messages = append(messages, domain.Message{
-								Role:             "assistant",
-								Content:          result.Content,
-								ReasoningContent: result.ReasoningContent,
-								ToolCalls:        result.ToolCalls,
-							})
-							messages = append(messages, domain.Message{
-								Role:       "tool",
-								ToolCallID: tc.ID,
-								Content:    fmt.Sprintf("Transferred to %s. Reason: %v", targetAgent.Name(), reason),
-							})
-
-							handoffOccurred = true
-							break
-						}
-					}
-				}
-				if handoffOccurred {
-					break
-				}
+			// Check for handoff first
+			if newAgent, updated := s.applyHandoff(ctx, &messages, currentAgent, result, session, round); updated {
+				currentAgent = newAgent
+				continue
 			}
 
-			if handoffOccurred {
-				continue // Start next round with new agent
+			// Detect duplicate tool calls
+			if s.isDuplicateToolCall(result.ToolCalls, prevToolCalls) {
+				return "The task has been completed. The information has been saved to memory.", nil
 			}
 
-			// Check for duplicate tool calls (same tool, same arguments)
-			for _, tc := range result.ToolCalls {
-				// Create a simple key for the tool call
-				callKey := fmt.Sprintf("%s:%v", tc.Function.Name, tc.Function.Arguments)
-				prevToolCalls[callKey]++
-				if prevToolCalls[callKey] > 1 {
-					// Duplicate call detected - force stop
-					log.Printf("[Agent] Duplicate tool call detected: %s, stopping", callKey)
-					return "The task has been completed. The information has been saved to memory.", nil
-				}
-			}
-
-			// Execute tools and collect results
+			// Execute tool calls and append results to messages
 			s.emitProgress("tool_call", fmt.Sprintf("Calling %d tool(s)", len(result.ToolCalls)), round+1, "")
 			toolResults, err := s.executeToolCalls(ctx, currentAgent, result.ToolCalls)
 			if err != nil {
-				// Add error as assistant message and continue
 				messages = append(messages, domain.Message{
 					Role:    "assistant",
 					Content: fmt.Sprintf("Tool execution failed: %v", err),
@@ -202,56 +77,162 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 				continue
 			}
 
-			// Add assistant's response (tool calls) to conversation history
-			messages = append(messages, domain.Message{
-				Role:             "assistant",
-				Content:          result.Content,
-				ReasoningContent: result.ReasoningContent,
-				ToolCalls:        result.ToolCalls,
-			})
-
-			// Add tool results using Role: tool
-			for _, tr := range toolResults {
-				resStr := fmt.Sprintf("%v", tr.Result)
-				if s, ok := tr.Result.(string); ok {
-					resStr = s
-				}
-				messages = append(messages, domain.Message{
-					Role:       "tool",
-					Content:    resStr,
-					ToolCallID: tr.ToolCallID,
-				})
-
-				// Record tool result if history is enabled
-				if cfg.StoreHistory && s.historyStore != nil {
-					// Determine success based on result type
-					success := true
-					var errMsg string
-					if errMap, ok := tr.Result.(map[string]interface{}); ok {
-						if errVal, exists := errMap["error"]; exists && errVal != nil {
-							success = false
-							errMsg = fmt.Sprintf("%v", errVal)
-						}
-					}
-					s.historyStore.RecordToolResult(ctx, session.GetID(), currentAgent.ID(), goal,
-						tr.ToolName, tr.ToolCallID, nil, tr.Result, success, errMsg, round+1)
-				}
-			}
-
+			messages = s.appendToolRoundToMessages(messages, result, toolResults)
+			s.recordToolResults(ctx, session, currentAgent, goal, toolResults, cfg, round)
 			toolCallCount += len(toolResults)
 			continue
 		}
 
-		// No more tool calls - LLM is done
-		// Complete session history if enabled
+		// No tool calls — done
 		if cfg.StoreHistory && s.historyStore != nil {
-			s.historyStore.CompleteSession(ctx, session.GetID(), currentAgent.ID(), goal,
-				round+1, toolCallCount, true, 0)
+			s.historyStore.CompleteSession(ctx, session.GetID(), currentAgent.ID(), goal, round+1, toolCallCount, true, 0)
 		}
 		return result.Content, nil
 	}
 
-	// Max turns exceeded - check for error handler
+	return s.handleMaxTurnsExceeded(ctx, session, currentAgent, goal, maxRounds, toolCallCount, messages, cfg)
+}
+
+// buildConversationMessages constructs the initial user message, enriched with RAG and memory context.
+func (s *Service) buildConversationMessages(goal, ragContext, memoryContext string) []domain.Message {
+	content := goal
+	if ragContext != "" {
+		content += "\n\n--- Relevant documents from knowledge base ---\n" + ragContext + "\n--- End of documents ---"
+	}
+	if memoryContext != "" {
+		content += "\n\nRelevant context from memory:\n" + memoryContext
+	}
+	return []domain.Message{{Role: "user", Content: content}}
+}
+
+// runOneLLMTurn builds the prompt for this round and calls the LLM once.
+func (s *Service) runOneLLMTurn(ctx context.Context, currentAgent *Agent, messages []domain.Message, cfg *RunConfig, round int) (*domain.GenerationResult, error) {
+	tools := s.collectAllAvailableTools(ctx, currentAgent)
+	systemMsg := s.buildSystemPrompt(ctx, currentAgent)
+	genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
+
+	if s.debug || cfg.Debug {
+		s.logDebugPrompt(genMessages, round)
+	}
+
+	temperature := cfg.Temperature
+	if temperature == 0 {
+		temperature = 0.3
+	}
+	maxTokens := cfg.MaxTokens
+	if maxTokens == 0 {
+		maxTokens = 2000
+	}
+
+	result, err := s.llmService.GenerateWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
+		Temperature: temperature,
+		MaxTokens:   maxTokens,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("LLM generation failed: %w", err)
+	}
+	if result == nil {
+		return nil, fmt.Errorf("LLM generation returned nil result")
+	}
+
+	if (s.debug || cfg.Debug) && err == nil {
+		s.logDebugResponse(result, round)
+	}
+	return result, nil
+}
+
+// applyHandoff checks if any tool call is a handoff, applies it, and returns (newAgent, true) if so.
+func (s *Service) applyHandoff(ctx context.Context, messages *[]domain.Message, currentAgent *Agent, result *domain.GenerationResult, session *Session, round int) (*Agent, bool) {
+	for _, tc := range result.ToolCalls {
+		if !strings.HasPrefix(tc.Function.Name, "transfer_to_") {
+			continue
+		}
+		for _, h := range currentAgent.Handoffs() {
+			if h.ToolName() != tc.Function.Name {
+				continue
+			}
+			targetAgent := h.TargetAgent()
+			reason := tc.Function.Arguments["reason"]
+			s.emitProgress("tool_call", fmt.Sprintf("Transferring to %s", targetAgent.Name()), round+1, "handoff")
+
+			if session != nil {
+				session.AgentID = targetAgent.ID()
+			}
+			*messages = append(*messages,
+				domain.Message{
+					Role:             "assistant",
+					Content:          result.Content,
+					ReasoningContent: result.ReasoningContent,
+					ToolCalls:        result.ToolCalls,
+				},
+				domain.Message{
+					Role:       "tool",
+					ToolCallID: tc.ID,
+					Content:    fmt.Sprintf("Transferred to %s. Reason: %v", targetAgent.Name(), reason),
+				},
+			)
+			return targetAgent, true
+		}
+	}
+	return currentAgent, false
+}
+
+// isDuplicateToolCall returns true if any call in toolCalls has been seen before.
+func (s *Service) isDuplicateToolCall(toolCalls []domain.ToolCall, seen map[string]int) bool {
+	for _, tc := range toolCalls {
+		key := fmt.Sprintf("%s:%v", tc.Function.Name, tc.Function.Arguments)
+		seen[key]++
+		if seen[key] > 1 {
+			log.Printf("[Agent] Duplicate tool call detected: %s, stopping", key)
+			return true
+		}
+	}
+	return false
+}
+
+// appendToolRoundToMessages appends the assistant message and tool result messages.
+func (s *Service) appendToolRoundToMessages(messages []domain.Message, result *domain.GenerationResult, toolResults []ToolExecutionResult) []domain.Message {
+	messages = append(messages, domain.Message{
+		Role:             "assistant",
+		Content:          result.Content,
+		ReasoningContent: result.ReasoningContent,
+		ToolCalls:        result.ToolCalls,
+	})
+	for _, tr := range toolResults {
+		resStr := fmt.Sprintf("%v", tr.Result)
+		if str, ok := tr.Result.(string); ok {
+			resStr = str
+		}
+		messages = append(messages, domain.Message{
+			Role:       "tool",
+			Content:    resStr,
+			ToolCallID: tr.ToolCallID,
+		})
+	}
+	return messages
+}
+
+// recordToolResults writes tool results to history store if enabled.
+func (s *Service) recordToolResults(ctx context.Context, session *Session, agent *Agent, goal string, toolResults []ToolExecutionResult, cfg *RunConfig, round int) {
+	if !cfg.StoreHistory || s.historyStore == nil {
+		return
+	}
+	for _, tr := range toolResults {
+		success := true
+		var errMsg string
+		if errMap, ok := tr.Result.(map[string]interface{}); ok {
+			if errVal, exists := errMap["error"]; exists && errVal != nil {
+				success = false
+				errMsg = fmt.Sprintf("%v", errVal)
+			}
+		}
+		s.historyStore.RecordToolResult(ctx, session.GetID(), agent.ID(), goal,
+			tr.ToolName, tr.ToolCallID, nil, tr.Result, success, errMsg, round+1)
+	}
+}
+
+// handleMaxTurnsExceeded handles the case where max turns is reached.
+func (s *Service) handleMaxTurnsExceeded(ctx context.Context, session *Session, agent *Agent, goal string, maxRounds, toolCallCount int, messages []domain.Message, cfg *RunConfig) (interface{}, error) {
 	errExceeded := NewMaxTurnsExceeded(maxRounds, maxRounds, goal)
 	if handler, ok := cfg.ErrorHandlers["max_turns"]; ok {
 		handlerResult := handler(ErrorHandlerInput{
@@ -261,30 +242,52 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 			MessageCount: len(messages),
 			Goal:         goal,
 		})
+		if cfg.StoreHistory && s.historyStore != nil {
+			s.historyStore.CompleteSession(ctx, session.GetID(), agent.ID(), goal, maxRounds, toolCallCount, handlerResult.FinalOutput != nil, 0)
+		}
 		if handlerResult.FinalOutput != nil {
-			// Complete session history with success=false but provided output
-			if cfg.StoreHistory && s.historyStore != nil {
-				s.historyStore.CompleteSession(ctx, session.GetID(), currentAgent.ID(), goal,
-					maxRounds, toolCallCount, false, 0)
-			}
 			return handlerResult.FinalOutput, nil
 		}
 		if handlerResult.Error != nil {
-			if cfg.StoreHistory && s.historyStore != nil {
-				s.historyStore.CompleteSession(ctx, session.GetID(), currentAgent.ID(), goal,
-					maxRounds, toolCallCount, false, 0)
-			}
 			return nil, handlerResult.Error
 		}
 	}
-
-	// Complete session history with failure
 	if cfg.StoreHistory && s.historyStore != nil {
-		s.historyStore.CompleteSession(ctx, session.GetID(), currentAgent.ID(), goal,
-			maxRounds, toolCallCount, false, 0)
+		s.historyStore.CompleteSession(ctx, session.GetID(), agent.ID(), goal, maxRounds, toolCallCount, false, 0)
 	}
-
 	return nil, errExceeded
+}
+
+// logDebugPrompt logs the full prompt for debugging.
+func (s *Service) logDebugPrompt(genMessages []domain.Message, round int) {
+	fmt.Println("\n" + strings.Repeat("=", 40))
+	fmt.Printf("DEBUG: [ROUND %d] LLM FULL PROMPT\n", round+1)
+	fmt.Println(strings.Repeat("-", 40))
+	for _, m := range genMessages {
+		fmt.Printf("[%s]:\n%s\n", strings.ToUpper(m.Role), m.Content)
+		if len(m.ToolCalls) > 0 {
+			fmt.Printf("  (ToolCalls: %d)\n", len(m.ToolCalls))
+		}
+	}
+	fmt.Println(strings.Repeat("=", 40) + "\n")
+}
+
+// logDebugResponse logs the raw LLM response for debugging.
+func (s *Service) logDebugResponse(result *domain.GenerationResult, round int) {
+	fmt.Println("\n" + strings.Repeat("=", 40))
+	fmt.Printf("DEBUG: [ROUND %d] LLM RAW RESPONSE\n", round+1)
+	fmt.Println(strings.Repeat("-", 40))
+	if result.ReasoningContent != "" {
+		fmt.Printf("REASONING: %s\n", result.ReasoningContent)
+	}
+	fmt.Printf("CONTENT: %s\n", result.Content)
+	if len(result.ToolCalls) > 0 {
+		fmt.Println("TOOL CALLS:")
+		for _, tc := range result.ToolCalls {
+			fmt.Printf("  - %s(%v)\n", tc.Function.Name, tc.Function.Arguments)
+		}
+	}
+	fmt.Println(strings.Repeat("=", 40) + "\n")
 }
 
 // verifyResult verifies the result with LLM
@@ -626,26 +629,31 @@ func (s *Service) finalizeExecution(ctx context.Context, session *Session, goal 
 					content = strings.TrimSpace(goal[len("save to memory"):])
 				}
 
-				_ = s.memoryService.Add(ctx, &domain.Memory{
+				if err := s.memoryService.Add(ctx, &domain.Memory{
 					Type:       domain.MemoryTypePreference,
 					Content:    content,
 					Importance: 0.8,
 					Metadata: map[string]interface{}{
 						"source": "user_direct",
 					},
-				})
-				log.Printf("[Agent] Stored to memory: %s", content)
+				}); err != nil {
+					s.logger.Warn("failed to store preference memory", slog.String("error", err.Error()))
+				} else {
+					log.Printf("[Agent] Stored to memory: %s", content)
+				}
 			}
 		}
 
 		// LLM-based extraction for complex memories
-		_ = s.memoryService.StoreIfWorthwhile(ctx, &domain.MemoryStoreRequest{
+		if err := s.memoryService.StoreIfWorthwhile(ctx, &domain.MemoryStoreRequest{
 			SessionID:  session.GetID(),
 			TaskGoal:   goal,
 			TaskResult: formatResultForContent(finalResult),
 			ExecutionLog: fmt.Sprintf("Intent: %s\nMemory: %d items\nRAG: %d chars",
 				intent.IntentType, len(memoryMemories), len(ragResult)),
-		})
+		}); err != nil {
+			s.logger.Warn("failed to store memory", slog.String("error", err.Error()))
+		}
 	}
 
 	// Save session

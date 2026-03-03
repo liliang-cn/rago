@@ -22,7 +22,7 @@ func main() {
 	cwd, _ := os.Getwd()
 	skillsPath := filepath.Join(cwd, "examples", ".skills")
 
-	fmt.Println("=== Skills + Memory 集成测试 ===\n")
+	fmt.Println("=== Skills + Memory 集成测试 ===")
 
 	// 1. 创建带 Skills 和 Memory 的 Agent
 	svc, err := agent.New("SkillMemoryBot").
