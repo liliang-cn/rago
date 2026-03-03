@@ -412,10 +412,22 @@ func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig
 		s.logger.Warn("Context collection partial failure", slog.Any("error", err))
 	}
 
-	// Step 5: Let LLM decide and execute (with gathered context)
-	finalResult, err := s.executeWithLLM(runCtx, goal, intent, session, memoryContext, ragContext, cfg)
-	if err != nil {
-		return nil, err
+	// Execute: PTC is just a transport mode — branch internally, same public API.
+	var finalResult interface{}
+	var ptcRes *PTCResult
+
+	if s.isPTCEnabled() {
+		var err error
+		finalResult, ptcRes, err = s.runPTCExecution(runCtx, goal, session, cfg)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		finalResult, err = s.executeWithLLM(runCtx, goal, intent, session, memoryContext, ragContext, cfg)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Skip verification for faster response
@@ -456,7 +468,14 @@ func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig
 		log.Printf("[Agent] Failed to save plan: %v", err)
 	}
 
-	return s.finalizeExecution(runCtx, session, goal, intent, memoryMemories, "", currentResult)
+	result, err := s.finalizeExecution(runCtx, session, goal, intent, memoryMemories, "", currentResult)
+	if err != nil {
+		return nil, err
+	}
+	if ptcRes != nil {
+		result.PTCResult = ptcRes
+	}
+	return result, nil
 }
 
 // Cancel forcefully stops the current agent execution

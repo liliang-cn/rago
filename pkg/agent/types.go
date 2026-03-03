@@ -77,6 +77,8 @@ type ExecutionResult struct {
 	Error       string                 `json:"error,omitempty"`
 	Duration    string                 `json:"duration"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	// PTCResult contains PTC execution details when PTC mode is active.
+	PTCResult *PTCResult `json:"ptc_result,omitempty"`
 }
 
 // ============================================================
