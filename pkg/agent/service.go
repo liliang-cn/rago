@@ -759,8 +759,8 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		})
 	}
 
-	// Add Memory tools
-	if s.memoryService != nil {
+	// Add Memory tools — hidden when PTC is enabled; accessible via callTool() inside execute_javascript
+	if s.memoryService != nil && !ptcEnabled {
 		addTools([]domain.ToolDefinition{
 			{
 				Type: "function",
@@ -842,8 +842,9 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		})
 	}
 
-	// Add SubAgent delegation tool — allows Agent to delegate tasks to SubAgents
-	addTools([]domain.ToolDefinition{
+	// Add SubAgent delegation tool — hidden when PTC is enabled; accessible via callTool() inside execute_javascript
+	if !ptcEnabled {
+		addTools([]domain.ToolDefinition{
 		{
 			Type: "function",
 			Function: domain.ToolFunction{
@@ -884,6 +885,7 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 			},
 		},
 	})
+	}
 
 	// PTC: register execute_javascript as a first-class tool so the LLM can call it.
 	// Pass the dynamic list of callTool()-accessible tools so the description is accurate.
@@ -2440,7 +2442,7 @@ func countDocuments(ragContext string) int {
 // buildPTCRouterOptions constructs ptc.RouterOption list from available services.
 // It converts domain.ToolDefinition entries into ptc.ToolInfo so the router can
 // enumerate tools without importing the domain package.
-func buildPTCRouterOptions(mcpSvc MCPToolExecutor, skillsSvc *skills.Service, ragProc domain.Processor) []ptc.RouterOption {
+func buildPTCRouterOptions(mcpSvc MCPToolExecutor, skillsSvc *skills.Service, ragProc domain.Processor, memSvc domain.MemoryService) []ptc.RouterOption {
 	var opts []ptc.RouterOption
 
 	if mcpSvc != nil {
@@ -2513,6 +2515,125 @@ func buildPTCRouterOptions(mcpSvc MCPToolExecutor, skillsSvc *skills.Service, ra
 			}
 			return map[string]interface{}{"status": "ingested"}, nil
 		}))
+	}
+
+	// Memory tools — accessible via callTool() inside execute_javascript
+	if memSvc != nil {
+		// memory_save handler
+		opts = append(opts, ptc.WithToolHandler("memory_save", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			content, _ := args["content"].(string)
+			if content == "" {
+				return nil, fmt.Errorf("memory_save: 'content' argument is required")
+			}
+			memType := "fact"
+			if t, ok := args["type"].(string); ok && t != "" {
+				memType = t
+			}
+			err := memSvc.Add(ctx, &domain.Memory{
+				Type:       domain.MemoryType(memType),
+				Content:    content,
+				Importance: 0.8,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return map[string]interface{}{"status": "saved", "content": content}, nil
+		}))
+
+		// memory_recall handler
+		opts = append(opts, ptc.WithToolHandler("memory_recall", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			query, _ := args["query"].(string)
+			if query == "" {
+				return nil, fmt.Errorf("memory_recall: 'query' argument is required")
+			}
+			mContext, _, err := memSvc.RetrieveAndInject(ctx, query, "")
+			if err != nil {
+				return nil, err
+			}
+			return map[string]interface{}{"memories": mContext}, nil
+		}))
+
+		// memory_update handler
+		opts = append(opts, ptc.WithToolHandler("memory_update", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			id, _ := args["id"].(string)
+			content, _ := args["content"].(string)
+			if id == "" || content == "" {
+				return nil, fmt.Errorf("memory_update: 'id' and 'content' arguments are required")
+			}
+			err := memSvc.Update(ctx, id, content)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]interface{}{"status": "updated", "id": id}, nil
+		}))
+
+		// memory_delete handler
+		opts = append(opts, ptc.WithToolHandler("memory_delete", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			id, _ := args["id"].(string)
+			if id == "" {
+				return nil, fmt.Errorf("memory_delete: 'id' argument is required")
+			}
+			err := memSvc.Delete(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]interface{}{"status": "deleted", "id": id}, nil
+		}))
+
+		// Add memory tool infos for enumeration
+		memInfos := []ptc.ToolInfo{
+			{
+				Name:        "memory_save",
+				Description: "Save information to long-term memory for future reference",
+				Category:    "memory",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"content": map[string]interface{}{"type": "string", "description": "The information to remember"},
+						"type":    map[string]interface{}{"type": "string", "description": "Type: fact, preference, skill, pattern, context"},
+					},
+					"required": []string{"content"},
+				},
+			},
+			{
+				Name:        "memory_recall",
+				Description: "Recall information from long-term memory",
+				Category:    "memory",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"query": map[string]interface{}{"type": "string", "description": "The query to search memory for"},
+					},
+					"required": []string{"query"},
+				},
+			},
+			{
+				Name:        "memory_update",
+				Description: "Update an existing memory entry by its ID",
+				Category:    "memory",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"id":      map[string]interface{}{"type": "string", "description": "The ID of the memory to update"},
+						"content": map[string]interface{}{"type": "string", "description": "The new content for the memory"},
+					},
+					"required": []string{"id", "content"},
+				},
+			},
+			{
+				Name:        "memory_delete",
+				Description: "Permanently remove a memory entry by its ID",
+				Category:    "memory",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"id": map[string]interface{}{"type": "string", "description": "The ID of the memory to delete"},
+					},
+					"required": []string{"id"},
+				},
+			},
+		}
+		opts = append(opts, ptc.WithMemoryToolInfos(memInfos))
 	}
 
 	return opts

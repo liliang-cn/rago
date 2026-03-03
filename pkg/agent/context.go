@@ -11,18 +11,19 @@ import (
 
 // SystemContext 系统上下文信息
 type SystemContext struct {
-	Date         string
-	Time         string
-	Timezone     string
-	OS           string
-	Arch         string
-	Hostname     string
-	WorkingDir   string
-	HomeDir      string
-	User         string
-	GoVersion    string
-	EnvInfo      map[string]string // selected env vars
-	Memories     []MemorySummary   // list of available memory entities
+	Date       string
+	Time       string
+	Timezone   string
+	OS         string
+	Arch       string
+	Hostname   string
+	WorkingDir string
+	HomeDir    string
+	User       string
+	GoVersion  string
+	EnvInfo    map[string]string // selected env vars
+	Memories   []MemorySummary   // list of available memory entities
+	HasMemory  bool              // memory system is enabled
 }
 
 // MemorySummary represents a summary of a persistent memory file
@@ -73,6 +74,7 @@ func (s *Service) buildSystemContext() *SystemContext {
 
 	// 注入记忆地图
 	if s.memoryService != nil {
+		ctx.HasMemory = true
 		// 限制数量，防止上下文溢出
 		mems, total, err := s.memoryService.List(context.Background(), 20, 0)
 		if err == nil && total > 0 {
@@ -129,9 +131,27 @@ func (c *SystemContext) FormatForPrompt() string {
 		sb.WriteString("\n")
 	}
 
+	// Memory tools usage guide (shown when memory is enabled)
+	if c.HasMemory {
+		sb.WriteString("\n## Memory System (Enabled)\n")
+		sb.WriteString("You have access to a persistent memory system. Use these tools:\n\n")
+		sb.WriteString("**memory_save(content, type)**: Save important information\n")
+		sb.WriteString("- Use when: User shares preferences, facts about themselves, or important context\n")
+		sb.WriteString("- Types: fact, preference, skill, pattern, context\n")
+		sb.WriteString("- Example: memory_save(\"User prefers dark mode\", \"preference\")\n\n")
+		sb.WriteString("**memory_recall(query)**: Search and retrieve memories\n")
+		sb.WriteString("- Use when: You need to recall user preferences or past context\n")
+		sb.WriteString("- Example: memory_recall(\"user programming language preference\")\n\n")
+		sb.WriteString("**memory_update(id, content)**: Update existing memory\n")
+		sb.WriteString("- Use when: User corrects or adds to previously saved information\n")
+		sb.WriteString("- Example: memory_update(\"mem_123\", \"Updated information\")\n\n")
+		sb.WriteString("**memory_delete(id)**: Remove outdated memory\n")
+		sb.WriteString("- Use when: User asks to forget something or information is obsolete\n\n")
+	}
+
 	if len(c.Memories) > 0 {
-		sb.WriteString("\n## Available Persistent Memories (Memory Map)\n")
-		sb.WriteString("The following facts and entities are stored in your long-term memory. Use 'memory_recall' to read their full details:\n")
+		sb.WriteString("### Available Persistent Memories (Memory Map)\n")
+		sb.WriteString("The following facts and entities are stored in your long-term memory:\n")
 		for _, m := range c.Memories {
 			sb.WriteString(fmt.Sprintf("- [%s] (%s): %s\n", m.ID, m.Type, m.Summary))
 		}
