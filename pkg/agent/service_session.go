@@ -76,6 +76,73 @@ func (s *Service) Ask(ctx context.Context, message string) (string, error) {
 	return result.Text(), result.Err()
 }
 
+// Stream sends a message and streams the agent's reply token-by-token as a <-chan string.
+// The channel is closed when the response is complete. Errors are swallowed; for
+// full event details (tool calls, sources, errors) use RunStream() instead.
+//
+//	for token := range svc.Stream(ctx, "Write a poem") {
+//	    fmt.Print(token)
+//	}
+//
+// For multi-turn conversations, use ChatStream() instead.
+func (s *Service) Stream(ctx context.Context, message string) <-chan string {
+	ch := make(chan string, 32)
+	events, err := s.RunStream(ctx, message)
+	if err != nil {
+		close(ch)
+		return ch
+	}
+	go func() {
+		defer close(ch)
+		for evt := range events {
+			if evt.Type == EventTypePartial && evt.Content != "" {
+				select {
+				case ch <- evt.Content:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return ch
+}
+
+// ChatStream is like Chat() but streams the reply token-by-token.
+// Conversation history is preserved across calls (same session UUID).
+//
+//	for token := range svc.ChatStream(ctx, "Tell me a story") {
+//	    fmt.Print(token)
+//	}
+func (s *Service) ChatStream(ctx context.Context, message string) <-chan string {
+	s.sessionMu.Lock()
+	if s.currentSessionID == "" {
+		s.currentSessionID = uuid.New().String()
+	}
+	sessionID := s.currentSessionID
+	s.sessionMu.Unlock()
+
+	ch := make(chan string, 32)
+	events, err := s.RunStream(ctx, message)
+	_ = sessionID // session binding already set via currentSessionID; RunStream picks it up
+	if err != nil {
+		close(ch)
+		return ch
+	}
+	go func() {
+		defer close(ch)
+		for evt := range events {
+			if evt.Type == EventTypePartial && evt.Content != "" {
+				select {
+				case ch <- evt.Content:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return ch
+}
+
 // CurrentSessionID returns the current session UUID used by Chat()
 func (s *Service) CurrentSessionID() string {
 	s.sessionMu.RLock()

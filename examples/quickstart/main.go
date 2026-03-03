@@ -58,5 +58,17 @@ func main() {
 	fmt.Println(result.Text())
 
 	fmt.Println()
+
+	// Stream() — token-by-token streaming. The simplest streaming API.
+	// Returns <-chan string; loop over it to print tokens as they arrive.
+	fmt.Println("Q: Count from 1 to 5 (streamed):")
+	fmt.Print("A: ")
+
+	for token := range svc.Stream(ctx, "Count from 1 to 5, one number per line.") {
+		fmt.Print(token)
+	}
+	fmt.Println()
+
+	fmt.Println()
 	fmt.Println("✅ Done! Explore more examples in the examples/ directory.")
 }
