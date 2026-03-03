@@ -251,6 +251,71 @@ result, _ := svc.Execute(ctx, plan.ID)
 
 ---
 
+## Configuration & Storage
+
+Config file: `rago.toml` (auto-discovered in `./` → `~/.rago/` → `~/.rago/config/`).
+
+### Directory layout (default `home = ~/.rago`)
+
+```
+~/.rago/
+├── rago.toml              ← config file
+├── mcpServers.json        ← MCP server definitions
+├── data/
+│   ├── rago.db            ← RAG vector store (sqlite-vec); also Memory vector store
+│   ├── agent.db           ← Agent sessions + execution plans
+│   └── memories/          ← Memory file store (one JSON per session)
+├── skills/                ← SKILL.md files
+├── intents/               ← Intent YAML files
+└── workspace/             ← Agent working directory
+```
+
+### SQLite files
+
+| File | Default path | Purpose |
+|------|-------------|---------|
+| `rago.db` | `$home/data/rago.db` | RAG documents + vector index; shared as Memory vector store when `memory.store_type = "vector"` |
+| `agent.db` | `$home/data/agent.db` | Agent sessions and plan state |
+| `history.db` *(opt)* | via `WithHistoryDBPath()` | Detailed tool-call logs — only created when `WithStoreHistory(true)` |
+
+### Memory store types
+
+| `store_type` | Storage | Requires embedder |
+|-------------|---------|-------------------|
+| `file` *(default)* | `data/memories/{session}.json` | No |
+| `vector` | `data/rago.db` (shared) | Yes |
+| `hybrid` | file primary + `rago.db` shadow index | Yes |
+
+### Key config fields
+
+```toml
+home = "~/.rago"             # base for all relative paths
+
+[sqvect]
+db_path   = ""               # RAG db; default: $home/data/rago.db
+env:        RAGO_SQVECT_DB_PATH
+
+[memory]
+store_type  = "file"         # file | vector | hybrid
+memory_path = ""             # default: $home/data/memories
+
+[chunker]
+chunk_size = 512
+overlap    = 64
+method     = "sentence"
+
+[skills]
+enabled  = true
+auto_load = true
+
+[mcp]
+servers = ["~/.rago/mcpServers.json"]
+```
+
+See [`references/CONFIG.md`](references/CONFIG.md) for the full annotated config.
+
+---
+
 ## Providers
 
 Configure in `rago.toml` (auto-discovered in `./`, `~/.rago/`, `~/.rago/config/`):
