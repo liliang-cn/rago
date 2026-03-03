@@ -6,45 +6,54 @@ import (
 	"os"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	ragolog "github.com/liliang-cn/rago/v2/pkg/log"
 	"github.com/liliang-cn/rago/v2/pkg/ptc"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
 )
 
 // ChatWithPTC sends a message with PTC (Parallel Tool Calling) support.
-// This method uses JavaScript code execution for tool orchestration.
+//
+// PTC is a transport mode, not a separate execution path. This method is a
+// thin backward-compatibility wrapper around Chat(). When PTC is enabled,
+// Chat() automatically uses the PTC execution path and populates
+// ExecutionResult.PTCResult with rich JS execution details.
 func (s *Service) ChatWithPTC(ctx context.Context, message string) (*PTCChatResult, error) {
-	// Check if PTC is available
-	if s.ptcIntegration == nil || !s.ptcIntegration.config.Enabled {
-		// Fall back to normal chat
-		result, err := s.Chat(ctx, message)
-		if err != nil {
-			return nil, err
-		}
-		return &PTCChatResult{
-			ExecutionResult: result,
-			PTCUsed:         false,
-		}, nil
-	}
-
-	// Get current session
-	s.sessionMu.Lock()
-	if s.currentSessionID == "" {
-		s.currentSessionID = uuid.New().String()
-	}
-	sessionID := s.currentSessionID
-	s.sessionMu.Unlock()
-
-	// Load or create session
-	session, err := s.store.GetSession(sessionID)
+	result, err := s.Chat(ctx, message)
 	if err != nil {
-		session = NewSessionWithID(sessionID, s.agent.ID())
+		return nil, err
 	}
 
-	// Build PTC-aware user message
-	ptcPrompt := message + `
+	ptcUsed := result.PTCResult != nil &&
+		(result.PTCResult.Code != "" ||
+			result.PTCResult.Type == PTCResultTypeExecuted ||
+			result.PTCResult.Type == PTCResultTypeCode)
+
+	llmResp := ""
+	if result.PTCResult != nil {
+		llmResp = result.PTCResult.OriginalContent
+	} else {
+		llmResp = fmt.Sprintf("%v", result.FinalResult)
+	}
+
+	return &PTCChatResult{
+		ExecutionResult: result,
+		PTCResult:       result.PTCResult,
+		PTCUsed:         ptcUsed,
+		LLMResponse:     llmResp,
+		SessionID:       result.SessionID,
+	}, nil
+}
+
+// runPTCExecution is the PTC transport path called from runWithConfig when
+// isPTCEnabled() is true. It streams a response from the LLM, extracts any
+// JavaScript code (from <code> tags or execute_javascript tool calls), runs
+// it in the goja sandbox, and returns the raw content plus the rich PTCResult.
+// Session management (loading/saving messages) remains in runWithConfig.
+func (s *Service) runPTCExecution(ctx context.Context, goal string, session *Session, cfg *RunConfig) (interface{}, *PTCResult, error) {
+	// Embed PTC usage instructions in the user message so the LLM knows to
+	// respond with <code> tags (fallback for models that don't support function
+	// calling, or when the system prompt alone is not enough).
+	ptcPrompt := goal + `
 
 IMPORTANT: Respond with JavaScript code in <code> tags.
 Your code will be executed in a secure sandbox.
@@ -53,110 +62,86 @@ DO NOT wrap code in function main(){...}main().
 Example format:
 ` + "<code>\nconst data = callTool('some_tool', { arg: 'value' });\nconsole.log(\"Processing:\", data);\nreturn { result: data };\n</code>"
 
-	// Add user message to session
-	userMsg := domain.Message{
-		Role:    "user",
-		Content: ptcPrompt,
-	}
-	session.AddMessage(userMsg)
+	// Build message history for LLM (history first, then this user message).
+	userMsg := domain.Message{Role: "user", Content: ptcPrompt}
+	messages := append(session.GetMessages(), userMsg)
 
-	// Build messages for LLM
-	messages := session.GetMessages()
-
-	// Build PTC tools
+	// Build PTC tools list for the LLM.
 	availableCallTools := s.ptcIntegration.GetAvailableCallTools(ctx)
 	ptcTools := s.ptcIntegration.GetPTCTools(availableCallTools)
 
-	// Call LLM with PTC tools
-	opts := &domain.GenerationOptions{
-		Temperature: 0.3,
-		MaxTokens:   2000,
+	temperature := cfg.Temperature
+	if temperature == 0 {
+		temperature = 0.3
+	}
+	maxTokens := cfg.MaxTokens
+	if maxTokens == 0 {
+		maxTokens = 2000
 	}
 
 	var fullContent strings.Builder
 	var toolCalls []domain.ToolCall
 
-	err = s.llmService.StreamWithTools(ctx, messages, ptcTools, opts, func(delta *domain.GenerationResult) error {
+	err := s.llmService.StreamWithTools(ctx, messages, ptcTools, &domain.GenerationOptions{
+		Temperature: temperature,
+		MaxTokens:   maxTokens,
+	}, func(delta *domain.GenerationResult) error {
 		if delta.Content != "" {
 			fullContent.WriteString(delta.Content)
 			s.emitProgress("partial", delta.Content, 0, "")
 		}
-		if len(delta.ToolCalls) > 0 {
-			for _, tc := range delta.ToolCalls {
-				// Simplified merging logic for PTC: find by index or ID
-				found := false
-				for j, existing := range toolCalls {
-					if (existing.ID != "" && existing.ID == tc.ID) || (existing.ID == "" && existing.Function.Name == tc.Function.Name) {
-						if existing.Function.Arguments == nil {
-							existing.Function.Arguments = make(map[string]interface{})
-						}
-						for k, v := range tc.Function.Arguments {
-							existing.Function.Arguments[k] = v
-						}
-						toolCalls[j] = existing
-						found = true
-						break
+		for _, tc := range delta.ToolCalls {
+			found := false
+			for j, existing := range toolCalls {
+				if (existing.ID != "" && existing.ID == tc.ID) ||
+					(existing.ID == "" && existing.Function.Name == tc.Function.Name) {
+					if existing.Function.Arguments == nil {
+						existing.Function.Arguments = make(map[string]interface{})
 					}
+					for k, v := range tc.Function.Arguments {
+						existing.Function.Arguments[k] = v
+					}
+					toolCalls[j] = existing
+					found = true
+					break
 				}
-				if !found {
-					toolCalls = append(toolCalls, tc)
-				}
+			}
+			if !found {
+				toolCalls = append(toolCalls, tc)
 			}
 		}
 		return nil
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("LLM streaming failed: %w", err)
+		return nil, nil, fmt.Errorf("LLM streaming failed: %w", err)
 	}
 
 	content := fullContent.String()
 
 	if os.Getenv("DEBUG") != "" {
-		fmt.Printf("\nDEBUG [ChatWithPTC] raw content: %q\n", content)
+		fmt.Printf("\nDEBUG [runPTCExecution] raw content: %q\n", content)
 		if len(toolCalls) > 0 {
-			fmt.Printf("DEBUG [ChatWithPTC] tool calls: %v\n", toolCalls)
+			fmt.Printf("DEBUG [runPTCExecution] tool calls: %v\n", toolCalls)
 		}
 	}
 
-	// 1. Try to get code from tool calls first (preferred for structured responses)
-	// Some LLMs return thinking text in content + code in execute_javascript tool call
-	if len(toolCalls) > 0 {
-		for _, tc := range toolCalls {
-			if tc.Function.Name == "execute_javascript" {
-				if code, ok := tc.Function.Arguments["code"].(string); ok {
-					// Re-wrap in <code> to ensure ProcessLLMResponse handles it
-					content = "<code>" + code + "</code>"
-					break
-				}
+	// Prefer code from execute_javascript tool call (structured) over content
+	// extraction (text-based), since tool calls are more reliable.
+	for _, tc := range toolCalls {
+		if tc.Function.Name == "execute_javascript" {
+			if code, ok := tc.Function.Arguments["code"].(string); ok {
+				content = "<code>" + code + "</code>"
+				break
 			}
 		}
 	}
 
-	// Process LLM response through PTC
 	ptcResult, err := s.ptcIntegration.ProcessLLMResponse(ctx, content, nil)
 	if err != nil {
-		return nil, fmt.Errorf("PTC processing failed: %w", err)
+		return nil, nil, fmt.Errorf("PTC processing failed: %w", err)
 	}
 
-	// Add assistant response to session (without the PTC prompt instructions)
-	assistantMsg := domain.Message{
-		Role:    "assistant",
-		Content: content,
-	}
-	session.AddMessage(assistantMsg)
-
-	// Save session
-	if err := s.store.SaveSession(session); err != nil {
-		ragolog.Warn("failed to save session: %v", err)
-	}
-
-	return &PTCChatResult{
-		PTCResult:   ptcResult,
-		PTCUsed:     ptcResult.Code != "" || ptcResult.Type == PTCResultTypeExecuted || ptcResult.Type == PTCResultTypeCode,
-		LLMResponse: content,
-		SessionID:   sessionID,
-	}, nil
+	return content, ptcResult, nil
 }
 
 // PTCChatResult contains the result of a PTC-aware chat
