@@ -43,17 +43,20 @@ import (
 func main() {
     ctx := context.Background()
 
-    // 1. Initialize service (Runtime Environment)
-    // Method 1: Chainable builder
     svc, _ := agent.New("my-assistant").
+        WithPrompt("You are a helpful assistant.").
         WithMCP().
-        WithMemory(agent.WithMemoryStoreType("file")).
+        WithMemory().
         Build()
     defer svc.Close()
 
-    // 2. Run a task
+    // Simple Q&A — returns (string, error)
+    reply, _ := svc.Ask(ctx, "What is Go?")
+    fmt.Println(reply)
+
+    // Full agentic run — planning, tool calls, RAG
     res, _ := svc.Run(ctx, "Research Go 1.24 features and save a summary to memory.")
-    fmt.Println(res.FinalResult)
+    fmt.Println(res.Text())
 }
 ```
 
@@ -178,6 +181,41 @@ svc, _ := agent.New("data-analyst").
 ```
 
 See the [PTC examples](./examples/ptc/) for complete demos.
+
+---
+
+## 🎯 Invocation API
+
+RAGO provides multiple invocation styles to match your use case:
+
+```go
+// Ask — one-shot Q&A, returns (string, error)
+reply, err := svc.Ask(ctx, "What is the capital of France?")
+
+// Chat — multi-turn with session memory, returns (string, error)
+reply, err := svc.Chat(ctx, "Tell me more about it")
+
+// Run — full agentic loop (tool calls, RAG, planning)
+result, err := svc.Run(ctx, "goal", agent.WithMaxTurns(20))
+fmt.Println(result.Text())       // final answer
+fmt.Println(result.HasSources()) // true if RAG sources attached
+
+// Stream — live token output, one-shot
+for token := range svc.Stream(ctx, "Write a poem") {
+    fmt.Print(token)
+}
+
+// ChatStream — multi-turn + live tokens
+for token := range svc.ChatStream(ctx, "Continue the story") {
+    fmt.Print(token)
+}
+
+// RunStream — full event stream (tool calls, sources, errors)
+events, err := svc.RunStream(ctx, "Complex multi-step task")
+for e := range events {
+    fmt.Println(e.Type, e.Content)
+}
+```
 
 ---
 
