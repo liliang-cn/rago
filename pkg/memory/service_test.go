@@ -242,6 +242,23 @@ func TestService_RetrieveAndInject(t *testing.T) {
 		embedder.AssertExpectations(t)
 		store.AssertExpectations(t)
 	})
+	t.Run("NilEmbedder falls back to List", func(t *testing.T) {
+		query := "what is the project status?"
+		isolatedStore := new(MockMemoryStore)
+		nilEmbedService := NewService(isolatedStore, llm, nil, config)
+
+		expectedMemories := []*domain.Memory{
+			{ID: "m1", Content: "Project is on track.", Type: domain.MemoryTypeFact},
+		}
+		// entity search also goes to List when embedder is nil
+		isolatedStore.On("List", ctx, mock.AnythingOfType("int"), 0).Return(expectedMemories, 1, nil).Maybe()
+		isolatedStore.On("IncrementAccess", ctx, mock.Anything).Return(nil).Maybe()
+
+		_, memories, err := nilEmbedService.RetrieveAndInject(ctx, query, "session-no-embed")
+
+		assert.NoError(t, err)
+		assert.NotNil(t, memories)
+	})
 }
 
 func TestService_Add(t *testing.T) {
@@ -316,6 +333,18 @@ func TestService_StoreIfWorthwhile(t *testing.T) {
 		llm.AssertExpectations(t)
 		embedder.AssertExpectations(t)
 		store.AssertExpectations(t)
+	})
+
+	t.Run("NoLLM skips classification and does not store", func(t *testing.T) {
+		nilLLMService := NewService(store, nil, embedder, nil)
+		req := &domain.MemoryStoreRequest{
+			SessionID:  "session-nil-llm",
+			TaskGoal:   "test",
+			TaskResult: "result",
+		}
+		err := nilLLMService.StoreIfWorthwhile(ctx, req)
+		assert.NoError(t, err)
+		store.AssertNotCalled(t, "Store")
 	})
 
 	t.Run("Do not store if not worthwhile", func(t *testing.T) {
