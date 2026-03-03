@@ -377,24 +377,26 @@ func WithHookEnabled(enabled bool) HookOption {
 	}
 }
 
-// --- Convenience functions for common hooks ---
+// --- Convenience functions for common hooks (deprecated) ---
+// These functions register into the global HookRegistry which is no longer
+// used by Service. Use svc.RegisterHook(event, handler) instead.
 
-// OnPreToolUse registers a pre-tool hook
+// Deprecated: use svc.RegisterHook(HookEventPreToolUse, handler).
 func OnPreToolUse(handler HookHandler, opts ...HookOption) string {
 	return GlobalHookRegistry().Register(HookEventPreToolUse, handler, opts...)
 }
 
-// OnPostToolUse registers a post-tool hook
+// Deprecated: use svc.RegisterHook(HookEventPostToolUse, handler).
 func OnPostToolUse(handler HookHandler, opts ...HookOption) string {
 	return GlobalHookRegistry().Register(HookEventPostToolUse, handler, opts...)
 }
 
-// OnSubagentStart registers a subagent start hook
+// Deprecated: use svc.RegisterHook(HookEventSubagentStart, handler).
 func OnSubagentStart(handler HookHandler, opts ...HookOption) string {
 	return GlobalHookRegistry().Register(HookEventSubagentStart, handler, opts...)
 }
 
-// OnSubagentStop registers a subagent stop hook
+// Deprecated: use svc.RegisterHook(HookEventSubagentStop, handler).
 func OnSubagentStop(handler HookHandler, opts ...HookOption) string {
 	return GlobalHookRegistry().Register(HookEventSubagentStop, handler, opts...)
 }

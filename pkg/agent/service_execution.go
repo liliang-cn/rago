@@ -676,8 +676,8 @@ func (s *Service) finalizeExecution(ctx context.Context, session *Session, goal 
 	s.ragSources = nil
 	s.ragSourcesMu.Unlock()
 
-	// Emit PostExecution Hook
-	GlobalHookRegistry().Emit(HookEventPostExecution, HookData{
+	// Emit PostExecution Hook on per-service registry
+	s.hooks.Emit(HookEventPostExecution, HookData{
 		SessionID: session.GetID(),
 		AgentID:   session.AgentID,
 		Goal:      goal,

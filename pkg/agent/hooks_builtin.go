@@ -11,7 +11,7 @@ import (
 // RegisterAutoMemoryHook registers a hook that automatically saves important 
 // information to long-term memory after an agent execution.
 func (s *Service) RegisterAutoMemoryHook() string {
-	return GlobalHookRegistry().Register(
+	return s.hooks.Register(
 		HookEventPostExecution,
 		func(ctx context.Context, event HookEvent, data HookData) (interface{}, error) {
 			if s.memoryService == nil {

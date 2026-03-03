@@ -169,7 +169,7 @@ store:         store,
 agent:         agent,
 registry:      registry,
 logger:        logger,
-hooks:         GlobalHookRegistry(),
+hooks:         NewHookRegistry(),
 toolRegistry:  NewToolRegistry(),
 // Public fields - MCP is set separately via SetMCPService
 LLM:     llmService,
