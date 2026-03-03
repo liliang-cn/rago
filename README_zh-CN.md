@@ -1,254 +1,301 @@
-# RAGO: Go 语言原生的一站式 AI 智能体框架
+# RAGO
 
-[English Documentation](README.md)
+**本地优先的 RAG + Agent Go 框架。**
 
-RAGO 是一个专为 Go 开发者打造的生产级 **AI Agent 框架**。它不仅仅是一个简单的 LLM 包装器，而是提供了一个完整的运行时环境，集成了 **混合 RAG（向量+图谱）**、**多智能体协作**、**MCP 工具协议** 以及 **极致透明的文件记忆系统**。
+[English](README.md) · [API 参考](references/API.md) · [架构文档](references/ARCHITECTURE.md)
 
-它旨在帮助开发者构建从简单的聊天机器人到复杂的、拥有长期记忆和工具使用能力的自主智能体。
-
-## 🌟 为什么选择 RAGO？
-
-RAGO 解决了构建复杂 AI 应用时的核心痛点，且采用 **分层架构** 设计，一切皆可控。
-
-| 核心支柱 | 关键能力 |
-| :--- | :--- |
-| **🧠 推理引擎** | **分层设计**: `LLM (基础)` → `RAG (可选知识)` → `Skills/MCP (可选工具)` → `Agent (统一接口)`。 |
-| **📚 知识引擎** | **混合 RAG**: 结合了极速向量搜索与 **基于 SQLite 的 GraphRAG**，支持大规模 **批量 Embedding** 注入。 |
-| **🛠️ 工具引擎** | 原生支持 **MCP (Model Context Protocol)**、**[Claude 兼容技能](SKILLS.md)**、**PTC (程序化工具调用)**，以及 **WebSocket 实时有状态交互**。 |
-| **💾 记忆系统** | **混合存储**: 支持高性能 SQLite 或 **极致透明的 Markdown 文件**。具备自反思 (Reflection) 和智能融合能力。 |
-| **⚡ 运行时** | **确定性工作流**: 独创 **规划 (Plan) -> 审核 (Review) -> 执行 (Execute)**，彻底消除 Agent 的黑盒行为。 |
-| **🔒 本地优先** | 设计为既可离线运行（**Ollama**），也可连接云端。数据完全受物理隔离保护。 |
-
----
-
-## 📦 安装
+RAGO 是一个 Go 库，用于构建数据保持本地的 AI 应用。从文档语义搜索开始，按需添加 Agent 自动化能力。
 
 ```bash
 go get github.com/liliang-cn/rago/v2
 ```
 
-## 🚀 快速开始：Hello World Agent
+---
 
-创建一个能够规划、思考并执行任务的 Agent。
+## 核心能力
+
+| 能力 | 说明 |
+|---|---|
+| **RAG** | 文档摄入 → 分块 → Embedding → SQLite 向量存储 → 混合检索 |
+| **Agent** | 多轮推理循环，支持工具调用、规划和会话记忆 |
+| **Memory** | SQLite 向量记忆 + 语义检索；无 Embedder 时自动降级为按时间列表检索 |
+| **工具** | MCP（模型上下文协议）、Skills（YAML+Markdown）、自定义内联工具 |
+| **PTC** | LLM 写 JavaScript，工具在 Goja 沙箱中运行 — 减少模型往返次数 |
+| **Streaming** | 逐 Token 通道输出；完整事件流可见工具调用过程 |
+| **多 Provider** | OpenAI、Anthropic、Azure、DeepSeek、Ollama — 运行时可切换 |
+
+---
+
+## 快速开始
+
+### 简单问答
 
 ```go
-package main
+svc, _ := agent.New("assistant").
+    WithPrompt("你是一个智能助手。").
+    Build()
+defer svc.Close()
 
-import (
-    "context"
-    "fmt"
-    "github.com/liliang-cn/rago/v2/pkg/agent"
-)
+reply, _ := svc.Ask(ctx, "什么是 Go 语言？")
+fmt.Println(reply)
+```
 
-func main() {
-    ctx := context.Background()
+### 接入 RAG（文档知识库）
 
-    svc, _ := agent.New("my-assistant").
-        WithPrompt("你是一个智能助手。").
-        WithMCP().
-        WithMemory().
-        Build()
-    defer svc.Close()
+```go
+svc, _ := agent.New("assistant").
+    WithPrompt("根据提供的文档回答问题。").
+    WithRAG().
+    WithDBPath("~/.rago/data/agent.db").
+    Build()
+defer svc.Close()
 
-    // 简单问答 — 返回 (string, error)
-    reply, _ := svc.Ask(ctx, "什么是 Go 语言？")
-    fmt.Println(reply)
+// 一次性摄入
+svc.Run(ctx, "摄入 ./docs/ 目录")
 
-    // 完整 Agent 执行 — 规划、工具调用、RAG
-    res, _ := svc.Run(ctx, "研究 Go 1.24 的最新特性并写一份总结存入记忆。")
-    fmt.Println(res.Text())
+// 查询
+reply, _ := svc.Ask(ctx, "规范文档里关于错误处理是怎么说的？")
+```
+
+### 带记忆的多轮对话
+
+```go
+svc, _ := agent.New("assistant").
+    WithMemory().
+    Build()
+defer svc.Close()
+
+svc.Chat(ctx, "我叫 Alice，在支付团队工作。")
+reply, _ := svc.Chat(ctx, "我在哪个团队？")
+// → "你在支付团队，Alice。"
+```
+
+### 流式输出
+
+```go
+// Token 流
+for token := range svc.Stream(ctx, "解释一下 Go 的接口") {
+    fmt.Print(token)
+}
+
+// 完整事件流（工具调用、来源、错误）
+events, _ := svc.RunStream(ctx, "搜索文档并总结")
+for e := range events {
+    switch e.Type {
+    case agent.EventTypePartial:  fmt.Print(e.Content)
+    case agent.EventTypeToolCall: fmt.Printf("[工具: %s]\n", e.ToolName)
+    case agent.EventTypeComplete: fmt.Println("\n完成")
+    }
 }
 ```
 
 ---
 
-## 🏗️ 架构设计
+## Builder
 
-### 分层架构
+所有选项都通过 `agent.New()` 的方法链配置：
 
-RAGO 采用**可裁剪的分层架构** - 按需使用：
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Agent 层                                  │
-│  (规划、执行、Handoffs、SubAgents、PTC)                          │
-├─────────────────────────────────────────────────────────────────┤
-│                     Action 层 (可选)                             │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │  MCP 工具   │  │   Skills    │  │   自定义工具            │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-├─────────────────────────────────────────────────────────────────┤
-│                     RAG 层 (可选)                                │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Chunker   │  │   Embedder  │  │  Vector Store (SQLite)  │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-├─────────────────────────────────────────────────────────────────┤
-│                        LLM 层                                    │
-│  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌─────────┐ ┌──────────┐  │
-│  │ OpenAI  │ │ Ollama  │ │ DeepSeek │ │ Claude  │ │ Azure    │  │
-│  └─────────┘ └─────────┘ └──────────┘ └─────────┘ └──────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+```go
+svc, err := agent.New("my-agent").
+    // 能力模块
+    WithRAG().                                      // rag_query + rag_ingest 工具
+    WithMemory().                                   // memory_save + memory_recall 工具
+    WithMCP().                                      // MCP 工具服务器
+    WithSkills(agent.WithSkillsPaths("./skills")).  // Skill 文件
+    WithPTC().                                      // JS 沙箱工具传输
+    // 配置
+    WithPrompt("你是一个智能助手。").
+    WithDBPath("~/.rago/data/agent.db").
+    WithDebug(true).
+    // 自定义工具
+    WithTool(myDef, myHandler, "category").
+    // 回调
+    WithProgress(func(e *agent.ProgressEvent) { fmt.Println(e.Text) }).
+    Build()
 ```
 
-### 支持的 LLM 提供者
+### Module 系统
 
-| 提供者 | 类型 | 模型 |
-|--------|------|------|
-| OpenAI | 云端 | GPT-4o, GPT-4-turbo, GPT-3.5-turbo |
-| Azure OpenAI | 云端 | GPT-4, GPT-35-turbo |
-| Ollama | 本地 | Llama 3, Mistral, Qwen 等 |
-| DeepSeek | 云端 | DeepSeek-V3, DeepSeek-Coder |
-| Anthropic | 云端 | Claude 3.5 Sonnet, Claude 3 Opus |
+能力模块通过 `Module` 接口自我注册工具：
+
+```go
+// 实现自己的 Module
+type Module interface {
+    ID() string
+    RegisterTools(registry *ToolRegistry) error
+}
+
+svc, _ := agent.New("agent").
+    WithModule(NewMyCustomModule()).
+    Build()
+```
 
 ---
 
-## 🚀 核心特性
+## 调用 API
 
-### 1. 多智能体协作
+| 方法 | 返回值 | 会话 | 适用场景 |
+|---|---|---|---|
+| `Ask(ctx, prompt)` | `(string, error)` | 无 | 单次问答 |
+| `Chat(ctx, prompt)` | `(*ExecutionResult, error)` | 有（自动 UUID） | 对话式交互 |
+| `Run(ctx, goal, ...opts)` | `(*ExecutionResult, error)` | 可选 | 完整 Agent 循环 |
+| `Stream(ctx, prompt)` | `<-chan string` | 无 | 实时 Token 输出 |
+| `ChatStream(ctx, prompt)` | `<-chan string` | 有 | 对话式 + 实时输出 |
+| `RunStream(ctx, goal)` | `(<-chan *Event, error)` | 可选 | 完整事件可见性 |
 
-**Handoffs**: 在专业 Agent 之间传递控制权
 ```go
-// 注册专业 Agent
-svc.RegisterAgent(researchAgent)
-svc.RegisterAgent(writerAgent)
+result, _ := svc.Run(ctx, "目标",
+    agent.WithMaxTurns(20),
+    agent.WithTemperature(0.7),
+    agent.WithSessionID("my-session"),
+    agent.WithStoreHistory(true),
+)
 
-// Agent 可以相互交接任务
-// 编排器会路由到最适合的 Agent
+result.Text()        // 最终回答（字符串）
+result.Err()         // 非 nil 表示 Agent 报告了错误
+result.HasSources()  // true 表示使用了 RAG 检索结果
 ```
 
-**SubAgents**: 委托专注任务，可限制工具访问
+---
+
+## 程序化工具调用（PTC）
+
+使用 `WithPTC()` 时，LLM 生成 JavaScript 代码而非 JSON 工具调用。代码在 Goja 沙箱中运行，可使用 `callTool()`：
+
 ```go
-// 创建具有有限工具的 SubAgent
-sub := agent.NewSubAgent("data-collector", parentAgent).
-    WithTools(allowlist).
-    WithMaxTurns(5).
+svc, _ := agent.New("analyst").
+    WithPTC().
+    WithTool(teamDef, teamHandler, "data").
+    WithTool(expenseDef, expenseHandler, "data").
     Build()
 
-// 委托任务执行
-result := sub.Run(ctx, "收集季度销售数据")
+// LLM 可以这样写代码：
+//   const team = callTool("get_team", { dept: "eng" });
+//   return team.members.map(m => ({
+//     name: m.name,
+//     spend: callTool("get_expenses", { id: m.id }).total
+//   }));
 ```
 
-### 2. 透明文件记忆与智能融合
-记忆不再是黑盒。RAGO 允许将长期记忆存储为人类可读的 **Markdown + YAML** 文件。
-*   **零向量路由**: 自动生成“记忆地图”，无需 Embedding 即可精准定位事实。
-*   **智能融合 (Fusion)**: 当记忆更新时，Agent 会自动合并新旧信息，保证知识的连续生长。
+**适用场景：** 多个依赖工具调用一次完成、数据进入上下文前先转换、需要条件逻辑的工具调用。
 
-### 3. 原生实时交互 (WebSocket)
-基于 OpenAI 最新的 Responses API，RAGO 内置了 WebSocket 会话支持。
-*   **毫秒级响应**: 维持长连接，显著降低多轮对话和工具调用的延迟。
-*   **有状态会话**: 服务器端维持上下文，极大地节省带宽。
+---
 
-### 4. 混合 RAG (向量 + 知识图谱)
-RAGO 不仅仅存储向量，它还会自动构建 **知识图谱**。
-*   **向量搜索**: 用于语义相似度匹配。
-*   **GraphRAG**: 用于发现实体间的隐式关系。
-*   **批量处理**: 支持海量文档的高并发批量 Embedding 注入。
+## 记忆系统
 
-### 5. 确定性规划流 (Plan-Review-Execute)
-为了生产环境的安全性，RAGO 支持显式的规划流程。
+记忆分为两层：
+
+| 层级 | 存储 | 用途 |
+|---|---|---|
+| **DB 记忆** | SQLite + 向量 | 自动学习的事实、对话历史、语义检索 |
+| **文件记忆** | Markdown 文件 | 人类可编辑的人设：`SOUL.md`、`AGENTS.md`、`HEARTBEAT.md` |
+
 ```go
-// 1. 生成计划 (Agent 输出可读的步骤)
-plan, _ := svc.Plan(ctx, "部署一个新的 Web 服务")
+// 启用 DB 记忆（自动从每次对话中学习）
+svc, _ := agent.New("agent").WithMemory().Build()
 
-// 2. 人类在 CLI 或 UI 进行审核...
+// LongRun Agent 自动共享同一个 DB 记忆
+lr, _ := agent.NewLongRun(svc).
+    WithInterval(5 * time.Minute).
+    WithWorkDir("~/.rago/longrun").
+    Build()
+```
 
-// 3. 确认后执行
+无 Embedder 时优雅降级：自动切换为按时间倒序的列表检索。
+
+---
+
+## 自主 Agent（LongRun）
+
+LongRun 按计划运行 Agent，带有持久化任务队列：
+
+```go
+lr, _ := agent.NewLongRun(svc).
+    WithInterval(10 * time.Minute).
+    WithMaxActions(5).
+    Build()
+
+lr.AddTask(ctx, "监控 RSS 订阅并总结新条目", nil)
+lr.Start(ctx)
+// ...
+lr.Stop()
+```
+
+特性：SQLite 任务队列、心跳文件、定时调度、与父 Agent 共享 DB 记忆。
+
+---
+
+## 多 Agent 协作
+
+```go
+// Handoffs — 专业 Agent 路由
+orchestrator.RegisterAgent(researchAgent)
+orchestrator.RegisterAgent(writerAgent)
+// LLM 通过 transfer_to_* 工具调用路由到对应 Agent
+
+// SubAgents — 作用域委托
+coordinator := agent.NewSubAgentCoordinator()
+resultChan  := coordinator.RunAsync(ctx, subAgent)
+results     := coordinator.WaitAll(ctx)
+```
+
+---
+
+## 确定性规划（Plan-Review-Execute）
+
+```go
+plan, _   := svc.Plan(ctx, "部署新服务")
+// 检查 plan.Steps，按需修改
 result, _ := svc.Execute(ctx, plan.ID)
 ```
 
-### 6. 程序化工具调用 (PTC)
-
-PTC 允许 LLM 编写 **JavaScript 代码** 来编排多个工具调用，而不是每次工具调用都需要通过模型进行往返。这大幅降低了延迟和 Token 消耗。
-
-**核心优势：**
-- **降低延迟**：一次性执行多个工具调用
-- **减少 Token**：在数据进入上下文窗口前进行处理
-- **复杂逻辑**：编写代码来过滤、聚合和转换数据
-
-```go
-// 创建 Agent 时启用 PTC
-svc, _ := agent.New("data-analyst").
-    WithPTC().
-    Build()
-
-// LLM 现在可以用代码响应，例如：
-// <code>
-// const team = callTool('get_team_members', { department: 'engineering' });
-// const results = team.members.map(m => {
-//     const expenses = callTool('get_expenses', { member_id: m.id });
-//     return { name: m.name, total: expenses.total };
-// });
-// return results;
-// </code>
-```
-
-详见 [PTC 示例](./examples/ptc/) 获取完整演示。
-
 ---
 
-## 🎯 调用 API
+## Provider 配置
 
-RAGO 提供多种调用方式，满足不同场景需求：
-
-```go
-// Ask — 单次问答，返回 (string, error)
-reply, err := svc.Ask(ctx, "法国的首都是哪里？")
-
-// Chat — 多轮对话（含会话记忆），返回 (string, error)
-reply, err := svc.Chat(ctx, "详细介绍一下")
-
-// Run — 完整 Agent 循环（工具调用、RAG、规划）
-result, err := svc.Run(ctx, "目标", agent.WithMaxTurns(20))
-fmt.Println(result.Text())       // 最终回答
-fmt.Println(result.HasSources()) // RAG 来源是否存在
-
-// Stream — 流式输出，单次
-for token := range svc.Stream(ctx, "写一首诗") {
-    fmt.Print(token)
-}
-
-// ChatStream — 多轮对话 + 流式输出
-for token := range svc.ChatStream(ctx, "继续写下去") {
-    fmt.Print(token)
-}
-
-// RunStream — 完整事件流（工具调用、来源、错误）
-events, err := svc.RunStream(ctx, "复杂的多步骤任务")
-for e := range events {
-    fmt.Println(e.Type, e.Content)
-}
-```
-
----
-
-## ⚙️ 配置指南
-
-RAGO 会在 `./`, `~/.rago/`, 或 `~/.rago/config/` 查找 `rago.toml`。
+`rago.toml` 自动发现路径：`./`、`~/.rago/`、`~/.rago/config/`
 
 ```toml
-[server]
-port = 7127
-
-[llm_pool]
-enabled = true
-strategy = "round_robin"
+[[llm_pool.providers]]
+name     = "openai"
+provider = "openai"
+api_key  = "sk-..."
+model    = "gpt-4o"
 
 [[llm_pool.providers]]
-name = "openai"
-provider = "openai"
-api_key = "sk-..."
-model = "gpt-4o"
+name     = "local"
+provider = "ollama"
+base_url = "http://localhost:11434"
+model    = "qwen2.5:14b"
 ```
 
-## 📚 示例代码
+支持：OpenAI · Anthropic · Azure OpenAI · DeepSeek · Ollama（本地）
 
-请查看 `examples/` 目录获取深入的示例：
-*   **[quickstart](./examples/quickstart/)**: 最简单的入门示例。
-*   **[agent_usage](./examples/agent/agent_usage/)**: 完整的 Agent 使用模式。
-*   **[realtime_chat](./examples/agent/realtime_chat/)**: WebSocket 实时对话演示。
-*   **[multi_agent_orchestration](./examples/agent/multi_agent_orchestration/)**: 包含 Handoffs 和流式输出的完整演示。
-*   **[subagent](./examples/subagent/)**: SubAgent 并行执行模式。
-*   **[ptc](./examples/ptc/)**: 程序化工具调用示例。
+---
 
-## 📄 许可证
-MIT License - Copyright (c) 2024-2026 RAGO Authors.
+## 示例
+
+```
+examples/
+├── quickstart/               — 最简入门示例
+├── agent/
+│   ├── agent_usage/          — Builder 模式、工具注册
+│   ├── multi_agent_orchestration/ — Handoffs + 流式输出
+│   ├── longrun/              — 自主定时 Agent
+│   └── realtime_chat/        — WebSocket 会话
+├── rag/                      — 文档摄入 + 问答
+├── memory/
+│   ├── chat_with_memory/     — DB 记忆 + 对话
+│   └── smart_fusion/         — 记忆合并
+├── ptc/
+│   ├── custom_tools/         — JS 沙箱工具编排
+│   └── memory_chat/          — PTC + 记忆
+├── skills/                   — Skill 文件
+└── mcp/                      — MCP 工具服务器
+```
+
+---
+
+## License
+
+MIT — Copyright (c) 2024–2026 RAGO Authors
