@@ -102,7 +102,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 	}
 
 	// Automatic metadata extraction
-	if s.config.Ingest.MetadataExtraction.Enable {
+	if s.config.Ingest.MetadataExtraction.Enable && s.llmService != nil {
 		log.Println("Enhanced metadata extraction enabled, calling LLM...")
 		// Use default model from pool
 		extracted, err := s.llmService.ExtractMetadata(ctx, content, "")
