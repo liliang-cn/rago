@@ -20,7 +20,7 @@ func main() {
 	_ = os.RemoveAll(testDir)
 	os.MkdirAll(testDir, 0755)
 
-	fmt.Println("=== PTC + Memory + Chat 综合测试 ===\n")
+	fmt.Println("=== PTC + Memory + Chat 综合测试 ===")
 
 	// 定义工具参数类型（在 builder 链之前声明）
 	type calcArgs struct {
@@ -62,7 +62,7 @@ func main() {
 	fmt.Println("  Memory:   true")
 	fmt.Println("  MCP:      false")
 	fmt.Println("  Debug:    true")
-	fmt.Println("---------------------------\n")
+	fmt.Println("---------------------------")
 
 	// ========== 第一轮对话：PTC + Memory 保存 ==========
 	fmt.Println("【第一轮对话】使用 PTC 计算并保存偏好到 Memory")

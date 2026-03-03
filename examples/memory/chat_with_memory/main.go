@@ -18,7 +18,7 @@ func main() {
 	_ = os.RemoveAll(testDir)
 	os.MkdirAll(testDir, 0755)
 
-	fmt.Println("=== Memory + Chat 集成测试 ===\n")
+	fmt.Println("=== Memory + Chat 集成测试 ===")
 
 	// 1. 创建带 Memory 的 Agent
 	svc, err := agent.New("MemoryBot").
