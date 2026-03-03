@@ -217,7 +217,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 				// Handle Handoff immediately (sequential) as it changes state
 				if strings.HasPrefix(toolCall.Function.Name, "transfer_to_") {
 					res, err, isHandoff := r.executeToolOrHandoff(ctx, toolCall)
-					toolResults[idx].Content = fmt.Sprintf("%v", res)
+					toolResults[idx].Content = toolResultToString(res)
 					if err != nil {
 						toolResults[idx].Content = fmt.Sprintf("Error: %v", err)
 					}
@@ -241,7 +241,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 					if err != nil {
 						content = fmt.Sprintf("Error: %v", err)
 					} else {
-						content = fmt.Sprintf("%v", res)
+						content = toolResultToString(res)
 					}
 
 					toolResults[idx].Content = content

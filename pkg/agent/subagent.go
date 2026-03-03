@@ -507,7 +507,7 @@ func (sa *SubAgent) execute(ctx context.Context) (interface{}, error) {
 				if toolErr != nil {
 					content = fmt.Sprintf("Error: %v", toolErr)
 				} else {
-					content = fmt.Sprintf("%v", toolResult)
+					content = toolResultToString(toolResult)
 				}
 
 				messages = append(messages, domain.Message{

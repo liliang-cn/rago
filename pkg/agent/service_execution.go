@@ -190,6 +190,24 @@ func (s *Service) isDuplicateToolCall(toolCalls []domain.ToolCall, seen map[stri
 	return false
 }
 
+// toolResultToString converts a tool execution result to a string suitable for
+// the LLM's "tool" role message. Strings are returned as-is; maps and slices
+// are JSON-encoded so the LLM receives well-structured output rather than Go's
+// fmt.Sprintf("%v") representation (e.g. "map[key:value]").
+func toolResultToString(result interface{}) string {
+	switch v := result.(type) {
+	case string:
+		return v
+	case nil:
+		return ""
+	default:
+		if b, err := json.Marshal(v); err == nil {
+			return string(b)
+		}
+		return fmt.Sprintf("%v", v)
+	}
+}
+
 // appendToolRoundToMessages appends the assistant message and tool result messages.
 func (s *Service) appendToolRoundToMessages(messages []domain.Message, result *domain.GenerationResult, toolResults []ToolExecutionResult) []domain.Message {
 	messages = append(messages, domain.Message{
@@ -199,10 +217,7 @@ func (s *Service) appendToolRoundToMessages(messages []domain.Message, result *d
 		ToolCalls:        result.ToolCalls,
 	})
 	for _, tr := range toolResults {
-		resStr := fmt.Sprintf("%v", tr.Result)
-		if str, ok := tr.Result.(string); ok {
-			resStr = str
-		}
+		resStr := toolResultToString(tr.Result)
 		messages = append(messages, domain.Message{
 			Role:       "tool",
 			Content:    resStr,
