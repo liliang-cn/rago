@@ -43,17 +43,20 @@ import (
 func main() {
     ctx := context.Background()
 
-    // 1. 初始化服务 (运行时环境)
-    // 方式一：链式构建器
     svc, _ := agent.New("my-assistant").
+        WithPrompt("你是一个智能助手。").
         WithMCP().
-        WithMemory(agent.WithMemoryStoreType("file")).
+        WithMemory().
         Build()
     defer svc.Close()
 
-    // 2. 运行任务
+    // 简单问答 — 返回 (string, error)
+    reply, _ := svc.Ask(ctx, "什么是 Go 语言？")
+    fmt.Println(reply)
+
+    // 完整 Agent 执行 — 规划、工具调用、RAG
     res, _ := svc.Run(ctx, "研究 Go 1.24 的最新特性并写一份总结存入记忆。")
-    fmt.Println(res.FinalResult)
+    fmt.Println(res.Text())
 }
 ```
 
@@ -180,6 +183,41 @@ svc, _ := agent.New("data-analyst").
 ```
 
 详见 [PTC 示例](./examples/ptc/) 获取完整演示。
+
+---
+
+## 🎯 调用 API
+
+RAGO 提供多种调用方式，满足不同场景需求：
+
+```go
+// Ask — 单次问答，返回 (string, error)
+reply, err := svc.Ask(ctx, "法国的首都是哪里？")
+
+// Chat — 多轮对话（含会话记忆），返回 (string, error)
+reply, err := svc.Chat(ctx, "详细介绍一下")
+
+// Run — 完整 Agent 循环（工具调用、RAG、规划）
+result, err := svc.Run(ctx, "目标", agent.WithMaxTurns(20))
+fmt.Println(result.Text())       // 最终回答
+fmt.Println(result.HasSources()) // RAG 来源是否存在
+
+// Stream — 流式输出，单次
+for token := range svc.Stream(ctx, "写一首诗") {
+    fmt.Print(token)
+}
+
+// ChatStream — 多轮对话 + 流式输出
+for token := range svc.ChatStream(ctx, "继续写下去") {
+    fmt.Print(token)
+}
+
+// RunStream — 完整事件流（工具调用、来源、错误）
+events, err := svc.RunStream(ctx, "复杂的多步骤任务")
+for e := range events {
+    fmt.Println(e.Type, e.Content)
+}
+```
 
 ---
 
