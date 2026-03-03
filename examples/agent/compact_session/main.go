@@ -33,13 +33,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("Chat failed: %v", err)
 	}
-	fmt.Printf("Agent: %v\n\n", res1.FinalResult)
+	fmt.Printf("Agent: %s\n\n", res1.Text())
 
 	res2, err := svc.Chat(ctx, "I like hiking and reading science fiction. I'm currently learning Go programming.")
 	if err != nil {
 		log.Fatalf("Chat failed: %v", err)
 	}
-	fmt.Printf("Agent: %v\n\n", res2.FinalResult)
+	fmt.Printf("Agent: %s\n\n", res2.Text())
 
 	sessionID := svc.CurrentSessionID()
 	fmt.Printf("Current Session ID: %s\n\n", sessionID)
@@ -59,7 +59,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Chat failed: %v", err)
 	}
-	fmt.Printf("Agent: %v\n", res3.FinalResult)
+	fmt.Printf("Agent: %s\n", res3.Text())
 
 	fmt.Println("\nSession compaction example completed successfully!")
 }

@@ -41,7 +41,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("MemoryBot: %v\n\n", res1.FinalResult)
+	fmt.Printf("MemoryBot: %s\n\n", res1.Text())
 
 	// ========== 第二轮对话：短期记忆测试 ==========
 	fmt.Println("【第二轮对话】测试短期记忆（同一会话）")
@@ -51,7 +51,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("MemoryBot: %v\n\n", res2.FinalResult)
+	fmt.Printf("MemoryBot: %s\n\n", res2.Text())
 
 	// ========== 查看磁盘上的记忆文件 ==========
 	fmt.Println("【检查磁盘记忆文件】")
@@ -71,7 +71,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("MemoryBot: %v\n\n", res3.FinalResult)
+	fmt.Printf("MemoryBot: %s\n\n", res3.Text())
 
 	// ========== 更新记忆测试 ==========
 	fmt.Println("【第四轮对话】更新记忆")
@@ -81,7 +81,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("MemoryBot: %v\n\n", res4.FinalResult)
+	fmt.Printf("MemoryBot: %s\n\n", res4.Text())
 
 	// ========== 最终验证 ==========
 	fmt.Println("【最终验证】检查更新后的记忆")

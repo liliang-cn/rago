@@ -51,7 +51,7 @@ func main() {
 		log.Fatalf("Run failed: %v", err)
 	}
 
-	fmt.Printf("\nFinal Result: %v\n", res.FinalResult)
+	fmt.Printf("\nFinal Result: %s\n", res.Text())
 
 	fmt.Println("\nSkills integration example completed successfully!")
 }

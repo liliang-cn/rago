@@ -72,7 +72,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("PTCMemoryBot: %v\n\n", result1.FinalResult)
+	fmt.Printf("PTCMemoryBot: %s\n\n", result1.Text())
 
 	// ========== 第二轮对话：PTC 多工具调用 ==========
 	fmt.Println("【第二轮对话】使用 PTC 调用多个工具")
@@ -82,7 +82,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("PTCMemoryBot: %v\n\n", result2.FinalResult)
+	fmt.Printf("PTCMemoryBot: %s\n\n", result2.Text())
 
 	// ========== 第三轮对话：Memory 检索 ==========
 	fmt.Println("【第三轮对话】验证 Memory 检索")
@@ -92,7 +92,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("PTCMemoryBot: %v\n\n", result3.FinalResult)
+	fmt.Printf("PTCMemoryBot: %s\n\n", result3.Text())
 
 	// ========== 检查记忆文件 ==========
 	fmt.Println("【检查记忆文件】")
@@ -115,7 +115,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
-	fmt.Printf("PTCMemoryBot: %v\n", result4.FinalResult)
+	fmt.Printf("PTCMemoryBot: %s\n", result4.Text())
 
 	fmt.Println("\n=== 测试完成 ===")
 	fmt.Println("PTC + Memory + Chat 集成正常工作！")

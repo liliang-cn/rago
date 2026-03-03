@@ -77,7 +77,7 @@ func main() {
 		log.Fatalf("Run failed: %v", err)
 	}
 
-	fmt.Printf("\nResult: %v\n", result.FinalResult)
+	fmt.Printf("\nResult: %s\n", result.Text())
 
 	// === Direct Tool Call via Transparent Access ===
 	fmt.Println("\n--- Direct Tool Call via Transparent Access ---")

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
@@ -79,6 +80,44 @@ type ExecutionResult struct {
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 	// PTCResult contains PTC execution details when PTC mode is active.
 	PTCResult *PTCResult `json:"ptc_result,omitempty"`
+}
+
+// Text returns the agent's text response as a plain string.
+// This is the idiomatic accessor for library integrations — use this
+// instead of type-asserting or fmt.Sprintf'ing FinalResult.
+//
+//	result, err := svc.Chat(ctx, "Hello")
+//	fmt.Println(result.Text())
+func (r *ExecutionResult) Text() string {
+	if r == nil {
+		return ""
+	}
+	if s, ok := r.FinalResult.(string); ok {
+		return s
+	}
+	if r.FinalResult != nil {
+		return fmt.Sprintf("%v", r.FinalResult)
+	}
+	return ""
+}
+
+// Err returns the execution error as a Go error, or nil on success.
+// Useful for pipeline-style integrations where the caller only checks errors.
+//
+//	result, err := svc.Run(ctx, goal)
+//	if err := result.Err(); err != nil {
+//	    return err
+//	}
+func (r *ExecutionResult) Err() error {
+	if r == nil || r.Error == "" {
+		return nil
+	}
+	return fmt.Errorf("%s", r.Error)
+}
+
+// HasSources reports whether the result contains RAG source documents.
+func (r *ExecutionResult) HasSources() bool {
+	return r != nil && len(r.Sources) > 0
 }
 
 // ============================================================

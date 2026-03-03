@@ -27,23 +27,36 @@ func main() {
 	fmt.Println("=== RAGO Quickstart ===")
 	fmt.Println()
 
-	// Create an agent - that's it! Configuration is loaded from ~/.rago/config/rago.toml
+	// Create an agent - configuration is loaded from ~/.rago/config/rago.toml
 	svc, err := agent.New("quickstart").Build()
 	if err != nil {
 		log.Fatalf("Failed to create agent: %v", err)
 	}
 	defer svc.Close()
 
-	// Ask a question
+	// Ask() — the simplest API: returns (string, error) directly.
 	fmt.Println("Q: What can you help me with?")
 	fmt.Print("A: ")
 
-	result, err := svc.Run(ctx, "What can you help me with? Give a brief answer.")
+	reply, err := svc.Ask(ctx, "What can you help me with? Give a brief answer.")
 	if err != nil {
 		log.Fatalf("Failed: %v", err)
 	}
+	fmt.Println(reply)
 
-	fmt.Printf("%v\n", result.FinalResult)
+	fmt.Println()
+
+	// Chat() — multi-turn conversation, returns *ExecutionResult with
+	// session ID, RAG sources, PTC details. Use result.Text() for the reply.
+	fmt.Println("Q: What is 2+2?")
+	fmt.Print("A: ")
+
+	result, err := svc.Chat(ctx, "What is 2+2? Answer in one sentence.")
+	if err != nil {
+		log.Fatalf("Failed: %v", err)
+	}
+	fmt.Println(result.Text())
+
 	fmt.Println()
 	fmt.Println("✅ Done! Explore more examples in the examples/ directory.")
 }

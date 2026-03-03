@@ -40,5 +40,5 @@ func main() {
 	}
 
 	fmt.Println("\n=== 最终结果 ===")
-	fmt.Printf("%v\n", result.FinalResult)
+	fmt.Println(result.Text())
 }
