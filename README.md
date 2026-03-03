@@ -1,252 +1,302 @@
-# RAGO: Unified AI Agent Framework for Go
+# RAGO
 
-[中文文档](README_zh-CN.md)
+**Local-first RAG + Agent framework for Go.**
 
-RAGO is a production-grade **AI Agent framework** built for Go developers. It provides a complete runtime environment integrating **Hybrid RAG (Vector + Graph)**, **Multi-Agent Orchestration**, **MCP Tool Protocol**, and a **Transparent File-based Memory System**.
+[中文文档](README_zh-CN.md) · [API Reference](references/API.md) · [Architecture](references/ARCHITECTURE.md)
 
-It enables developers to build anything from simple chatbots to complex, autonomous agents with long-term memory and tool-using capabilities.
-
-## 🌟 Why RAGO?
-
-RAGO solves the core pain points of building complex AI applications with a **Layered Architecture** where everything is controllable.
-
-| Core Pillars | Key Capabilities |
-| :--- | :--- |
-| **🧠 Reasoning** | **Layered Design**: `LLM (Base)` → `RAG (Optional)` → `Skills/MCP (Optional)` → `Agent (Interface)`. |
-| **📚 Knowledge** | **Hybrid RAG**: Fast vector search combined with **SQLite-based GraphRAG**. Supports massive **Batch Embedding**. |
-| **🛠️ Tools** | Native support for **MCP (Model Context Protocol)**, **[Claude-compatible Skills](SKILLS.md)**, **PTC (Programmatic Tool Calling)**, and **WebSocket Realtime Sessions**. |
-| **💾 Memory** | **Hybrid Storage**: High-performance SQLite or **Transparent Markdown files**. Features self-reflection and Smart Fusion. |
-| **⚡ Runtime** | **Deterministic Workflow**: Unique **Plan -> Review -> Execute** loop to eliminate black-box AI behavior. |
-| **🔒 Local-First** | Run entirely offline (**Ollama**) or connect to the cloud. Your data is physically isolated and protected. |
-
----
-
-## 📦 Installation
+RAGO is a Go library for building AI applications that keep your data local. Start with semantic search over your documents, add agent automation when you need it.
 
 ```bash
 go get github.com/liliang-cn/rago/v2
 ```
 
-## 🚀 Quick Start: Hello World Agent
+---
 
-Create an agent that can plan, think, and execute tasks.
+## What RAGO does
+
+| Capability | Details |
+|---|---|
+| **RAG** | Ingest docs → chunk → embed → SQLite vector store → hybrid search |
+| **Agent** | Multi-turn reasoning loop with tool calls, planning, and session memory |
+| **Memory** | SQLite-backed with semantic recall; degrades gracefully to list-based without an embedder |
+| **Tools** | MCP (Model Context Protocol), Skills (YAML+Markdown), custom inline tools |
+| **PTC** | LLM writes JavaScript; tools run in a Goja sandbox — cuts round-trips |
+| **Streaming** | Token-by-token via channel; full event stream with tool call visibility |
+| **Providers** | OpenAI, Anthropic, Azure, DeepSeek, Ollama — switchable at runtime |
+
+---
+
+## Quick Start
+
+### Simple Q&A
 
 ```go
-package main
+svc, _ := agent.New("assistant").
+    WithPrompt("You are a helpful assistant.").
+    Build()
+defer svc.Close()
 
-import (
-    "context"
-    "fmt"
-    "github.com/liliang-cn/rago/v2/pkg/agent"
-)
+reply, _ := svc.Ask(ctx, "What is Go?")
+fmt.Println(reply)
+```
 
-func main() {
-    ctx := context.Background()
+### With RAG (document knowledge base)
 
-    svc, _ := agent.New("my-assistant").
-        WithPrompt("You are a helpful assistant.").
-        WithMCP().
-        WithMemory().
-        Build()
-    defer svc.Close()
+```go
+svc, _ := agent.New("assistant").
+    WithPrompt("Answer questions based on the provided documents.").
+    WithRAG().
+    WithDBPath("~/.rago/data/agent.db").
+    Build()
+defer svc.Close()
 
-    // Simple Q&A — returns (string, error)
-    reply, _ := svc.Ask(ctx, "What is Go?")
-    fmt.Println(reply)
+// Ingest once
+svc.Run(ctx, "Ingest ./docs/")
 
-    // Full agentic run — planning, tool calls, RAG
-    res, _ := svc.Run(ctx, "Research Go 1.24 features and save a summary to memory.")
-    fmt.Println(res.Text())
+// Query
+reply, _ := svc.Ask(ctx, "What does the spec say about error handling?")
+```
+
+### Multi-turn chat with memory
+
+```go
+svc, _ := agent.New("assistant").
+    WithMemory().
+    Build()
+defer svc.Close()
+
+svc.Chat(ctx, "My name is Alice and I work on the payments team.")
+reply, _ := svc.Chat(ctx, "What team am I on?")
+// → "You're on the payments team, Alice."
+```
+
+### Streaming
+
+```go
+// Token stream
+for token := range svc.Stream(ctx, "Explain Go interfaces") {
+    fmt.Print(token)
+}
+
+// Full event stream (tool calls, sources, errors)
+events, _ := svc.RunStream(ctx, "Search the docs and summarize")
+for e := range events {
+    switch e.Type {
+    case agent.EventTypePartial:  fmt.Print(e.Content)
+    case agent.EventTypeToolCall: fmt.Printf("[tool: %s]\n", e.ToolName)
+    case agent.EventTypeComplete: fmt.Println("\ndone")
+    }
 }
 ```
 
 ---
 
-## 🏗️ Architecture
+## Builder
 
-### Layered Design
+Every option is a method chain on `agent.New()`:
 
-RAGO uses a **trimmable layered architecture** - use only what you need:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Agent Layer                               │
-│  (Planning, Execution, Handoffs, SubAgents, PTC)                │
-├─────────────────────────────────────────────────────────────────┤
-│                     Action Layer (Optional)                      │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │  MCP Tools  │  │   Skills    │  │   Custom Tools          │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-├─────────────────────────────────────────────────────────────────┤
-│                     RAG Layer (Optional)                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Chunker   │  │   Embedder  │  │  Vector Store (SQLite)  │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-├─────────────────────────────────────────────────────────────────┤
-│                        LLM Layer                                 │
-│  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌─────────┐ ┌──────────┐  │
-│  │ OpenAI  │ │ Ollama  │ │ DeepSeek │ │ Claude  │ │ Azure    │  │
-│  └─────────┘ └─────────┘ └──────────┘ └─────────┘ └──────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+```go
+svc, err := agent.New("my-agent").
+    // Capabilities
+    WithRAG().                                      // rag_query + rag_ingest tools
+    WithMemory().                                   // memory_save + memory_recall tools
+    WithMCP().                                      // MCP tool servers
+    WithSkills(agent.WithSkillsPaths("./skills")).  // Skill files
+    WithPTC().                                      // JS sandbox tool transport
+    // Config
+    WithPrompt("You are a helpful assistant.").
+    WithDBPath("~/.rago/data/agent.db").
+    WithDebug(true).
+    // Custom tools
+    WithTool(myDef, myHandler, "category").
+    // Callbacks
+    WithProgress(func(e *agent.ProgressEvent) { fmt.Println(e.Text) }).
+    Build()
 ```
 
-### Supported LLM Providers
+### Module system
 
-| Provider | Type | Models |
-|----------|------|--------|
-| OpenAI | Cloud | GPT-4o, GPT-4-turbo, GPT-3.5-turbo |
-| Azure OpenAI | Cloud | GPT-4, GPT-35-turbo |
-| Ollama | Local | Llama 3, Mistral, Qwen, etc. |
-| DeepSeek | Cloud | DeepSeek-V3, DeepSeek-Coder |
-| Anthropic | Cloud | Claude 3.5 Sonnet, Claude 3 Opus |
+Capabilities self-register their tools via the `Module` interface:
+
+```go
+// Implement your own module
+type Module interface {
+    ID() string
+    RegisterTools(registry *ToolRegistry) error
+}
+
+svc, _ := agent.New("agent").
+    WithModule(NewMyCustomModule()).
+    Build()
+```
 
 ---
 
-## 🚀 Key Features
+## Invocation API
 
-### 1. Multi-Agent Orchestration
+| Method | Returns | Session | Use case |
+|---|---|---|---|
+| `Ask(ctx, prompt)` | `(string, error)` | no | one-shot Q&A |
+| `Chat(ctx, prompt)` | `(*ExecutionResult, error)` | yes (auto UUID) | conversational |
+| `Run(ctx, goal, ...opts)` | `(*ExecutionResult, error)` | optional | full agent loop |
+| `Stream(ctx, prompt)` | `<-chan string` | no | live token output |
+| `ChatStream(ctx, prompt)` | `<-chan string` | yes | conversational + live |
+| `RunStream(ctx, goal)` | `(<-chan *Event, error)` | optional | full event visibility |
 
-**Handoffs**: Transfer control between specialized agents
 ```go
-// Register specialized agents
-svc.RegisterAgent(researchAgent)
-svc.RegisterAgent(writerAgent)
+result, _ := svc.Run(ctx, "goal",
+    agent.WithMaxTurns(20),
+    agent.WithTemperature(0.7),
+    agent.WithSessionID("my-session"),
+    agent.WithStoreHistory(true),
+)
 
-// Agents can hand off tasks to each other
-// The orchestrator routes to the best agent for each task
+result.Text()        // final answer as string
+result.Err()         // non-nil if agent reported an error
+result.HasSources()  // true when RAG chunks were used
 ```
 
-**SubAgents**: Delegate focused tasks with restricted tool access
+---
+
+## Programmatic Tool Calling (PTC)
+
+With `WithPTC()`, the LLM generates JavaScript instead of JSON tool calls. The code runs in a Goja sandbox where `callTool()` is available:
+
 ```go
-// Create a SubAgent with limited tools
-sub := agent.NewSubAgent("data-collector", parentAgent).
-    WithTools(allowlist).
-    WithMaxTurns(5).
+svc, _ := agent.New("analyst").
+    WithPTC().
+    WithTool(teamDef, teamHandler, "data").
+    WithTool(expenseDef, expenseHandler, "data").
     Build()
 
-// Delegate task execution
-result := sub.Run(ctx, "Collect quarterly sales data")
+// The LLM can now write:
+//   const team = callTool("get_team", { dept: "eng" });
+//   return team.members.map(m => ({
+//     name: m.name,
+//     spend: callTool("get_expenses", { id: m.id }).total
+//   }));
 ```
 
-### 2. Transparent Memory & Smart Fusion
-Memory is no longer a black box. RAGO stores long-term facts as human-readable **Markdown + YAML** files.
-*   **Zero-Embedding Routing**: Automated "Memory Maps" for precise fact-finding without embedding costs.
-*   **Smart Fusion**: Agents automatically merge new insights into existing files, ensuring knowledge evolves continuously.
+**When to use PTC:** multiple dependent tool calls in one shot, data transformation before it hits the context window, conditional tool logic.
 
-### 3. Native Realtime Interaction (WebSocket)
-Built-in support for WebSockets via OpenAI's latest Responses API.
-*   **Sub-second Latency**: Persistent connections for low-overhead multi-turn tool calls.
-*   **Stateful Sessions**: Server-side context management to save bandwidth.
+---
 
-### 4. Hybrid RAG (Vector + Knowledge Graph)
-*   **Vector Search**: For semantic similarity.
-*   **GraphRAG**: Discover implicit relationships between entities.
-*   **Batching**: High-concurrency embedding injection for massive datasets.
+## Memory
 
-### 5. Deterministic Planning (Plan-Review-Execute)
+Memory has two layers:
+
+| Layer | Storage | What for |
+|---|---|---|
+| **DB Memory** | SQLite + vectors | Auto-learned facts, conversation history, semantic recall |
+| **File Memory** | Markdown files | Human-editable persona: `SOUL.md`, `AGENTS.md`, `HEARTBEAT.md` |
+
 ```go
-// 1. Generate Plan (Readable steps)
-plan, _ := svc.Plan(ctx, "Deploy a new web service")
+// Enable DB memory (auto-learns from every conversation)
+svc, _ := agent.New("agent").WithMemory().Build()
 
-// 2. Human reviews the steps in CLI or UI...
+// LongRun agents share the same DB memory automatically
+lr, _ := agent.NewLongRun(svc).
+    WithInterval(5 * time.Minute).
+    WithWorkDir("~/.rago/longrun").
+    Build()
+```
 
-// 3. Execute after confirmation
+Memory degrades gracefully: no embedder → falls back to recency-based list retrieval.
+
+---
+
+## Autonomous Agents (LongRun)
+
+LongRun runs an agent on a schedule with a persistent task queue:
+
+```go
+lr, _ := agent.NewLongRun(svc).
+    WithInterval(10 * time.Minute).
+    WithMaxActions(5).
+    Build()
+
+lr.AddTask(ctx, "Monitor RSS feeds and summarize new entries", nil)
+lr.Start(ctx)
+// ...
+lr.Stop()
+```
+
+Features: SQLite task queue, heartbeat file, cron-style scheduling, shared DB memory with the parent agent.
+
+---
+
+## Multi-Agent Orchestration
+
+```go
+// Handoffs — specialist agents
+orchestrator.RegisterAgent(researchAgent)
+orchestrator.RegisterAgent(writerAgent)
+// The LLM routes to the right agent via transfer_to_* tool calls
+
+// SubAgents — scoped delegation
+coordinator := agent.NewSubAgentCoordinator()
+resultChan  := coordinator.RunAsync(ctx, subAgent)
+results     := coordinator.WaitAll(ctx)
+```
+
+---
+
+## Planning (deterministic workflow)
+
+```go
+plan, _   := svc.Plan(ctx, "Deploy the new service")
+// inspect plan.Steps, edit if needed
 result, _ := svc.Execute(ctx, plan.ID)
 ```
 
-### 6. Programmatic Tool Calling (PTC)
-
-PTC allows the LLM to write **JavaScript code** that orchestrates multiple tool calls in a single execution, instead of requiring round-trips through the model for each tool invocation. This substantially reduces latency and token consumption.
-
-**Benefits:**
-- **Reduced Latency**: Execute multiple tools in one shot
-- **Lower Token Usage**: Process large results before they hit the context window
-- **Complex Logic**: Write code to filter, aggregate, and transform data
-
-```go
-// Enable PTC when creating an agent
-svc, _ := agent.New("data-analyst").
-    WithPTC().
-    Build()
-
-// The LLM can now respond with code like:
-// <code>
-// const team = callTool('get_team_members', { department: 'engineering' });
-// const results = team.members.map(m => {
-//     const expenses = callTool('get_expenses', { member_id: m.id });
-//     return { name: m.name, total: expenses.total };
-// });
-// return results;
-// </code>
-```
-
-See the [PTC examples](./examples/ptc/) for complete demos.
-
 ---
 
-## 🎯 Invocation API
+## Providers
 
-RAGO provides multiple invocation styles to match your use case:
-
-```go
-// Ask — one-shot Q&A, returns (string, error)
-reply, err := svc.Ask(ctx, "What is the capital of France?")
-
-// Chat — multi-turn with session memory, returns (string, error)
-reply, err := svc.Chat(ctx, "Tell me more about it")
-
-// Run — full agentic loop (tool calls, RAG, planning)
-result, err := svc.Run(ctx, "goal", agent.WithMaxTurns(20))
-fmt.Println(result.Text())       // final answer
-fmt.Println(result.HasSources()) // true if RAG sources attached
-
-// Stream — live token output, one-shot
-for token := range svc.Stream(ctx, "Write a poem") {
-    fmt.Print(token)
-}
-
-// ChatStream — multi-turn + live tokens
-for token := range svc.ChatStream(ctx, "Continue the story") {
-    fmt.Print(token)
-}
-
-// RunStream — full event stream (tool calls, sources, errors)
-events, err := svc.RunStream(ctx, "Complex multi-step task")
-for e := range events {
-    fmt.Println(e.Type, e.Content)
-}
-```
-
----
-
-## ⚙️ Configuration
-
-RAGO looks for `rago.toml` in `./`, `~/.rago/`, or `~/.rago/config/`.
+Configure in `rago.toml` (auto-discovered in `./`, `~/.rago/`, `~/.rago/config/`):
 
 ```toml
-[server]
-port = 7127
-
-[llm_pool]
-enabled = true
-strategy = "round_robin"
+[[llm_pool.providers]]
+name     = "openai"
+provider = "openai"
+api_key  = "sk-..."
+model    = "gpt-4o"
 
 [[llm_pool.providers]]
-name = "openai"
-provider = "openai"
-api_key = "sk-..."
-model = "gpt-4o"
+name     = "local"
+provider = "ollama"
+base_url = "http://localhost:11434"
+model    = "qwen2.5:14b"
 ```
 
-## 📚 Examples
+Supported: OpenAI · Anthropic · Azure OpenAI · DeepSeek · Ollama (local)
 
-Check the `examples/` directory for deep dives:
-*   **[quickstart](./examples/quickstart/)**: Simplest way to get started.
-*   **[agent_usage](./examples/agent/agent_usage/)**: Complete agent usage patterns.
-*   **[realtime_chat](./examples/agent/realtime_chat/)**: WebSocket realtime demo.
-*   **[multi_agent_orchestration](./examples/agent/multi_agent_orchestration/)**: Comprehensive demo with Handoffs and streaming.
-*   **[subagent](./examples/subagent/)**: SubAgent patterns for parallel execution.
-*   **[ptc](./examples/ptc/)**: Programmatic Tool Calling examples.
+---
 
-## 📄 License
-MIT License - Copyright (c) 2024-2026 RAGO Authors.
+## Examples
+
+```
+examples/
+├── quickstart/               — simplest possible agent
+├── agent/
+│   ├── agent_usage/          — builder patterns, tool registration
+│   ├── multi_agent_orchestration/ — handoffs + streaming
+│   ├── longrun/              — autonomous scheduled agent
+│   └── realtime_chat/        — WebSocket session
+├── rag/                      — document ingestion + Q&A
+├── memory/
+│   ├── chat_with_memory/     — DB memory + chat
+│   └── smart_fusion/         — memory merging
+├── ptc/
+│   ├── custom_tools/         — JS sandbox tool orchestration
+│   └── memory_chat/          — PTC + memory
+├── skills/                   — Skill files
+└── mcp/                      — MCP tool servers
+```
+
+---
+
+## License
+
+MIT — Copyright (c) 2024–2026 RAGO Authors
+
