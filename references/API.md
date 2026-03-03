@@ -11,7 +11,7 @@ svc, err := agent.New("my-agent").
     WithSkills().                         // Enable Skills
     WithMemory().                         // Enable Memory (self-registers memory_save/recall)
     WithDBPath("~/.rago/data/agent.db").  // Storage path
-    WithSystem("You are a helpful assistant."). // System prompt
+    WithPrompt("You are a helpful assistant."). // System prompt
     WithDebug().                          // Debug mode (variadic: WithDebug(false) to disable)
     Build()
 ```
