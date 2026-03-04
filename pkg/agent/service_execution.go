@@ -624,7 +624,7 @@ func (s *Service) executeLLMToolCalls(ctx context.Context, toolCalls []domain.To
 }
 
 // finalizeExecution finalizes the execution result
-func (s *Service) finalizeExecution(ctx context.Context, session *Session, goal string, intent *IntentRecognitionResult, memoryMemories []*domain.MemoryWithScore, ragResult string, finalResult interface{}) (*ExecutionResult, error) {
+func (s *Service) finalizeExecution(ctx context.Context, session *Session, goal string, intent *IntentRecognitionResult, memoryMemories []*domain.MemoryWithScore, memoryLogic string, ragResult string, finalResult interface{}) (*ExecutionResult, error) {
 	// Store to memory after completion
 	if s.memoryService != nil {
 		// Auto-store for explicit memory request patterns
@@ -685,6 +685,7 @@ func (s *Service) finalizeExecution(ctx context.Context, session *Session, goal 
 		StepsFailed: 0,
 		FinalResult: finalResult,
 		Memories:    memoryMemories,
+		MemoryLogic: memoryLogic,
 		Duration:    "completed",
 	}
 

@@ -74,8 +74,9 @@ type ExecutionResult struct {
 	StepsDone   int                    `json:"steps_done"`
 	StepsFailed int                    `json:"steps_failed"`
 	FinalResult interface{}            `json:"final_result,omitempty"`
-	Sources     []domain.Chunk         `json:"sources,omitempty"`  // RAG sources when EnableRAG is true
-	Memories    []*domain.MemoryWithScore `json:"memories,omitempty"` // Retrieved long-term memories
+	Sources     []domain.Chunk         `json:"sources,omitempty"`            // RAG sources when EnableRAG is true
+	Memories    []*domain.MemoryWithScore `json:"memories,omitempty"`         // Retrieved long-term memories
+	MemoryLogic string                 `json:"memory_logic,omitempty"`       // IndexNavigator's reasoning for memory selection
 	Error       string                 `json:"error,omitempty"`
 	Duration    string                 `json:"duration"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
