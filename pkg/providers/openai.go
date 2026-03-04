@@ -469,12 +469,14 @@ func (p *OpenAILLMProvider) GenerateStructured(ctx context.Context, prompt strin
 		openai.UserMessage(prompt),
 	}
 
-	// Use OpenAI's native structured output with ResponseFormat
+	// Use OpenAI's native structured output with ResponseFormat.
+	// Note: Strict mode is intentionally omitted — many OpenAI-compatible providers
+	// (MiniMax, Ollama, etc.) do not support strict:true and return an error.
+	// Schema-level validation is handled on the client side after parsing.
 	schemaParam := openai.ResponseFormatJSONSchemaJSONSchemaParam{
 		Name:        "structured_response",
 		Description: openai.String("Structured response based on the provided schema"),
 		Schema:      schema,
-		Strict:      openai.Bool(true),
 	}
 
 	params := openai.ChatCompletionNewParams{
@@ -494,7 +496,9 @@ func (p *OpenAILLMProvider) GenerateStructured(ctx context.Context, prompt strin
 
 	resp, err := p.client.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return nil, WrapStructuredOutputError(domain.ProviderOpenAI, err)
+		// Fallback: some OpenAI-compatible providers reject response_format entirely.
+		// Retry as a plain chat completion asking for JSON in the prompt.
+		return p.generateStructuredFallback(ctx, prompt, schema, opts)
 	}
 
 	if len(resp.Choices) == 0 {
@@ -514,6 +518,79 @@ func (p *OpenAILLMProvider) GenerateStructured(ctx context.Context, prompt strin
 		Raw:   rawJSON,
 		Valid: isValid,
 	}, nil
+}
+
+// generateStructuredFallback is called when the provider rejects response_format.
+// It issues a plain chat completion instructing the model to respond with valid JSON,
+// then extracts the JSON from the response text.
+func (p *OpenAILLMProvider) generateStructuredFallback(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	schemaBytes, _ := json.Marshal(schema)
+	augmented := fmt.Sprintf(
+		"%s\n\nRespond with valid JSON only (no markdown, no explanation) matching this schema:\n%s",
+		prompt, string(schemaBytes),
+	)
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(augmented),
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:    shared.ChatModel(p.config.LLMModel),
+		Messages: messages,
+	}
+	if opts != nil {
+		if opts.Temperature >= 0 {
+			params.Temperature = openai.Float(opts.Temperature)
+		}
+		if opts.MaxTokens > 0 {
+			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
+		}
+	}
+
+	resp, err := p.client.Chat.Completions.New(ctx, params)
+	if err != nil {
+		return nil, WrapStructuredOutputError(domain.ProviderOpenAI, err)
+	}
+	if len(resp.Choices) == 0 {
+		return nil, fmt.Errorf("no response choices returned")
+	}
+
+	rawText := resp.Choices[0].Message.Content
+	// Strip possible markdown code fences
+	rawJSON := extractJSON(rawText)
+
+	var isValid bool
+	if err := json.Unmarshal([]byte(rawJSON), schema); err == nil {
+		isValid = true
+	}
+
+	return &domain.StructuredResult{
+		Data:  schema,
+		Raw:   rawJSON,
+		Valid: isValid,
+	}, nil
+}
+
+// extractJSON pulls the first JSON object or array from a string,
+// stripping markdown code fences if present.
+func extractJSON(s string) string {
+	// Strip ```json ... ``` or ``` ... ```
+	for _, fence := range []string{"```json", "```"} {
+		if idx := strings.Index(s, fence); idx != -1 {
+			s = s[idx+len(fence):]
+			if end := strings.Index(s, "```"); end != -1 {
+				s = s[:end]
+			}
+		}
+	}
+	s = strings.TrimSpace(s)
+	// Find first { or [
+	for i, ch := range s {
+		if ch == '{' || ch == '[' {
+			return s[i:]
+		}
+	}
+	return s
 }
 
 // Health checks the health of the OpenAI service
