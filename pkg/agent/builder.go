@@ -523,10 +523,15 @@ func (b *Builder) buildMemoryService(ragoCfg *config.Config, embedSvc domain.Emb
 			return nil, fmt.Errorf("failed to init memory schema: %w", err)
 		}
 	case "hybrid":
-		memStore, err = store.NewFileMemoryStore(memPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create file memory store: %w", err)
+		fileStore, ferr := store.NewFileMemoryStore(memPath)
+		if ferr != nil {
+			return nil, fmt.Errorf("failed to create file memory store: %w", ferr)
 		}
+		// Wire LLM for Reflect() and IndexNavigator on the truth layer
+		if llmSvc != nil {
+			fileStore.WithLLM(llmSvc)
+		}
+		memStore = fileStore
 		sqlitePath := filepath.Join(ragoCfg.DataDir(), "rago.db")
 		if sqliteStore, serr := store.NewMemoryStore(sqlitePath); serr == nil {
 			_ = sqliteStore.InitSchema(context.Background())

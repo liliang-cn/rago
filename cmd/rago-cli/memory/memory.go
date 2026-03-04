@@ -41,6 +41,7 @@ Memory types:
 	cmd.AddCommand(newUpdateCommand(opts))
 	cmd.AddCommand(newListCommand(opts))
 	cmd.AddCommand(newDeleteCommand(opts))
+	cmd.AddCommand(newRebuildCommand(opts))
 
 	return cmd
 }
@@ -328,4 +329,63 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// newRebuildCommand creates the "memory rebuild" subcommand.
+// It rebuilds the _index/ hierarchy from all existing .md files, enabling
+// migration of old memory folders to the cognitive layer format.
+func newRebuildCommand(opts *CommandOptions) *cobra.Command {
+	return &cobra.Command{
+		Use:   "rebuild",
+		Short: "Rebuild the _index/ hierarchy from all existing memory files",
+		Long: `Scans all memory .md files and regenerates the _index/ directory.
+
+Use this command to:
+  - Migrate old memory folders to the cognitive layer (adds facts.md, observations.md, etc.)
+  - Repair a corrupted or missing _index/ directory
+  - Sync the index after manually editing memory files
+
+Example:
+  rago memory rebuild
+  rago memory rebuild --db-path ~/.rago/data/memories`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := opts.DBPath
+			if path == "" && Cfg != nil {
+				path = Cfg.Memory.MemoryPath
+			}
+			if path == "" {
+				path = "./.rago/data/memories"
+			}
+
+			fileStore, err := store.NewFileMemoryStore(path)
+			if err != nil {
+				return fmt.Errorf("failed to open memory store at %q: %w", path, err)
+			}
+
+			fmt.Printf("Rebuilding _index/ for memory store at: %s\n", path)
+			if err := fileStore.RebuildIndex(cmd.Context()); err != nil {
+				return fmt.Errorf("rebuild failed: %w", err)
+			}
+
+			// Report what was generated
+			idx, err := fileStore.ReadIndex(cmd.Context())
+			if err != nil {
+				fmt.Println("✅ Rebuild complete (could not read final index for summary)")
+				return nil
+			}
+
+			typeCounts := make(map[string]int)
+			for _, e := range idx.Entries {
+				typeCounts[string(e.Type)]++
+			}
+
+			fmt.Printf("✅ Rebuild complete. Index summary:\n")
+			for t, n := range typeCounts {
+				fmt.Printf("   %-14s %d entries\n", t+":", n)
+			}
+			fmt.Printf("   %-14s %d total\n", "total:", len(idx.Entries))
+			fmt.Printf("\nIndex files written to: %s/_index/\n", path)
+			return nil
+		},
+	}
 }

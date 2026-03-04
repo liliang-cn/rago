@@ -563,6 +563,15 @@ func (s *FileMemoryStore) readFile(path string) (*domain.Memory, error) {
 		return nil, err
 	}
 
+	// Migration compatibility: fill defaults for fields added in the cognitive layer.
+	// Old YAML files won't have these fields; zero values are ambiguous, so we back-fill.
+	if fm.SourceType == "" {
+		fm.SourceType = domain.MemorySourceUserInput // pre-existing memories are treated as user-stated
+	}
+	if fm.Confidence == 0 && fm.Type != "observation" {
+		fm.Confidence = 1.0 // facts/preferences with no recorded confidence are assumed authoritative
+	}
+
 	return &domain.Memory{
 		ID:              fm.ID,
 		SessionID:       fm.SessionID,
