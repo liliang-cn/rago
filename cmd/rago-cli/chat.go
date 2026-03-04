@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -14,9 +15,12 @@ import (
 )
 
 var (
-	chatSessionID string
-	chatStream    bool
-	chatModel     string
+	chatSessionID  string
+	chatStream     bool
+	chatModel      string
+	chatWithPTC    bool
+	chatNoMemory   bool
+	chatShowMemory bool
 )
 
 var chatCmd = &cobra.Command{
@@ -29,11 +33,13 @@ The agent has access to:
 - Skills (domain-specific capabilities)
 - Memory (long-term factual memory)
 - RAG (knowledge base retrieval)
+- PTC (Programmatic Tool Calling - JS sandbox)
 
 Examples:
   rago chat "你好"
-  rago chat --session my-session "记住：我喜欢蓝色"
-  rago chat --stream "介绍一下你自己"
+  rago chat --with-ptc "比较三个城市的旅行预算"
+  rago chat --show-memory "我之前说过我喜欢什么颜色？"
+  rago chat --no-memory "临时不要记得这次对话内容"
   rago chat  # Interactive mode`,
 	RunE: runChat,
 }
@@ -43,6 +49,9 @@ func init() {
 	chatCmd.Flags().StringVarP(&chatSessionID, "session", "s", "", "Session ID for conversation (default: auto-generated)")
 	chatCmd.Flags().BoolVarP(&chatStream, "stream", "", false, "Stream the response")
 	chatCmd.Flags().StringVarP(&chatModel, "model", "m", "", "LLM model to use")
+	chatCmd.Flags().BoolVar(&chatWithPTC, "with-ptc", false, "Enable Programmatic Tool Calling (JS sandbox)")
+	chatCmd.Flags().BoolVar(&chatNoMemory, "no-memory", false, "Disable long-term memory for this chat")
+	chatCmd.Flags().BoolVar(&chatShowMemory, "show-memory", false, "Show retrieved memories in output")
 }
 
 func runChat(cmd *cobra.Command, args []string) error {
@@ -58,14 +67,24 @@ func runChat(cmd *cobra.Command, args []string) error {
 	agentDBPath := cfg.DataDir() + "/agent.db"
 
 	// Create agent with full capabilities
-	svc, err := agent.New("rago-assistant").
+	builder := agent.New("rago-assistant").
 		WithDBPath(agentDBPath).
 		WithMCP().
 		WithSkills().
 		WithRouter().
-		WithMemory().
-		WithProgress(progressCallback).
-		Build()
+		WithDebug(debug).
+		WithProgress(progressCallback)
+
+	// Memory is enabled by default unless --no-memory is set
+	if !chatNoMemory {
+		builder.WithMemory()
+	}
+
+	if chatWithPTC {
+		builder.WithPTC()
+	}
+
+	svc, err := builder.Build()
 	if err != nil {
 		return fmt.Errorf("failed to create agent: %w", err)
 	}
@@ -96,9 +115,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("chat failed: %w", err)
 	}
 
-	if result.FinalResult != nil {
-		fmt.Printf("\n🤖 RAGO: %v\n", result.FinalResult)
-	}
+	displayResult(result)
 
 	// Show session ID after first message
 	if currentSessionID == "" {
@@ -107,6 +124,32 @@ func runChat(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func displayResult(result *agent.ExecutionResult) {
+	// Show memories if requested
+	if chatShowMemory && len(result.Memories) > 0 {
+		fmt.Printf("\n🧠 Retrieved Memories (%d):\n", len(result.Memories))
+		for i, mem := range result.Memories {
+			fmt.Printf("  %d. [%s] %s (score: %.2f)\n", i+1, mem.Type, truncateString(mem.Content, 100), mem.Score)
+		}
+	}
+
+	if result.PTCResult != nil && result.PTCResult.Type != agent.PTCResultTypeText {
+		fmt.Printf("\n🤖 RAGO (PTC Mode):\n%s\n", result.PTCResult.FormatForLLM())
+	} else if result.FinalResult != nil {
+		fmt.Printf("\n🤖 RAGO: %v\n", result.FinalResult)
+	} else {
+		fmt.Println("\n🤖 RAGO: (empty response)")
+	}
+}
+
+// truncateString truncates a string to a maximum length
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 // progressCallback displays agent progress
@@ -125,6 +168,14 @@ func progressCallback(event agent.ProgressEvent) {
 
 func runInteractiveChat(ctx context.Context, svc *agent.Service) error {
 	fmt.Println("🤖 RAGO Chat Mode")
+	if chatWithPTC {
+		fmt.Println("⚡ PTC Mode: Enabled (JS sandbox for complex logic)")
+	}
+	if chatNoMemory {
+		fmt.Println("🔇 Memory Mode: Disabled")
+	} else if chatShowMemory {
+		fmt.Println("🧠 Memory Mode: Enabled (Showing retrievals)")
+	}
 	fmt.Println("💡 Type 'quit' or 'exit' to end, 'clear' to reset session")
 	fmt.Println()
 
@@ -135,52 +186,48 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service) error {
 	var wg sync.WaitGroup
 	quitChan := make(chan struct{})
 
+	// Use scanner for multi-word input
+	scanner := bufio.NewScanner(os.Stdin)
+
 	// Input goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for {
-			select {
-			case <-quitChan:
+			fmt.Print("👤 You: ")
+			if !scanner.Scan() {
 				return
-			default:
-				fmt.Print("👤 You: ")
-				var input string
-				fmt.Scanln(&input)
-				input = strings.TrimSpace(input)
-
-				if input == "" {
-					continue
-				}
-
-				// Exit commands
-				if input == "quit" || input == "exit" || input == "q" {
-					close(quitChan)
-					fmt.Println("\n👋 Goodbye!")
-					return
-				}
-
-				// Clear session
-				if input == "clear" || input == "reset" {
-					svc.ResetSession()
-					fmt.Printf("✓ Session reset (new: %s)\n", svc.CurrentSessionID())
-					continue
-				}
-
-				// Process message
-				fmt.Printf("\n🤔 Thinking...\n")
-				result, err := svc.Chat(ctx, input)
-				if err != nil {
-					fmt.Printf("❌ Error: %v\n\n", err)
-					continue
-				}
-
-				if result.FinalResult != nil {
-					fmt.Printf("\n🤖 RAGO: %v\n\n", result.FinalResult)
-				} else {
-					fmt.Println("\n🤖 RAGO: (empty response)")
-				}
 			}
+			input := strings.TrimSpace(scanner.Text())
+
+			if input == "" {
+				continue
+			}
+
+			// Exit commands
+			if input == "quit" || input == "exit" || input == "q" {
+				close(quitChan)
+				fmt.Println("\n👋 Goodbye!")
+				return
+			}
+
+			// Clear session
+			if input == "clear" || input == "reset" {
+				svc.ResetSession()
+				fmt.Printf("✓ Session reset (new: %s)\n", svc.CurrentSessionID())
+				continue
+			}
+
+			// Process message
+			fmt.Printf("\n🤔 Thinking...\n")
+			result, err := svc.Chat(ctx, input)
+			if err != nil {
+				fmt.Printf("❌ Error: %v\n\n", err)
+				continue
+			}
+
+			displayResult(result)
+			fmt.Println()
 		}
 	}()
 
@@ -190,10 +237,8 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service) error {
 		// Normal exit
 	case <-sigChan:
 		// User pressed Ctrl+C
-		close(quitChan)
 		fmt.Println("\n\n👋 Interrupted. Goodbye!")
 	}
 
-	wg.Wait()
 	return nil
 }

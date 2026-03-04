@@ -50,7 +50,7 @@ func init() {
 	Cmd.AddCommand(removeCmd)
 
 	addCmd.Flags().StringVarP(&skillPath, "path", "p", "", "Custom path for the skill")
-	addCmd.Flags().StringVarP(&skillDesc, "description", "d", "", "Skill description")
+	addCmd.Flags().StringVarP(&skillDesc, "description", "D", "", "Skill description")
 }
 
 func runAdd(cmd *cobra.Command, args []string) error {

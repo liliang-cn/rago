@@ -10,16 +10,19 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/ptc"
 	ptcgrpc "github.com/liliang-cn/rago/v2/pkg/ptc/grpc"
 	"github.com/liliang-cn/rago/v2/pkg/ptc/runtime/goja"
 	"github.com/liliang-cn/rago/v2/pkg/ptc/runtime/wazero"
 	ptcstore "github.com/liliang-cn/rago/v2/pkg/ptc/store"
+	"github.com/liliang-cn/rago/v2/pkg/skills"
 	"github.com/spf13/cobra"
 )
 
 var (
-	Cfg    *config.Config
+	Cfg     *config.Config
 	Verbose bool
 )
 
@@ -27,6 +30,113 @@ var (
 func SetSharedVariables(cfg *config.Config, verbose bool) {
 	Cfg = cfg
 	Verbose = verbose
+}
+
+// createRouterWithServices creates a PTC router with MCP and Skills services injected
+func createRouterWithServices(ctx context.Context) *ptc.RAGORouter {
+	if Cfg == nil {
+		return ptc.NewRAGORouter()
+	}
+
+	var opts []ptc.RouterOption
+
+	// Inject MCP service if enabled
+	if Cfg.MCP.Enabled {
+		mcpManager := mcp.NewMCPToolManager(&Cfg.MCP)
+		succeeded, _ := mcpManager.StartWithFailures(ctx)
+		if len(succeeded) > 0 {
+			// Convert MCP tools to PTC ToolInfo
+			var mcpToolInfos []ptc.ToolInfo
+			for name, tool := range mcpManager.ListTools() {
+				mcpToolInfos = append(mcpToolInfos, ptc.ToolInfo{
+					Name:        name,
+					Description: tool.Description(),
+					Parameters:  tool.Schema(),
+					Category:    "mcp",
+				})
+			}
+			opts = append(opts, ptc.WithMCPService(&mcpExecutorAdapter{manager: mcpManager}), ptc.WithMCPToolInfos(mcpToolInfos))
+		}
+	}
+
+	// Inject Skills service if enabled
+	if Cfg.Skills.Enabled {
+		skillCfg := &skills.Config{
+			Enabled:      true,
+			Paths:        Cfg.Skills.Paths,
+			AutoLoad:     true,
+			CacheEnabled: true,
+		}
+		skillsService, err := skills.NewService(skillCfg)
+		if err == nil {
+			skillsService.LoadAll(ctx)
+
+			// Convert Skills to PTC ToolInfo
+			skillList, _ := skillsService.ListSkills(ctx, skills.SkillFilter{})
+			var skillToolInfos []ptc.ToolInfo
+			for _, s := range skillList {
+				skillToolInfos = append(skillToolInfos, ptc.ToolInfo{
+					Name:        "skill_" + s.ID,
+					Description: s.Description,
+					Category:    "skill",
+				})
+			}
+			opts = append(opts, ptc.WithSkillsService(&skillsExecutorAdapter{service: skillsService}), ptc.WithSkillToolInfos(skillToolInfos))
+		}
+	}
+
+	return ptc.NewRAGORouter(opts...)
+}
+
+// mcpExecutorAdapter adapts mcp.Service to ptc.MCPProvider interface
+type mcpExecutorAdapter struct {
+	manager *mcp.MCPToolManager
+}
+
+func (a *mcpExecutorAdapter) CallTool(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error) {
+	result, err := a.manager.CallTool(ctx, toolName, args)
+	if err != nil {
+		return nil, err
+	}
+	return result.Data, nil
+}
+
+// skillsExecutorAdapter adapts skills.Service to ptc skillsProvider interface
+type skillsExecutorAdapter struct {
+	service *skills.Service
+}
+
+func (a *skillsExecutorAdapter) RunSkill(ctx context.Context, id string, vars map[string]interface{}) (string, error) {
+	return a.service.RunSkill(ctx, id, vars)
+}
+
+func (a *skillsExecutorAdapter) ListSkillInfos(ctx context.Context) []ptc.ToolInfo {
+	skillList, _ := a.service.ListSkills(ctx, skills.SkillFilter{})
+	var infos []ptc.ToolInfo
+	for _, s := range skillList {
+		infos = append(infos, ptc.ToolInfo{
+			Name:        "skill_" + s.ID,
+			Description: s.Description,
+			Category:    "skill",
+		})
+	}
+	return infos
+}
+
+// RAGProcessorAdapter adapts domain.Processor to ptc router
+type RAGProcessorAdapter struct {
+	processor domain.Processor
+}
+
+func (a *RAGProcessorAdapter) QueryRaw(ctx context.Context, query string, topK int) (string, error) {
+	resp, err := a.processor.Query(ctx, domain.QueryRequest{
+		Query: query,
+		TopK:  topK,
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.Answer, nil
 }
 
 // Cmd is the parent command for PTC operations
@@ -163,13 +273,15 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Create PTC service
+	// Create PTC service with MCP and Skills integration
+	ctx := context.Background()
+	router := createRouterWithServices(ctx)
+
 	ptcConfig := ptc.DefaultConfig()
 	ptcConfig.Enabled = true
 	ptcConfig.DefaultTimeout = timeout
 	ptcConfig.MaxMemoryMB = execMaxMemory
 
-	router := ptc.NewRAGORouter()
 	store := ptcstore.NewMemoryStore(100)
 
 	service, err := ptc.NewService(&ptcConfig, router, store)
@@ -200,7 +312,6 @@ func runExecute(cmd *cobra.Command, args []string) error {
 	}
 
 	// Execute
-	ctx := context.Background()
 	start := time.Now()
 	result, err := service.Execute(ctx, req)
 	if err != nil {
@@ -259,9 +370,10 @@ func runExecute(cmd *cobra.Command, args []string) error {
 }
 
 func runTools(cmd *cobra.Command, args []string) error {
-	router := ptc.NewRAGORouter()
+	ctx := context.Background()
+	router := createRouterWithServices(ctx)
 
-	tools, err := router.ListAvailableTools(context.Background())
+	tools, err := router.ListAvailableTools(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list tools: %w", err)
 	}
@@ -275,14 +387,26 @@ func runTools(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Printf("Available Tools (%d):\n\n", len(tools))
+	// Group tools by category
+	categories := make(map[string][]ptc.ToolInfo)
 	for _, tool := range tools {
-		fmt.Printf("  %s\n", tool.Name)
-		if tool.Description != "" {
-			fmt.Printf("    %s\n", tool.Description)
+		cat := tool.Category
+		if cat == "" {
+			cat = "other"
 		}
-		if tool.Category != "" {
-			fmt.Printf("    Category: %s\n", tool.Category)
+		categories[cat] = append(categories[cat], tool)
+	}
+
+	fmt.Printf("Available Tools (%d total):\n\n", len(tools))
+
+	// Print tools by category
+	for cat, catTools := range categories {
+		fmt.Printf("📦 %s (%d):\n", cat, len(catTools))
+		for _, tool := range catTools {
+			fmt.Printf("  - %s\n", tool.Name)
+			if tool.Description != "" {
+				fmt.Printf("    %s\n", tool.Description)
+			}
 		}
 		fmt.Println()
 	}

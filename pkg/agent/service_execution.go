@@ -684,6 +684,7 @@ func (s *Service) finalizeExecution(ctx context.Context, session *Session, goal 
 		StepsDone:   1,
 		StepsFailed: 0,
 		FinalResult: finalResult,
+		Memories:    memoryMemories,
 		Duration:    "completed",
 	}
 

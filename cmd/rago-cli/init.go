@@ -33,7 +33,7 @@ If a file or directory already exists, it will be skipped (not overwritten).`,
 
 func init() {
 	RootCmd.AddCommand(initCmd)
-	initCmd.Flags().StringVarP(&initDir, "dir", "d", "", "Working directory (default: ~/.rago/)")
+	initCmd.Flags().StringVarP(&initDir, "dir", "D", "", "Working directory (default: ~/.rago/)")
 }
 
 func runInit(cmd *cobra.Command, args []string) error {

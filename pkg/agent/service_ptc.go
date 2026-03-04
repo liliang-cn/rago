@@ -70,6 +70,10 @@ Example format:
 	availableCallTools := s.ptcIntegration.GetAvailableCallTools(ctx)
 	ptcTools := s.ptcIntegration.GetPTCTools(availableCallTools)
 
+	if s.debug || cfg.Debug {
+		s.logDebugPrompt(messages, 0)
+	}
+
 	temperature := cfg.Temperature
 	if temperature == 0 {
 		temperature = 0.3
@@ -117,6 +121,13 @@ Example format:
 	}
 
 	content := fullContent.String()
+
+	if s.debug || cfg.Debug {
+		s.logDebugResponse(&domain.GenerationResult{
+			Content:   content,
+			ToolCalls: toolCalls,
+		}, 0)
+	}
 
 	if os.Getenv("DEBUG") != "" {
 		fmt.Printf("\nDEBUG [runPTCExecution] raw content: %q\n", content)
