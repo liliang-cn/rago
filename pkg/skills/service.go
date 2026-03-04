@@ -101,11 +101,7 @@ func (s *Service) IsLoaded() bool {
 
 // ListSkills lists available skills
 func (s *Service) ListSkills(ctx context.Context, filter SkillFilter) ([]*Skill, error) {
-	if s.store != nil {
-		return s.store.ListSkills(ctx, filter)
-	}
-
-	// Return from registry
+	// Always return from registry first (it's the source of truth for loaded skills)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -154,10 +150,7 @@ func (s *Service) matchesFilter(skill *Skill, filter SkillFilter) bool {
 
 // GetSkill retrieves a skill by ID
 func (s *Service) GetSkill(ctx context.Context, id string) (*Skill, error) {
-	if s.store != nil {
-		return s.store.GetSkill(ctx, id)
-	}
-
+	// Always get from registry first (it's the source of truth for loaded skills)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
