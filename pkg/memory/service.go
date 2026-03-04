@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/prompt"
+	"github.com/liliang-cn/rago/v2/pkg/store"
 )
 
 // Service implements the MemoryService interface
@@ -34,6 +35,10 @@ type Service struct {
 	enableHybrid bool
 	rrfK         float64
 
+	// PageIndex-style navigator for file-based stores (no embedder)
+	navigator        *IndexNavigator
+	reflectThreshold int // auto-reflect after this many new facts
+
 	mu sync.RWMutex
 }
 
@@ -51,6 +56,9 @@ type Config struct {
 	// Hybrid search
 	EnableHybrid bool
 	RRFK         float64
+
+	// Hindsight: auto-reflect after this many new facts (0 = disabled)
+	ReflectThreshold int
 }
 
 // DefaultConfig returns default configuration
@@ -64,6 +72,7 @@ func DefaultConfig() *Config {
 		ScopeWeights:      DefaultScopeWeightConfig(),
 		EnableHybrid:      false,
 		RRFK:              60.0,
+		ReflectThreshold:  5,
 	}
 }
 
@@ -78,21 +87,30 @@ func NewService(
 		config = DefaultConfig()
 	}
 
-	return &Service{
-		store:         memStore,
-		entityMemory:  NewEntityMemory(memStore, embedder),
-		llm:           llm,
-		embedder:      embedder,
-		promptManager: prompt.NewManager(),
-		minScore:      config.MinScore,
-		maxMemories:   config.MaxMemories,
-		scorer:        NewMemoryScorer(config.ScoringConfig),
-		classifier:    NewQueryClassifier(config.ClassifierConfig),
-		noiseFilter:   NewNoiseFilter(config.NoiseFilterConfig),
-		scopeWeights:  config.ScopeWeights,
-		enableHybrid:  config.EnableHybrid,
-		rrfK:          config.RRFK,
+	svc := &Service{
+		store:            memStore,
+		entityMemory:     NewEntityMemory(memStore, embedder),
+		llm:              llm,
+		embedder:         embedder,
+		promptManager:    prompt.NewManager(),
+		minScore:         config.MinScore,
+		maxMemories:      config.MaxMemories,
+		scorer:           NewMemoryScorer(config.ScoringConfig),
+		classifier:       NewQueryClassifier(config.ClassifierConfig),
+		noiseFilter:      NewNoiseFilter(config.NoiseFilterConfig),
+		scopeWeights:     config.ScopeWeights,
+		enableHybrid:     config.EnableHybrid,
+		rrfK:             config.RRFK,
+		reflectThreshold: config.ReflectThreshold,
 	}
+
+	// Wire up IndexNavigator for file-based stores when no embedder is available
+	if fileStore, ok := memStore.(*store.FileMemoryStore); ok && llm != nil {
+		fileStore.WithLLM(llm)
+		svc.navigator = NewIndexNavigator(fileStore, llm)
+	}
+
+	return svc
 }
 
 // SetPromptManager sets a custom prompt manager
@@ -105,7 +123,11 @@ func (s *Service) SetShadowIndex(idx domain.MemoryStore) {
 	s.shadowIndex = idx
 }
 
-// RetrieveAndInject searches relevant memories and formats them for LLM context
+// RetrieveAndInject searches relevant memories and formats them for LLM context.
+// T6a: Routing logic —
+//   - embedder available → vector search (+ optional hybrid BM25)
+//   - navigator available → IndexNavigator (LLM reads _index/) — used alone or fused via RRF
+//   - both → results are RRF-fused for highest recall
 func (s *Service) RetrieveAndInject(ctx context.Context, query string, sessionID string) (string, []*domain.MemoryWithScore, error) {
 	// 0. Adaptive retrieval - skip if query doesn't need memory
 	if s.classifier != nil && !s.classifier.NeedsMemory(query) {
@@ -134,43 +156,63 @@ func (s *Service) RetrieveAndInject(ctx context.Context, query string, sessionID
 	}
 
 	// 2. Vector Search (if embedder available)
+	var vectorResults []*domain.MemoryWithScore
 	if s.embedder != nil {
 		vector, err := s.embedder.Embed(ctx, query)
 		if err == nil {
-			// Build scope chain for search
 			scopes := DefaultScopeChain(sessionID, "", "", "")
+			vectorResults, _ = s.store.SearchByScope(ctx, vector, scopes.ToSlice(), s.maxMemories*2)
 
-			// Use scope-based search
-			memScopes, _ := s.store.SearchByScope(ctx, vector, scopes.ToSlice(), s.maxMemories*2)
-			allMemories = append(allMemories, memScopes...)
-
-			// Hybrid search: combine with text search
 			if s.enableHybrid {
 				textMems, _ := s.store.SearchByText(ctx, query, s.maxMemories)
-				allMemories = s.rrfFusion(allMemories, textMems)
+				vectorResults = s.rrfFusion(vectorResults, textMems)
 			}
 		}
-	} else {
-		// Fallback to List (Memory Sitemap mode)
+	}
+
+	// 3. Navigator Search (PageIndex-style, for file stores)
+	var navResults []*domain.MemoryWithScore
+	if s.navigator != nil {
+		navMems, err := s.navigator.Navigate(ctx, query, s.maxMemories)
+		if err == nil {
+			for i, m := range navMems {
+				// Score by position: earlier = more relevant
+				score := 1.0 - float64(i)*0.05
+				navResults = append(navResults, &domain.MemoryWithScore{Memory: m, Score: score})
+			}
+		}
+	}
+
+	// 4. Fuse results
+	switch {
+	case len(vectorResults) > 0 && len(navResults) > 0:
+		// Both available: RRF fusion
+		allMemories = append(allMemories, s.rrfFusion(vectorResults, navResults)...)
+	case len(vectorResults) > 0:
+		allMemories = append(allMemories, vectorResults...)
+	case len(navResults) > 0:
+		allMemories = append(allMemories, navResults...)
+	default:
+		// Final fallback: plain list
 		mems, _, _ := s.store.List(ctx, s.maxMemories, 0)
 		for _, m := range mems {
 			allMemories = append(allMemories, &domain.MemoryWithScore{Memory: m, Score: 0.5})
 		}
 	}
 
-	// 3. Noise filtering
+	// 5. Noise filtering
 	if s.noiseFilter != nil {
 		allMemories = s.noiseFilter.Filter(allMemories)
 	}
 
-	// 4. Scoring and ranking
+	// 6. Scoring and ranking
 	if s.scorer != nil {
 		allMemories = s.scorer.ScoreAll(allMemories)
 	} else {
 		allMemories = s.mergeAndRank(allMemories)
 	}
 
-	// 5. Limit results
+	// 7. Limit results
 	if len(allMemories) > s.maxMemories {
 		allMemories = allMemories[:s.maxMemories]
 	}
@@ -189,7 +231,8 @@ func (s *Service) RetrieveAndInject(ctx context.Context, query string, sessionID
 	return s.formatMemories(allMemories), allMemories, nil
 }
 
-// StoreIfWorthwhile decides what to store based on task completion
+// StoreIfWorthwhile decides what to store based on task completion.
+// T6b: After storing new facts, checks if ReflectThreshold is reached and triggers async Reflect.
 func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStoreRequest) error {
 	if s.llm == nil {
 		return nil
@@ -230,18 +273,67 @@ func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStore
 		return nil
 	}
 
+	newFactCount := 0
 	for _, item := range summary.Memories {
-		_ = s.Add(ctx, &domain.Memory{
+		mem := &domain.Memory{
 			ID:         uuid.New().String(),
 			SessionID:  req.SessionID,
 			Type:       item.Type,
 			Content:    item.Content,
 			Importance: item.Importance,
+			SourceType: domain.MemorySourceInferred, // stored by agent inference
 			CreatedAt:  time.Now(),
-		})
+		}
+		_ = s.Add(ctx, mem)
+		if item.Type == domain.MemoryTypeFact {
+			newFactCount++
+		}
+	}
+
+	// Invalidate navigator cache since new memories were stored
+	if s.navigator != nil {
+		s.navigator.InvalidateCache()
+	}
+
+	// T6b: Async Reflect trigger — count facts for this session, fire if threshold reached
+	if newFactCount > 0 && s.reflectThreshold > 0 {
+		go s.maybeReflect(req.SessionID)
 	}
 
 	return nil
+}
+
+// maybeReflect counts active facts for sessionID and triggers Reflect if threshold is met.
+// Only runs for FileMemoryStore (which has LLM-driven Reflect); other stores handle this internally.
+// Runs in a goroutine; errors are silently swallowed.
+func (s *Service) maybeReflect(sessionID string) {
+	fileStore, ok := s.store.(*store.FileMemoryStore)
+	if !ok {
+		return
+	}
+
+	ctx := context.Background()
+	facts, _, err := fileStore.List(ctx, 1000, 0)
+	if err != nil {
+		return
+	}
+
+	count := 0
+	for _, m := range facts {
+		if m.Type == domain.MemoryTypeFact &&
+			(sessionID == "" || m.SessionID == sessionID) &&
+			!store.IsStale(m) {
+			count++
+		}
+	}
+
+	if count >= s.reflectThreshold {
+		_, _ = fileStore.Reflect(ctx, sessionID)
+		// Invalidate cache again after reflection produced new observations
+		if s.navigator != nil {
+			s.navigator.InvalidateCache()
+		}
+	}
 }
 
 func (s *Service) Add(ctx context.Context, memory *domain.Memory) error {
@@ -468,4 +560,54 @@ func (s *Service) formatMemories(memories []*domain.MemoryWithScore) string {
 
 func (s *Service) buildSummaryPrompt(req *domain.MemoryStoreRequest) string {
 	return fmt.Sprintf("Goal: %s\nResult: %s\nExtract memory.", req.TaskGoal, req.TaskResult)
+}
+
+// MemoryEvolutionNode represents one step in a memory's evolution path.
+type MemoryEvolutionNode struct {
+	Memory     *domain.Memory         `json:"memory"`
+	Children   []*MemoryEvolutionNode `json:"children,omitempty"`  // memories that supersede this one
+	EvidenceOf *domain.Memory         `json:"evidence_of,omitempty"` // observation this is evidence for
+}
+
+// GetEvolution returns the full evolution graph rooted at the given memoryID.
+// It traces both forward (SupersededBy chain) and backward (EvidenceIDs) to show
+// how a raw Fact evolved through Reflect() into an Observation.
+func (s *Service) GetEvolution(ctx context.Context, memoryID string) (*MemoryEvolutionNode, error) {
+	root, err := s.store.Get(ctx, memoryID)
+	if err != nil {
+		return nil, fmt.Errorf("memory %s not found: %w", memoryID, err)
+	}
+
+	node := &MemoryEvolutionNode{Memory: root}
+
+	// Forward: find any memory that supersedes this one
+	if root.SupersededBy != "" {
+		child, err := s.GetEvolution(ctx, root.SupersededBy)
+		if err == nil {
+			node.Children = []*MemoryEvolutionNode{child}
+		}
+	}
+
+	// Backward: if this is an observation, find which observation (if any) it is evidence for
+	// by scanning all observations for EvidenceIDs containing this ID
+	if root.Type != domain.MemoryTypeObservation {
+		all, _, err := s.store.List(ctx, 1000, 0)
+		if err == nil {
+			for _, m := range all {
+				if m.Type == domain.MemoryTypeObservation {
+					for _, eid := range m.EvidenceIDs {
+						if eid == memoryID {
+							node.EvidenceOf = m
+							break
+						}
+					}
+				}
+				if node.EvidenceOf != nil {
+					break
+				}
+			}
+		}
+	}
+
+	return node, nil
 }
