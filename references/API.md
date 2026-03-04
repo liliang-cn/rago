@@ -6,13 +6,14 @@
 import "github.com/liliang-cn/rago/v2/pkg/agent"
 
 svc, err := agent.New("my-agent").
-    WithRAG().                            // Enable RAG (self-registers rag_query tool)
+    WithRAG().                            // Enable RAG
     WithMCP().                            // Enable MCP tools
     WithSkills().                         // Enable Skills
-    WithMemory().                         // Enable Memory (self-registers memory_save/recall)
+    WithMemory().                         // Enable Cognitive Memory
+    WithMemoryReflect(5).                 // Reflect facts into observations after 5 entries
+    WithMemoryHybrid().                  // Enable Parallel Vector + Index Reasoning
+    WithMemoryBank("You are an expert", []string{"Never lie"}). // Mission/Directives
     WithDBPath("~/.rago/data/agent.db").  // Storage path
-    WithPrompt("You are a helpful assistant."). // System prompt
-    WithDebug().                          // Debug mode (variadic: WithDebug(false) to disable)
     Build()
 ```
 
@@ -26,27 +27,7 @@ svc, err := agent.New("my-agent").
             return time.Now().Format(time.RFC3339), nil
         },
     )).
-    WithTools(tool1, tool2, tool3). // multiple at once
     Build()
-```
-
-### Progress callback
-
-```go
-svc, err := agent.New("my-agent").
-    WithProgress(func(msg string) { fmt.Print(msg) }).
-    Build()
-```
-
-### PTC (Programmatic Tool Calling)
-
-```go
-svc, err := agent.New("my-agent").
-    WithPTC().   // PTC is a transport mode, not a separate API
-    Build()
-
-// API is identical — PTC executes tools via JS sandbox internally
-result, err := svc.Chat(ctx, "Write and run some code")
 ```
 
 ## Querying the Agent
@@ -55,43 +36,66 @@ result, err := svc.Chat(ctx, "Write and run some code")
 
 ```go
 reply, err := svc.Ask(ctx, "What is the capital of France?")
-// reply == "The capital of France is Paris."
 ```
 
-### Chat — multi-turn conversation
+### Chat — multi-turn conversation with cognitive memory
 
 ```go
-// Session UUID auto-generated on first call; preserved across Chat() calls
-result, err := svc.Chat(ctx, "My name is Alice")
-result, err  = svc.Chat(ctx, "What's my name?")  // remembers "Alice"
+result, err := svc.Chat(ctx, "My name is Alice and I work on the Go team.")
+result, err  = svc.Chat(ctx, "What team am I on?")
 
-fmt.Println(result.Text())        // plain string reply
-fmt.Println(result.Err())         // non-nil if agent reported an error
-fmt.Println(result.HasSources())  // true if RAG sources were used
+fmt.Println(result.Text())        // "You're on the Go team, Alice."
 ```
 
-### Run — single call with full options
+## ExecutionResult
 
 ```go
-result, err := svc.Run(ctx, "Your goal",
-    agent.WithMaxTurns(20),
-    agent.WithTemperature(0.7),
-    agent.WithStoreHistory(true),
-    agent.WithSessionID("resume-session-id"),
-)
-fmt.Println(result.Text())
+type ExecutionResult struct {
+    FinalResult interface{}  
+    Error       string
+    SessionID   string
+    Sources     []domain.Chunk         // RAG sources
+    Memories    []*domain.MemoryWithScore // Retrieved Cognitive Memories
+    MemoryLogic string                 // Reasoning from Index Navigator
+    PTCResult   *PTCResult             // PTC execution details
+}
+
+result.Text()        // string — preferred accessor
+result.Err()         // error — nil if no error
+result.HasSources()  // bool  — true if RAG returned chunks
 ```
+
+## Memory Management (Cognitive Layer)
+
+Beyond simple retrieval, the `MemoryService` allows managing the cognition path.
+
+### Trigger Reflection
+```go
+// Manually reflect facts in a session into higher-level Observations.
+summary, err := svc.TriggerReflection(ctx, sessionID)
+```
+
+### Trace Memory Evolution
+```go
+// Get the evolution graph: Fact -> Observation -> SupersededBy.
+node, err := svc.ExplainMemory(ctx, memoryID)
+// node.Memory contains the memory at this node
+// node.Children contains memories that superseded this one
+// node.EvidenceOf contains the observation this fact supports
+```
+
+### Memory API (domain.MemoryService)
+| Method | Description |
+|---|---|
+| `Reflect(ctx, sessionID)` | LLM-driven consolidation of raw facts. |
+| `GetEvolution(ctx, id)` | Trace the cognitive path of a memory. |
+| `AddMentalModel(ctx, m)` | Insert human-curated rules/summaries. |
 
 ## Streaming
 
 ```go
-// Stream — simplest streaming, yields tokens as they arrive (one-shot, no session)
+// Stream — yields tokens as they arrive
 for token := range svc.Stream(ctx, "Write a poem") {
-    fmt.Print(token)
-}
-
-// ChatStream — multi-turn streaming with session memory
-for token := range svc.ChatStream(ctx, "Tell me more") {
     fmt.Print(token)
 }
 
@@ -101,89 +105,28 @@ for evt := range events {
     switch evt.Type {
     case agent.EventTypePartial:   fmt.Print(evt.Content)   // token
     case agent.EventTypeToolCall:  fmt.Println(evt.ToolName) // tool invoked
-    case agent.EventTypeComplete:  // done
-    case agent.EventTypeError:     // error
     }
 }
 ```
 
-### Streaming API comparison
+## CLI Commands
 
-| Method | Returns | Session | Use case |
-|--------|---------|---------|----------|
-| `Stream()` | `<-chan string` | no | live output, one-off |
-| `ChatStream()` | `<-chan string` | yes | live output, conversational |
-| `RunStream()` | `(<-chan *Event, error)` | optional | full control, tool hooks |
-
-## ExecutionResult
-
-```go
-type ExecutionResult struct {
-    FinalResult interface{}  // always a string in practice; use Text()
-    Error       string
-    SessionID   string
-    Sources     []domain.Chunk  // RAG sources (non-nil when HasSources() == true)
-    PTCResult   *PTCResult       // PTC execution details (nil when PTC disabled)
-    // ...
-}
-
-result.Text()        // string — preferred accessor
-result.Err()         // error — nil if no error
-result.HasSources()  // bool  — true if RAG returned chunks
+### Chat with Memory Visibility
+```bash
+# Show retrieved memories, source types, and navigator reasoning
+rago chat "What's my tech stack?" --show-memory
 ```
 
-## RAG Operations
-
-### Ingest
-
-```go
-err := ragProcessor.Ingest(ctx, "./docs/", domain.IngestOptions{
-    Collection:   "my-docs",
-    ChunkSize:    512,
-    Overlap:      50,
-    FilePatterns: []string{"*.pdf", "*.md"},
-})
+### Enable PTC (JS Sandbox)
+```bash
+# Run agent in Programmatic Tool Calling mode
+rago chat "Compare these three cities" --with-ptc
 ```
 
-### Query
+## Memory Storage Layout
 
-```go
-result, err := ragProcessor.Query(ctx, domain.QueryRequest{
-    Query:       "search",
-    Collection:  "my-docs",
-    TopK:        5,
-    ShowSources: true,
-})
-```
-
-## LongRun
-
-```go
-longRun, _ := agent.NewLongRun(svc).
-    WithInterval(10 * time.Minute).
-    WithWorkDir("~/.rago/longrun").
-    WithMaxActions(5).
-    Build()
-
-longRun.AddTask(ctx, "Task goal", nil)
-longRun.Start(ctx)
-longRun.Stop()
-```
-
-## SubAgent Coordinator
-
-```go
-coordinator := agent.NewSubAgentCoordinator()
-resultChan := coordinator.RunAsync(ctx, subAgent)
-results := coordinator.WaitAll(ctx)
-coordinator.CancelAll()
-```
-
-## Memory Files
-
-| File | Purpose |
-|------|---------|
-| `MEMORY.md` | Long-term memory |
-| `AGENTS.md` | Agent config |
-| `SOUL.md` | Personality |
-| `HEARTBEAT.md` | Autonomous checklist |
+| Location | Content | Format |
+|---|---|---|
+| `data/memories/` | Raw facts and observations | Markdown + YAML |
+| `data/memories/_index/` | PageIndex-style summaries | Markdown |
+| `data/rago.db` | Vector index for acceleration | SQLite-vec |

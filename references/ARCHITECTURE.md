@@ -2,10 +2,10 @@
 
 ## Overview
 
-Rago is a local-first RAG + Agent system. Core capability priority:
+Rago is a local-first RAG + Agent framework. Core capability priority:
 
 ```
-RAG System → Multi-Provider LLM → MCP Tools → Agent Automation → HTTP API
+RAG System → Cognitive Memory → Multi-Provider LLM → MCP Tools → Agent Automation
 ```
 
 ## Layer Diagram
@@ -19,10 +19,9 @@ RAG System → Multi-Provider LLM → MCP Tools → Agent Automation → HTTP AP
 ┌──────────────────▼─────────────────────────────┐
 │           ExecutionEngine (single path)         │
 │  - Collect context (RAG / Memory / Router)      │
-│  - Build system prompt                          │
-│  - Call LLM (streaming / non-streaming)         │
-│  - Dispatch tool calls                          │
-│  PTC is a "tool call transport", not a branch   │
+│  - Build system prompt (Mission/Directives)     │
+│  - Hybrid Retrieval (Vector + Navigator)        │
+│  - Reflect Engine (Facts → Observations)        │
 └──────────────────┬─────────────────────────────┘
                    │
 ┌──────────────────▼─────────────────────────────┐
@@ -30,14 +29,36 @@ RAG System → Multi-Provider LLM → MCP Tools → Agent Automation → HTTP AP
 │  Register(name, info, handler)                  │
 │  List() → []ToolDefinition                      │
 │  Call(name, args) → result                      │
-│  Source tags: mcp / skill / rag / memory / custom│
 └──────────────────┬──────────────────────────────┘
                    │
      ┌─────────────┼──────────────┬─────────────┐
      ▼             ▼              ▼             ▼
-  LLMProvider  MemoryModule  RAGModule     MCPModule
-  (interface)  (self-reg)    (self-reg)    (self-reg)
+  LLMProvider  CognitiveMem  RAGModule     MCPModule
+  (interface)  (Reflect)     (self-reg)    (self-reg)
 ```
+
+## Cognitive Memory Model
+
+Rago's memory system is inspired by **Hindsight** and **PageIndex**, providing an evolving, reasoning-driven cognitive layer.
+
+### Three-Layer Memory Hierarchy
+| Level | Name | Description |
+|---|---|---|
+| **L3** | **Directive / Model** | Hard rules and curated mental models. |
+| **L2** | **Observation** | LLM-synthesized insights derived from multiple facts via `Reflect()`. |
+| **L1** | **Fact** | Atomic data points extracted from interactions (provenance: `user`, `inferred`). |
+
+### Hybrid Retrieval Strategy
+Rago uses a parallel search approach to ensure both high recall and high precision:
+- **Vector Search (Similarity)**: Uses cosine similarity in SQLite-vec to find semantically related chunks.
+- **Index Navigator (Reasoning)**: PageIndex-style search where the LLM reads structural summaries in `_index/` to logically select relevant memories.
+- **RRF Fusion**: Results are merged via Reciprocal Rank Fusion, giving higher weight to memories that appear in both tracks.
+
+### Memory Evolution (Reflect Engine)
+1. **Facts Intake**: Raw facts are saved as Markdown files.
+2. **Periodic Reflection**: When a fact threshold is met, a background process consolidates facts into **Observations**.
+3. **Evidence Tracking**: Observations store `EvidenceIDs`. Every belief the agent holds is backed by specific raw facts.
+4. **Stale Management**: When a new fact contradicts an old one, the old memory is marked as `stale` and linked via `SupersededBy`.
 
 ## Key Packages
 
@@ -45,69 +66,14 @@ RAG System → Multi-Provider LLM → MCP Tools → Agent Automation → HTTP AP
 |---------|---------------|
 | `pkg/agent` | Agent builder, execution engine, session management |
 | `pkg/rag/processor` | Document ingestion, chunking, vector search |
+| `pkg/memory` | Cognitive memory: Reflect engine, Navigator, evolution tracking |
+| `pkg/store` | File-based memory store with YAML/MD and indexing logic |
 | `pkg/providers` | Unified LLM + Embedder interfaces with provider pool |
-| `pkg/ptc` | PTC JS sandbox (goja), router, tool call transport |
-| `pkg/memory` | Memory store + search |
-| `pkg/domain` | Core interfaces and types |
+| `pkg/ptc` | PTC JS sandbox (goja), tool call transport |
 
-## Key Files in pkg/agent
+## Programmatic Tool Calling (PTC)
 
-| File | Responsibility |
-|------|---------------|
-| `service.go` | Core struct, `NewService`, `Run/RunStream/Plan`, `runWithConfig` |
-| `builder.go` | Fluent builder, module assembly, PTC sync |
-| `tool_registry.go` | Unified ToolRegistry (Register/Call/ListForLLM/SyncToPTCRouter) |
-| `module.go` | Module interface + RAGModule + MemoryModule |
-| `service_execution.go` | `executeWithLLM`, `executeToolCalls`, `finalizeExecution` |
-| `service_session.go` | `Chat/Ask/Stream/ChatStream/RunStream` |
-| `service_ptc.go` | `runPTCExecution`, `ChatWithPTC` (thin wrapper) |
-| `service_prompt.go` | System prompt + enriched prompt builders |
-| `service_intent.go` | Intent recognition, RAG routing |
-| `service_config.go` | Config setters/getters |
-| `service_mcp.go` | MCP tool adapter |
-| `service_helpers.go` | Tool collection helpers |
-| `runtime.go` | Event loop powering RunStream |
-| `events.go` | Event types for streaming |
-| `hooks.go` | HookRegistry (per-service, not global) |
-
-## ToolRegistry
-
-All tools — regardless of source — register through a single `ToolRegistry`:
-
-```go
-registry.Register(ToolRegistration{
-    Name:     "my_tool",
-    Category: CategoryCustom,  // CategoryRAG / CategoryMemory / CategoryMCP / CategorySkill
-    Info:     domain.ToolInfo{...},
-    Handler:  func(ctx, args) (interface{}, error) { ... },
-})
-```
-
-`ListForLLM(ptcEnabled bool)`:
-- `ptcEnabled=false` → returns all tool schemas for native function calling
-- `ptcEnabled=true` → returns nil (tools hidden; JS sandbox accesses them via `callTool()`)
-
-`SyncToPTCRouter(router)` copies all registry entries into the PTC goja sandbox so `callTool("name", args)` works in JS code.
-
-## Module Interface
-
-Each capability module self-registers its tools:
-
-```go
-type Module interface {
-    RegisterTools(registry *ToolRegistry) error
-}
-```
-
-Built-in modules:
-- `RAGModule` — registers `rag_query` + `rag_ingest`
-- `MemoryModule` — registers `memory_save` + `memory_recall`
-
-Custom modules can be added via `builder.WithModule(m)`.
-
-## PTC (Programmatic Tool Calling)
-
-PTC is a **transport mode**, not a separate execution path:
+PTC allows the LLM to write JavaScript logic to orchestrate tools, reducing model round-trips:
 
 ```
 runWithConfig()
@@ -115,68 +81,17 @@ runWithConfig()
   └── else           → executeWithLLM()    [LLM generates tool calls; Go runs them]
 ```
 
-Both paths share: context collection, memory hooks, session save, `ExecutionResult` construction.
+## Memory System Implementation
 
-`ChatWithPTC()` is a thin backward-compat wrapper over `Chat()`.
+Rago uses a **Shadow Index** architecture for memory:
+- **Truth Store (File-based)**: Human-editable Markdown/YAML files in `data/memories/`. This is the source of truth for all metadata and evidence.
+- **Shadow Index (Vector-based)**: A vector index in `data/rago.db` used for fast similarity recall.
 
-## Streaming
-
-```
-RunStream()                  ← full Event channel (tool calls, partial text, errors)
-Stream() / ChatStream()      ← text-only <-chan string (filter EventTypePartial)
-```
-
-## Memory Systems
-
-Rago has **two complementary memory layers**, both accessible through a unified interface:
-
-| Layer | Storage | Purpose | API |
-|-------|---------|---------|-----|
-| **DB Memory** | SQLite (`pkg/memory`) | Conversation history, auto-learned facts, semantic search | `MemoryModule` via `WithMemory()` |
-| **File Memory** | Markdown files | Human-editable persona: SOUL.md, AGENTS.md, TOOLS.md | `MemoryManager` in LongRun |
-
-### DB Memory (agent + LongRun share the same store)
-
-When the agent is built with `WithMemory()`, **LongRun automatically uses the same DB**:
-- Task results saved via `memSvc.Add()` (vector-indexed, searchable)
-- Context built via `memSvc.RetrieveAndInject()` (semantic recall)
-- Falls back to MEMORY.md if agent has no DB memory
-
-### File Memory (persona config, human-editable)
-
-LongRun reads `~/.rago/longrun/`:
-- `SOUL.md` — personality
-- `AGENTS.md` — agent identity & constraints
-- `TOOLS.md` — available tools documentation
-- `HEARTBEAT.md` — checklist for autonomous operation (runtime state)
-
-`MEMORY.md` is only used as fallback when DB memory is unavailable.
-
-### Access
-
-```go
-// From LongRunService:
-lr.GetMemory()        // *MemoryManager (file-based persona files)
-lr.GetMemoryService() // domain.MemoryService (DB, same as agent — may be nil)
-
-// From agent Service:
-svc.MemoryService()   // domain.MemoryService
-```
-
-Each `Service` instance has its own `HookRegistry` (created in `NewService`).
-No global state in the hot path — tests can run isolated services without hook cross-contamination.
-
-Hook lifecycle:
-```
-PreRun → (per tool call: PreToolUse → PostToolUse) → PostRun
-```
-
-Auto-memory hook (`RegisterAutoMemoryHook`) saves conversation to memory after each run
-when `WithMemory()` is enabled.
+### Hierarchy Tracking
+`MemoryService.GetEvolution(id)` allows tracing the life of a memory:
+`Raw Fact` $\rightarrow$ `Observation` $\rightarrow$ `Superseded Observation`.
 
 ## Session Management
-
-- Sessions use **UUID** (not sequential IDs)
-- `Chat()` auto-generates a UUID on first call and reuses it
-- `Ask()` / `Run()` without `WithSessionID` create ephemeral sessions
-- `CompactSession()` summarizes long histories to reduce token usage
+- Sessions use **UUIDs** for identification.
+- Context is enriched using both conversation history and cognitive memory recall.
+- `CompactSession()` summarizes long histories while preserving the cognitive observations.
