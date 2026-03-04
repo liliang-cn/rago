@@ -560,6 +560,9 @@ func (s *Service) rrfFusion(vector, text []*domain.MemoryWithScore) []*domain.Me
 }
 
 func (s *Service) formatMemories(memories []*domain.MemoryWithScore) string {
+	if len(memories) == 0 {
+		return ""
+	}
 	var sb strings.Builder
 	sb.WriteString("## Relevant Memory\n\n")
 	for i, m := range memories {

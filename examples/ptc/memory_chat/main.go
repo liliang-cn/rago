@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Second)
 	defer cancel()
 
 	homeDir, _ := os.UserHomeDir()
@@ -68,7 +68,9 @@ func main() {
 	fmt.Println("【第一轮对话】使用 PTC 计算并保存偏好到 Memory")
 	fmt.Println("用户: 我是一名数据分析师，请用 add_numbers 计算 100 + 200，并记住我的职业。")
 
-	result1, err := svc.Chat(ctx, "我是一名数据分析师，请用 add_numbers 计算 100 + 200，并记住我的职业。")
+	chatCtx1, cancel1 := context.WithTimeout(ctx, 180*time.Second)
+	result1, err := svc.Chat(chatCtx1, "我是一名数据分析师，请用 add_numbers 计算 100 + 200，并记住我的职业。")
+	cancel1()
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
@@ -78,7 +80,9 @@ func main() {
 	fmt.Println("【第二轮对话】使用 PTC 调用多个工具")
 	fmt.Println("用户: 用 multiply_numbers 计算 15 * 4，然后用 add_numbers 加上 100。")
 
-	result2, err := svc.Chat(ctx, "用 multiply_numbers 计算 15 * 4，然后用 add_numbers 把结果加上 100。")
+	chatCtx2, cancel2 := context.WithTimeout(ctx, 180*time.Second)
+	result2, err := svc.Chat(chatCtx2, "用 multiply_numbers 计算 15 * 4，然后用 add_numbers 把结果加上 100。")
+	cancel2()
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
@@ -88,7 +92,9 @@ func main() {
 	fmt.Println("【第三轮对话】验证 Memory 检索")
 	fmt.Println("用户: 你还记得我的职业是什么吗？")
 
-	result3, err := svc.Chat(ctx, "你还记得我的职业是什么吗？")
+	chatCtx3, cancel3 := context.WithTimeout(ctx, 180*time.Second)
+	result3, err := svc.Chat(chatCtx3, "你还记得我的职业是什么吗？")
+	cancel3()
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}
@@ -111,7 +117,9 @@ func main() {
 	fmt.Println("\n【第四轮对话】PTC 计算结合 Memory 检索")
 	fmt.Println("用户: 根据我的职业，计算适合我的幸运数字：用 multiply_numbers 计算 7 * 7。")
 
-	result4, err := svc.Chat(ctx, "根据你记住的我的职业，计算一个幸运数字：用 multiply_numbers 计算 7 * 7。")
+	chatCtx4, cancel4 := context.WithTimeout(ctx, 180*time.Second)
+	result4, err := svc.Chat(chatCtx4, "根据你记住的我的职业，计算一个幸运数字：用 multiply_numbers 计算 7 * 7。")
+	cancel4()
 	if err != nil {
 		log.Fatalf("对话失败: %v", err)
 	}

@@ -88,12 +88,22 @@ type ExecutionResult struct {
 // This is the idiomatic accessor for library integrations — use this
 // instead of type-asserting or fmt.Sprintf'ing FinalResult.
 //
+// If PTC (Programmatic Tool Calling) was used, Text() returns the
+// formatted result of the code execution (e.g. return values and logs).
+//
 //	result, err := svc.Chat(ctx, "Hello")
 //	fmt.Println(result.Text())
 func (r *ExecutionResult) Text() string {
 	if r == nil {
 		return ""
 	}
+
+	// If PTC was used and we have an executed result, return the formatted output
+	// (includes return values, logs, and tool call status).
+	if r.PTCResult != nil && r.PTCResult.Type != PTCResultTypeText {
+		return r.PTCResult.FormatForLLM()
+	}
+
 	if s, ok := r.FinalResult.(string); ok {
 		return s
 	}
