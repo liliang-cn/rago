@@ -14,6 +14,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	ragolog "github.com/liliang-cn/rago/v2/pkg/log"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	memorypkg "github.com/liliang-cn/rago/v2/pkg/memory"
 	"github.com/liliang-cn/rago/v2/pkg/prompt"
 	"github.com/liliang-cn/rago/v2/pkg/router"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
@@ -375,6 +376,7 @@ func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig
 		ragContext     string
 		memoryContext  string
 		memoryMemories []*domain.MemoryWithScore
+		memoryLogic    string
 	)
 
 	g, groupCtx := errgroup.WithContext(runCtx)
@@ -404,7 +406,7 @@ func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig
 	if s.memoryService != nil {
 		g.Go(func() error {
 			var err error
-			memoryContext, memoryMemories, err = s.memoryService.RetrieveAndInject(groupCtx, goal, session.GetID())
+			memoryContext, memoryMemories, memoryLogic, err = s.memoryService.RetrieveAndInjectWithLogic(groupCtx, goal, session.GetID())
 			return err
 		})
 	}
@@ -470,7 +472,7 @@ func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig
 		log.Printf("[Agent] Failed to save plan: %v", err)
 	}
 
-	result, err := s.finalizeExecution(runCtx, session, goal, intent, memoryMemories, "", currentResult)
+	result, err := s.finalizeExecution(runCtx, session, goal, intent, memoryMemories, memoryLogic, "", currentResult)
 	if err != nil {
 		return nil, err
 	}
@@ -491,4 +493,62 @@ func (s *Service) Cancel() bool {
 		return true
 	}
 	return false
+}
+
+// ─── Cognitive Memory APIs ───────────────────────────────────────────────────
+
+// TriggerReflection manually triggers memory consolidation for a session.
+// The LLM analyses accumulated facts and generates higher-level observations.
+// Returns a summary of what was consolidated, or an error.
+func (s *Service) TriggerReflection(ctx context.Context, sessionID string) (string, error) {
+	if s.memoryService == nil {
+		return "", fmt.Errorf("memory service not configured")
+	}
+	return s.memoryService.Reflect(ctx, sessionID)
+}
+
+// ExplainMemory returns the full evolution graph for a memory, tracing how
+// raw facts were consolidated into observations. Requires a file-based memory
+// service (FileMemoryStore path).
+func (s *Service) ExplainMemory(ctx context.Context, memoryID string) (*memorypkg.MemoryEvolutionNode, error) {
+	svc, ok := s.memoryService.(*memorypkg.Service)
+	if !ok {
+		return nil, fmt.Errorf("ExplainMemory requires a *memory.Service (file-based store)")
+	}
+	return svc.GetEvolution(ctx, memoryID)
+}
+
+// SetAgentDirective stores a mission statement and hard directives as high-priority
+// preference memories. These are injected into every prompt with the highest priority,
+// overriding any conflicting context.
+func (s *Service) SetAgentDirective(ctx context.Context, sessionID string, mission string, directives []string) error {
+	if s.memoryService == nil {
+		return fmt.Errorf("memory service not configured")
+	}
+	now := time.Now()
+	if mission != "" {
+		if err := s.memoryService.Add(ctx, &domain.Memory{
+			Type:       domain.MemoryTypePreference,
+			Content:    "Agent mission: " + mission,
+			Importance: 1.0,
+			SourceType: domain.MemorySourceUserInput,
+			SessionID:  sessionID,
+			CreatedAt:  now,
+		}); err != nil {
+			return fmt.Errorf("storing mission: %w", err)
+		}
+	}
+	for _, d := range directives {
+		if err := s.memoryService.Add(ctx, &domain.Memory{
+			Type:       domain.MemoryTypePreference,
+			Content:    "Directive: " + d,
+			Importance: 1.0,
+			SourceType: domain.MemorySourceUserInput,
+			SessionID:  sessionID,
+			CreatedAt:  now,
+		}); err != nil {
+			return fmt.Errorf("storing directive %q: %w", d, err)
+		}
+	}
+	return nil
 }

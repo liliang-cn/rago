@@ -16,7 +16,14 @@ const navigatorCacheTTL = 5 * time.Minute
 
 type cacheEntry struct {
 	ids       []string
+	reasoning string // LLM's explanation of why these IDs were selected
 	expiresAt time.Time
+}
+
+// NavigateResult holds the selected memories and the LLM's selection reasoning.
+type NavigateResult struct {
+	Memories  []*domain.Memory
+	Reasoning string // PageIndex-style explanation: "Selected because..."
 }
 
 // IndexNavigator implements PageIndex-style memory retrieval for FileMemoryStore.
@@ -49,13 +56,24 @@ func (n *IndexNavigator) InvalidateCache() {
 
 // Navigate uses the LLM to read the memory index and select the most relevant memories.
 // Results are cached by query string for navigatorCacheTTL.
+// Deprecated: use NavigateWithReason to also capture the LLM's selection logic.
 func (n *IndexNavigator) Navigate(ctx context.Context, query string, topK int) ([]*domain.Memory, error) {
+	r, err := n.NavigateWithReason(ctx, query, topK)
+	if err != nil || r == nil {
+		return nil, err
+	}
+	return r.Memories, nil
+}
+
+// NavigateWithReason returns both selected memories and the LLM's reasoning string.
+// The reasoning can be surfaced as MemoryLogic in ExecutionResult for transparency.
+func (n *IndexNavigator) NavigateWithReason(ctx context.Context, query string, topK int) (*NavigateResult, error) {
 	if n.llm == nil || n.fileStore == nil {
 		return nil, nil
 	}
 
 	// 1. Check cache
-	ids, cached := n.cachedIDs(query)
+	ids, reasoning, cached := n.cachedEntry(query)
 	if !cached {
 		// 2. Read the memory index (TOC) — observations first (higher-level)
 		idx, err := n.fileStore.ReadIndex(ctx)
@@ -66,14 +84,12 @@ func (n *IndexNavigator) Navigate(ctx context.Context, query string, topK int) (
 		// 3. Build a compact listing: observations first, then other types
 		var sb strings.Builder
 		sb.WriteString("Memory Index (observations first, then facts; format: [id] importance | summary):\n\n")
-		// First pass: observations
 		for _, e := range idx.Entries {
 			if e.IsStale || e.Type != domain.MemoryTypeObservation {
 				continue
 			}
 			sb.WriteString(fmt.Sprintf("- [%s][obs] %.2f | %s\n", e.ID, e.Importance, e.Summary))
 		}
-		// Second pass: everything else
 		for _, e := range idx.Entries {
 			if e.IsStale || e.Type == domain.MemoryTypeObservation {
 				continue
@@ -91,9 +107,10 @@ Instructions:
 - Prefer observations over raw facts when observations cover the topic.
 - Use logical reasoning, not just keyword matching.
 - If no memories are relevant, return an empty list.
+- Provide a brief "reasoning" string explaining your selection.
 
 Output valid JSON only:
-{"ids": ["id1", "id2"]}`, query, sb.String(), topK)
+{"ids": ["id1", "id2"], "reasoning": "Selected because..."}`, query, sb.String(), topK)
 
 		schema := map[string]interface{}{
 			"type": "object",
@@ -102,6 +119,7 @@ Output valid JSON only:
 					"type":  "array",
 					"items": map[string]interface{}{"type": "string"},
 				},
+				"reasoning": map[string]interface{}{"type": "string"},
 			},
 			"required": []string{"ids"},
 		}
@@ -111,9 +129,10 @@ Output valid JSON only:
 			return nil, fmt.Errorf("navigator LLM call failed: %w", err)
 		}
 
-		// 4. Parse selected IDs
+		// 4. Parse selected IDs + reasoning
 		var selected struct {
-			IDs []string `json:"ids"`
+			IDs       []string `json:"ids"`
+			Reasoning string   `json:"reasoning"`
 		}
 		raw := strings.TrimSpace(result.Raw)
 		if strings.HasPrefix(raw, "```") {
@@ -128,7 +147,8 @@ Output valid JSON only:
 			return nil, fmt.Errorf("failed to parse navigator result: %w", err)
 		}
 		ids = selected.IDs
-		n.setCachedIDs(query, ids)
+		reasoning = selected.Reasoning
+		n.setCachedEntry(query, ids, reasoning)
 	}
 
 	// 5. Fetch full memory content for each selected ID
@@ -141,21 +161,31 @@ Output valid JSON only:
 		memories = append(memories, m)
 	}
 
-	return memories, nil
+	return &NavigateResult{Memories: memories, Reasoning: reasoning}, nil
 }
 
-func (n *IndexNavigator) cachedIDs(query string) ([]string, bool) {
+func (n *IndexNavigator) cachedEntry(query string) (ids []string, reasoning string, ok bool) {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	entry, ok := n.cache[query]
-	if !ok || time.Now().After(entry.expiresAt) {
-		return nil, false
+	entry, exists := n.cache[query]
+	if !exists || time.Now().After(entry.expiresAt) {
+		return nil, "", false
 	}
-	return entry.ids, true
+	return entry.ids, entry.reasoning, true
+}
+
+// cachedIDs is kept for backward compatibility with existing callers.
+func (n *IndexNavigator) cachedIDs(query string) ([]string, bool) {
+	ids, _, ok := n.cachedEntry(query)
+	return ids, ok
+}
+
+func (n *IndexNavigator) setCachedEntry(query string, ids []string, reasoning string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.cache[query] = cacheEntry{ids: ids, reasoning: reasoning, expiresAt: time.Now().Add(navigatorCacheTTL)}
 }
 
 func (n *IndexNavigator) setCachedIDs(query string, ids []string) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.cache[query] = cacheEntry{ids: ids, expiresAt: time.Now().Add(navigatorCacheTTL)}
+	n.setCachedEntry(query, ids, "")
 }

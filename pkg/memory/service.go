@@ -128,13 +128,23 @@ func (s *Service) SetShadowIndex(idx domain.MemoryStore) {
 //   - embedder available → vector search (+ optional hybrid BM25)
 //   - navigator available → IndexNavigator (LLM reads _index/) — used alone or fused via RRF
 //   - both → results are RRF-fused for highest recall
+//
+// Returns: formatted context string, scored memories, navigator reasoning (MemoryLogic), error
 func (s *Service) RetrieveAndInject(ctx context.Context, query string, sessionID string) (string, []*domain.MemoryWithScore, error) {
+	_, mems, _, err := s.RetrieveAndInjectWithLogic(ctx, query, sessionID)
+	return s.formatMemories(mems), mems, err
+}
+
+// RetrieveAndInjectWithLogic is the full retrieval pipeline returning the navigator's
+// reasoning string alongside the context and memories.
+func (s *Service) RetrieveAndInjectWithLogic(ctx context.Context, query string, sessionID string) (string, []*domain.MemoryWithScore, string, error) {
 	// 0. Adaptive retrieval - skip if query doesn't need memory
 	if s.classifier != nil && !s.classifier.NeedsMemory(query) {
-		return "", nil, nil
+		return "", nil, "", nil
 	}
 
 	var allMemories []*domain.MemoryWithScore
+	var memoryLogic string
 
 	// 1. Entity Search (if query is not empty)
 	if s.entityMemory != nil && query != "" {
@@ -170,13 +180,13 @@ func (s *Service) RetrieveAndInject(ctx context.Context, query string, sessionID
 		}
 	}
 
-	// 3. Navigator Search (PageIndex-style, for file stores)
+	// 3. Navigator Search (PageIndex-style, for file stores) — captures reasoning
 	var navResults []*domain.MemoryWithScore
 	if s.navigator != nil {
-		navMems, err := s.navigator.Navigate(ctx, query, s.maxMemories)
-		if err == nil {
-			for i, m := range navMems {
-				// Score by position: earlier = more relevant
+		navResult, err := s.navigator.NavigateWithReason(ctx, query, s.maxMemories)
+		if err == nil && navResult != nil {
+			memoryLogic = navResult.Reasoning
+			for i, m := range navResult.Memories {
 				score := 1.0 - float64(i)*0.05
 				navResults = append(navResults, &domain.MemoryWithScore{Memory: m, Score: score})
 			}
@@ -225,10 +235,10 @@ func (s *Service) RetrieveAndInject(ctx context.Context, query string, sessionID
 	}
 
 	if len(allMemories) == 0 {
-		return "", nil, nil
+		return "", nil, memoryLogic, nil
 	}
 
-	return s.formatMemories(allMemories), allMemories, nil
+	return s.formatMemories(allMemories), allMemories, memoryLogic, nil
 }
 
 // StoreIfWorthwhile decides what to store based on task completion.

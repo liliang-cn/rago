@@ -58,9 +58,12 @@ type MCPConfig struct {
 
 // MemoryConfig holds Memory configuration
 type MemoryConfig struct {
-	Enabled   bool   `json:"enabled"`
-	DBPath    string `json:"db_path,omitempty"`
-	StoreType string `json:"store_type,omitempty"` // "file", "vector", "hybrid"
+	Enabled          bool     `json:"enabled"`
+	DBPath           string   `json:"db_path,omitempty"`
+	StoreType        string   `json:"store_type,omitempty"` // "file", "vector", "hybrid"
+	ReflectThreshold int      `json:"reflect_threshold,omitempty"` // auto-reflect after N new facts (0 = disabled)
+	Mission          string   `json:"mission,omitempty"`           // MemoryBank mission statement
+	Directives       []string `json:"directives,omitempty"`        // MemoryBank hard directives
 }
 
 // RouterConfig holds Router configuration
@@ -541,10 +544,41 @@ func (b *Builder) buildMemoryService(ragoCfg *config.Config, embedSvc domain.Emb
 		return nil, fmt.Errorf("unsupported memory store type: %s", storeType)
 	}
 
-	memSvc := memory.NewService(memStore, llmSvc, embedSvc, memory.DefaultConfig())
+	memCfg := memory.DefaultConfig()
+	if b.memoryCfg.ReflectThreshold > 0 {
+		memCfg.ReflectThreshold = b.memoryCfg.ReflectThreshold
+	}
+
+	memSvc := memory.NewService(memStore, llmSvc, embedSvc, memCfg)
 	if shadowStore != nil {
 		memSvc.SetShadowIndex(shadowStore)
 	}
+
+	// Seed MemoryBank directives as high-priority preference memories
+	if b.memoryCfg.Mission != "" || len(b.memoryCfg.Directives) > 0 {
+		go func() {
+			bCtx := context.Background()
+			if b.memoryCfg.Mission != "" {
+				_ = memSvc.Add(bCtx, &domain.Memory{
+					Type:       domain.MemoryTypePreference,
+					Content:    "Agent mission: " + b.memoryCfg.Mission,
+					Importance: 1.0,
+					SourceType: domain.MemorySourceUserInput,
+					CreatedAt:  time.Now(),
+				})
+			}
+			for _, d := range b.memoryCfg.Directives {
+				_ = memSvc.Add(bCtx, &domain.Memory{
+					Type:       domain.MemoryTypePreference,
+					Content:    "Directive: " + d,
+					Importance: 1.0,
+					SourceType: domain.MemorySourceUserInput,
+					CreatedAt:  time.Now(),
+				})
+			}
+		}()
+	}
+
 	return memSvc, nil
 }
 
@@ -611,6 +645,29 @@ func WithMemoryDBPath(path string) MemoryOption {
 // WithMemoryStoreType sets memory store type: "file", "vector", or "hybrid"
 func WithMemoryStoreType(storeType string) MemoryOption {
 	return func(c *MemoryConfig) { c.StoreType = storeType }
+}
+
+// WithMemoryReflect sets the auto-reflect threshold: after N new facts are stored,
+// Reflect() is triggered asynchronously to consolidate them into observations.
+// Set to 0 to disable auto-reflection.
+func WithMemoryReflect(threshold int) MemoryOption {
+	return func(c *MemoryConfig) { c.ReflectThreshold = threshold }
+}
+
+// WithMemoryHybrid enables hybrid store mode (FileMemoryStore as truth + sqvect as shadow).
+// This activates vector search acceleration alongside IndexNavigator logical retrieval.
+func WithMemoryHybrid() MemoryOption {
+	return func(c *MemoryConfig) { c.StoreType = "hybrid" }
+}
+
+// WithMemoryBank sets the agent's long-term mission statement and hard directives.
+// Directives are stored as high-importance preference memories and injected into
+// every prompt context with the highest priority.
+func WithMemoryBank(mission string, directives []string) MemoryOption {
+	return func(c *MemoryConfig) {
+		c.Mission = mission
+		c.Directives = directives
+	}
 }
 
 // RouterOption modifies RouterConfig

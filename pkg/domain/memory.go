@@ -257,6 +257,11 @@ type MemoryService interface {
 	// RetrieveAndInject searches relevant memories and formats them for LLM context
 	RetrieveAndInject(ctx context.Context, query string, sessionID string) (string, []*MemoryWithScore, error)
 
+	// RetrieveAndInjectWithLogic is like RetrieveAndInject but also returns the
+	// IndexNavigator's reasoning string (MemoryLogic) explaining which memories
+	// were selected and why. Returns: formatted context, scored memories, reasoning, error.
+	RetrieveAndInjectWithLogic(ctx context.Context, query string, sessionID string) (string, []*MemoryWithScore, string, error)
+
 	// StoreIfWorthwhile analyzes task completion and decides what to store
 	StoreIfWorthwhile(ctx context.Context, req *MemoryStoreRequest) error
 

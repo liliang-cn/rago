@@ -131,7 +131,24 @@ func displayResult(result *agent.ExecutionResult) {
 	if chatShowMemory && len(result.Memories) > 0 {
 		fmt.Printf("\n🧠 Retrieved Memories (%d):\n", len(result.Memories))
 		for i, mem := range result.Memories {
-			fmt.Printf("  %d. [%s] %s (score: %.2f)\n", i+1, mem.Type, truncateString(mem.Content, 100), mem.Score)
+			sourceTag := ""
+			if mem.SourceType != "" {
+				sourceTag = fmt.Sprintf(" src:%s", mem.SourceType)
+			}
+			confTag := ""
+			if mem.Confidence > 0 {
+				confTag = fmt.Sprintf(" conf:%.2f", mem.Confidence)
+			}
+			evTag := ""
+			if len(mem.EvidenceIDs) > 0 {
+				evTag = fmt.Sprintf(" evidence:%d", len(mem.EvidenceIDs))
+			}
+			fmt.Printf("  %d. [%s%s%s%s] %s (score: %.2f)\n",
+				i+1, mem.Type, sourceTag, confTag, evTag,
+				truncateString(mem.Content, 100), mem.Score)
+		}
+		if result.MemoryLogic != "" {
+			fmt.Printf("  💡 Navigator reasoning: %s\n", truncateString(result.MemoryLogic, 200))
 		}
 	}
 
