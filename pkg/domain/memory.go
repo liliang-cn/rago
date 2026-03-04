@@ -108,26 +108,53 @@ type Entity struct {
 type MemoryType string
 
 const (
-	MemoryTypeFact      MemoryType = "fact"
-	MemoryTypeSkill     MemoryType = "skill"
-	MemoryTypePattern   MemoryType = "pattern"
-	MemoryTypeContext   MemoryType = "context"
-	MemoryTypePreference MemoryType = "preference"
+	MemoryTypeFact        MemoryType = "fact"
+	MemoryTypeSkill       MemoryType = "skill"
+	MemoryTypePattern     MemoryType = "pattern"
+	MemoryTypeContext     MemoryType = "context"
+	MemoryTypePreference  MemoryType = "preference"
+	MemoryTypeObservation MemoryType = "observation" // LLM-consolidated from multiple facts
 )
+
+// MemorySourceType indicates how a memory was created
+type MemorySourceType string
+
+const (
+	MemorySourceUserInput    MemorySourceType = "user_input"   // user explicitly stated this
+	MemorySourceInferred     MemorySourceType = "inferred"     // agent inferred from behavior
+	MemorySourceConsolidated MemorySourceType = "consolidated" // merged from multiple facts by Reflect
+)
+
+// MemoryRevision records a single modification to a memory.
+type MemoryRevision struct {
+	At      time.Time `json:"at"`               // when the change occurred
+	By      string    `json:"by,omitempty"`      // actor: "user", "agent", "reflect", etc.
+	Summary string    `json:"summary,omitempty"` // brief description of what changed
+}
 
 // Memory represents a single long-term memory
 type Memory struct {
-	ID          string                 `json:"id"`
-	SessionID   string                 `json:"session_id,omitempty"` // Associated session, empty means global memory
-	Type        MemoryType             `json:"type"`
-	Content     string                 `json:"content"`
-	Vector      []float64              `json:"vector,omitempty"`
-	Importance  float64                `json:"importance"`  // 0-1, used for sorting/priority
-	AccessCount int                    `json:"access_count"`
-	LastAccessed time.Time             `json:"last_accessed"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
+	ID           string                 `json:"id"`
+	SessionID    string                 `json:"session_id,omitempty"` // Associated session, empty means global memory
+	Type         MemoryType             `json:"type"`
+	Content      string                 `json:"content"`
+	Vector       []float64              `json:"vector,omitempty"`
+	Importance   float64                `json:"importance"`   // 0-1, used for sorting/priority
+	AccessCount  int                    `json:"access_count"`
+	LastAccessed time.Time              `json:"last_accessed"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+	CreatedAt    time.Time              `json:"created_at"`
+	UpdatedAt    time.Time              `json:"updated_at"`
+
+	// Hindsight: temporal and evidence fields
+	EvidenceIDs     []string          `json:"evidence_ids,omitempty"`      // fact IDs that support this observation
+	Confidence      float64           `json:"confidence,omitempty"`        // 0-1, confidence of this observation
+	ValidFrom       time.Time         `json:"valid_from,omitempty"`        // when this fact became valid
+	ValidTo         *time.Time        `json:"valid_to,omitempty"`          // nil means currently valid
+	SupersededBy    string            `json:"superseded_by,omitempty"`     // ID of the memory that replaced this one
+	SourceType      MemorySourceType  `json:"source_type,omitempty"`       // how this memory was created
+	Conflicting     bool              `json:"conflicting,omitempty"`       // true if this observation has conflicting evidence
+	RevisionHistory []MemoryRevision  `json:"revision_history,omitempty"`  // ordered list of changes to this memory
 }
 
 // MemoryWithScore represents a memory with its similarity score
