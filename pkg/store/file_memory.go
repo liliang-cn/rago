@@ -425,7 +425,7 @@ func (s *FileMemoryStore) Reflect(ctx context.Context, sessionID string) (string
 		}
 	}
 
-	promptText := fmt.Sprintf(`You are a memory consolidation engine with strict anti-hallucination rules.
+	promptText := fmt.Sprintf(`You are a memory consolidation engine with strict anti-hallucination rules. /nothink
 
 New facts (not yet covered by any observation):
 %s
@@ -451,31 +451,18 @@ Output valid JSON only:
   ]
 }`, factLines.String(), obsLines.String())
 
-	schema := map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"observations": map[string]interface{}{
-				"type": "array",
-				"items": map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"content":       map[string]interface{}{"type": "string"},
-						"confidence":    map[string]interface{}{"type": "number"},
-						"evidence_ids":  map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
-						"conflicting":   map[string]interface{}{"type": "boolean"},
-						"update_obs_id": map[string]interface{}{"type": "string"},
-					},
-					"required": []string{"content", "confidence", "evidence_ids"},
-				},
-			},
-		},
-		"required": []string{"observations"},
-	}
-
-	result, err := s.llm.GenerateStructured(ctx, promptText, schema, &domain.GenerationOptions{Temperature: 0.2})
+	// Use plain Generate — prompt already contains full JSON format.
+	// /nothink suppresses chain-of-thought on reasoning models (MiniMax-M2.5, DeepSeek-R1).
+	// 3-minute timeout: fallback to Ollama is skipped if context expires.
+	reflectCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	defer cancel()
+	raw, err := s.llm.Generate(reflectCtx, promptText, &domain.GenerationOptions{Temperature: 0.2, MaxTokens: 2048})
 	if err != nil {
 		return "", fmt.Errorf("LLM reflection failed: %w", err)
 	}
+
+	// Strip markdown fences and extract JSON
+	result := &domain.StructuredResult{Raw: extractJSONFromText(raw)}
 
 	// 5. Parse and store observations
 	type obsItem struct {
@@ -856,14 +843,38 @@ return uuid.New().String()
 
 // parseJSON unmarshals raw JSON into v, stripping markdown code fences if present.
 func parseJSON(raw string, v interface{}) error {
-raw = strings.TrimSpace(raw)
-if strings.HasPrefix(raw, "```") {
-lines := strings.SplitN(raw, "\n", 2)
-if len(lines) == 2 {
-raw = lines[1]
+	return json.Unmarshal([]byte(extractJSONFromText(raw)), v)
 }
-raw = strings.TrimSuffix(raw, "```")
-raw = strings.TrimSpace(raw)
-}
-return json.Unmarshal([]byte(raw), v)
+
+// extractJSONFromText strips <think>...</think> reasoning blocks, markdown code
+// fences, and returns the bare JSON object or array.
+func extractJSONFromText(s string) string {
+	s = strings.TrimSpace(s)
+	// Strip <think>...</think> blocks (reasoning model output)
+	for {
+		start := strings.Index(s, "<think>")
+		end := strings.Index(s, "</think>")
+		if start == -1 || end == -1 || end <= start {
+			break
+		}
+		s = strings.TrimSpace(s[:start] + s[end+len("</think>"):])
+	}
+	// Strip markdown code fences
+	for _, fence := range []string{"```json", "```"} {
+		if idx := strings.Index(s, fence); idx != -1 {
+			s = s[idx+len(fence):]
+			if end := strings.Index(s, "```"); end != -1 {
+				s = s[:end]
+			}
+			break
+		}
+	}
+	s = strings.TrimSpace(s)
+	// Find first { or [
+	for i, ch := range s {
+		if ch == '{' || ch == '[' {
+			return s[i:]
+		}
+	}
+	return s
 }
