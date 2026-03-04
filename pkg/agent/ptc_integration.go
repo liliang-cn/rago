@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -342,7 +343,8 @@ func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.Too
 		var sb strings.Builder
 		sb.WriteString("\n\nTools available via callTool(name, args):\n")
 		for _, t := range availableTools {
-			sb.WriteString(fmt.Sprintf("  - %s: %s\n", t.Name, t.Description))
+			paramsJSON, _ := json.Marshal(t.Parameters)
+			sb.WriteString(fmt.Sprintf("  - %s: %s (args: %s)\n", t.Name, t.Description, string(paramsJSON)))
 		}
 		toolsDesc = sb.String()
 	}
@@ -426,7 +428,8 @@ Respond ONLY with the <code> block. No preamble. No postamble. No markdown. No f
 	if len(availableTools) > 0 {
 		sb.WriteString("\n### Available Tools for callTool()\n")
 		for _, t := range availableTools {
-			sb.WriteString(fmt.Sprintf("- %s: %s\n", t.Name, t.Description))
+			paramsJSON, _ := json.Marshal(t.Parameters)
+			sb.WriteString(fmt.Sprintf("- %s: %s (args: %s)\n", t.Name, t.Description, string(paramsJSON)))
 		}
 	}
 

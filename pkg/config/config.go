@@ -272,7 +272,7 @@ func setDefaults() {
 
 	viper.SetDefault("llm_pool.enabled", true)
 	viper.SetDefault("llm_pool.strategy", "round_robin")
-	viper.SetDefault("embedding_pool.enabled", true)
+	viper.SetDefault("embedding_pool.enabled", false) // embedding is optional - only enable when providers are configured
 	viper.SetDefault("embedding_pool.strategy", "round_robin")
 
 	viper.SetDefault("sqvect.max_conns", 10)
