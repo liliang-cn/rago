@@ -1,21 +1,22 @@
 ---
 name: rago
-description: Use Rago for local RAG (Retrieval Augmented Generation) operations including document ingestion, semantic search, and Q&A. Supports multi-provider LLM, MCP tools, Skills, and autonomous LongRun mode. Use when building local knowledge bases, semantic search, or AI assistants with memory.
+description: Use Rago for local RAG (Retrieval Augmented Generation) operations including document ingestion, semantic search, and Q&A. Supports multi-provider LLM, MCP tools, Skills, and cognitive memory (Hindsight/PageIndex). Use when building local knowledge bases, AI assistants with evolving long-term memory.
 license: MIT
 metadata:
   author: liliang-cn
-  version: "2.47.0"
+  version: "2.50.0"
   github: https://github.com/liliang-cn/rago
 ---
 
-# Rago - Local RAG System with Agent Automation
+# Rago - Local RAG System with Cognitive Memory
 
-Rago is primarily a **local RAG system** with optional agent automation. Core features: document ingestion → chunking → vector storage → semantic search → Q&A.
+Rago is a **local-first RAG + Agent framework** that features an evolving memory layer. It transitions from raw data points to high-level insights via autonomous reflection.
 
 ## When to Use
 
 - Build local knowledge base from documents
-- Semantic search over document corpus
+- AI assistants with **evolving long-term memory** (Hindsight)
+- Reasoning-based retrieval for long documents (PageIndex)
 - Q&A systems backed by your own data
 - AI agents with MCP tools and Skills
 - Multi-provider LLM (OpenAI, Anthropic, Ollama)
@@ -39,20 +40,19 @@ func main() {
     svc, _ := agent.New("my-agent").
         WithPrompt("You are a helpful assistant.").
         WithRAG().
-        WithMCP().
-        WithSkills().
-        WithMemory().
+        WithMemory(). // Enables Cognitive Memory (Facts -> Observations)
         WithDebug(false).
         Build()
     defer svc.Close()
 
-    // Simple one-shot Q&A
-    reply, _ := svc.Ask(ctx, "Summarize my documents")
-    fmt.Println(reply)
+    // Conversational chat with memory recall
+    result, _ := svc.Chat(ctx, "I am a Go developer.")
+    fmt.Println(result.Text())
 
-    // Full agentic run (tool calls, RAG, planning)
-    result, _ := svc.Run(ctx, "Analyze and summarize")
-    fmt.Println(result.Text())  // or result.Err() to check errors
+    // Memory visibility: check what the agent "knows" and why
+    for _, m := range result.Memories {
+        fmt.Printf("[%s] %s (Confidence: %.2f)\n", m.Type, m.Content, m.Confidence)
+    }
 }
 ```
 
@@ -60,145 +60,68 @@ func main() {
 
 ```bash
 # Ingest documents
-rago ingest ./documents/ --collection my-docs
+rago ingest ./documents/
 
-# Query
-rago query "What is the main topic?" --collection my-docs
-
-# Run agent
-rago agent run "Analyze and summarize"
+# Chat with memory transparency
+rago chat "What do you know about my projects?" --show-memory
 ```
 
 ## Core Features
 
-### 1. RAG Operations
+### 1. Cognitive Memory (Hindsight)
+Rago doesn't just store facts; it learns patterns.
+- **Facts**: Atomic data from chat.
+- **Observations**: Synthesized insights from multiple facts via `Reflect()`.
+- **Traceability**: Track the evolution from raw fact to high-level belief.
 
-```go
-// Ingest
-ragProcessor.Ingest(ctx, "./docs/", domain.IngestOptions{
-    Collection: "my-docs",
-    ChunkSize:  512,
-})
+### 2. Reasoning Retrieval (PageIndex)
+For massive documents or when embeddings are weak:
+- **Index Navigator**: LLM-driven tree search over hierarchical summaries.
+- **Hybrid Search**: Parallel Vector + Index reasoning fused via RRF.
 
-// Query
-result, _ := ragProcessor.Query(ctx, domain.QueryRequest{
-    Query:   "search query",
-    TopK:    5,
-})
-```
+### 3. RAG Operations
+Ingest docs → chunk → embed → SQLite vector store → hybrid search.
 
-### 2. Multi-Provider LLM
+### 4. Multi-Provider LLM
+OpenAI, Anthropic, Ollama, DeepSeek, and Azure.
 
-OpenAI, Anthropic, Ollama, and custom providers via `~/.rago/config.yaml`.
-
-### 3. MCP Tools
-
-```go
-svc, _ := agent.New("agent").
-    WithMCP(agent.WithMCPConfigPaths("mcpServers.json")).
-    Build()
-```
-
-### 4. Skills Integration
-
-```go
-svc, _ := agent.New("agent").
-    WithSkills(agent.WithSkillsPaths("~/.agents/skills")).
-    Build()
-```
-
-### 5. LongRun (Autonomous Mode)
-
-```go
-longRun, _ := agent.NewLongRun(svc).
-    WithInterval(10 * time.Minute).
-    WithMaxActions(5).
-    Build()
-
-longRun.AddTask(ctx, "Analyze documents", nil)
-longRun.Start(ctx)
-```
+### 5. Skills & MCP
+Extensible via YAML+Markdown Skills or standard MCP tool servers.
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────┐
-│              Rago System                 │
-├──────────────────────────────────────────┤
-│  RAG Store │ LLM Pool │ MCP Tools        │
-│       ┌────┴──────────┴────┐             │
-│       │    Agent Service   │             │
-│       │  ToolRegistry      │ ← Module    │
-│       │  HookRegistry      │   interface │
-│       │  MemoryService     │             │
-│       └────────────────────┘             │
-└──────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│                Rago System                   │
+├──────────────────────────────────────────────┤
+│  RAG Store │ LLM Pool │ Cognitive Memory     │
+│       ┌────┴──────────┴────────┐             │
+│       │      Agent Service     │ ← Reflect   │
+│       │  ToolRegistry (Unified)│   Engine    │
+│       │  Index Navigator       │ ← PageIndex │
+│       └────────────────────────┘             │
+└──────────────────────────────────────────────┘
 ```
-
-Tools are self-registered via the `Module` interface (`RAGModule`, `MemoryModule`). Each `Service` has its own isolated `HookRegistry`.
 
 ## Builder Pattern
 
 ```go
-// Basic
-svc, _ := agent.New("name").Build()
-
-// Full features
 svc, _ := agent.New("name").
-    WithPrompt("You are a helpful assistant."). // system prompt
     WithRAG().
-    WithMCP().
-    WithSkills().
     WithMemory().
-    WithDBPath("~/.rago/data/agent.db").
-    WithDebug(true).
-    WithTool(myDef, myHandler, "category").     // single tool
-    WithTools(agent.ToolRegistration{...}).     // bulk tools
-    WithProgress(func(e *agent.ProgressEvent) { fmt.Println(e) }).
+    WithMemoryReflect(5).      // Auto-reflect after 5 new facts
+    WithMemoryHybrid().       // Enable Vector + Index search
+    WithMemoryBank("mission", []string{"directive1"}).
     Build()
 ```
 
 ## Invocation API
 
-```go
-// Simple Q&A — returns (string, error)
-reply, err := svc.Ask(ctx, "What is Go?")
-
-// Multi-turn chat — session memory, returns (string, error)
-reply, err := svc.Chat(ctx, "Tell me more")
-
-// Full agent run — tool calls, RAG, planning
-result, err := svc.Run(ctx, "goal", agent.WithMaxTurns(20))
-fmt.Println(result.Text())      // final answer
-fmt.Println(result.Err())       // first tool/LLM error
-fmt.Println(result.HasSources()) // true if RAG sources attached
-
-// Streaming — live token output
-for token := range svc.Stream(ctx, "Write a poem") {
-    fmt.Print(token)
-}
-
-// Streaming chat — session memory + live tokens
-for token := range svc.ChatStream(ctx, "Continue the story") {
-    fmt.Print(token)
-}
-
-// Full event stream — tool calls, sources, errors
-events, err := svc.RunStream(ctx, "Complex task")
-for e := range events {
-    fmt.Println(e.Type, e.Content)
-}
-```
-
-## Run Options
-
-```go
-result, _ := svc.Run(ctx, "goal",
-    agent.WithMaxTurns(20),
-    agent.WithTemperature(0.7),
-    agent.WithStoreHistory(true),
-)
-```
+| Method | Session | Cognitive Memory |
+|---|---|---|
+| `Ask(ctx, p)` | No | Implicit recall |
+| `Chat(ctx, p)` | Yes | Fact extraction + Recall |
+| `Run(ctx, g)` | Optional | Full evolution + Reflect |
 
 ## See Also
 
