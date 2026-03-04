@@ -18,7 +18,7 @@ go get github.com/liliang-cn/rago/v2
 |---|---|
 | **RAG** | Ingest docs → chunk → embed → SQLite vector store → hybrid search |
 | **Agent** | Multi-turn reasoning loop with tool calls, planning, and session memory |
-| **Memory** | SQLite-backed with semantic recall; degrades gracefully to list-based without an embedder |
+| **Memory** | **Cognitive Layer**: Hindsight-style evolution (Fact → Observation) + PageIndex-style reasoning navigation |
 | **Tools** | MCP (Model Context Protocol), Skills (YAML+Markdown), custom inline tools |
 | **PTC** | LLM writes JavaScript; tools run in a Goja sandbox — cuts round-trips |
 | **Streaming** | Token-by-token via channel; full event stream with tool call visibility |
@@ -57,7 +57,7 @@ svc.Run(ctx, "Ingest ./docs/")
 reply, _ := svc.Ask(ctx, "What does the spec say about error handling?")
 ```
 
-### Multi-turn chat with memory
+### Multi-turn chat with cognitive memory
 
 ```go
 svc, _ := agent.New("assistant").
@@ -65,59 +65,47 @@ svc, _ := agent.New("assistant").
     Build()
 defer svc.Close()
 
-svc.Chat(ctx, "My name is Alice and I work on the payments team.")
+svc.Chat(ctx, "My name is Alice and I work on the Go team.")
 reply, _ := svc.Chat(ctx, "What team am I on?")
-// → "You're on the payments team, Alice."
+// → "You're on the Go team, Alice." (Recall via hybrid vector/index search)
 ```
 
-### Streaming
+### CLI Interface
 
-```go
-// Token stream
-for token := range svc.Stream(ctx, "Explain Go interfaces") {
-    fmt.Print(token)
-}
+Run the interactive chat with memory visibility:
 
-// Full event stream (tool calls, sources, errors)
-events, _ := svc.RunStream(ctx, "Search the docs and summarize")
-for e := range events {
-    switch e.Type {
-    case agent.EventTypePartial:  fmt.Print(e.Content)
-    case agent.EventTypeToolCall: fmt.Printf("[tool: %s]\n", e.ToolName)
-    case agent.EventTypeComplete: fmt.Println("\ndone")
-    }
-}
+```bash
+# Start interactive chat showing retrieved memories and reasoning
+go run ./cmd/rago-cli chat --show-memory
+
+# Enable JavaScript sandbox for complex logic
+go run ./cmd/rago-cli chat --with-ptc
 ```
 
 ---
 
+## Cognitive Memory (Hindsight & PageIndex)
+
+RAGO implements an evolving memory layer inspired by **Hindsight** (Cognitive Hierarchy) and **PageIndex** (Structural Navigation).
+
+| Concept | Description |
+|---|---|
+| **Facts** | Raw atomic data points extracted from conversations (e.g., "User likes Go"). |
+| **Observations** | LLM-consolidated insights synthesized from multiple facts via **Reflect()**. |
+| **Hierarchical Index** | A `_index/` directory with Markdown summaries for lightning-fast reasoning navigation. |
+| **Hybrid Search** | Parallel **Vector Search** (similarity) + **Index Navigator** (reasoning) fused via RRF. |
+| **Traceability** | Every observation tracks its **EvidenceIDs**, providing a clear audit trail of why the agent "knows" something. |
+
+### Memory Evolution
+
+1. **Extraction**: Agent identifies a fact during chat.
+2. **Indexing**: Fact is stored in a Markdown file with YAML metadata (Confidence, SourceType).
+3. **Reflection**: Periodically (e.g., every 5 facts), a background worker triggers `Reflect()` to merge facts into high-level Observations.
+4. **Superseded**: When information changes, old memories are marked as `stale` and linked to new ones via `SupersededBy`.
+
+---
+
 ## Builder
-
-Every option is a method chain on `agent.New()`:
-
-```go
-svc, err := agent.New("my-agent").
-    // Capabilities
-    WithRAG().                                      // rag_query + rag_ingest tools
-    WithMemory().                                   // memory_save + memory_recall tools
-    WithMCP().                                      // MCP tool servers
-    WithSkills(agent.WithSkillsPaths("./skills")).  // Skill files
-    WithPTC().                                      // JS sandbox tool transport
-    // Config
-    WithPrompt("You are a helpful assistant.").
-    WithDBPath("~/.rago/data/agent.db").
-    WithDebug(true).
-    // Custom tools
-    WithTool(myDef, myHandler, "category").
-    // Callbacks
-    WithProgress(func(e *agent.ProgressEvent) { fmt.Println(e.Text) }).
-    Build()
-```
-
-### Module system
-
-Capabilities self-register their tools via the `Module` interface:
-
 ```go
 // Implement your own module
 type Module interface {
