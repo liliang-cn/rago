@@ -18,7 +18,7 @@ go get github.com/liliang-cn/rago/v2
 |---|---|
 | **RAG** | 文档摄入 → 分块 → Embedding → SQLite 向量存储 → 混合检索 |
 | **Agent** | 多轮推理循环，支持工具调用、规划和会话记忆 |
-| **Memory** | SQLite 向量记忆 + 语义检索；无 Embedder 时自动降级为按时间列表检索 |
+| **Memory** | **认知记忆层**: Hindsight 式演化 (事实 → 观察) + PageIndex 式推理导航 |
 | **工具** | MCP（模型上下文协议）、Skills（YAML+Markdown）、自定义内联工具 |
 | **PTC** | LLM 写 JavaScript，工具在 Goja 沙箱中运行 — 减少模型往返次数 |
 | **Streaming** | 逐 Token 通道输出；完整事件流可见工具调用过程 |
@@ -57,7 +57,7 @@ svc.Run(ctx, "摄入 ./docs/ 目录")
 reply, _ := svc.Ask(ctx, "规范文档里关于错误处理是怎么说的？")
 ```
 
-### 带记忆的多轮对话
+### 带认知记忆的多轮对话
 
 ```go
 svc, _ := agent.New("assistant").
@@ -65,59 +65,47 @@ svc, _ := agent.New("assistant").
     Build()
 defer svc.Close()
 
-svc.Chat(ctx, "我叫 Alice，在支付团队工作。")
+svc.Chat(ctx, "我叫 Alice，在 Go 团队工作。")
 reply, _ := svc.Chat(ctx, "我在哪个团队？")
-// → "你在支付团队，Alice。"
+// → "你在 Go 团队，Alice。" (通过向量与索引混合搜索召回)
 ```
 
-### 流式输出
+### CLI 交互
 
-```go
-// Token 流
-for token := range svc.Stream(ctx, "解释一下 Go 的接口") {
-    fmt.Print(token)
-}
+运行带记忆可视化的交互式对话：
 
-// 完整事件流（工具调用、来源、错误）
-events, _ := svc.RunStream(ctx, "搜索文档并总结")
-for e := range events {
-    switch e.Type {
-    case agent.EventTypePartial:  fmt.Print(e.Content)
-    case agent.EventTypeToolCall: fmt.Printf("[工具: %s]\n", e.ToolName)
-    case agent.EventTypeComplete: fmt.Println("\n完成")
-    }
-}
+```bash
+# 启动交互对话，并显示检索到的记忆和推理过程
+go run ./cmd/rago-cli chat --show-memory
+
+# 开启 JavaScript 沙箱用于处理复杂逻辑
+go run ./cmd/rago-cli chat --with-ptc
 ```
 
 ---
 
+## 认知记忆层 (Hindsight & PageIndex)
+
+RAGO 实现了一个受 **Hindsight** (认知分层) 和 **PageIndex** (结构化导航) 启发的演化记忆层。
+
+| 概念 | 说明 |
+|---|---|
+| **事实 (Facts)** | 从对话中提取的原子数据点（如“用户喜欢 Go”）。 |
+| **观察 (Observations)** | 通过 **Reflect()** 将多个事实整合出的高层洞察。 |
+| **层次化索引** | `_index/` 目录下的 Markdown 摘要，用于极速的推理导航。 |
+| **混合检索** | 并行运行 **向量搜索** (相似度) 与 **索引导航** (逻辑推理)，通过 RRF 融合。 |
+| **可追溯性** | 每条观察都追踪其 **证据 ID (EvidenceIDs)**，提供清晰的认知审计链。 |
+
+### 记忆演化流程
+
+1. **提取**: Agent 在对话中识别出一个事实。
+2. **索引**: 事实存入带 YAML 元数据（置信度、来源类型）的 Markdown 文件。
+3. **反思**: 定期（如每 5 条事实）触发后台 `Reflect()`，将事实合并为高层观察。
+4. **更迭**: 当信息变化时，旧记忆被标记为 `stale`（过时），并通过 `SupersededBy` 链接到新记忆。
+
+---
+
 ## Builder
-
-所有选项都通过 `agent.New()` 的方法链配置：
-
-```go
-svc, err := agent.New("my-agent").
-    // 能力模块
-    WithRAG().                                      // rag_query + rag_ingest 工具
-    WithMemory().                                   // memory_save + memory_recall 工具
-    WithMCP().                                      // MCP 工具服务器
-    WithSkills(agent.WithSkillsPaths("./skills")).  // Skill 文件
-    WithPTC().                                      // JS 沙箱工具传输
-    // 配置
-    WithPrompt("你是一个智能助手。").
-    WithDBPath("~/.rago/data/agent.db").
-    WithDebug(true).
-    // 自定义工具
-    WithTool(myDef, myHandler, "category").
-    // 回调
-    WithProgress(func(e *agent.ProgressEvent) { fmt.Println(e.Text) }).
-    Build()
-```
-
-### Module 系统
-
-能力模块通过 `Module` 接口自我注册工具：
-
 ```go
 // 实现自己的 Module
 type Module interface {
