@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, QueryRequest, ChatRequest, CreateSkillRequest, AddMCPServerRequest, CallToolRequest } from '../lib/api'
+import { api, QueryRequest, ChatRequest, CreateSkillRequest, AddMCPServerRequest, CallToolRequest, AddMemoryRequest } from '../lib/api'
 
 // RAG Hooks
 export function useQueryRAG() {
@@ -12,6 +12,25 @@ export function useDocuments() {
   return useQuery({
     queryKey: ['documents'],
     queryFn: api.getDocuments,
+  })
+}
+
+export function useDocument(id: string) {
+  return useQuery({
+    queryKey: ['documents', id],
+    queryFn: () => api.getDocument(id),
+    enabled: !!id,
+  })
+}
+
+export function useDeleteDocument() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.deleteDocument(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      queryClient.invalidateQueries({ queryKey: ['collections'] })
+    },
   })
 }
 
@@ -101,5 +120,49 @@ export function useAddMCPServer() {
 export function useCallMCPTool() {
   return useMutation({
     mutationFn: (data: CallToolRequest) => api.callTool(data),
+  })
+}
+
+// Memory Hooks
+export function useMemories() {
+  return useQuery({
+    queryKey: ['memories'],
+    queryFn: api.getMemories,
+  })
+}
+
+export function useMemory(id: string) {
+  return useQuery({
+    queryKey: ['memory', id],
+    queryFn: () => api.getMemory(id),
+    enabled: !!id,
+  })
+}
+
+export function useSearchMemories(query: string) {
+  return useQuery({
+    queryKey: ['memories', 'search', query],
+    queryFn: () => api.searchMemories(query),
+    enabled: !!query,
+  })
+}
+
+export function useAddMemory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: AddMemoryRequest) => api.addMemory(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['memories'] })
+    },
+  })
+}
+
+export function useDeleteMemory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.deleteMemory(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['memories'] })
+    },
   })
 }

@@ -5,6 +5,8 @@ import { Chat } from './pages/Chat'
 import { Status } from './pages/Status'
 import { Skills } from './pages/Skills'
 import { MCP } from './pages/MCP'
+import { Memory } from './pages/Memory'
+import { Agent } from './pages/Agent'
 
 function Nav() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -15,7 +17,7 @@ function Nav() {
     }`
 
   return (
-    <nav className="flex gap-2 p-4 border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+    <nav className="max-w-7xl mx-auto px-4 flex gap-2 py-4 overflow-x-auto">
       <NavLink to="/" className={linkClass} end>
         Query
       </NavLink>
@@ -25,11 +27,17 @@ function Nav() {
       <NavLink to="/chat" className={linkClass}>
         Chat
       </NavLink>
+      <NavLink to="/agent" className={linkClass}>
+        Agent
+      </NavLink>
       <NavLink to="/skills" className={linkClass}>
         Skills
       </NavLink>
       <NavLink to="/mcp" className={linkClass}>
         MCP
+      </NavLink>
+      <NavLink to="/memory" className={linkClass}>
+        Memory
       </NavLink>
       <NavLink to="/status" className={linkClass}>
         Status
@@ -57,8 +65,10 @@ function App() {
           <Route path="/" element={<QueryTest />} />
           <Route path="/documents" element={<Documents />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/agent" element={<Agent />} />
           <Route path="/skills" element={<Skills />} />
           <Route path="/mcp" element={<MCP />} />
+          <Route path="/memory" element={<Memory />} />
           <Route path="/status" element={<Status />} />
         </Routes>
       </main>

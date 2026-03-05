@@ -1,91 +1,53 @@
-.PHONY: help dev build test clean deps backend ui ui-dev ui-build ui-deps
+.PHONY: help build rago-cli rago-ui ui-dev ui-deps test clean deps
 
-# Get the latest git tag (fallback to v0.0.0 if no tags)
 GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-# Variable to hold the Go linker flags
 LDFLAGS := -ldflags="-X 'main.version=$(GIT_TAG)'"
 
-# Default target - shows help
 all: help
 
-# Help target - shows all available commands
 help:
-	@echo "RAGO - AI Agent SDK designed for Go developers"
-	@echo "====================="
+	@echo "RAGO - AI Agent SDK"
 	@echo ""
-	@echo "  dev         - Start development mode (runs backend directly)"
-	@echo "  build       - Build the rago binary"
-	@echo "  test        - Run all Go tests"
-	@echo "  clean       - Clean build artifacts and databases"
-	@echo "  deps        - Download and install Go dependencies"
+	@echo "  build       - Build all (rago-cli + rago-ui)"
+	@echo "  rago-cli    - Build rago-cli only"
+	@echo "  rago-ui     - Build rago-ui only"
+	@echo "  test        - Run tests"
+	@echo "  clean       - Clean"
+	@echo "  deps        - Install deps"
 	@echo ""
-	@echo "UI Commands:"
-	@echo "  ui-dev      - Start UI development server (with hot reload)"
-	@echo "  ui-build    - Build UI for production (embeds into binary)"
-	@echo "  ui-deps     - Install UI dependencies"
+	@echo "UI:"
+	@echo "  ui-dev      - Start UI dev server"
+	@echo "  ui-deps     - Install UI deps"
 	@echo ""
-	@echo "Current version: $(GIT_TAG)"
+	@echo "Version: $(GIT_TAG)"
 
-# Start development mode
-dev:
-	@echo "Starting RAGO server on port 7127..."
-	@go run $(LDFLAGS) ./cmd/rago-cli serve --port 7127 --host 0.0.0.0
+build: rago-cli rago-ui
+	@echo "✅ Done"
 
-# Build the application
-build: backend
-
-# Build only the backend (Go binary)
-backend:
-	@echo "Building rago version $(GIT_TAG)..."
+rago-cli:
+	@echo "Building rago-cli..."
 	@mkdir -p bin
-	@go build $(LDFLAGS) -o bin/rago ./cmd/rago-cli
-	@echo "✅ Backend binary built: bin/rago"
+	@go build $(LDFLAGS) -o bin/rago-cli ./cmd/rago-cli
 
-# UI development server
-ui-dev:
-	@echo "Starting UI development server..."
-	@cd ui && npm run dev
-
-# Install UI dependencies
-ui-deps:
-	@echo "Installing UI dependencies..."
-	@cd ui && npm install
-	@echo "✅ UI dependencies installed"
-
-# Build UI static files
-ui-static:
-	@echo "Building UI static files..."
+rago-ui:
+	@echo "Building rago-ui..."
+	@mkdir -p bin
 	@cd ui && npm run build
-	@echo "✅ UI static files built"
-
-# Build UI binary (embeds static files)
-ui-build: ui-static
-	@echo "Building rago-ui binary..."
-	@mkdir -p bin
 	@cp -r ui/dist cmd/rago-ui/dist
 	@go build $(LDFLAGS) -o bin/rago-ui ./cmd/rago-ui
 	@rm -rf cmd/rago-ui/dist
-	@echo "✅ UI binary built: bin/rago-ui"
 
-# Run all tests
+ui-dev:
+	@cd ui && npm run dev
+
+ui-deps:
+	@cd ui && npm install
+
 test:
-	@echo "Running Go tests..."
-	@go test ./... -v
+	@go test ./...
 
-# Alias for CI
-check: test
-
-# Clean build artifacts and databases
 clean:
-	@echo "Cleaning build artifacts..."
-	@rm -rf bin/
-	@rm -rf cmd/rago-ui/dist
-	@echo "Cleaning databases..."
-	@rm -rf .rago/data/*.db
+	@rm -rf bin/ cmd/rago-ui/dist .rago/data/*.db
 
-# Download and install all dependencies
 deps:
-	@echo "Installing Go dependencies..."
-	@go mod download
-	@go mod tidy
-	@echo "✅ All dependencies installed!"
+	@go mod download && go mod tidy
