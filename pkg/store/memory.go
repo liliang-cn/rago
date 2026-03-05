@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/sqvect/v2/pkg/hindsight"
+	"github.com/liliang-cn/cortexdb/v2/pkg/hindsight"
 	_ "modernc.org/sqlite"
 )
 
@@ -39,7 +39,7 @@ type MemoryStore struct {
 	dbPath string
 }
 
-// NewMemoryStore creates a new memory store backed by Hindsight/sqvect
+// NewMemoryStore creates a new memory store backed by Hindsight/cortexdb
 func NewMemoryStore(dbPath string) (*MemoryStore, error) {
 	if dbPath == "" {
 		return nil, errors.New("dbPath is required")

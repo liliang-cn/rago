@@ -1,4 +1,4 @@
-// Package router provides semantic routing for intent classification using sqvect v2.3.1
+// Package router provides semantic routing for intent classification using cortexdb v2.7.0
 package router
 
 import (
@@ -7,10 +7,10 @@ import (
 	"sync"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	semanticrouter "github.com/liliang-cn/sqvect/v2/pkg/semantic-router"
+	semanticrouter "github.com/liliang-cn/cortexdb/v2/pkg/semantic-router"
 )
 
-// Router wraps sqvect's semantic router for intent classification
+// Router wraps cortexdb's semantic router for intent classification
 type Router struct {
 	router   *semanticrouter.Router
 	embedder domain.Embedder
@@ -47,8 +47,8 @@ func New(embedder domain.Embedder, cfg *Config) (*Router, error) {
 	// Create adapter embedder
 	adapter := &embedderAdapter{embedder: embedder}
 
-	// Create sqvect semantic router
-	sqvectRouter, err := semanticrouter.NewRouter(
+	// Create cortexdb semantic router
+	cortexdbRouter, err := semanticrouter.NewRouter(
 		adapter,
 		semanticrouter.WithThreshold(cfg.Threshold),
 		semanticrouter.WithTopK(cfg.TopK),
@@ -59,7 +59,7 @@ func New(embedder domain.Embedder, cfg *Config) (*Router, error) {
 	}
 
 	return &Router{
-		router:   sqvectRouter,
+		router:   cortexdbRouter,
 		embedder: embedder,
 		intents:  make([]*Intent, 0),
 	}, nil

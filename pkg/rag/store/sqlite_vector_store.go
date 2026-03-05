@@ -8,19 +8,19 @@ import (
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/sqvect/v2/pkg/core"
-	"github.com/liliang-cn/sqvect/v2/pkg/graph"
-	"github.com/liliang-cn/sqvect/v2/pkg/sqvect"
+	"github.com/liliang-cn/cortexdb/v2/pkg/core"
+	"github.com/liliang-cn/cortexdb/v2/pkg/graph"
+	"github.com/liliang-cn/cortexdb/v2/pkg/cortexdb"
 )
 
 type SQLiteStore struct {
-	db     *sqvect.DB
-	sqvect *core.SQLiteStore
+	db       *cortexdb.DB
+	cortexdb *core.SQLiteStore
 }
 
 func NewSQLiteStore(dbPath string, indexType string) (*SQLiteStore, error) {
-	// Use sqvect v1.0.0's new API
-	config := sqvect.Config{
+	// Use cortexdb v2.7.0's new API
+	config := cortexdb.Config{
 		Path:       dbPath,
 		Dimensions: 0, // Auto-detect dimensions
 	}
@@ -34,9 +34,9 @@ func NewSQLiteStore(dbPath string, indexType string) (*SQLiteStore, error) {
 		config.IndexType = core.IndexTypeHNSW // Default
 	}
 	
-	db, err := sqvect.Open(config)
+	db, err := cortexdb.Open(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create sqvect database: %w", err)
+		return nil, fmt.Errorf("failed to create cortexdb database: %w", err)
 	}
 
 	// Initialize graph schema
@@ -57,8 +57,8 @@ func NewSQLiteStore(dbPath string, indexType string) (*SQLiteStore, error) {
 	}
 	
 	return &SQLiteStore{
-		db:     db,
-		sqvect: sqliteStore,
+		db:       db,
+		cortexdb: sqliteStore,
 	}, nil
 }
 
@@ -70,7 +70,7 @@ func (s *SQLiteStore) GetGraphStore() domain.GraphStore {
 
 func (s *SQLiteStore) GetChatStore() domain.ChatStore {
 	return &SQLiteChatStore{
-		store: s.sqvect,
+		store: s.cortexdb,
 	}
 }
 
@@ -298,7 +298,7 @@ func (s *SQLiteStore) Store(ctx context.Context, chunks []domain.Chunk) error {
 			continue
 		}
 
-		// Convert []float64 to []float32 for sqvect
+		// Convert []float64 to []float32 for cortexdb
 		vector := make([]float32, len(chunk.Vector))
 		for i, v := range chunk.Vector {
 			vector[i] = float32(v)
@@ -344,7 +344,7 @@ func (s *SQLiteStore) Store(ctx context.Context, chunks []domain.Chunk) error {
 			Metadata:   metadata,
 		}
 
-		if err := s.sqvect.Upsert(ctx, embedding); err != nil {
+		if err := s.cortexdb.Upsert(ctx, embedding); err != nil {
 			return fmt.Errorf("%w: failed to store chunk in collection %s: %v", domain.ErrVectorStoreFailed, collection, err)
 		}
 	}
@@ -372,7 +372,7 @@ func (s *SQLiteStore) Search(ctx context.Context, vector []float64, topK int) ([
 		return []domain.Chunk{}, nil
 	}
 
-	// Convert []float64 to []float32 for sqvect
+	// Convert []float64 to []float32 for cortexdb
 	queryVector := make([]float32, len(vector))
 	for i, v := range vector {
 		queryVector[i] = float32(v)
@@ -383,7 +383,7 @@ func (s *SQLiteStore) Search(ctx context.Context, vector []float64, topK int) ([
 		"_type": "chunk", // Only return chunks, not document metadata
 	}
 
-	results, err := s.sqvect.SearchWithFilter(ctx, queryVector, core.SearchOptions{
+	results, err := s.cortexdb.SearchWithFilter(ctx, queryVector, core.SearchOptions{
 		TopK:      topK,
 		Threshold: 0.0, // Return all results, let caller filter
 	}, filters)
@@ -438,13 +438,13 @@ func (s *SQLiteStore) SearchWithFilters(ctx context.Context, vector []float64, t
 		return []domain.Chunk{}, nil
 	}
 
-	// Convert []float64 to []float32 for sqvect
+	// Convert []float64 to []float32 for cortexdb
 	queryVector := make([]float32, len(vector))
 	for i, v := range vector {
 		queryVector[i] = float32(v)
 	}
 
-	// Use sqvect's native SearchWithFilter method if filters are provided
+	// Use cortexdb's native SearchWithFilter method if filters are provided
 	if len(filters) > 0 {
 		// Add chunk type filter to existing filters to avoid document metadata
 		chunkFilters := make(map[string]interface{})
@@ -453,7 +453,7 @@ func (s *SQLiteStore) SearchWithFilters(ctx context.Context, vector []float64, t
 		}
 		chunkFilters["_type"] = "chunk"
 
-		results, err := s.sqvect.SearchWithFilter(ctx, queryVector, core.SearchOptions{
+		results, err := s.cortexdb.SearchWithFilter(ctx, queryVector, core.SearchOptions{
 			TopK:      topK,
 			Threshold: 0.0, // Return all results, let caller filter
 		}, chunkFilters)
@@ -497,7 +497,7 @@ func (s *SQLiteStore) SearchWithReranker(ctx context.Context, vector []float64, 
 		return nil, fmt.Errorf("%w: empty query vector", domain.ErrInvalidInput)
 	}
 
-	// Convert []float64 to []float32 for sqvect
+	// Convert []float64 to []float32 for cortexdb
 	queryVector := make([]float32, len(vector))
 	for i, v := range vector {
 		queryVector[i] = float32(v)
@@ -518,7 +518,7 @@ func (s *SQLiteStore) SearchWithReranker(ctx context.Context, vector []float64, 
 		Threshold: 0.0,
 	}
 
-	results, err := s.sqvect.SearchWithReranker(ctx, queryVector, queryText, reranker, opts)
+	results, err := s.cortexdb.SearchWithReranker(ctx, queryVector, queryText, reranker, opts)
 	if err != nil {
 		return nil, fmt.Errorf("%w: search with reranker failed: %v", domain.ErrVectorStoreFailed, err)
 	}
@@ -531,7 +531,7 @@ func (s *SQLiteStore) SearchWithDiversity(ctx context.Context, vector []float64,
 		return nil, fmt.Errorf("%w: empty query vector", domain.ErrInvalidInput)
 	}
 
-	// Convert []float64 to []float32 for sqvect
+	// Convert []float64 to []float32 for cortexdb
 	queryVector := make([]float32, len(vector))
 	for i, v := range vector {
 		queryVector[i] = float32(v)
@@ -545,7 +545,7 @@ func (s *SQLiteStore) SearchWithDiversity(ctx context.Context, vector []float64,
 		},
 	}
 
-	results, err := s.sqvect.SearchWithDiversity(ctx, queryVector, opts)
+	results, err := s.cortexdb.SearchWithDiversity(ctx, queryVector, opts)
 	if err != nil {
 		return nil, fmt.Errorf("%w: search with diversity failed: %v", domain.ErrVectorStoreFailed, err)
 	}
@@ -585,7 +585,7 @@ func (s *SQLiteStore) Delete(ctx context.Context, documentID string) error {
 		return fmt.Errorf("%w: empty document ID", domain.ErrInvalidInput)
 	}
 
-	if err := s.sqvect.DeleteByDocID(ctx, documentID); err != nil {
+	if err := s.cortexdb.DeleteByDocID(ctx, documentID); err != nil {
 		return fmt.Errorf("%w: failed to delete document: %v", domain.ErrVectorStoreFailed, err)
 	}
 
@@ -593,8 +593,8 @@ func (s *SQLiteStore) Delete(ctx context.Context, documentID string) error {
 }
 
 func (s *SQLiteStore) List(ctx context.Context) ([]domain.Document, error) {
-	// Try using ListDocumentsWithInfo first (sqvect v0.3.0)
-	docInfos, err := s.sqvect.ListDocumentsWithInfo(ctx)
+	// Try using ListDocumentsWithInfo first (cortexdb v2.7.0)
+	docInfos, err := s.cortexdb.ListDocumentsWithInfo(ctx)
 	if err != nil {
 		// Fall back to old method if ListDocumentsWithInfo is not available
 		return s.listWithFallback(ctx)
@@ -608,7 +608,7 @@ func (s *SQLiteStore) List(ctx context.Context) ([]domain.Document, error) {
 
 	for _, docInfo := range docInfos {
 		// Get the document details using GetByDocID
-		embeddings, err := s.sqvect.GetByDocID(ctx, docInfo.DocID)
+		embeddings, err := s.cortexdb.GetByDocID(ctx, docInfo.DocID)
 		if err != nil {
 			continue // Skip this document if we can't get its embeddings
 		}
@@ -652,14 +652,14 @@ func (s *SQLiteStore) List(ctx context.Context) ([]domain.Document, error) {
 // Fallback method for compatibility
 func (s *SQLiteStore) listWithFallback(ctx context.Context) ([]domain.Document, error) {
 	// Try GetDocumentsByType
-	embeddings, err := s.sqvect.GetDocumentsByType(ctx, "document")
+	embeddings, err := s.cortexdb.GetDocumentsByType(ctx, "document")
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to get documents: %v", domain.ErrVectorStoreFailed, err)
 	}
 
 	if len(embeddings) == 0 {
 		// Final fallback: ListDocuments + GetByDocID
-		docIDs, err := s.sqvect.ListDocuments(ctx)
+		docIDs, err := s.cortexdb.ListDocuments(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("%w: failed to list documents: %v", domain.ErrVectorStoreFailed, err)
 		}
@@ -667,7 +667,7 @@ func (s *SQLiteStore) listWithFallback(ctx context.Context) ([]domain.Document, 
 		documentMap := make(map[string]domain.Document)
 
 		for _, docID := range docIDs {
-			docEmbeddings, err := s.sqvect.GetByDocID(ctx, docID)
+			docEmbeddings, err := s.cortexdb.GetByDocID(ctx, docID)
 			if err != nil {
 				continue // Skip this document if we can't get its embeddings
 			}
@@ -757,8 +757,8 @@ func (s *SQLiteStore) listWithFallback(ctx context.Context) ([]domain.Document, 
 }
 
 func (s *SQLiteStore) Reset(ctx context.Context) error {
-	// Use the new Clear method from sqvect v0.3.0
-	if err := s.sqvect.Clear(ctx); err != nil {
+	// Use the new Clear method from cortexdb v2.7.0
+	if err := s.cortexdb.Clear(ctx); err != nil {
 		return fmt.Errorf("%w: failed to clear store: %v", domain.ErrVectorStoreFailed, err)
 	}
 	return nil
@@ -766,10 +766,10 @@ func (s *SQLiteStore) Reset(ctx context.Context) error {
 
 // getVectorCount returns the number of vectors in the database
 func (s *SQLiteStore) getVectorCount(ctx context.Context) (int64, error) {
-	// Since sqvect doesn't have a Count method, we'll do a simple check
+	// Since cortexdb doesn't have a Count method, we'll do a simple check
 	// by trying to search with a dummy vector and see if we get results
 	// For a more accurate count, we could query the database directly
-	documents, err := s.sqvect.ListDocuments(ctx)
+	documents, err := s.cortexdb.ListDocuments(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -780,13 +780,13 @@ func (s *SQLiteStore) Close() error {
 	if s.db != nil {
 		return s.db.Close()
 	}
-	return s.sqvect.Close()
+	return s.cortexdb.Close()
 }
 
 // ensureCollection ensures a collection exists, creating it if necessary
 func (s *SQLiteStore) ensureCollection(ctx context.Context, name string) error {
 	// Check if collection already exists
-	collections, err := s.sqvect.ListCollections(ctx)
+	collections, err := s.cortexdb.ListCollections(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list collections: %w", err)
 	}
@@ -798,7 +798,7 @@ func (s *SQLiteStore) ensureCollection(ctx context.Context, name string) error {
 	}
 	
 	// Create the collection with auto-detect dimensions (0)
-	_, err = s.sqvect.CreateCollection(ctx, name, 0)
+	_, err = s.cortexdb.CreateCollection(ctx, name, 0)
 	if err != nil {
 		// Check if it's an "already exists" error - if so, ignore it
 		if strings.Contains(err.Error(), "already exists") {
@@ -810,14 +810,14 @@ func (s *SQLiteStore) ensureCollection(ctx context.Context, name string) error {
 	return nil
 }
 
-// DocumentStore is a simple wrapper that uses sqvect for document storage too
+// DocumentStore is a simple wrapper that uses cortexdb for document storage too
 type DocumentStore struct {
-	sqvect *core.SQLiteStore
+	cortexdb *core.SQLiteStore
 }
 
-func NewDocumentStore(sqvectStore *core.SQLiteStore) *DocumentStore {
+func NewDocumentStore(cortexdbStore *core.SQLiteStore) *DocumentStore {
 	return &DocumentStore{
-		sqvect: sqvectStore,
+		cortexdb: cortexdbStore,
 	}
 }
 
@@ -833,7 +833,7 @@ func (s *DocumentStore) Store(ctx context.Context, doc domain.Document) error {
 		UpdatedAt: doc.Created,
 	}
 
-	if err := s.sqvect.CreateDocument(ctx, coreDoc); err != nil {
+	if err := s.cortexdb.CreateDocument(ctx, coreDoc); err != nil {
 		return fmt.Errorf("%w: failed to store document: %v", domain.ErrDocumentStoreFailed, err)
 	}
 
@@ -841,7 +841,7 @@ func (s *DocumentStore) Store(ctx context.Context, doc domain.Document) error {
 }
 
 func (s *DocumentStore) Get(ctx context.Context, id string) (domain.Document, error) {
-	doc, err := s.sqvect.GetDocument(ctx, id)
+	doc, err := s.cortexdb.GetDocument(ctx, id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return domain.Document{}, domain.ErrDocumentNotFound
@@ -859,7 +859,7 @@ func (s *DocumentStore) Get(ctx context.Context, id string) (domain.Document, er
 }
 
 func (s *DocumentStore) List(ctx context.Context) ([]domain.Document, error) {
-	docs, err := s.sqvect.ListDocumentsWithFilter(ctx, "", 1000)
+	docs, err := s.cortexdb.ListDocumentsWithFilter(ctx, "", 1000)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to list documents: %v", domain.ErrDocumentStoreFailed, err)
 	}
@@ -879,7 +879,7 @@ func (s *DocumentStore) List(ctx context.Context) ([]domain.Document, error) {
 }
 
 func (s *DocumentStore) Delete(ctx context.Context, id string) error {
-	if err := s.sqvect.DeleteDocument(ctx, id); err != nil {
+	if err := s.cortexdb.DeleteDocument(ctx, id); err != nil {
 		return fmt.Errorf("%w: failed to delete document: %v", domain.ErrDocumentStoreFailed, err)
 	}
 	return nil
@@ -897,7 +897,7 @@ func (s *DocumentStore) Update(ctx context.Context, doc domain.Document) error {
 		UpdatedAt: time.Now(),
 	}
 
-	if err := s.sqvect.UpdateDocument(ctx, coreDoc); err != nil {
+	if err := s.cortexdb.UpdateDocument(ctx, coreDoc); err != nil {
 		return fmt.Errorf("%w: failed to update document: %v", domain.ErrDocumentStoreFailed, err)
 	}
 
@@ -907,7 +907,7 @@ func (s *DocumentStore) Update(ctx context.Context, doc domain.Document) error {
 // ensureCollection ensures a collection exists, creating it if necessary
 func (s *DocumentStore) ensureCollection(ctx context.Context, name string) error {
 	// Check if collection already exists
-	collections, err := s.sqvect.ListCollections(ctx)
+	collections, err := s.cortexdb.ListCollections(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list collections: %w", err)
 	}
@@ -919,7 +919,7 @@ func (s *DocumentStore) ensureCollection(ctx context.Context, name string) error
 	}
 	
 	// Create the collection with auto-detect dimensions (0)
-	_, err = s.sqvect.CreateCollection(ctx, name, 0)
+	_, err = s.cortexdb.CreateCollection(ctx, name, 0)
 	if err != nil {
 		// Check if it's an "already exists" error - if so, ignore it
 		if strings.Contains(err.Error(), "already exists") {
@@ -933,22 +933,22 @@ func (s *DocumentStore) ensureCollection(ctx context.Context, name string) error
 
 // Reset removes all documents from the document store
 func (s *DocumentStore) Reset(ctx context.Context) error {
-	// Since documents are stored in the same sqvect database,
+	// Since documents are stored in the same cortexdb database,
 	// we need to delete all entries with _type = "document"
 	// For now, we'll clear the entire store as it's simpler
 	// and documents/vectors are typically reset together
-	if err := s.sqvect.Clear(ctx); err != nil {
+	if err := s.cortexdb.Clear(ctx); err != nil {
 		return fmt.Errorf("failed to reset document store: %w", err)
 	}
 	return nil
 }
 
-// Helper function to get sqvect client for DocumentStore creation
-func (s *SQLiteStore) GetSqvectStore() *core.SQLiteStore {
-	return s.sqvect
+// Helper function to get cortexdb client for DocumentStore creation
+func (s *SQLiteStore) GetCortexdbStore() *core.SQLiteStore {
+	return s.cortexdb
 }
 
 // Helper function to get the DB for other uses
-func (s *SQLiteStore) GetDB() *sqvect.DB {
+func (s *SQLiteStore) GetDB() *cortexdb.DB {
 	return s.db
 }

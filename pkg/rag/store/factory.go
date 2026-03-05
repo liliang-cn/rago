@@ -15,7 +15,7 @@ type StoreConfig struct {
 // NewVectorStore creates a vector store based on configuration
 func NewVectorStore(config StoreConfig) (domain.VectorStore, error) {
 	switch config.Type {
-	case "sqlite", "sqvect":
+	case "sqlite", "cortexdb":
 		var dbPath, indexType string
 		if config.Parameters != nil {
 			dbPath, _ = config.Parameters["db_path"].(string)
@@ -80,7 +80,7 @@ func NewVectorStore(config StoreConfig) (domain.VectorStore, error) {
 func NewDocumentStoreFor(vectorStore domain.VectorStore) domain.DocumentStore {
 	// For SQLite, we can reuse the same underlying store
 	if sqliteStore, ok := vectorStore.(*SQLiteStore); ok {
-		return NewDocumentStore(sqliteStore.GetSqvectStore())
+		return NewDocumentStore(sqliteStore.GetCortexdbStore())
 	}
 	
 	// For other stores, you might need different implementations

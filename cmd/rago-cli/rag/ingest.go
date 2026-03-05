@@ -67,11 +67,11 @@ You can also use --text flag to ingest text directly.`,
 			
 			// For Qdrant, we need a separate document store
 			if Cfg.VectorStore.Type == "qdrant" {
-				sqliteStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath, Cfg.Sqvect.IndexType)
+				sqliteStore, err := store.NewSQLiteStore(Cfg.Cortexdb.DBPath, Cfg.Cortexdb.IndexType)
 				if err != nil {
 					return fmt.Errorf("failed to create document store: %w", err)
 				}
-				docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+				docStore = store.NewDocumentStore(sqliteStore.GetCortexdbStore())
 				defer func() {
 					if err := sqliteStore.Close(); err != nil {
 						log.Printf("failed to close document store: %v", err)
@@ -80,12 +80,12 @@ You can also use --text flag to ingest text directly.`,
 			}
 		} else {
 			// Default to SQLite
-			sqliteStore, err := store.NewSQLiteStore(Cfg.Sqvect.DBPath, Cfg.Sqvect.IndexType)
+			sqliteStore, err := store.NewSQLiteStore(Cfg.Cortexdb.DBPath, Cfg.Cortexdb.IndexType)
 			if err != nil {
 				return fmt.Errorf("failed to create vector store: %w", err)
 			}
 			vectorStore = sqliteStore
-			docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+			docStore = store.NewDocumentStore(sqliteStore.GetCortexdbStore())
 			defer func() {
 				if err := sqliteStore.Close(); err != nil {
 					log.Printf("failed to close vector store: %v", err)
@@ -105,7 +105,7 @@ You can also use --text flag to ingest text directly.`,
 		// If docStore is still nil (for SQLite vector store), create it
 		if docStore == nil {
 			if sqliteStore, ok := vectorStore.(*store.SQLiteStore); ok {
-				docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+				docStore = store.NewDocumentStore(sqliteStore.GetCortexdbStore())
 			}
 		}
 

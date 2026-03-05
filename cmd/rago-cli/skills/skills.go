@@ -65,12 +65,12 @@ func initializeSkills(cmd *cobra.Command) error {
 
 		if ragCfg != nil {
 			// Initialize vector store
-			vectorStore, err := ragstore.NewSQLiteStore(ragCfg.Sqvect.DBPath, ragCfg.Sqvect.IndexType)
+			vectorStore, err := ragstore.NewSQLiteStore(ragCfg.Cortexdb.DBPath, ragCfg.Cortexdb.IndexType)
 			if err != nil {
 				initErr = fmt.Errorf("failed to create vector store: %w", err)
 				return
 			}
-			docStore := ragstore.NewDocumentStore(vectorStore.GetSqvectStore())
+			docStore := ragstore.NewDocumentStore(vectorStore.GetCortexdbStore())
 
 			// Get embedder service
 			embedService, err := services.GetGlobalEmbeddingService(ctx)

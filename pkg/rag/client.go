@@ -51,26 +51,26 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 		// For document store, use SQLite alongside vector stores that don't provide document storage
 		if cfg.VectorStore.Type == "qdrant" {
 			// Qdrant doesn't store full documents, so use SQLite for document storage
-			sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath, cfg.Sqvect.IndexType)
+			sqliteStore, err := store.NewSQLiteStore(cfg.Cortexdb.DBPath, cfg.Cortexdb.IndexType)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create document store: %w", err)
 			}
-			docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+			docStore = store.NewDocumentStore(sqliteStore.GetCortexdbStore())
 		}
 	} else {
 		// Default to SQLite for backward compatibility
-		sqliteStore, err := store.NewSQLiteStore(cfg.Sqvect.DBPath, cfg.Sqvect.IndexType)
+		sqliteStore, err := store.NewSQLiteStore(cfg.Cortexdb.DBPath, cfg.Cortexdb.IndexType)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create vector store: %w", err)
 		}
 		vectorStore = sqliteStore
-		docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+		docStore = store.NewDocumentStore(sqliteStore.GetCortexdbStore())
 	}
 
 	// If docStore is still nil (for SQLite vector store), create it
 	if docStore == nil {
 		if sqliteStore, ok := vectorStore.(*store.SQLiteStore); ok {
-			docStore = store.NewDocumentStore(sqliteStore.GetSqvectStore())
+			docStore = store.NewDocumentStore(sqliteStore.GetCortexdbStore())
 		}
 	}
 
@@ -626,7 +626,7 @@ func (c *Client) initAgentService(ctx context.Context) error {
 
 	// Use the same unified DB path for the agent
 	if c.agentDBPath == "" {
-		c.agentDBPath = c.config.Sqvect.DBPath
+		c.agentDBPath = c.config.Cortexdb.DBPath
 	}
 
 	// Initialize MCP service for agent

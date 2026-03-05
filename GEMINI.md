@@ -4,7 +4,7 @@
 RAGO (Retrieval-Augmented Generation Offline) is a modular, local-first RAG and Agent system written in Go. It is designed to provide powerful AI capabilities (document Q&A, task automation) while keeping data local and supporting a wide range of LLM providers.
 
 ### Core Architecture
-- **Local-First RAG (pkg/rag):** Uses `sqvect` (SQLite-based) for vector and knowledge graph storage. Implements hybrid search (Vector + GraphRAG).
+- **Local-First RAG (pkg/rag):** Uses `cortexdb` (SQLite-based) for vector and knowledge graph storage. Implements hybrid search (Vector + GraphRAG).
 - **Agentic Automation (pkg/agent):** Features a Planner/Executor model with multi-turn tool execution, supporting MCP (Model Context Protocol) and custom Skills.
 - **Provider Management (pkg/providers):** Unified `Generator` and `Embedder` interfaces with an LLM Pool for resilience and model switching.
 - **Modern UI (web/):** React-based management dashboard integrated via Go's `embed` (internal/web).

@@ -279,9 +279,9 @@ result, _ := svc.Execute(ctx, plan.ID)
 ```toml
 home = "~/.rago"             # 所有相对路径的基准目录
 
-[sqvect]
+[cortexdb]
 db_path   = ""               # RAG 数据库，默认 $home/data/rago.db
-                             # 环境变量：RAGO_SQVECT_DB_PATH
+                             # 环境变量：RAGO_CORTEXDB_DB_PATH
 
 [memory]
 store_type  = "file"         # file | vector | hybrid

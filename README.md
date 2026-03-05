@@ -279,9 +279,9 @@ Config file: `rago.toml` (auto-discovered in `./` → `~/.rago/` → `~/.rago/co
 ```toml
 home = "~/.rago"             # base for all relative paths
 
-[sqvect]
+[cortexdb]
 db_path   = ""               # RAG db; default: $home/data/rago.db
-env:        RAGO_SQVECT_DB_PATH
+env:        RAGO_CORTEXDB_DB_PATH
 
 [memory]
 store_type  = "file"         # file | vector | hybrid
