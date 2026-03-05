@@ -80,6 +80,8 @@ func NewClient(config *ServerConfig, opts *ClientOptions) (*Client, error) {
 		if config.URL == "" {
 			return nil, fmt.Errorf("URL is required for HTTP server")
 		}
+	case ServerTypeInProcess:
+		// No specific validation needed, handled in Connect
 	case ServerTypeStdio, "":
 		if len(config.Command) == 0 {
 			return nil, fmt.Errorf("command is required for stdio server")
@@ -126,6 +128,12 @@ func (c *Client) Connect(ctx context.Context) error {
 		transport, err = c.createHTTPTransport()
 		if err != nil {
 			return fmt.Errorf("failed to create HTTP transport for %s: %w", c.config.Name, err)
+		}
+
+	case ServerTypeInProcess:
+		transport, err = c.createInProcessTransport(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create in-process transport for %s: %w", c.config.Name, err)
 		}
 
 	case ServerTypeStdio, "":

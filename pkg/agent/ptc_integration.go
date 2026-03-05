@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -341,11 +340,8 @@ func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.Too
 	var toolsDesc string
 	if len(availableTools) > 0 {
 		var sb strings.Builder
-		sb.WriteString("\n\nTools available via callTool(name, args):\n")
-		for _, t := range availableTools {
-			paramsJSON, _ := json.Marshal(t.Parameters)
-			sb.WriteString(fmt.Sprintf("  - %s: %s (args: %s)\n", t.Name, t.Description, string(paramsJSON)))
-		}
+		sb.WriteString("\n\nTools via callTool(name, args):\n")
+		formatToolList(&sb, availableTools)
 		toolsDesc = sb.String()
 	}
 
@@ -381,59 +377,182 @@ func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) strin
 	}
 
 	var sb strings.Builder
-	sb.WriteString(`## Programmatic Tool Calling (PTC) - STRICT MODE
-
-You have access to a Goja (JavaScript ES5.1+) sandbox. ALL tool operations MUST go through JavaScript code execution.
-
-### ⚠️ CRITICAL: PTC-ONLY MODE (MANDATORY)
-**YOU MUST USE execute_javascript FOR ALL TOOL OPERATIONS.**
-
-1. **NO DIRECT TOOL CALLS**: You CANNOT directly invoke tools like get_budget, get_team_members, etc.
-2. **ONLY execute_javascript**: The ONLY tool you can call directly is ` + "`execute_javascript`" + `
-3. **ALL TOOLS VIA callTool()**: All other tools MUST be called from inside JavaScript using ` + "`callTool(name, args)`" + `
-
-### ⚠️ RESPONSE FORMAT (MANDATORY)
-- **ALWAYS respond with <code> block containing JavaScript**
-- **NO thinking/reasoning tags before or after code**
-- **NO markdown fences** - Use ONLY ` + "`<code>...</code>`" + ` tags
-- **NO preamble** - Start immediately with ` + "`<code>`" + `
-- **NO postamble** - End immediately after ` + "`</code>`" + `
-
-### ⚠️ SANDBOX CONSTRAINTS
-1. **NO ASYNC/AWAIT**: The environment is synchronous
-2. **NO PROMISES**: No .then() or .catch()
-3. **NO MODULES**: No require() or import
-4. **TOP-LEVEL RETURN**: Your code MUST end with a return statement
-
-### API REFERENCE
-- callTool(name, args): Executes a tool synchronously and returns the result
-- console.log(msg): Debug logging
-
-### CORRECT USAGE EXAMPLE
-User: "Get the engineering team members and their budget"
-<code>
-const team = callTool('get_team_members', { department: 'engineering' });
-const budget = callTool('get_budget', { department: 'engineering' });
-return { team: team, budget: budget };
-</code>
-
-### INCORRECT USAGE (FORBIDDEN)
-❌ DO NOT call tools directly like: get_team_members({ department: 'engineering' })
-✅ ALWAYS use: execute_javascript with callTool() inside
-
-### MANDATORY RULE
-Respond ONLY with the <code> block. No preamble. No postamble. No markdown. No function wrappers. No direct tool calls.
-`)
+	sb.WriteString("## PTC Mode (JavaScript Sandbox)\n")
+	sb.WriteString("Respond ONLY with `<code>...</code>` containing synchronous ES5 JavaScript.\n")
+	sb.WriteString("- Use `callTool(name, args)` to invoke any tool. No direct tool calls.\n")
+	sb.WriteString("- No async/await, no promises, no require/import.\n")
+	sb.WriteString("- End with a top-level `return` statement.\n")
+	sb.WriteString("Example: `<code>const r = callTool('tool_name', {arg: 'val'}); return r;</code>`\n")
 
 	if len(availableTools) > 0 {
-		sb.WriteString("\n### Available Tools for callTool()\n")
-		for _, t := range availableTools {
-			paramsJSON, _ := json.Marshal(t.Parameters)
-			sb.WriteString(fmt.Sprintf("- %s: %s (args: %s)\n", t.Name, t.Description, string(paramsJSON)))
-		}
+		sb.WriteString("\nAvailable callTool() names:\n")
+		formatToolList(&sb, availableTools)
 	}
 
 	return sb.String()
+}
+
+// formatToolList writes the tool list to sb, collapsing tools that share a common
+// prefix (e.g. mcp_filesystem_*) into a single grouped entry to save tokens.
+func formatToolList(sb *strings.Builder, tools []ptc.ToolInfo) {
+	// Group tools by their detected prefix (e.g. "mcp_filesystem_")
+	type group struct {
+		prefix      string
+		description string // description of first tool in group as context
+		members     []string
+	}
+
+	grouped := map[string]*group{}
+	order := []string{} // preserve insertion order
+	standalone := []ptc.ToolInfo{}
+
+	for _, t := range tools {
+		prefix := toolPrefix(t.Name)
+		if prefix == "" {
+			standalone = append(standalone, t)
+			continue
+		}
+		if _, ok := grouped[prefix]; !ok {
+			grouped[prefix] = &group{prefix: prefix}
+			order = append(order, prefix)
+		}
+		// Strip the prefix to get the short sub-name with param signature
+		subName := strings.TrimPrefix(t.Name, prefix)
+		sig := formatParamsSig(t.Parameters)
+		if sig != "" {
+			subName = subName + "(" + sig + ")"
+		}
+		grouped[prefix].members = append(grouped[prefix].members, subName)
+	}
+
+	// Emit grouped entries
+	for _, prefix := range order {
+		g := grouped[prefix]
+		if len(g.members) == 1 {
+			// Only one tool with this prefix — emit normally
+			standalone = append(standalone, ptc.ToolInfo{
+				Name:        prefix + g.members[0],
+				Description: tools[toolIndex(tools, prefix+g.members[0])].Description,
+				Parameters:  tools[toolIndex(tools, prefix+g.members[0])].Parameters,
+			})
+			continue
+		}
+		fmt.Fprintf(sb, "- %s{%s}\n", prefix, strings.Join(g.members, ","))
+	}
+
+	// Emit standalone (non-grouped) tools
+	for _, t := range standalone {
+		required := extractRequiredArgs(t.Parameters)
+		if required != "" {
+			fmt.Fprintf(sb, "- %s(%s): %s\n", t.Name, required, t.Description)
+		} else {
+			fmt.Fprintf(sb, "- %s: %s\n", t.Name, t.Description)
+		}
+	}
+}
+
+// toolPrefix returns the shared prefix of a tool name if it looks like a namespaced
+// tool (e.g. "mcp_filesystem_" from "mcp_filesystem_read_file"), otherwise "".
+// A prefix must contain at least two underscore-separated segments.
+func toolPrefix(name string) string {
+	parts := strings.SplitN(name, "_", -1)
+	if len(parts) < 3 {
+		return ""
+	}
+	// Use first two segments as prefix: "mcp_filesystem_"
+	return parts[0] + "_" + parts[1] + "_"
+}
+
+// toolIndex finds the index of a tool by name in a slice.
+func toolIndex(tools []ptc.ToolInfo, name string) int {
+	for i, t := range tools {
+		if t.Name == name {
+			return i
+		}
+	}
+	return 0
+}
+
+// extractRequiredArgs returns a compact comma-separated list of required parameter names.
+func extractRequiredArgs(params map[string]interface{}) string {
+	req, ok := params["required"]
+	if !ok {
+		return ""
+	}
+	switch v := req.(type) {
+	case []string:
+		return strings.Join(v, ", ")
+	case []interface{}:
+		names := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				names = append(names, s)
+			}
+		}
+		return strings.Join(names, ", ")
+	}
+	return ""
+}
+
+// formatParamsSig returns a compact parameter signature string like
+// "path: string, content: string, recursive?: boolean" from a JSON schema.
+func formatParamsSig(params map[string]interface{}) string {
+	if len(params) == 0 {
+		return ""
+	}
+
+	// Collect required set
+	required := map[string]bool{}
+	if req, ok := params["required"]; ok {
+		switch v := req.(type) {
+		case []string:
+			for _, s := range v {
+				required[s] = true
+			}
+		case []interface{}:
+			for _, item := range v {
+				if s, ok := item.(string); ok {
+					required[s] = true
+				}
+			}
+		}
+	}
+
+	props, ok := params["properties"].(map[string]interface{})
+	if !ok || len(props) == 0 {
+		return ""
+	}
+
+	// Required params first, then optional
+	var reqParts, optParts []string
+	for name, def := range props {
+		typeName := "any"
+		if defMap, ok := def.(map[string]interface{}); ok {
+			if t, ok := defMap["type"].(string); ok {
+				typeName = t
+			}
+		}
+		if required[name] {
+			reqParts = append(reqParts, name+": "+typeName)
+		} else {
+			optParts = append(optParts, name+"?: "+typeName)
+		}
+	}
+
+	// Sort for determinism
+	sortStrings(reqParts)
+	sortStrings(optParts)
+
+	all := append(reqParts, optParts...)
+	return strings.Join(all, ", ")
+}
+
+func sortStrings(s []string) {
+	for i := 1; i < len(s); i++ {
+		for j := i; j > 0 && s[j] < s[j-1]; j-- {
+			s[j], s[j-1] = s[j-1], s[j]
+		}
+	}
 }
 
 // ProcessLLMResponse processes an LLM response and executes any code found

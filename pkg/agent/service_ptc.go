@@ -62,9 +62,21 @@ DO NOT wrap code in function main(){...}main().
 Example format:
 ` + "<code>\nconst data = callTool('some_tool', { arg: 'value' });\nconsole.log(\"Processing:\", data);\nreturn { result: data };\n</code>"
 
-	// Build message history for LLM (history first, then this user message).
+	// Determine current agent (same logic as executeWithLLM).
+	currentAgent := s.agent
+	if session != nil && session.AgentID != "" && s.registry != nil {
+		if a, ok := s.registry.GetAgent(session.AgentID); ok {
+			currentAgent = a
+		}
+	}
+
+	// Prepend system prompt so the LLM has full context (memory, env, PTC instructions, etc.)
+	systemMsg := s.buildSystemPrompt(ctx, currentAgent)
+
+	// Build message history for LLM (system first, then history, then this user message).
 	userMsg := domain.Message{Role: "user", Content: ptcPrompt}
-	messages := append(session.GetMessages(), userMsg)
+	messages := append([]domain.Message{{Role: "system", Content: systemMsg}}, session.GetMessages()...)
+	messages = append(messages, userMsg)
 
 	// Build PTC tools list for the LLM.
 	availableCallTools := s.ptcIntegration.GetAvailableCallTools(ctx)

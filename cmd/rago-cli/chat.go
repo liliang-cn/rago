@@ -128,7 +128,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 
 func displayResult(result *agent.ExecutionResult) {
 	// Show memories if requested
-	if chatShowMemory && len(result.Memories) > 0 {
+	if (chatShowMemory || verbose) && len(result.Memories) > 0 {
 		fmt.Printf("\n🧠 Retrieved Memories (%d):\n", len(result.Memories))
 		for i, mem := range result.Memories {
 			sourceTag := ""
@@ -190,7 +190,7 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service) error {
 	}
 	if chatNoMemory {
 		fmt.Println("🔇 Memory Mode: Disabled")
-	} else if chatShowMemory {
+	} else if chatShowMemory || verbose {
 		fmt.Println("🧠 Memory Mode: Enabled (Showing retrievals)")
 	}
 	fmt.Println("💡 Type 'quit' or 'exit' to end, 'clear' to reset session")
