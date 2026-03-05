@@ -26,6 +26,12 @@ func main() {
 	}
 	defer svc.Close()
 
+	// Load custom intents for the demo
+	intentDir := filepath.Join(".", "examples", ".intents")
+	if err := svc.Router.LoadIntentsFromDir(intentDir); err != nil {
+		log.Printf("Note: Could not load intents from %s: %v", intentDir, err)
+	}
+
 	fmt.Println("--- Intent Routing Demo ---")
 
 	intents := svc.Router.ListIntents()
