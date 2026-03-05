@@ -18,8 +18,9 @@ import (
 type ServerType string
 
 const (
-	ServerTypeStdio ServerType = "stdio"
-	ServerTypeHTTP  ServerType = "http"
+	ServerTypeStdio     ServerType = "stdio"
+	ServerTypeHTTP      ServerType = "http"
+	ServerTypeInProcess ServerType = "inprocess"
 )
 
 // ServerConfig represents the configuration for an MCP server

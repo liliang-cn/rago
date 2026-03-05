@@ -24,6 +24,7 @@ type SystemContext struct {
 	EnvInfo    map[string]string // selected env vars
 	Memories   []MemorySummary   // list of available memory entities
 	HasMemory  bool              // memory system is enabled
+	IsPTC      bool              // PTC mode — skip verbose memory docs (tools listed separately)
 }
 
 // MemorySummary represents a summary of a persistent memory file
@@ -70,6 +71,7 @@ func (s *Service) buildSystemContext() *SystemContext {
 		User:       user,
 		GoVersion:  runtime.Version(),
 		EnvInfo:    envInfo,
+		IsPTC:      s.isPTCEnabled(),
 	}
 
 	// 注入记忆地图
@@ -104,54 +106,38 @@ func (s *Service) buildSystemContext() *SystemContext {
 func (c *SystemContext) FormatForPrompt() string {
 	var sb strings.Builder
 
-	sb.WriteString("## SYSTEM CHRONOMETER (CRITICAL)\n")
-	fmt.Fprintf(&sb, "- Current Date: %s\n", c.Date)
-	fmt.Fprintf(&sb, "- Current Time: %s (%s)\n", c.Time, c.Timezone)
-	sb.WriteString("When accessing long-term memories, always interpret their 'updated_at' timestamps relative to the current time above. Recent information should generally override older conflicting data.\n\n")
+	fmt.Fprintf(&sb, "Date/Time: %s %s (%s) | OS: %s/%s | Dir: %s | User: %s\n",
+		c.Date, c.Time, c.Timezone, c.OS, c.Arch, c.WorkingDir, c.User)
 
-	sb.WriteString("## System Environment\n")
-	fmt.Fprintf(&sb, "- OS: %s/%s\n", c.OS, c.Arch)
-	if c.Hostname != "" {
-		fmt.Fprintf(&sb, "- Hostname: %s\n", c.Hostname)
-	}
-	fmt.Fprintf(&sb, "- Working Directory: %s\n", c.WorkingDir)
-	if c.User != "" {
-		fmt.Fprintf(&sb, "- User: %s\n", c.User)
-	}
 	if len(c.EnvInfo) > 0 {
-		sb.WriteString("Environment: ")
-		first := true
+		parts := make([]string, 0, len(c.EnvInfo))
 		for k, v := range c.EnvInfo {
-			if !first {
-				sb.WriteString(", ")
+			if k == "PATH" {
+				continue // PATH is too long and not useful for the LLM
 			}
-			fmt.Fprintf(&sb, "%s=%s", k, v)
-			first = false
+			parts = append(parts, k+"="+v)
 		}
-		sb.WriteString("\n")
+		if len(parts) > 0 {
+			sb.WriteString("Env: " + strings.Join(parts, ", ") + "\n")
+		}
 	}
 
-	// Memory tools usage guide (shown when memory is enabled)
+	// Memory tools — show full API docs only in non-PTC mode.
+	// In PTC mode, memory tools are already listed in the callTool() tool list.
 	if c.HasMemory {
-		sb.WriteString("\n## Memory System (Enabled)\n")
-		sb.WriteString("You have access to a persistent memory system. Use these tools:\n\n")
-		sb.WriteString("**memory_save(content, type)**: Save important information\n")
-		sb.WriteString("- Use when: User shares preferences, facts about themselves, or important context\n")
-		sb.WriteString("- Types: fact, preference, skill, pattern, context\n")
-		sb.WriteString("- Example: memory_save(\"User prefers dark mode\", \"preference\")\n\n")
-		sb.WriteString("**memory_recall(query)**: Search and retrieve memories\n")
-		sb.WriteString("- Use when: You need to recall user preferences or past context\n")
-		sb.WriteString("- Example: memory_recall(\"user programming language preference\")\n\n")
-		sb.WriteString("**memory_update(id, content)**: Update existing memory\n")
-		sb.WriteString("- Use when: User corrects or adds to previously saved information\n")
-		sb.WriteString("- Example: memory_update(\"mem_123\", \"Updated information\")\n\n")
-		sb.WriteString("**memory_delete(id)**: Remove outdated memory\n")
-		sb.WriteString("- Use when: User asks to forget something or information is obsolete\n\n")
+		if c.IsPTC {
+			sb.WriteString("Memory: enabled (use memory_save/recall/update/delete via callTool)\n")
+		} else {
+			sb.WriteString("\n## Memory System\n")
+			sb.WriteString("memory_save(content, type) — types: fact|preference|skill|pattern|context\n")
+			sb.WriteString("memory_recall(query) — search past context\n")
+			sb.WriteString("memory_update(id, content) — update a memory entry\n")
+			sb.WriteString("memory_delete(id) — remove a memory entry\n")
+		}
 	}
 
 	if len(c.Memories) > 0 {
-		sb.WriteString("### Available Persistent Memories (Memory Map)\n")
-		sb.WriteString("The following facts and entities are stored in your long-term memory:\n")
+		sb.WriteString("\n## Stored Memories\n")
 		for _, m := range c.Memories {
 			sb.WriteString(fmt.Sprintf("- [%s] (%s): %s\n", m.ID, m.Type, m.Summary))
 		}

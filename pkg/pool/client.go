@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
@@ -349,8 +350,13 @@ func (c *Client) GenerateStructured(ctx context.Context, prompt string, schema i
 			{"role": "user", "content": prompt},
 		},
 		"response_format": map[string]interface{}{
-			"type":        "json_schema",
-			"json_schema": schema,
+			"type": "json_schema",
+			"json_schema": map[string]interface{}{
+				"name":   "response",
+				"schema": schema,
+				// strict:true intentionally omitted — many OpenAI-compatible providers
+				// do not support it and return an error or empty content.
+			},
 		},
 	}
 
@@ -363,7 +369,8 @@ func (c *Client) GenerateStructured(ctx context.Context, prompt string, schema i
 
 	resp, err := c.doRequest(ctx, "/chat/completions", reqBody)
 	if err != nil {
-		return nil, err
+		// Fallback: provider rejected response_format, retry as plain JSON prompt.
+		return c.generateStructuredFallback(ctx, prompt, schema, opts)
 	}
 
 	var result struct {
@@ -383,9 +390,85 @@ func (c *Client) GenerateStructured(ctx context.Context, prompt string, schema i
 		return nil, fmt.Errorf("no choices in response")
 	}
 
+	raw := extractPoolJSON(result.Choices[0].Message.Content)
+	if raw == "" {
+		// Provider returned empty content; fall back to plain JSON prompt.
+		return c.generateStructuredFallback(ctx, prompt, schema, opts)
+	}
+
 	return &domain.StructuredResult{
-		Raw: result.Choices[0].Message.Content,
+		Raw: raw,
 	}, nil
+}
+
+// generateStructuredFallback retries without response_format, asking the model
+// to output valid JSON in the prompt text instead.
+func (c *Client) generateStructuredFallback(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	schemaBytes, _ := json.Marshal(schema)
+	augmented := fmt.Sprintf(
+		"%s\n\nRespond with valid JSON only (no markdown, no explanation) matching this schema:\n%s",
+		prompt, string(schemaBytes),
+	)
+
+	reqBody := map[string]interface{}{
+		"model": c.modelName,
+		"messages": []map[string]string{
+			{"role": "user", "content": augmented},
+		},
+	}
+	if opts != nil {
+		if opts.Temperature > 0 {
+			reqBody["temperature"] = opts.Temperature
+		}
+		if opts.MaxTokens > 0 {
+			reqBody["max_tokens"] = opts.MaxTokens
+		}
+	}
+
+	resp, err := c.doRequest(ctx, "/chat/completions", reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("structured fallback request failed: %w", err)
+	}
+
+	var result struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse fallback response: %w", err)
+	}
+	if len(result.Choices) == 0 {
+		return nil, fmt.Errorf("no choices in fallback response")
+	}
+
+	raw := extractPoolJSON(result.Choices[0].Message.Content)
+	if raw == "" {
+		return nil, fmt.Errorf("empty JSON content in fallback response")
+	}
+
+	return &domain.StructuredResult{Raw: raw}, nil
+}
+
+// extractPoolJSON strips markdown code fences and finds the first JSON object/array.
+func extractPoolJSON(s string) string {
+	for _, fence := range []string{"```json", "```"} {
+		if idx := strings.Index(s, fence); idx != -1 {
+			s = s[idx+len(fence):]
+			if end := strings.Index(s, "```"); end != -1 {
+				s = s[:end]
+			}
+		}
+	}
+	s = strings.TrimSpace(s)
+	for i, ch := range s {
+		if ch == '{' || ch == '[' {
+			return s[i:]
+		}
+	}
+	return s
 }
 
 // RecognizeIntent 意图识别

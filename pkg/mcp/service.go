@@ -32,6 +32,24 @@ func NewService(mcpConfig *Config, llm domain.Generator) (*Service, error) {
 		return nil, fmt.Errorf("failed to load MCP servers: %w", err)
 	}
 
+	// Inject builtin filesystem server if not overridden by user
+	hasFilesystem := false
+	for _, srv := range mcpConfig.GetLoadedServers() {
+		if srv.Name == "filesystem" {
+			hasFilesystem = true
+			break
+		}
+	}
+	if !hasFilesystem {
+		// Use current directory as root by default to allow workspace access
+		mcpConfig.AddServer(&ServerConfig{
+			Name:      "filesystem",
+			Type:      ServerTypeInProcess,
+			Args:      []string{"."},
+			AutoStart: true,
+		})
+	}
+
 	// Create MCP manager
 	manager := NewManager(mcpConfig)
 
