@@ -48,12 +48,19 @@ func (r *Runtime) RunStream(ctx context.Context, goal string) <-chan *Event {
 
 // loop is the core event loop
 func (r *Runtime) loop(ctx context.Context, goal string) {
-	defer close(r.eventChan)
+	defer func() {
+		fmt.Printf("[AGENT] Runtime loop finished\n")
+		close(r.eventChan)
+	}()
+	
+	fmt.Printf("[AGENT] Runtime loop started for goal: %s\n", goal)
 
 	r.emit(EventTypeStart, fmt.Sprintf("Starting task: %s", goal))
 
 	// 1. Prepare context (Memory & RAG)
+	fmt.Printf("[AGENT] Preparing context...\n")
 	memoryContext, ragContext := r.prepareContext(ctx, goal)
+	fmt.Printf("[AGENT] Context prepared, memory=%d chars, rag=%d chars\n", len(memoryContext), len(ragContext))
 
 	// 2. Build initial messages
 	messages := []domain.Message{
@@ -97,6 +104,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		var toolCalls []domain.ToolCall
 		toolCallDetected := false
 
+		fmt.Printf("[AGENT] Round %d: Calling LLM with %d tools...\n", round, len(tools))
 		err := r.svc.llmService.StreamWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
 			Temperature: 0.3,
 			MaxTokens:   2000,

@@ -336,28 +336,7 @@ export function Agent() {
         </div>
       </div>
 
-      {debugMode && (
-        <div className="mb-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500 dark:text-gray-400 w-24">Agent Name:</label>
-            <input
-              type="text"
-              value={agentName}
-              onChange={(e) => setAgentName(e.target.value)}
-              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded dark:bg-gray-800 dark:border-gray-600 dark:text-white"
-            />
-          </div>
-          <div className="flex items-start gap-2">
-            <label className="text-xs text-gray-500 dark:text-gray-400 w-24 pt-1">System Prompt:</label>
-            <textarea
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              rows={2}
-              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded dark:bg-gray-800 dark:border-gray-600 dark:text-white font-mono"
-            />
-          </div>
-        </div>
-      )}
+
 
       <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">
         {messages.length === 0 && (

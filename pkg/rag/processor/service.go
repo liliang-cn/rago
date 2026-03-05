@@ -581,7 +581,8 @@ func (s *Service) hybridSearch(ctx context.Context, req domain.QueryRequest) ([]
 	}
 
 	// 2. Graph Search (Entities) - Enrich with Knowledge Graph
-	if s.graphStore != nil {
+	// Only run if GRAPHRAG_ENABLED is set (disabled by default - too slow)
+	if s.graphStore != nil && os.Getenv("GRAPHRAG_ENABLED") == "true" {
 		var startNodeID string
 		// Extract start node from query (if query is substantial)
 		if len(req.Query) > 10 {

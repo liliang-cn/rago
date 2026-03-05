@@ -1,5 +1,13 @@
 import { useStatus } from '../hooks/useApi'
 
+interface Provider {
+  name: string
+  status: string
+  type: string
+  model?: string
+  healthy?: boolean
+}
+
 export function Status() {
   const { data, isLoading, error, refetch } = useStatus()
 
@@ -29,14 +37,19 @@ export function Status() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'online':
+      case 'enabled':
         return 'bg-green-500'
-      case 'offline':
+      case 'disabled':
         return 'bg-red-500'
       default:
         return 'bg-gray-500'
     }
   }
+
+  // Separate providers by type
+  const llmProviders = data?.providers?.filter((p: Provider) => p.type === 'llm') || []
+  const embedProviders = data?.providers?.filter((p: Provider) => p.type === 'embedding') || []
+  const otherProviders = data?.providers?.filter((p: Provider) => !['llm', 'embedding'].includes(p.type)) || []
 
   return (
     <div className="space-y-6">
@@ -54,6 +67,7 @@ export function Status() {
 
       {data && (
         <>
+          {/* Status Overview */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
@@ -73,13 +87,14 @@ export function Status() {
             </div>
           </div>
 
-          {data.providers && data.providers.length > 0 && (
+          {/* LLM Providers */}
+          {llmProviders.length > 0 && (
             <div>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                Providers
+                LLM Providers
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {data.providers.map((provider) => (
+                {llmProviders.map((provider: Provider) => (
                   <div
                     key={provider.name}
                     className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
@@ -89,24 +104,155 @@ export function Status() {
                         {provider.name}
                       </h4>
                       <div className="flex items-center gap-2">
-                        <div
-                          className={`w-3 h-3 rounded-full ${getStatusColor(
-                            provider.status
-                          )}`}
-                        />
+                        <div className={`w-3 h-3 rounded-full ${getStatusColor(provider.status)}`} />
                         <span className="text-sm text-gray-500 dark:text-gray-400 capitalize">
                           {provider.status}
                         </span>
                       </div>
                     </div>
-                    {provider.latency !== undefined && (
+                    {provider.model && (
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Latency: {provider.latency}ms
+                        Model: {provider.model}
                       </p>
                     )}
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Embedding Providers */}
+          {embedProviders.length > 0 && (
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                Embedding Providers
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {embedProviders.map((provider: Provider) => (
+                  <div
+                    key={provider.name}
+                    className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900 dark:text-white">
+                        {provider.name}
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${getStatusColor(provider.status)}`} />
+                        <span className="text-sm text-gray-500 dark:text-gray-400 capitalize">
+                          {provider.status}
+                        </span>
+                      </div>
+                    </div>
+                    {provider.model && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Model: {provider.model}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Other Services */}
+          {otherProviders.length > 0 && (
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                Services
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {otherProviders.map((provider: Provider) => (
+                  <div
+                    key={provider.name}
+                    className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900 dark:text-white">
+                        {provider.name}
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${getStatusColor(provider.status)}`} />
+                        <span className="text-sm text-gray-500 dark:text-gray-400 capitalize">
+                          {provider.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* MCP Servers Detail */}
+          {data.mcp?.enabled && data.mcp?.server_list && (
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                MCP Servers ({data.mcp.servers} servers, {data.mcp.tools} tools)
+              </h3>
+              <div className="space-y-3">
+                {data.mcp.server_list.map((server: any) => (
+                  <div
+                    key={server.name}
+                    className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900 dark:text-white">
+                        {server.name}
+                      </h4>
+                      <span className={`px-2 py-1 text-xs rounded ${
+                        server.running
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {server.running ? 'Running' : 'Stopped'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Tools: {server.tool_count}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* RAG Stats */}
+          {data.rag?.enabled && (
+            <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                RAG Database
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Documents: {data.rag.documents} | Chunks: {data.rag.chunks}
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                {data.rag.db_path}
+              </p>
+            </div>
+          )}
+
+          {/* Memory Stats */}
+          {data.memory?.enabled && (
+            <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                Memory
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Memories: {data.memory.count}
+              </p>
+            </div>
+          )}
+
+          {/* Skills Stats */}
+          {data.skills?.enabled && (
+            <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                Skills
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Loaded: {data.skills.count}
+              </p>
             </div>
           )}
         </>
