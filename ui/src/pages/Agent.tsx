@@ -6,11 +6,22 @@ interface AgentMessage {
   content: string
   timestamp: number
   streaming?: boolean
+  events?: AgentEvent[]
   debug?: {
     duration?: number
     tokens?: number
     model?: string
   }
+}
+
+interface AgentEvent {
+  type: string
+  content?: string
+  tool_name?: string
+  tool_args?: Record<string, unknown>
+  tool_result?: unknown
+  round?: number
+  debug_type?: string
 }
 
 interface AgentRunRequest {
@@ -22,15 +33,74 @@ interface AgentRunRequest {
   session_id?: string
 }
 
-interface AgentStreamResponse {
-  content?: string
-  error?: string
-  done?: boolean
-  debug?: {
-    duration?: number
-    tokens?: number
-    model?: string
+function EventItem({ event }: { event: AgentEvent }) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (event.type === 'thinking' && event.content) {
+    return (
+      <div className="text-xs italic text-gray-400 dark:text-gray-500 mt-1">
+        💭 {event.content}
+      </div>
+    )
   }
+
+  if (event.type === 'tool_call') {
+    const args = event.tool_args ? JSON.stringify(event.tool_args, null, 2) : ''
+    return (
+      <div className="mt-1 text-xs font-mono border border-blue-200 dark:border-blue-800 rounded bg-blue-50 dark:bg-blue-900/20 overflow-hidden">
+        <div
+          className="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800/30"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <span className="text-blue-600 dark:text-blue-400">🔧 {event.tool_name}</span>
+          <span className="text-gray-400 ml-auto">{expanded ? '▲' : '▼'}</span>
+        </div>
+        {expanded && args && (
+          <pre className="px-2 pb-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-all">{args}</pre>
+        )}
+      </div>
+    )
+  }
+
+  if (event.type === 'tool_result') {
+    const res = typeof event.tool_result === 'string'
+      ? event.tool_result
+      : JSON.stringify(event.tool_result, null, 2)
+    return (
+      <div className="mt-1 text-xs font-mono border border-green-200 dark:border-green-800 rounded bg-green-50 dark:bg-green-900/20 overflow-hidden">
+        <div
+          className="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-green-100 dark:hover:bg-green-800/30"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <span className="text-green-600 dark:text-green-400">✅ {event.tool_name}</span>
+          <span className="text-gray-400 ml-auto">{expanded ? '▲' : '▼'}</span>
+        </div>
+        {expanded && res && (
+          <pre className="px-2 pb-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-all max-h-40 overflow-y-auto">{res}</pre>
+        )}
+      </div>
+    )
+  }
+
+  if (event.type === 'debug') {
+    const label = event.debug_type === 'prompt' ? `📋 Round ${event.round} Prompt` : `📤 Round ${event.round} Response`
+    return (
+      <div className="mt-1 text-xs font-mono border border-yellow-200 dark:border-yellow-800 rounded bg-yellow-50 dark:bg-yellow-900/20 overflow-hidden">
+        <div
+          className="flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-yellow-100 dark:hover:bg-yellow-800/30"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <span className="text-yellow-700 dark:text-yellow-400">{label}</span>
+          <span className="text-gray-400 ml-auto">{expanded ? '▲' : '▼'}</span>
+        </div>
+        {expanded && event.content && (
+          <pre className="px-2 pb-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-all max-h-60 overflow-y-auto">{event.content}</pre>
+        )}
+      </div>
+    )
+  }
+
+  return null
 }
 
 export function Agent() {
@@ -77,6 +147,7 @@ export function Agent() {
         content: '',
         timestamp: Date.now(),
         streaming: true,
+        events: [],
       }])
 
       try {
@@ -89,7 +160,7 @@ export function Agent() {
             system_prompt: systemPrompt,
             debug: debugMode,
             session_id: sessionId,
-          }),
+          } as AgentRunRequest),
         })
 
         if (!response.ok) {
@@ -104,7 +175,6 @@ export function Agent() {
         }
 
         let buffer = ''
-        let duration = 0
 
         while (true) {
           const { done, value } = await reader.read()
@@ -126,23 +196,35 @@ export function Agent() {
                 break
               }
               try {
-                const parsed = JSON.parse(data)
-                if (parsed.content) {
+                const parsed: AgentEvent = JSON.parse(data)
+
+                if (parsed.type === 'partial') {
                   setMessages(prev => prev.map(m =>
                     m.id === assistantId
-                      ? { ...m, content: m.content + parsed.content }
+                      ? { ...m, content: m.content + (parsed.content || '') }
                       : m
                   ))
-                } else if (parsed.error) {
+                } else if (parsed.type === 'workflow_complete') {
                   setMessages(prev => prev.map(m =>
                     m.id === assistantId
-                      ? { ...m, content: `Error: ${parsed.error}`, streaming: false }
+                      ? { ...m, content: m.content || (parsed.content || ''), streaming: false }
                       : m
                   ))
-                  break
+                } else if (parsed.type === 'workflow_error' || parsed.type === 'error') {
+                  setMessages(prev => prev.map(m =>
+                    m.id === assistantId
+                      ? { ...m, content: `Error: ${parsed.content}`, streaming: false }
+                      : m
+                  ))
+                } else if (['thinking', 'tool_call', 'tool_result', 'debug'].includes(parsed.type)) {
+                  // Append to events list for inline display
+                  setMessages(prev => prev.map(m =>
+                    m.id === assistantId
+                      ? { ...m, events: [...(m.events || []), parsed] }
+                      : m
+                  ))
                 }
               } catch {
-                // Plain text
                 if (data.trim()) {
                   setMessages(prev => prev.map(m =>
                     m.id === assistantId
@@ -300,8 +382,21 @@ export function Agent() {
                   : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
               }`}
             >
+              {/* Show events (thinking, tool calls, debug) for assistant messages */}
+              {message.role === 'assistant' && message.events && message.events.length > 0 && (
+                <div className="mb-2">
+                  {message.events
+                    .filter(e => e.type !== 'debug' || debugMode)
+                    .map((event, i) => (
+                      <EventItem key={i} event={event} />
+                    ))}
+                </div>
+              )}
               <p className="whitespace-pre-wrap">
                 {message.content}
+                {message.streaming && !message.content && (
+                  <span className="text-gray-400 dark:text-gray-500 italic text-sm">Thinking...</span>
+                )}
                 {message.streaming && (
                   <span className="inline-block w-2 h-4 ml-1 bg-blue-600 dark:bg-blue-400 animate-pulse" />
                 )}
