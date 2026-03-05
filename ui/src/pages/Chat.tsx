@@ -1,20 +1,25 @@
 import { useState, useRef, useEffect } from 'react'
 import { api } from '../lib/api'
-import type { ChatRequest } from '../lib/api'
 
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
   streaming?: boolean
+  debug?: {
+    sessionId: string
+    timestamp: number
+    latency?: number
+  }
 }
 
 export function Chat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [sessionId] = useState(() => crypto.randomUUID())
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID())
   const [useStream, setUseStream] = useState(true)
+  const [debugMode, setDebugMode] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -29,10 +34,12 @@ export function Chat() {
     e.preventDefault()
     if (!input.trim() || isStreaming) return
 
+    const startTime = Date.now()
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: 'user',
       content: input,
+      debug: debugMode ? { sessionId, timestamp: startTime } : undefined,
     }
     setMessages((prev) => [...prev, userMessage])
     setInput('')
@@ -69,9 +76,16 @@ export function Chat() {
             setIsStreaming(false)
           },
           () => {
+            const latency = Date.now() - startTime
             setMessages((prev) =>
               prev.map((msg) =>
-                msg.id === assistantId ? { ...msg, streaming: false } : msg
+                msg.id === assistantId
+                  ? {
+                      ...msg,
+                      streaming: false,
+                      debug: debugMode ? { sessionId, timestamp: Date.now(), latency } : undefined,
+                    }
+                  : msg
               )
             )
             setIsStreaming(false)
@@ -95,10 +109,12 @@ export function Chat() {
       // Non-streaming fallback
       try {
         const response = await api.chat({ message: input, session_id: sessionId })
+        const latency = Date.now() - startTime
         const assistantMessage: Message = {
           id: assistantId,
           role: 'assistant',
           content: response.response,
+          debug: debugMode ? { sessionId, timestamp: Date.now(), latency } : undefined,
         }
         setMessages((prev) => [...prev, assistantMessage])
       } catch (error) {
@@ -129,7 +145,16 @@ export function Chat() {
               onChange={(e) => setUseStream(e.target.checked)}
               className="rounded border-gray-300 dark:border-gray-600"
             />
-            Stream responses
+            Stream
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <input
+              type="checkbox"
+              checked={debugMode}
+              onChange={(e) => setDebugMode(e.target.checked)}
+              className="rounded border-gray-300 dark:border-gray-600"
+            />
+            Debug
           </label>
           <button
             onClick={handleClear}
@@ -139,6 +164,12 @@ export function Chat() {
           </button>
         </div>
       </div>
+
+      {debugMode && (
+        <div className="mb-4 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs font-mono text-gray-600 dark:text-gray-400">
+          Session: {sessionId}
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">
         {messages.length === 0 && (
@@ -166,6 +197,11 @@ export function Chat() {
                   <span className="inline-block w-2 h-4 ml-1 bg-blue-600 dark:bg-blue-400 animate-pulse" />
                 )}
               </p>
+              {debugMode && message.debug && (
+                <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600 text-xs font-mono opacity-70">
+                  {message.debug.latency && <span>Latency: {message.debug.latency}ms</span>}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -191,9 +227,4 @@ export function Chat() {
       </form>
     </div>
   )
-}
-
-function setSessionId(id: string) {
-  // This is a placeholder - in a real app you'd manage session state properly
-  console.log('Session ID:', id)
 }

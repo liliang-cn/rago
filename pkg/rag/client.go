@@ -297,6 +297,14 @@ func (c *Client) DeleteDocument(ctx context.Context, documentID string) error {
 	return c.vectorStore.Delete(ctx, documentID)
 }
 
+// GetDocument retrieves a document by ID
+func (c *Client) GetDocument(ctx context.Context, documentID string) (domain.Document, error) {
+	if c.docStore != nil {
+		return c.docStore.Get(ctx, documentID)
+	}
+	return domain.Document{}, fmt.Errorf("document store not available")
+}
+
 // Reset clears all documents from the store
 func (c *Client) Reset(ctx context.Context) error {
 	return c.vectorStore.Reset(ctx)

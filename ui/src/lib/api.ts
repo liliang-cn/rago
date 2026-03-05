@@ -142,6 +142,28 @@ export interface ToolResult {
   error?: string
 }
 
+// Memory types
+export interface Memory {
+  id: string
+  type: string
+  content: string
+  importance: number
+  session_id?: string
+  created_at: string
+  updated_at?: string
+}
+
+export interface AddMemoryRequest {
+  content: string
+  type: string
+  importance: number
+}
+
+export interface UpdateMemoryRequest {
+  id: string
+  content: string
+}
+
 // Stream callback types
 export type StreamCallback = (chunk: string) => void
 export type StreamErrorCallback = (error: Error) => void
@@ -272,6 +294,13 @@ export const api = {
 
   getDocuments: () => fetchAPI<Document[]>('/documents'),
 
+  getDocument: (id: string) => fetchAPI<Document>(`/documents/${id}`),
+
+  deleteDocument: (id: string) =>
+    fetchAPI<{ success: boolean; id: string }>(`/documents/${id}`, {
+      method: 'DELETE',
+    }),
+
   getCollections: () => fetchAPI<Collection[]>('/collections'),
 
   getStatus: () => fetchAPI<StatusResponse>('/status'),
@@ -332,4 +361,23 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  // Memory API
+  getMemories: () => fetchAPI<Memory[]>('/memories'),
+
+  getMemory: (id: string) => fetchAPI<Memory>(`/memories/${id}`),
+
+  addMemory: (data: AddMemoryRequest) =>
+    fetchAPI<{ success: boolean; id: string }>('/memories/add', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deleteMemory: (id: string) =>
+    fetchAPI<{ success: boolean }>(`/memories/${id}`, {
+      method: 'DELETE',
+    }),
+
+  searchMemories: (query: string) =>
+    fetchAPI<Memory[]>(`/memories/search?q=${encodeURIComponent(query)}`),
 }

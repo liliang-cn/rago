@@ -13,10 +13,12 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	"github.com/liliang-cn/rago/v2/pkg/memory"
 	ragolog "github.com/liliang-cn/rago/v2/pkg/log"
 	"github.com/liliang-cn/rago/v2/pkg/rag"
 	"github.com/liliang-cn/rago/v2/pkg/services"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
+	"github.com/liliang-cn/rago/v2/pkg/store"
 	"github.com/spf13/cobra"
 )
 
@@ -113,7 +115,24 @@ func runServer(cmd *cobra.Command, args []string) error {
 		mcpService, err = mcp.NewService(mcpConfig, llm)
 		if err != nil {
 			ragolog.Warn("Failed to create MCP service: %v", err)
+		} else {
+			// Start MCP servers (including builtin filesystem)
+			if startErr := mcpService.StartServers(context.Background(), nil); startErr != nil {
+				ragolog.Warn("Failed to start MCP servers: %v", startErr)
+			} else {
+				ragolog.Info("MCP servers started successfully")
+			}
 		}
+	}
+
+	// Create Memory service
+	memoryStore, err := store.NewFileMemoryStore(cfg.Memory.MemoryPath)
+	if err != nil {
+		ragolog.Warn("Failed to create memory store: %v", err)
+	}
+	var memoryService *memory.Service
+	if memoryStore != nil {
+		memoryService = memory.NewService(memoryStore, llm, embedder, memory.DefaultConfig())
 	}
 
 	// Create API router
@@ -125,12 +144,15 @@ func runServer(cmd *cobra.Command, args []string) error {
 		ragClient:     ragClient,
 		skillsService: skillsService,
 		mcpService:    mcpService,
+		memoryService: memoryService,
 		llm:           llm,
+		embedder:      embedder,
 	}
 
 	// RAG endpoints
 	mux.HandleFunc("/api/query", apiHandler.handleQuery)
 	mux.HandleFunc("/api/documents", apiHandler.handleDocuments)
+	mux.HandleFunc("/api/documents/", apiHandler.handleDocumentOperation)
 	mux.HandleFunc("/api/collections", apiHandler.handleCollections)
 	mux.HandleFunc("/api/status", apiHandler.handleStatus)
 	mux.HandleFunc("/api/chat", apiHandler.handleChat)
@@ -146,6 +168,15 @@ func runServer(cmd *cobra.Command, args []string) error {
 	mux.HandleFunc("/api/mcp/tools", apiHandler.handleMCPTools)
 	mux.HandleFunc("/api/mcp/add", apiHandler.handleMCPAddServer)
 	mux.HandleFunc("/api/mcp/call", apiHandler.handleMCPCallTool)
+
+	// Memory endpoints
+	mux.HandleFunc("/api/memories", apiHandler.handleMemories)
+	mux.HandleFunc("/api/memories/add", apiHandler.handleMemoryAdd)
+	mux.HandleFunc("/api/memories/search", apiHandler.handleMemorySearch)
+	mux.HandleFunc("/api/memories/", apiHandler.handleMemoryOperation)
+
+	// Agent endpoints
+	mux.HandleFunc("/api/agent/run", apiHandler.handleAgentRun)
 
 	// Serve static files
 	distFS, err := fs.Sub(staticFS, "dist")
@@ -187,7 +218,9 @@ type apiHandler struct {
 	ragClient     *rag.Client
 	skillsService *skills.Service
 	mcpService    *mcp.Service
+	memoryService *memory.Service
 	llm           domain.Generator
+	embedder      domain.Embedder
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -261,6 +294,41 @@ func (h *apiHandler) handleDocuments(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, documents)
 }
 
+func (h *apiHandler) handleDocumentOperation(w http.ResponseWriter, r *http.Request) {
+	// Extract document ID from path
+	path := r.URL.Path
+	if len(path) <= len("/api/documents/") {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+	docID := path[len("/api/documents/"):]
+
+	switch r.Method {
+	case http.MethodGet:
+		// Get document details
+		doc, err := h.ragClient.GetDocument(r.Context(), docID)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		jsonResponse(w, doc)
+
+	case http.MethodDelete:
+		// Delete document
+		if err := h.ragClient.DeleteDocument(r.Context(), docID); err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonResponse(w, map[string]interface{}{
+			"success": true,
+			"id":      docID,
+		})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
 func (h *apiHandler) handleCollections(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -328,6 +396,7 @@ func (h *apiHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Message   string `json:"message"`
 		SessionID string `json:"session_id"`
+		Stream    bool   `json:"stream"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -349,6 +418,41 @@ func (h *apiHandler) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle streaming response
+	if req.Stream {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			jsonError(w, "Streaming not supported", http.StatusInternalServerError)
+			return
+		}
+
+		opts := &domain.GenerationOptions{
+			Temperature: 0.7,
+		}
+
+		err := h.llm.Stream(ctx, req.Message, opts, func(chunk string) {
+			data, _ := json.Marshal(map[string]string{"content": chunk})
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+		})
+
+		if err != nil {
+			fmt.Fprintf(w, "data: %s\n\n", `{"error": "`+err.Error()+`"}`)
+			flusher.Flush()
+			return
+		}
+
+		// Send done signal
+		fmt.Fprintf(w, "data: [DONE]\n\n")
+		flusher.Flush()
+		return
+	}
+
+	// Non-streaming response
 	response, err := h.ragClient.Chat(ctx, session.ID, req.Message, &rag.QueryOptions{
 		Temperature: 0.7,
 		ShowSources: false,
@@ -623,4 +727,213 @@ func jsonError(w http.ResponseWriter, message string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+// ============================================
+// Memory Handlers
+// ============================================
+
+func (h *apiHandler) handleMemories(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if h.memoryService == nil {
+		jsonResponse(w, []interface{}{})
+		return
+	}
+
+	memories, _, err := h.memoryService.List(r.Context(), 100, 0)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	jsonResponse(w, memories)
+}
+
+func (h *apiHandler) handleMemoryAdd(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if h.memoryService == nil {
+		jsonError(w, "Memory service not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req struct {
+		Content    string  `json:"content"`
+		Type       string `json:"type"`
+		Importance float64 `json:"importance"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.Content == "" {
+		jsonError(w, "Content is required", http.StatusBadRequest)
+		return
+	}
+
+	mem := &domain.Memory{
+		ID:         uuid.New().String(),
+		Type:       domain.MemoryType(req.Type),
+		Content:    req.Content,
+		Importance: req.Importance,
+		CreatedAt: time.Now(),
+	}
+
+	if err := h.memoryService.Add(r.Context(), mem); err != nil {
+		jsonError(w, fmt.Sprintf("Failed to add memory: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	jsonResponse(w, map[string]interface{}{
+		"success": true,
+		"id":       mem.ID,
+	})
+}
+
+func (h *apiHandler) handleMemorySearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if h.memoryService == nil {
+		jsonError(w, "Memory service not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		jsonResponse(w, []interface{}{})
+		return
+	}
+
+	memories, err := h.memoryService.Search(r.Context(), query, 10)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	jsonResponse(w, memories)
+}
+
+func (h *apiHandler) handleMemoryOperation(w http.ResponseWriter, r *http.Request) {
+	// Extract memory ID from path
+	path := r.URL.Path
+	if len(path) <= len("/api/memories/") {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+	memoryID := path[len("/api/memories/"):]
+
+	if h.memoryService == nil {
+		jsonError(w, "Memory service not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		// Get memory details
+		mem, err := h.memoryService.Get(r.Context(), memoryID)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		jsonResponse(w, mem)
+
+	case http.MethodDelete:
+		// Delete memory
+		if err := h.memoryService.Delete(r.Context(), memoryID); err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonResponse(w, map[string]interface{}{
+			"success": true,
+		})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// ============================================
+// Agent Handlers
+// ============================================
+
+func (h *apiHandler) handleAgentRun(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Message      string `json:"message"`
+		AgentName    string `json:"agent_name"`
+		SystemPrompt string `json:"system_prompt"`
+		Debug        bool   `json:"debug"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.Message == "" {
+		jsonError(w, "Message is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.AgentName == "" {
+		req.AgentName = "default-agent"
+	}
+
+	if req.SystemPrompt == "" {
+		req.SystemPrompt = "You are a helpful AI assistant."
+	}
+
+	ctx := r.Context()
+	startTime := time.Now()
+
+	// Use LLM directly for simple agent-like behavior
+	opts := &domain.GenerationOptions{
+		Temperature: 0.7,
+	}
+
+	// Prepend system prompt to message if provided
+	message := req.Message
+	if req.SystemPrompt != "" {
+		message = fmt.Sprintf("[System: %s]\n\nUser: %s", req.SystemPrompt, req.Message)
+	}
+
+	response, err := h.llm.Generate(ctx, message, opts)
+	if err != nil {
+		jsonError(w, fmt.Sprintf("Agent run failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	duration := time.Since(startTime).Milliseconds()
+
+	result := map[string]interface{}{
+		"response":    response,
+		"agent_name":  req.AgentName,
+		"duration_ms": duration,
+	}
+
+	if req.Debug {
+		result["debug"] = map[string]interface{}{
+			"system_prompt": req.SystemPrompt,
+			"input_length":  len(req.Message),
+			"output_length": len(response),
+		}
+	}
+
+	jsonResponse(w, result)
 }
