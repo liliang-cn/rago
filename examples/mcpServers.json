@@ -3,7 +3,11 @@
     "filesystem": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/liliang/Codes/projects/AI/base/rago/"]
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/liliang/Things/AI/base/rago/"
+      ]
     },
     "git": {
       "type": "stdio",
