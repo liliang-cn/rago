@@ -85,13 +85,11 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 		// --- DEBUG: LOG FULL PROMPT ---
 		if r.svc.debug {
-			fmt.Println("\n" + strings.Repeat("=", 40))
-			fmt.Printf("DEBUG [Runtime Round %d] LLM FULL PROMPT\n", round+1)
-			fmt.Println(strings.Repeat("-", 40))
+			var promptBuilder strings.Builder
 			for _, m := range genMessages {
-				fmt.Printf("[%s]:\n%s\n", strings.ToUpper(m.Role), m.Content)
+				fmt.Fprintf(&promptBuilder, "[%s]:\n%s\n\n", strings.ToUpper(m.Role), m.Content)
 			}
-			fmt.Println(strings.Repeat("=", 40) + "\n")
+			r.emitDebug(round+1, "prompt", promptBuilder.String())
 		}
 
 		// 5. LLM Call (Streaming)
@@ -132,17 +130,15 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 		// --- DEBUG: LOG LLM RESPONSE ---
 		if r.svc.debug {
-			fmt.Println("\n" + strings.Repeat("=", 40))
-			fmt.Printf("DEBUG [Runtime Round %d] LLM RESPONSE\n", round+1)
-			fmt.Println(strings.Repeat("-", 40))
-			fmt.Printf("CONTENT: %s\n", fullContent.String())
+			var respBuilder strings.Builder
+			fmt.Fprintf(&respBuilder, "CONTENT: %s\n", fullContent.String())
 			if len(toolCalls) > 0 {
-				fmt.Println("TOOL CALLS:")
+				fmt.Fprintf(&respBuilder, "TOOL CALLS:\n")
 				for _, tc := range toolCalls {
-					fmt.Printf("  - %s(%v)\n", tc.Function.Name, tc.Function.Arguments)
+					fmt.Fprintf(&respBuilder, "  - %s(%v)\n", tc.Function.Name, tc.Function.Arguments)
 				}
 			}
-			fmt.Println(strings.Repeat("=", 40) + "\n")
+			r.emitDebug(round+1, "response", respBuilder.String())
 		}
 
 		// 6. Handle Result
@@ -187,6 +183,15 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 							}
 						}
 					}
+				}
+			}
+
+			// Ensure every tool call has an ID before building the assistant message —
+			// some OpenAI-compatible providers omit the id field, which causes
+			// tool results to be silently dropped when matched back.
+			for i := range toolCalls {
+				if toolCalls[i].ID == "" {
+					toolCalls[i].ID = fmt.Sprintf("call_%s_%d", toolCalls[i].Function.Name, i)
 				}
 			}
 
@@ -590,4 +595,16 @@ func (r *Runtime) emitToolResult(name string, res interface{}, err error) {
 		evt.Content = err.Error()
 	}
 	r.eventChan <- evt
+}
+
+func (r *Runtime) emitDebug(round int, debugType string, content string) {
+	r.eventChan <- &Event{
+		ID:        uuid.New().String(),
+		Type:      EventTypeDebug,
+		AgentName: r.currentAgent.Name(),
+		Round:     round,
+		DebugType: debugType,
+		Content:   content,
+		Timestamp: time.Now(),
+	}
 }

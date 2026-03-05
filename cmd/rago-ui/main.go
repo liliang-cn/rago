@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/liliang-cn/rago/v2/pkg/agent"
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
@@ -138,6 +139,18 @@ func runServer(cmd *cobra.Command, args []string) error {
 	// Create API router
 	mux := http.NewServeMux()
 
+	// Create Agent service
+	agentService, err := agent.NewWithConfig(&agent.Config{
+		Name:   "RAGO Agent",
+		MCP:    &agent.MCPConfig{Enabled: cfg.MCP.Enabled},
+		Memory: &agent.MemoryConfig{Enabled: true},
+		RAG:    &agent.RAGConfig{Enabled: true},
+		Skills: &agent.SkillsConfig{Enabled: true},
+	})
+	if err != nil {
+		ragolog.Warn("Failed to create agent service: %v", err)
+	}
+
 	// API routes
 	apiHandler := &apiHandler{
 		cfg:           cfg,
@@ -145,6 +158,7 @@ func runServer(cmd *cobra.Command, args []string) error {
 		skillsService: skillsService,
 		mcpService:    mcpService,
 		memoryService: memoryService,
+		agentService:  agentService,
 		llm:           llm,
 		embedder:      embedder,
 	}
@@ -177,6 +191,7 @@ func runServer(cmd *cobra.Command, args []string) error {
 
 	// Agent endpoints
 	mux.HandleFunc("/api/agent/run", apiHandler.handleAgentRun)
+	mux.HandleFunc("/api/agent/stream", apiHandler.handleAgentStream)
 
 	// Serve static files
 	distFS, err := fs.Sub(staticFS, "dist")
@@ -219,6 +234,7 @@ type apiHandler struct {
 	skillsService *skills.Service
 	mcpService    *mcp.Service
 	memoryService *memory.Service
+	agentService  *agent.Service
 	llm           domain.Generator
 	embedder      domain.Embedder
 }
@@ -891,29 +907,15 @@ func (h *apiHandler) handleAgentRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.AgentName == "" {
-		req.AgentName = "default-agent"
-	}
-
-	if req.SystemPrompt == "" {
-		req.SystemPrompt = "You are a helpful AI assistant."
+	if h.agentService == nil {
+		jsonError(w, "Agent service unavailable", http.StatusServiceUnavailable)
+		return
 	}
 
 	ctx := r.Context()
 	startTime := time.Now()
 
-	// Use LLM directly for simple agent-like behavior
-	opts := &domain.GenerationOptions{
-		Temperature: 0.7,
-	}
-
-	// Prepend system prompt to message if provided
-	message := req.Message
-	if req.SystemPrompt != "" {
-		message = fmt.Sprintf("[System: %s]\n\nUser: %s", req.SystemPrompt, req.Message)
-	}
-
-	response, err := h.llm.Generate(ctx, message, opts)
+	result, err := h.agentService.Run(ctx, req.Message)
 	if err != nil {
 		jsonError(w, fmt.Sprintf("Agent run failed: %v", err), http.StatusInternalServerError)
 		return
@@ -921,19 +923,111 @@ func (h *apiHandler) handleAgentRun(w http.ResponseWriter, r *http.Request) {
 
 	duration := time.Since(startTime).Milliseconds()
 
-	result := map[string]interface{}{
-		"response":    response,
+	resp := map[string]interface{}{
+		"response":    result.Text(),
 		"agent_name":  req.AgentName,
 		"duration_ms": duration,
 	}
 
 	if req.Debug {
-		result["debug"] = map[string]interface{}{
+		resp["debug"] = map[string]interface{}{
 			"system_prompt": req.SystemPrompt,
-			"input_length":  len(req.Message),
-			"output_length": len(response),
+			"steps_total":   result.StepsTotal,
+			"steps_done":    result.StepsDone,
 		}
 	}
 
-	jsonResponse(w, result)
+	jsonResponse(w, resp)
+}
+
+func (h *apiHandler) handleAgentStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Message      string `json:"message"`
+		AgentName    string `json:"agent_name"`
+		SystemPrompt string `json:"system_prompt"`
+		Debug        bool   `json:"debug"`
+		SessionID    string `json:"session_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.Message == "" {
+		jsonError(w, "Message is required", http.StatusBadRequest)
+		return
+	}
+
+	svc := h.agentService
+	if svc == nil {
+		jsonError(w, "Agent service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	// If debug requested, create a debug-enabled agent service for this request
+	if req.Debug {
+		debugSvc, err := agent.NewWithConfig(&agent.Config{
+			Name:   "RAGO Agent",
+			MCP:    &agent.MCPConfig{Enabled: h.cfg.MCP.Enabled},
+			Memory: &agent.MemoryConfig{Enabled: true},
+			RAG:    &agent.RAGConfig{Enabled: true},
+			Skills: &agent.SkillsConfig{Enabled: true},
+			Debug:  true,
+		})
+		if err == nil {
+			svc = debugSvc
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		jsonError(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	ctx := r.Context()
+	events, err := svc.RunStream(ctx, req.Message)
+	if err != nil {
+		data, _ := json.Marshal(map[string]string{"type": "error", "content": err.Error()})
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		flusher.Flush()
+		return
+	}
+
+	for evt := range events {
+		payload := map[string]interface{}{
+			"type":       string(evt.Type),
+			"content":    evt.Content,
+			"agent_name": evt.AgentName,
+		}
+		if evt.ToolName != "" {
+			payload["tool_name"] = evt.ToolName
+		}
+		if evt.ToolArgs != nil {
+			payload["tool_args"] = evt.ToolArgs
+		}
+		if evt.ToolResult != nil {
+			payload["tool_result"] = evt.ToolResult
+		}
+		if evt.Round > 0 {
+			payload["round"] = evt.Round
+			payload["debug_type"] = evt.DebugType
+		}
+		data, _ := json.Marshal(payload)
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		flusher.Flush()
+	}
+
+	fmt.Fprintf(w, "data: [DONE]\n\n")
+	flusher.Flush()
 }
