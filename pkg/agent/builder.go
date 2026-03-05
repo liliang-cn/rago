@@ -585,7 +585,7 @@ func (b *Builder) buildMemoryService(ragoCfg *config.Config, embedSvc domain.Emb
 func (b *Builder) buildRAGProcessor(ragoCfg *config.Config, embedSvc domain.Embedder, llmSvc domain.Generator, memSvc domain.MemoryService) (domain.Processor, error) {
 	vectorStore, err := ragstore.NewVectorStore(ragstore.StoreConfig{
 		Type:       "sqlite",
-		Parameters: map[string]interface{}{"db_path": ragoCfg.Sqvect.DBPath},
+		Parameters: map[string]interface{}{"db_path": ragoCfg.Cortexdb.DBPath},
 	})
 	if err != nil {
 		return nil, err
@@ -601,7 +601,7 @@ func (b *Builder) buildSkillsService(ragoCfg *config.Config) (*skills.Service, e
 		paths = []string{ragoCfg.SkillsDir()}
 	}
 	skillsCfg.Paths = paths
-	skillsCfg.DBPath = ragoCfg.Sqvect.DBPath
+	skillsCfg.DBPath = ragoCfg.Cortexdb.DBPath
 	svc, err := skills.NewService(skillsCfg)
 	if err != nil {
 		return nil, err
@@ -654,7 +654,7 @@ func WithMemoryReflect(threshold int) MemoryOption {
 	return func(c *MemoryConfig) { c.ReflectThreshold = threshold }
 }
 
-// WithMemoryHybrid enables hybrid store mode (FileMemoryStore as truth + sqvect as shadow).
+// WithMemoryHybrid enables hybrid store mode (FileMemoryStore as truth + cortexdb as shadow).
 // This activates vector search acceleration alongside IndexNavigator logical retrieval.
 func WithMemoryHybrid() MemoryOption {
 	return func(c *MemoryConfig) { c.StoreType = "hybrid" }

@@ -15,7 +15,7 @@ import (
 
 func TestStoreWithCollections(t *testing.T) {
 	// Create a temporary database for testing
-	tmpDir, err := os.MkdirTemp("", "sqvect_collection_test")
+	tmpDir, err := os.MkdirTemp("", "cortexdb_collection_test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -99,8 +99,8 @@ func TestStoreWithCollections(t *testing.T) {
 	// Store chunks in different collections
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create document first to satisfy foreign key constraint in sqvect v2
-			docStore := NewDocumentStore(store.GetSqvectStore())
+			// Create document first to satisfy foreign key constraint in cortexdb v2
+			docStore := NewDocumentStore(store.GetCortexdbStore())
 			for _, chunk := range tt.chunks {
 				_ = docStore.Store(ctx, domain.Document{
 					ID:      chunk.DocumentID,
@@ -119,7 +119,7 @@ func TestStoreWithCollections(t *testing.T) {
 }
 
 func TestDocumentStoreWithCollections(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "sqvect_doc_collection_test")
+	tmpDir, err := os.MkdirTemp("", "cortexdb_doc_collection_test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -128,7 +128,7 @@ func TestDocumentStoreWithCollections(t *testing.T) {
 	require.NoError(t, err)
 	defer sqliteStore.Close()
 
-	docStore := NewDocumentStore(sqliteStore.GetSqvectStore())
+	docStore := NewDocumentStore(sqliteStore.GetCortexdbStore())
 	ctx := context.Background()
 
 	documents := []domain.Document{
@@ -194,7 +194,7 @@ func TestDocumentStoreWithCollections(t *testing.T) {
 }
 
 func TestEnsureCollection(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "sqvect_ensure_collection_test")
+	tmpDir, err := os.MkdirTemp("", "cortexdb_ensure_collection_test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -227,7 +227,7 @@ func TestEnsureCollection(t *testing.T) {
 }
 
 func TestCollectionMetadataPropagation(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "sqvect_metadata_test")
+	tmpDir, err := os.MkdirTemp("", "cortexdb_metadata_test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -260,8 +260,8 @@ func TestCollectionMetadataPropagation(t *testing.T) {
 		},
 	}
 
-	// Create document first to satisfy foreign key constraint in sqvect v2
-	docStore := NewDocumentStore(store.GetSqvectStore())
+	// Create document first to satisfy foreign key constraint in cortexdb v2
+	docStore := NewDocumentStore(store.GetCortexdbStore())
 	_ = docStore.Store(ctx, domain.Document{
 		ID:      chunk.DocumentID,
 		Created: time.Now(),

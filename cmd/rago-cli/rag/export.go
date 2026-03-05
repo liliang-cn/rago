@@ -48,8 +48,8 @@ var exportCmd = &cobra.Command{
 
 		// Initialize stores
 		vectorStore, err := store.NewSQLiteStore(
-			Cfg.Sqvect.DBPath,
-			Cfg.Sqvect.IndexType,
+			Cfg.Cortexdb.DBPath,
+			Cfg.Cortexdb.IndexType,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)
@@ -60,7 +60,7 @@ var exportCmd = &cobra.Command{
 			}
 		}()
 
-		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
+		docStore := store.NewDocumentStore(vectorStore.GetCortexdbStore())
 
 		ctx := context.Background()
 

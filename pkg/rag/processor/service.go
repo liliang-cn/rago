@@ -163,7 +163,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 		chunks = append(chunks, chunk)
 	}
 
-	// Store document metadata BEFORE vectors (sqvect v2 needs document to exist for foreign key)
+	// Store document metadata BEFORE vectors (cortexdb v2 needs document to exist for foreign key)
 	if err := s.documentStore.Store(ctx, doc); err != nil {
 		return domain.IngestResponse{}, fmt.Errorf("failed to store document: %w", err)
 	}

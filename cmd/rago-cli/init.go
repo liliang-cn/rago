@@ -171,7 +171,7 @@ model_name = "qwen3-embedding:8b"      # Change to your preferred embedding mode
 max_concurrency = 10
 capability = 4
 
-[sqvect]
+[cortexdb]
 top_k = 5
 threshold = 0.5
 index_type = "flat"

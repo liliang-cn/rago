@@ -19,7 +19,7 @@ key             = "sk-..."
 model_name      = "gpt-4o"
 
 # ── RAG Vector Store ───────────────────────────────────
-[sqvect]
+[cortexdb]
 db_path    = ""      # default: $home/data/rago.db
 index_type = "hnsw"
 
@@ -84,7 +84,7 @@ servers = ["~/.rago/mcpServers.json"]
 
 | File | Config Key | Tables | Purpose |
 |------|-----------|--------|---------|
-| `data/rago.db` | `sqvect.db_path` | `chunks`, `embeddings`, `memories` | RAG vector index + Memory vector index (shadow) |
+| `data/rago.db` | `cortexdb.db_path` | `chunks`, `embeddings`, `memories` | RAG vector index + Memory vector index (shadow) |
 | `data/agent.db` | `builder.WithDBPath()` | `agent_sessions`, `agent_plans` | Multi-turn chat history and plan state |
 
 ---
@@ -102,7 +102,7 @@ servers = ["~/.rago/mcpServers.json"]
 | Variable | Config equivalent | Description |
 |----------|------------------|-------------|
 | `RAGO_HOME` | `home` | Override base home directory |
-| `RAGO_SQVECT_DB_PATH` | `sqvect.db_path` | Override RAG/Shadow database path |
+| `RAGO_CORTEXDB_DB_PATH` | `cortexdb.db_path` | Override RAG/Shadow database path |
 
 ## Path Resolution Priority
 

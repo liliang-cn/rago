@@ -29,7 +29,7 @@ model_name = "qwen3-embedding:8b"
 max_concurrency = 10
 capability = 4
 
-[sqvect]
+[cortexdb]
 top_k = 5                       # Number of relevant chunks to retrieve
 threshold = 0.5                 # Similarity threshold (0.0 to 1.0)
 index_type = "flat"             # Vector index type: hnsw, ivf, or flat

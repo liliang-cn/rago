@@ -19,7 +19,7 @@ func main() {
 
 	// 1. Configure RAGO
 	cfg := &config.Config{
-		Sqvect: config.SqvectConfig{
+		Cortexdb: config.CortexdbConfig{
 			DBPath:    "./data/advanced_rag.db",
 			TopK:      5,
 			Threshold: 0.3,

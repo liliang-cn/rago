@@ -35,9 +35,9 @@ func TestNewVectorStore(t *testing.T) {
 			shouldError: false,
 		},
 		{
-			name: "SQLite store with sqvect alias",
+			name: "SQLite store with cortexdb alias",
 			config: StoreConfig{
-				Type: "sqvect",
+				Type: "cortexdb",
 				Parameters: map[string]interface{}{
 					"db_path": filepath.Join(tmpDir, "test2.db"),
 				},
@@ -92,7 +92,7 @@ func TestNewVectorStore(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create default directory if using default path
-			if tt.config.Type == "sqlite" || tt.config.Type == "sqvect" {
+			if tt.config.Type == "sqlite" || tt.config.Type == "cortexdb" {
 				if tt.config.Parameters == nil || tt.config.Parameters["db_path"] == nil || tt.config.Parameters["db_path"] == "" {
 					// Create default directory for this test
 					err := os.MkdirAll("./.rago/data", 0755)

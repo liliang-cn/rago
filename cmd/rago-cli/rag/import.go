@@ -61,12 +61,12 @@ var importCmd = &cobra.Command{
 		fmt.Printf("  Vector dimension: %d\n", exportData.Metadata.VectorDim)
 
 		// Skip vector dimension check since v0.7.0 auto-detects dimensions
-		fmt.Printf("  Note: Using auto-detect dimensions (sqvect v0.7.0+)\n")
+		fmt.Printf("  Note: Using auto-detect dimensions (cortexdb v2.7.0+)\n")
 
 		// Initialize stores
 		vectorStore, err := store.NewSQLiteStore(
-			Cfg.Sqvect.DBPath,
-			Cfg.Sqvect.IndexType,
+			Cfg.Cortexdb.DBPath,
+			Cfg.Cortexdb.IndexType,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create vector store: %w", err)
@@ -77,7 +77,7 @@ var importCmd = &cobra.Command{
 			}
 		}()
 
-		docStore := store.NewDocumentStore(vectorStore.GetSqvectStore())
+		docStore := store.NewDocumentStore(vectorStore.GetCortexdbStore())
 		ctx := context.Background()
 
 		// Check for existing data
@@ -122,7 +122,7 @@ var importCmd = &cobra.Command{
 			fmt.Printf("Importing %d chunks...\n", len(exportData.Chunks))
 
 			// Process chunks in batches
-			batchSize := Cfg.Sqvect.BatchSize
+			batchSize := Cfg.Cortexdb.BatchSize
 			for i := 0; i < len(exportData.Chunks); i += batchSize {
 				end := i + batchSize
 				if end > len(exportData.Chunks) {

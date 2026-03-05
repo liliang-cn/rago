@@ -41,7 +41,7 @@ func (m *MockExecutor) Execute(ctx context.Context, params map[string]string) (*
 
 func TestNewScheduler(t *testing.T) {
 	cfg := &config.Config{
-		Sqvect: config.SqvectConfig{
+		Cortexdb: config.CortexdbConfig{
 			DBPath: "/tmp/test.db",
 		},
 	}
@@ -58,7 +58,7 @@ func TestNewScheduler(t *testing.T) {
 func TestSchedulerStartStop(t *testing.T) {
 	tempDir := t.TempDir()
 	cfg := &config.Config{
-		Sqvect: config.SqvectConfig{
+		Cortexdb: config.CortexdbConfig{
 			DBPath: tempDir + "/data/test.db",
 		},
 	}
@@ -106,7 +106,7 @@ func TestRegisterExecutor(t *testing.T) {
 func TestCreateTask(t *testing.T) {
 	tempDir := t.TempDir()
 	cfg := &config.Config{
-		Sqvect: config.SqvectConfig{
+		Cortexdb: config.CortexdbConfig{
 			DBPath: tempDir + "/data/test.db",
 		},
 	}
@@ -204,7 +204,7 @@ func TestCreateTask(t *testing.T) {
 func TestExecuteTask(t *testing.T) {
 	tempDir := t.TempDir()
 	cfg := &config.Config{
-		Sqvect: config.SqvectConfig{
+		Cortexdb: config.CortexdbConfig{
 			DBPath: tempDir + "/data/test.db",
 		},
 	}
@@ -302,7 +302,7 @@ func TestSchedulerNotRunning(t *testing.T) {
 func TestTaskLifecycle(t *testing.T) {
 	tempDir := t.TempDir()
 	cfg := &config.Config{
-		Sqvect: config.SqvectConfig{
+		Cortexdb: config.CortexdbConfig{
 			DBPath: tempDir + "/data/test.db",
 		},
 	}
@@ -367,7 +367,7 @@ func TestTaskLifecycle(t *testing.T) {
 func TestSchedulerLoop(t *testing.T) {
 	tempDir := t.TempDir()
 	cfg := &config.Config{
-		Sqvect: config.SqvectConfig{
+		Cortexdb: config.CortexdbConfig{
 			DBPath: tempDir + "/data/test.db",
 		},
 	}

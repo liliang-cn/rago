@@ -20,7 +20,7 @@ type Config struct {
 	Server        ServerConfig    `mapstructure:"server"`
 	LLMPool       pool.PoolConfig `mapstructure:"llm_pool"`
 	EmbeddingPool pool.PoolConfig `mapstructure:"embedding_pool"`
-	Sqvect        SqvectConfig    `mapstructure:"sqvect"`
+	Cortexdb      CortexdbConfig  `mapstructure:"cortexdb"`
 	Chunker       ChunkerConfig   `mapstructure:"chunker"`
 	Ingest        IngestConfig    `mapstructure:"ingest"`
 	MCP           mcp.Config      `mapstructure:"mcp"`
@@ -59,7 +59,7 @@ type ServerConfig struct {
 	CORSOrigins []string `mapstructure:"cors_origins"`
 }
 
-type SqvectConfig struct {
+type CortexdbConfig struct {
 	DBPath    string  `mapstructure:"db_path"`
 	MaxConns  int     `mapstructure:"max_conns"`
 	BatchSize int     `mapstructure:"batch_size"`
@@ -275,11 +275,11 @@ func setDefaults() {
 	viper.SetDefault("embedding_pool.enabled", false) // embedding is optional - only enable when providers are configured
 	viper.SetDefault("embedding_pool.strategy", "round_robin")
 
-	viper.SetDefault("sqvect.max_conns", 10)
-	viper.SetDefault("sqvect.batch_size", 100)
-	viper.SetDefault("sqvect.top_k", 5)
-	viper.SetDefault("sqvect.threshold", 0.0)
-	viper.SetDefault("sqvect.index_type", "hnsw")
+	viper.SetDefault("cortexdb.max_conns", 10)
+	viper.SetDefault("cortexdb.batch_size", 100)
+	viper.SetDefault("cortexdb.top_k", 5)
+	viper.SetDefault("cortexdb.threshold", 0.0)
+	viper.SetDefault("cortexdb.index_type", "hnsw")
 
 	viper.SetDefault("chunker.chunk_size", 500)
 	viper.SetDefault("chunker.overlap", 50)
@@ -352,8 +352,8 @@ func bindEnvVars() {
 	if err := viper.BindEnv("server.host", "RAGO_SERVER_HOST"); err != nil {
 		log.Printf("Warning: failed to bind server.host env var: %v", err)
 	}
-	if err := viper.BindEnv("sqvect.db_path", "RAGO_SQVECT_DB_PATH"); err != nil {
-		log.Printf("Warning: failed to bind sqvect.db_path env var: %v", err)
+	if err := viper.BindEnv("cortexdb.db_path", "RAGO_CORTEXDB_DB_PATH"); err != nil {
+		log.Printf("Warning: failed to bind cortexdb.db_path env var: %v", err)
 	}
 	if err := viper.BindEnv("chunker.chunk_size", "RAGO_CHUNKER_CHUNK_SIZE"); err != nil {
 		log.Printf("Warning: failed to bind chunker.chunk_size env var: %v", err)
@@ -488,21 +488,21 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("server host cannot be empty")
 	}
 
-	if c.Sqvect.DBPath == "" {
+	if c.Cortexdb.DBPath == "" {
 		return fmt.Errorf("database path cannot be empty")
 	}
 
-	if c.Sqvect.TopK <= 0 {
-		return fmt.Errorf("topK must be positive: %d", c.Sqvect.TopK)
+	if c.Cortexdb.TopK <= 0 {
+		return fmt.Errorf("topK must be positive: %d", c.Cortexdb.TopK)
 	}
 
-	if c.Sqvect.Threshold < 0 {
-		return fmt.Errorf("threshold must be non-negative: %f", c.Sqvect.Threshold)
+	if c.Cortexdb.Threshold < 0 {
+		return fmt.Errorf("threshold must be non-negative: %f", c.Cortexdb.Threshold)
 	}
 
 	validIndexTypes := map[string]bool{"hnsw": true, "ivf": true, "flat": true, "": true}
-	if !validIndexTypes[strings.ToLower(c.Sqvect.IndexType)] {
-		return fmt.Errorf("invalid index_type: %s (supported: hnsw, ivf, flat)", c.Sqvect.IndexType)
+	if !validIndexTypes[strings.ToLower(c.Cortexdb.IndexType)] {
+		return fmt.Errorf("invalid index_type: %s (supported: hnsw, ivf, flat)", c.Cortexdb.IndexType)
 	}
 
 	if c.Chunker.ChunkSize <= 0 {
@@ -588,13 +588,13 @@ func (c *Config) validateMCPConfig() error {
 }
 
 func (c *Config) resolveDatabasePath() {
-	if c.Sqvect.DBPath == "" {
-		c.Sqvect.DBPath = filepath.Join(c.DataDir(), "rago.db")
+	if c.Cortexdb.DBPath == "" {
+		c.Cortexdb.DBPath = filepath.Join(c.DataDir(), "rago.db")
 	}
 
 	if c.Memory.MemoryPath == "" {
 		if c.Memory.StoreType == "vector" {
-			c.Memory.MemoryPath = c.Sqvect.DBPath
+			c.Memory.MemoryPath = c.Cortexdb.DBPath
 		} else {
 			c.Memory.MemoryPath = filepath.Join(c.DataDir(), "memories")
 		}
@@ -603,9 +603,9 @@ func (c *Config) resolveDatabasePath() {
 
 func (c *Config) expandPaths() {
 	c.Home = expandHomePath(c.Home)
-	c.Sqvect.DBPath = expandHomePath(c.Sqvect.DBPath)
+	c.Cortexdb.DBPath = expandHomePath(c.Cortexdb.DBPath)
 	c.Memory.MemoryPath = expandHomePath(c.Memory.MemoryPath)
-	ensureParentDir(c.Sqvect.DBPath)
+	ensureParentDir(c.Cortexdb.DBPath)
 	if c.Memory.StoreType != "vector" {
 		os.MkdirAll(c.Memory.MemoryPath, 0755)
 	} else {
