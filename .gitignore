@@ -1,4 +1,3 @@
-node_modules/
 bin/
 
 rago.toml
@@ -10,6 +9,8 @@ delegation/
 *.db
 
 data/
-logs/
-memories/
 
+# UI
+ui/node_modules/
+ui/dist/
+cmd/rago-ui/dist/
