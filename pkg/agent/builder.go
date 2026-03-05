@@ -695,55 +695,5 @@ func WithPTCMaxToolCalls(n int) PTCOption { return func(c *PTCConfig) { c.MaxToo
 // WithPTCTimeout sets PTC timeout
 func WithPTCTimeout(d time.Duration) PTCOption { return func(c *PTCConfig) { c.Timeout = d } }
 
-// NewWithConfig creates a new agent service from a Config structure.
-// This is the second way to create an agent (alongside the builder pattern).
-//
-// Example:
-//
-//	svc, err := agent.NewWithConfig(&agent.Config{
-//	    Name: "my-agent",
-//	    MCP:  &agent.MCPConfig{Enabled: true},
-//	    RAG:  &agent.RAGConfig{Enabled: true, DBPath: "/path/to/db"},
-//	})
-func NewWithConfig(cfg *Config) (*Service, error) {
-	if cfg == nil || cfg.Name == "" {
-		return nil, fmt.Errorf("agent name is required")
-	}
 
-	b := &Builder{
-		name:         cfg.Name,
-		dbPath:       cfg.DBPath,
-		systemPrompt: cfg.SystemPrompt,
-		debug:        cfg.Debug,
-	}
 
-	if cfg.RAG != nil && cfg.RAG.Enabled {
-		b.enableRAG = true
-		b.ragCfg = *cfg.RAG
-	}
-	if cfg.MCP != nil && cfg.MCP.Enabled {
-		b.enableMCP = true
-		b.mcpCfgPaths = cfg.MCP.ConfigPaths
-	}
-	if cfg.Memory != nil && cfg.Memory.Enabled {
-		b.enableMemory = true
-		b.memoryCfg = *cfg.Memory
-	}
-	if cfg.Router != nil && cfg.Router.Enabled {
-		b.enableRouter = true
-		b.routerThreshold = cfg.Router.Threshold
-	}
-	if cfg.Skills != nil && cfg.Skills.Enabled {
-		b.enableSkills = true
-		b.skillsPaths = cfg.Skills.Paths
-	}
-	if cfg.PTC != nil && cfg.PTC.Enabled {
-		b.enablePTC = true
-		b.ptcCfg = cfg.PTC
-	}
-	if cfg.ProgressCallback != nil {
-		b.progressCb = cfg.ProgressCallback
-	}
-
-	return b.Build()
-}

@@ -19,16 +19,10 @@ function Nav() {
   return (
     <nav className="max-w-7xl mx-auto px-4 flex gap-2 py-4 overflow-x-auto">
       <NavLink to="/" className={linkClass} end>
-        Query
-      </NavLink>
-      <NavLink to="/documents" className={linkClass}>
-        Documents
+        Agent
       </NavLink>
       <NavLink to="/chat" className={linkClass}>
         Chat
-      </NavLink>
-      <NavLink to="/agent" className={linkClass}>
-        Agent
       </NavLink>
       <NavLink to="/skills" className={linkClass}>
         Skills
@@ -41,6 +35,12 @@ function Nav() {
       </NavLink>
       <NavLink to="/status" className={linkClass}>
         Status
+      </NavLink>
+      <NavLink to="/query" className={linkClass}>
+        Query
+      </NavLink>
+      <NavLink to="/documents" className={linkClass}>
+        Documents
       </NavLink>
     </nav>
   )
@@ -62,14 +62,14 @@ function App() {
       </header>
       <main className="max-w-7xl mx-auto px-4 py-6">
         <Routes>
-          <Route path="/" element={<QueryTest />} />
-          <Route path="/documents" element={<Documents />} />
+          <Route path="/" element={<Agent />} />
           <Route path="/chat" element={<Chat />} />
-          <Route path="/agent" element={<Agent />} />
           <Route path="/skills" element={<Skills />} />
           <Route path="/mcp" element={<MCP />} />
           <Route path="/memory" element={<Memory />} />
           <Route path="/status" element={<Status />} />
+          <Route path="/query" element={<QueryTest />} />
+          <Route path="/documents" element={<Documents />} />
         </Routes>
       </main>
     </div>

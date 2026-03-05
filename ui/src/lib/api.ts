@@ -46,13 +46,21 @@ export interface StatusResponse {
   status: string
   version: string
   providers: ProviderStatus[]
+  llm?: { enabled: boolean; model?: string }
+  embedder?: { enabled: boolean; model?: string }
+  rag?: { enabled: boolean; db_path?: string; documents?: number; chunks?: number }
+  mcp?: { enabled: boolean; servers?: number; tools?: number; server_list?: any[] }
+  skills?: { enabled: boolean; count?: number }
+  memory?: { enabled: boolean; count?: number }
+  agent?: { enabled: boolean }
 }
 
 export interface ProviderStatus {
   name: string
-  status: 'online' | 'offline' | 'unknown'
-  latency?: number
-  type?: string
+  status: 'enabled' | 'disabled'
+  type: string
+  model?: string
+  healthy?: boolean
 }
 
 // Skills types

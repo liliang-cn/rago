@@ -12,9 +12,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	svc, err := agent.NewWithConfig(&agent.Config{
-		Name: "stream-tester",
-	})
+	svc, err := agent.New("stream-tester").Build()
 	if err != nil {
 		log.Fatalf("Failed to create service: %v", err)
 	}
