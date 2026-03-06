@@ -151,6 +151,9 @@ const resources = {
       sources: 'Sources',
       noSources: 'No sources',
       configureAgent: 'Configure the agent and send a message to start...',
+      stream: 'Stream',
+      debug: 'Debug',
+      sending: 'Sending...',
     }
   },
   zh: {
@@ -301,6 +304,9 @@ const resources = {
       sources: '来源',
       noSources: '无来源',
       configureAgent: '配置智能体并发送消息开始...',
+      stream: '流式',
+      debug: '调试',
+      sending: '发送中...',
     }
   }
 }
