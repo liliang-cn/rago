@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/liliang-cn/rago/v2/pkg/domain"
@@ -33,13 +34,60 @@ type registeredTool struct {
 // through this registry (via SyncToPTCRouter). This eliminates the dual-registration
 // pattern where tools had to be registered both on agent.tools and ptcRouter separately.
 type ToolRegistry struct {
-	mu    sync.RWMutex
-	tools map[string]*registeredTool
+	mu               sync.RWMutex
+	tools            map[string]*registeredTool
+	sessionActivated map[string]map[string]bool // sessionID -> toolName -> bool
 }
 
 // NewToolRegistry creates an empty ToolRegistry.
 func NewToolRegistry() *ToolRegistry {
-	return &ToolRegistry{tools: make(map[string]*registeredTool)}
+	return &ToolRegistry{
+		tools:            make(map[string]*registeredTool),
+		sessionActivated: make(map[string]map[string]bool),
+	}
+}
+
+// ActivateForSession marks a deferred tool as active for the given session.
+func (r *ToolRegistry) ActivateForSession(sessionID, toolName string) {
+	if sessionID == "" || toolName == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.sessionActivated[sessionID]; !ok {
+		r.sessionActivated[sessionID] = make(map[string]bool)
+	}
+	r.sessionActivated[sessionID][toolName] = true
+}
+
+// SearchDeferredTools searches for deferred tools matching the query.
+func (r *ToolRegistry) SearchDeferredTools(query string) []domain.ToolDefinition {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	
+	query = strings.ToLower(query)
+	keywords := strings.Fields(query)
+	var matches []domain.ToolDefinition
+	
+	for _, t := range r.tools {
+		if t.def.DeferLoading {
+			name := strings.ToLower(t.def.Function.Name)
+			desc := strings.ToLower(t.def.Function.Description)
+			
+			matched := false
+			for _, kw := range keywords {
+				if strings.Contains(name, kw) || strings.Contains(desc, kw) {
+					matched = true
+					break
+				}
+			}
+			
+			if matched {
+				matches = append(matches, t.def)
+			}
+		}
+	}
+	return matches
 }
 
 // Register adds (or replaces) a tool. Tools registered here are:
@@ -84,7 +132,7 @@ func (r *ToolRegistry) CategoryOf(name string) string {
 //   - ptcEnabled=false: all registered tools (they appear as direct function calls)
 //   - ptcEnabled=true:  none (tools are hidden; only execute_javascript is shown,
 //     which is added separately by PTCIntegration)
-func (r *ToolRegistry) ListForLLM(ptcEnabled bool) []domain.ToolDefinition {
+func (r *ToolRegistry) ListForLLM(ptcEnabled bool, sessionID string) []domain.ToolDefinition {
 	if ptcEnabled {
 		// In PTC mode all module tools are hidden from direct LLM function calls;
 		// they are only accessible via callTool() inside execute_javascript.
@@ -92,9 +140,15 @@ func (r *ToolRegistry) ListForLLM(ptcEnabled bool) []domain.ToolDefinition {
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	
+	activeMap := r.sessionActivated[sessionID]
+	
 	out := make([]domain.ToolDefinition, 0, len(r.tools))
 	for _, t := range r.tools {
-		out = append(out, t.def)
+		// Include if not deferred, or if explicitly activated for this session
+		if !t.def.DeferLoading || (activeMap != nil && activeMap[t.def.Function.Name]) {
+			out = append(out, t.def)
+		}
 	}
 	return out
 }

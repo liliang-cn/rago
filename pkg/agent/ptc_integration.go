@@ -95,6 +95,12 @@ func NewPTCIntegration(config PTCConfig, router *ptc.RAGORouter) (*PTCIntegratio
 	}, nil
 }
 
+func (p *PTCIntegration) SetSearchProvider(provider ptc.SearchProvider) {
+	if p.service != nil {
+		p.service.SetSearchProvider(provider)
+	}
+}
+
 // IsCodeResponse checks if the LLM response contains executable code
 func (p *PTCIntegration) IsCodeResponse(content string) bool {
 	// Primary: <code>...</code> tags
@@ -380,9 +386,11 @@ func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) strin
 	sb.WriteString("## PTC Mode (JavaScript Sandbox)\n")
 	sb.WriteString("Respond ONLY with `<code>...</code>` containing synchronous ES5 JavaScript.\n")
 	sb.WriteString("- Use `callTool(name, args)` to invoke any tool. No direct tool calls.\n")
+	sb.WriteString("- Use `searchAndCallTool(query, instruction)` to find and execute a tool by natural language instruction.\n")
 	sb.WriteString("- No async/await, no promises, no require/import.\n")
 	sb.WriteString("- End with a top-level `return` statement.\n")
 	sb.WriteString("Example: `<code>const r = callTool('tool_name', {arg: 'val'}); return r;</code>`\n")
+	sb.WriteString("Example: `<code>const r = searchAndCallTool('expense', 'Calculate expenses for EMP123'); return r;</code>`\n")
 
 	if len(availableTools) > 0 {
 		sb.WriteString("\nAvailable callTool() names:\n")

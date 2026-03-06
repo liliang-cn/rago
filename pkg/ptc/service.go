@@ -49,6 +49,15 @@ func (s *Service) SetRuntime(runtime SandboxRuntime) {
 	s.runtime = runtime
 }
 
+// SetSearchProvider sets the search provider for the runtime
+func (s *Service) SetSearchProvider(provider SearchProvider) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.runtime != nil {
+		s.runtime.SetSearchProvider(provider)
+	}
+}
+
 // Execute executes code in the sandbox
 func (s *Service) Execute(ctx context.Context, req *ExecutionRequest) (*ExecutionResult, error) {
 	s.mu.RLock()

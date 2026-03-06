@@ -137,6 +137,11 @@ func (r *Runtime) ListTools() []string {
 	return names
 }
 
+// SetSearchProvider sets the search provider for on-demand tool discovery
+func (r *Runtime) SetSearchProvider(provider ptc.SearchProvider) {
+	// Not implemented for native WASM yet, but implemented via JS bridge
+}
+
 // Close releases resources
 func (r *Runtime) Close() error {
 	r.mu.Lock()

@@ -86,10 +86,11 @@ func containsTopLevelKeyword(code, keyword string) bool {
 
 // Runtime implements SandboxRuntime using Goja
 type Runtime struct {
-	mu       sync.RWMutex
-	tools    map[string]ptc.ToolHandler
-	closed   bool
-	maxCalls int
+	mu             sync.RWMutex
+	tools          map[string]ptc.ToolHandler
+	searchProvider ptc.SearchProvider
+	closed         bool
+	maxCalls       int
 }
 
 // NewRuntime creates a new Goja runtime
@@ -98,6 +99,15 @@ func NewRuntime() *Runtime {
 		tools:    make(map[string]ptc.ToolHandler),
 		maxCalls: 20,
 	}
+}
+
+// ... rest of Runtime methods ...
+
+// SetSearchProvider sets the search provider for on-demand tool discovery
+func (r *Runtime) SetSearchProvider(provider ptc.SearchProvider) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.searchProvider = provider
 }
 
 // NewRuntimeWithConfig creates a new Goja runtime with configuration
@@ -134,14 +144,17 @@ func (r *Runtime) Execute(ctx context.Context, req *ptc.ExecutionRequest) (*ptc.
 	vm := goja.New()
 
 	// Set up execution state
+	r.mu.RLock()
 	state := &executionState{
-		tools:     r.tools,
-		toolCalls: &result.ToolCalls,
-		logs:      &result.Logs,
-		callCount: 0,
-		maxCalls:  r.maxCalls,
-		ctx:       ctx,
+		tools:          r.tools,
+		searchProvider: r.searchProvider,
+		toolCalls:      &result.ToolCalls,
+		logs:           &result.Logs,
+		callCount:      0,
+		maxCalls:       r.maxCalls,
+		ctx:            ctx,
 	}
+	r.mu.RUnlock()
 
 	// Register built-in functions
 	r.registerBuiltins(vm, state)
@@ -264,12 +277,13 @@ func (r *Runtime) Close() error {
 
 // executionState holds state during execution
 type executionState struct {
-	tools     map[string]ptc.ToolHandler
-	toolCalls *[]ptc.ToolCallRecord
-	logs      *[]string
-	callCount int
-	maxCalls  int
-	ctx       context.Context
+	tools          map[string]ptc.ToolHandler
+	searchProvider ptc.SearchProvider
+	toolCalls      *[]ptc.ToolCallRecord
+	logs           *[]string
+	callCount      int
+	maxCalls       int
+	ctx            context.Context
 }
 
 // registerBuiltins registers built-in functions
@@ -363,6 +377,41 @@ func (r *Runtime) registerBuiltins(vm *goja.Runtime, state *executionState) {
 		result = normalizeForJS(result)
 
 		return vm.ToValue(result)
+	})
+
+	// searchAndCallTool function
+	_ = vm.Set("searchAndCallTool", func(call goja.FunctionCall) goja.Value {
+		if state.searchProvider == nil {
+			panic(vm.NewTypeError("searchAndCallTool is not available in this sandbox"))
+		}
+		if len(call.Arguments) < 1 {
+			panic(vm.NewTypeError("searchAndCallTool requires at least a query argument"))
+		}
+
+		query := call.Arguments[0].String()
+		instruction := ""
+		if len(call.Arguments) > 1 {
+			instruction = call.Arguments[1].String()
+		}
+
+		// Execute search and execute
+		start := time.Now()
+		result, err := state.searchProvider.SearchAndExecute(state.ctx, query, instruction)
+		
+		// Log the search/execute call as a pseudo-tool call
+		*state.toolCalls = append(*state.toolCalls, ptc.ToolCallRecord{
+			ToolName:  "search_and_execute",
+			Arguments: map[string]interface{}{"query": query, "instruction": instruction},
+			Result:    result,
+			Error:     func() string { if err != nil { return err.Error() }; return "" }(),
+			Duration:  time.Since(start),
+		})
+
+		if err != nil {
+			panic(vm.NewTypeError(fmt.Sprintf("searchAndCallTool failed: %v", err)))
+		}
+
+		return vm.ToValue(normalizeForJS(result))
 	})
 
 	// sleep function (for convenience)

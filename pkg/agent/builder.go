@@ -441,6 +441,34 @@ func (b *Builder) build() (*Service, error) {
 		}
 	}
 
+	// Register search_available_tools built-in tool
+	searchToolDef := domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "search_available_tools",
+			Description: "Search the catalog for available tools. If 'instruction' is provided, the tool will automatically execute the found tool to fulfill your instruction.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{
+						"type":        "string",
+						"description": "Keywords to search for in tool name or description (e.g., 'github', 'expense', 'weather').",
+					},
+					"instruction": map[string]interface{}{
+						"type":        "string",
+						"description": "(Optional) A clear instruction of what action to perform with the tool and what parameters to use. If provided, the system will execute the tool for you.",
+					},
+				},
+				"required": []string{"query"},
+			},
+		},
+	}
+	svc.toolRegistry.Register(searchToolDef, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		queryStr, _ := args["query"].(string)
+		instruction, _ := args["instruction"].(string)
+		return svc.SearchAndExecute(ctx, queryStr, instruction)
+	}, CategoryCustom)
+
 	// Register tools added inline via WithTool/WithTools. This runs after built-in
 	// modules but before PTC sync so all tools are reachable via callTool() in JS.
 	for _, t := range b.tools {

@@ -27,6 +27,9 @@ func (s *Service) SetRouter(routerService *router.Service) {
 func (s *Service) SetPTC(ptcIntegration *PTCIntegration) {
 	s.ptcIntegration = ptcIntegration
 	s.PTC = ptcIntegration
+	if ptcIntegration != nil {
+		ptcIntegration.SetSearchProvider(s)
+	}
 }
 
 // SetModelInfo sets the model metadata for Info()
@@ -111,7 +114,22 @@ func (s *Service) AddTool(name, description string, parameters map[string]interf
 // agent and on the PTC router. It is the preferred alternative to AddTool when
 // using the typed or fluent builder APIs.
 func (s *Service) Register(tool *Tool) {
-	s.AddTool(tool.name, tool.description, tool.parameters, tool.handler)
+	def := tool.toToolDefinition()
+	s.toolRegistry.Register(def, tool.handler, CategoryCustom)
+	
+	if s.agent != nil {
+		s.agent.AddToolWithHandler(def, tool.handler)
+	}
+	
+	if s.ptcIntegration != nil && s.ptcIntegration.config.Enabled {
+		info := &ptc.ToolInfo{
+			Name:        def.Function.Name,
+			Description: def.Function.Description,
+			Parameters:  def.Function.Parameters,
+			Category:    CategoryCustom,
+		}
+		_ = s.ptcIntegration.router.RegisterTool(def.Function.Name, info, tool.handler)
+	}
 }
 
 // SetSkillsService sets the skills service for agent integration
