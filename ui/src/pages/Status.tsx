@@ -89,11 +89,11 @@ export function Status() {
             </div>
           </div>
 
-          {/* LLM Providers */}
+          {/* {t('llmProviders')} */}
           {llmProviders.length > 0 && (
             <div>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                LLM Providers
+                {t('llmProviders')}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {llmProviders.map((provider: Provider) => (
@@ -123,11 +123,11 @@ export function Status() {
             </div>
           )}
 
-          {/* Embedding Providers */}
+          {/* {t('embeddingProviders')} */}
           {embedProviders.length > 0 && (
             <div>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                Embedding Providers
+                {t('embeddingProviders')}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {embedProviders.map((provider: Provider) => (
@@ -186,11 +186,11 @@ export function Status() {
             </div>
           )}
 
-          {/* MCP Servers Detail */}
+          {/* {t('mcpServers')} Detail */}
           {data.mcp?.enabled && data.mcp?.server_list && (
             <div>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                MCP Servers ({data.mcp.servers} servers, {data.mcp.tools} tools)
+                {t('mcpServers')} ({data.mcp.servers} servers, {data.mcp.tools} tools)
               </h3>
               <div className="space-y-3">
                 {data.mcp.server_list.map((server: any) => (

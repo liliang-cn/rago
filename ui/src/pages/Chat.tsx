@@ -71,7 +71,7 @@ export function Chat() {
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === assistantId
-                  ? { ...msg, content: `Error: ${error.message}`, streaming: false }
+                  ? { ...msg, content: `{t('error')}: ${error.message}`, streaming: false }
                   : msg
               )
             )
@@ -99,7 +99,7 @@ export function Chat() {
             msg.id === assistantId
               ? {
                   ...msg,
-                  content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                  content: `{t('error')}: ${error instanceof Error ? error.message : 'Unknown error'}`,
                   streaming: false,
                 }
               : msg
@@ -123,7 +123,7 @@ export function Chat() {
         const errorMessage: Message = {
           id: assistantId,
           role: 'assistant',
-          content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          content: `{t('error')}: ${error instanceof Error ? error.message : 'Unknown error'}`,
         }
         setMessages((prev) => [...prev, errorMessage])
       }

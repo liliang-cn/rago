@@ -51,7 +51,7 @@ export function Settings() {
       <form onSubmit={handleSave} className="space-y-6">
         {/* Language */}
         <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('language') || 'Language'}</h3>
+          <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('language') }</h3>
           <div className="flex gap-4">
             <button
               type="button"
