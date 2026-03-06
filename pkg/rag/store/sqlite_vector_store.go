@@ -827,6 +827,7 @@ func (s *DocumentStore) Store(ctx context.Context, doc domain.Document) error {
 		ID:        doc.ID,
 		Title:     doc.Path, // Using path as title for now
 		SourceURL: doc.URL,
+		Content:   doc.Content,
 		Version:   1,
 		Metadata:  doc.Metadata,
 		CreatedAt: doc.Created,
@@ -853,6 +854,7 @@ func (s *DocumentStore) Get(ctx context.Context, id string) (domain.Document, er
 		ID:       doc.ID,
 		Path:     doc.Title,
 		URL:      doc.SourceURL,
+		Content:   doc.Content,
 		Metadata: doc.Metadata,
 		Created:  doc.CreatedAt,
 	}, nil
@@ -870,6 +872,7 @@ func (s *DocumentStore) List(ctx context.Context) ([]domain.Document, error) {
 			ID:       doc.ID,
 			Path:     doc.Title,
 			URL:      doc.SourceURL,
+		Content:   doc.Content,
 			Metadata: doc.Metadata,
 			Created:  doc.CreatedAt,
 		}
@@ -891,6 +894,7 @@ func (s *DocumentStore) Update(ctx context.Context, doc domain.Document) error {
 		ID:        doc.ID,
 		Title:     doc.Path, // Using path as title for now
 		SourceURL: doc.URL,
+		Content:   doc.Content,
 		Version:   1,
 		Metadata:  doc.Metadata,
 		CreatedAt: doc.Created,
