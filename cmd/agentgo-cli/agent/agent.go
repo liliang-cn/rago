@@ -384,6 +384,60 @@ Example:
 	},
 }
 
+// infoCmd shows agent status and configuration
+var infoCmd = &cobra.Command{
+	Use:   "info",
+	Short: "Show agent status and configuration",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx := context.Background()
+		_, agentService, err := initAgentServices(ctx)
+		if err != nil {
+			return err
+		}
+		defer agentService.Close()
+
+		info := agentService.Info()
+
+		fmt.Println("🤖 AgentGo Status")
+		fmt.Println("=================")
+		fmt.Printf("Name:    %s\n", info.Name)
+		fmt.Printf("ID:      %s\n", info.ID)
+		fmt.Printf("Status:  %s\n", info.Status)
+		fmt.Println()
+		fmt.Println("⚙️  Configuration")
+		fmt.Println("-----------------")
+		fmt.Printf("Model:   %s\n", info.Model)
+		fmt.Printf("BaseURL: %s\n", info.BaseURL)
+		fmt.Println()
+		fmt.Println("🚀 Features")
+		fmt.Println("-----------")
+		fmt.Printf("RAG:     %v\n", formatBool(info.RAGEnabled))
+		fmt.Printf("Memory:  %v\n", formatBool(info.MemoryEnabled))
+		fmt.Printf("PTC:     %v\n", formatBool(info.PTCEnabled))
+		fmt.Printf("MCP:     %v\n", formatBool(info.MCPEnabled))
+		fmt.Printf("Skills:  %v\n", formatBool(info.SkillsEnabled))
+		fmt.Println()
+		fmt.Println("🛠️  Available Tools")
+		fmt.Println("-----------------")
+		if len(info.Tools) == 0 {
+			fmt.Println("(No tools registered)")
+		} else {
+			for _, t := range info.Tools {
+				fmt.Printf("- %s\n", t)
+			}
+		}
+
+		return nil
+	},
+}
+
+func formatBool(b bool) string {
+	if b {
+		return "Enabled ✅"
+	}
+	return "Disabled ❌"
+}
+
 func init() {
 	runCmd.Flags().BoolVarP(&Debug, "debug", "D", false, "Enable verbose debugging output (show full prompts)")
 	runCmd.Flags().BoolVar(&EnablePTC, "ptc", false, "Enable Programmatic Tool Calling (JS sandbox)")
@@ -399,6 +453,7 @@ func init() {
 	sessionCmd.AddCommand(sessionListCmd)
 	sessionCmd.AddCommand(sessionGetCmd)
 	AgentCmd.AddCommand(ptcChatCmd)
+	AgentCmd.AddCommand(infoCmd)
 }
 
 // initAgentServices initializes RAG client and agent service

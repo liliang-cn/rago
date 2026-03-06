@@ -290,35 +290,3 @@ func (s *Service) AddMCPServer(ctx context.Context, name string, command string,
 	return s.mcpService.AddServer(ctx, name, command, args)
 }
 
-// AgentInfo contains information about the agent configuration
-type AgentInfo struct {
-	Name          string `json:"name"`
-	Model         string `json:"model"`
-	BaseURL       string `json:"base_url"`
-	Debug         bool   `json:"debug"`
-	PTCEnabled    bool   `json:"ptc_enabled"`
-	MCPEnabled    bool   `json:"mcp_enabled"`
-	RAGEnabled    bool   `json:"rag_enabled"`
-	MemoryEnabled bool   `json:"memory_enabled"`
-	SkillsEnabled bool   `json:"skills_enabled"`
-	RouterEnabled bool   `json:"router_enabled"`
-	SystemPrompt  string `json:"system_prompt,omitempty"`
-}
-
-// Info returns the current agent configuration information
-func (s *Service) Info() AgentInfo {
-	info := AgentInfo{
-		Name:          s.agent.Name(),
-		Model:         s.modelName,
-		BaseURL:       s.baseURL,
-		Debug:         s.debug,
-		PTCEnabled:    s.ptcIntegration != nil && s.ptcIntegration.config.Enabled,
-		MCPEnabled:    s.mcpService != nil,
-		RAGEnabled:    s.ragProcessor != nil,
-		MemoryEnabled: s.memoryService != nil,
-		SkillsEnabled: s.skillsService != nil,
-		RouterEnabled: s.routerService != nil,
-		SystemPrompt:  s.agent.Instructions(),
-	}
-	return info
-}

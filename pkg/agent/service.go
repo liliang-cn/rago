@@ -59,6 +59,8 @@ type Service struct {
 	memorySavedInRun bool
 	ragSourcesMu     sync.RWMutex
 	ragSources       []domain.Chunk // Collect RAG sources during execution
+	isRunning        bool
+	statusMu         sync.RWMutex
 
 	// Model metadata for Info()
 	modelName string
@@ -347,6 +349,8 @@ func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig
 		cfg = DefaultRunConfig()
 	}
 	s.resetRunMemorySaved()
+	s.setRunning(true)
+	defer s.setRunning(false)
 
 	// Create cancellable context for this run
 	runCtx, cancel := context.WithCancel(ctx)
@@ -555,4 +559,49 @@ func (s *Service) SetAgentDirective(ctx context.Context, sessionID string, missi
 		}
 	}
 	return nil
+}
+
+// Info returns structured information about the agent's status and configuration.
+func (s *Service) Info() AgentInfo {
+	info := AgentInfo{
+		ID:            s.agent.ID(),
+		Name:          s.agent.Name(),
+		Status:        s.Status(),
+		Model:         s.modelName,
+		BaseURL:       s.baseURL,
+		RAGEnabled:    s.ragProcessor != nil,
+		PTCEnabled:    s.isPTCEnabled(),
+		MemoryEnabled: s.memoryService != nil,
+		MCPEnabled:    s.mcpService != nil,
+		SkillsEnabled: s.skillsService != nil,
+	}
+
+	if s.agent != nil {
+		info.Tools = s.agent.GetToolNames()
+	}
+
+	return info
+}
+
+// Status returns the current status of the agent ("running" or "idle").
+func (s *Service) Status() string {
+	s.statusMu.RLock()
+	defer s.statusMu.RUnlock()
+	if s.isRunning {
+		return "running"
+	}
+	return "idle"
+}
+
+// IsRunning returns true if the agent is currently executing a task.
+func (s *Service) IsRunning() bool {
+	s.statusMu.RLock()
+	defer s.statusMu.RUnlock()
+	return s.isRunning
+}
+
+func (s *Service) setRunning(running bool) {
+	s.statusMu.Lock()
+	defer s.statusMu.Unlock()
+	s.isRunning = running
 }

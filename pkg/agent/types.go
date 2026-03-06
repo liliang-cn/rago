@@ -84,6 +84,21 @@ type ExecutionResult struct {
 	PTCResult *PTCResult `json:"ptc_result,omitempty"`
 }
 
+// AgentInfo contains information about an agent's status and configuration
+type AgentInfo struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Status       string   `json:"status"` // "running", "idle"
+	Model        string   `json:"model,omitempty"`
+	BaseURL      string   `json:"base_url,omitempty"`
+	RAGEnabled   bool     `json:"rag_enabled"`
+	PTCEnabled   bool     `json:"ptc_enabled"`
+	MemoryEnabled bool    `json:"memory_enabled"`
+	MCPEnabled   bool     `json:"mcp_enabled"`
+	SkillsEnabled bool    `json:"skills_enabled"`
+	Tools        []string `json:"tools,omitempty"`
+}
+
 // Text returns the agent's text response as a plain string.
 // This is the idiomatic accessor for library integrations — use this
 // instead of type-asserting or fmt.Sprintf'ing FinalResult.
