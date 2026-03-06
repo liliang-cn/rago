@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/memory"
+	"github.com/liliang-cn/rago/v2/pkg/providers"
 	"github.com/liliang-cn/rago/v2/pkg/store"
 	"github.com/spf13/cobra"
 )
@@ -278,6 +280,7 @@ func newDeleteCommand(opts *CommandOptions) *cobra.Command {
 // createMemoryService creates a memory service with default settings
 func createMemoryService(opts *CommandOptions) (*memory.Service, error) {
 	var memStore domain.MemoryStore
+	var memSvc *memory.Service
 	var err error
 
 	path := opts.DBPath
@@ -309,8 +312,45 @@ func createMemoryService(opts *CommandOptions) (*memory.Service, error) {
 		return nil, fmt.Errorf("failed to create memory store: %w", err)
 	}
 
-	// Create service with nil LLM/embedder (will only work for basic operations)
-	return memory.NewService(memStore, nil, nil, memory.DefaultConfig()), nil
+	// Try to get embedder from config for vector search
+	var embedder domain.Embedder
+	var llm domain.Generator
+	if Cfg != nil && Cfg.EmbeddingPool.Enabled && len(Cfg.EmbeddingPool.Providers) > 0 {
+		// Create embedder from first provider
+		prov := Cfg.EmbeddingPool.Providers[0]
+		provConfig := &domain.OpenAIProviderConfig{
+			BaseProviderConfig: domain.BaseProviderConfig{Timeout: 30},
+			BaseURL:        prov.BaseURL,
+			APIKey:         prov.Key,
+			EmbeddingModel: prov.ModelName,
+		}
+		factory := providers.NewFactory()
+		embedder, _ = factory.CreateEmbedderProvider(context.Background(), provConfig)
+		
+		// Also try to get LLM for indexing
+		if Cfg.LLMPool.Enabled && len(Cfg.LLMPool.Providers) > 0 {
+			llmProv := Cfg.LLMPool.Providers[0]
+			llmConfig := &domain.OpenAIProviderConfig{
+				BaseProviderConfig: domain.BaseProviderConfig{Timeout: 60},
+				BaseURL:        llmProv.BaseURL,
+				APIKey:         llmProv.Key,
+				LLMModel:       llmProv.ModelName,
+			}
+			llm, _ = factory.CreateLLMProvider(context.Background(), llmConfig)
+		}
+	}
+
+	// Create service with LLM/embedder if available
+	memCfg := memory.DefaultConfig()
+	memSvc = memory.NewService(memStore, llm, embedder, memCfg)
+	
+	// If vector store and embedder available, set shadow index for hybrid search
+	if storeType == "vector" && embedder != nil && memStore != nil {
+		// The vector store itself can be used as shadow index
+		memSvc.SetShadowIndex(memStore)
+	}
+
+	return memSvc, nil
 }
 
 // isValidMemoryType checks if the memory type is valid

@@ -61,6 +61,11 @@ func (s *MemoryStore) Store(ctx context.Context, memory *domain.Memory) error {
 		bankID = "default"
 	}
 
+	if memory.Metadata == nil {
+		memory.Metadata = make(map[string]interface{})
+	}
+	memory.Metadata["memory_type"] = string(memory.Type)
+
 	hMem := &hindsight.Memory{
 		ID:         memory.ID,
 		BankID:     bankID,
@@ -193,6 +198,11 @@ func (s *MemoryStore) SearchByScope(ctx context.Context, vector []float64, scope
 func (s *MemoryStore) StoreWithScope(ctx context.Context, memory *domain.Memory, scope domain.MemoryScope) error {
 	bankID := scopeToBankID(scope)
 
+	if memory.Metadata == nil {
+		memory.Metadata = make(map[string]interface{})
+	}
+	memory.Metadata["memory_type"] = string(memory.Type)
+
 	hMem := &hindsight.Memory{
 		ID:         memory.ID,
 		BankID:     bankID,
@@ -242,6 +252,9 @@ func (s *MemoryStore) SearchByText(ctx context.Context, query string, topK int) 
 
 		bankID, _ := metadata["bank_id"].(string)
 		memType, _ := metadata["type"].(string)
+		if mt, ok := metadata["memory_type"].(string); ok {
+			memType = mt
+		}
 
 		// Calculate simple relevance score based on term frequency
 		score := calculateTextScore(query, content)
@@ -265,7 +278,13 @@ func (s *MemoryStore) SearchByText(ctx context.Context, query string, topK int) 
 // scopeToBankID converts MemoryScope to bank ID
 func scopeToBankID(scope domain.MemoryScope) string {
 	if scope.Type == domain.MemoryScopeGlobal {
-		return "global"
+		return "default"
+	}
+	if scope.Type == domain.MemoryScopeSession {
+		if scope.ID == "" {
+			return "default"
+		}
+		return scope.ID
 	}
 	if scope.ID == "" {
 		return string(scope.Type)
@@ -388,6 +407,9 @@ func (s *MemoryStore) List(ctx context.Context, limit, offset int) ([]*domain.Me
 
 			bankID, _ := metadata["bank_id"].(string)
 			memType, _ := metadata["type"].(string)
+			if mt, ok := metadata["memory_type"].(string); ok {
+				memType = mt
+			}
 
 			allMems = append(allMems, &domain.Memory{
 				ID:        id,
@@ -496,10 +518,18 @@ func toInternalMemory(hm *hindsight.Memory) *Memory {
 	for i, v := range hm.Vector {
 		vec[i] = float64(v)
 	}
+	
+	memType := string(hm.Type)
+	if hm.Metadata != nil {
+		if mt, ok := hm.Metadata["memory_type"].(string); ok {
+			memType = mt
+		}
+	}
+	
 	return &Memory{
 		ID:         hm.ID,
 		SessionID:  hm.BankID,
-		Type:       string(hm.Type),
+		Type:       memType,
 		Content:    hm.Content,
 		Vector:     vec,
 		Importance: hm.Confidence,

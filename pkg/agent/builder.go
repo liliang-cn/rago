@@ -12,6 +12,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	"github.com/liliang-cn/rago/v2/pkg/memory"
 	"github.com/liliang-cn/rago/v2/pkg/ptc"
+	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
 	ragprocessor "github.com/liliang-cn/rago/v2/pkg/rag/processor"
 	ragstore "github.com/liliang-cn/rago/v2/pkg/rag/store"
 	"github.com/liliang-cn/rago/v2/pkg/router"
@@ -591,7 +592,7 @@ func (b *Builder) buildRAGProcessor(ragoCfg *config.Config, embedSvc domain.Embe
 		return nil, err
 	}
 	docStore := ragstore.NewDocumentStoreFor(vectorStore)
-	return ragprocessor.New(embedSvc, llmSvc, nil, vectorStore, docStore, ragoCfg, nil, memSvc), nil
+	return ragprocessor.New(embedSvc, llmSvc, chunker.New(), vectorStore, docStore, ragoCfg, nil, memSvc), nil
 }
 
 func (b *Builder) buildSkillsService(ragoCfg *config.Config) (*skills.Service, error) {
