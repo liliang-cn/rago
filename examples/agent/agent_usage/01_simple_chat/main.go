@@ -7,13 +7,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 func main() {
 	ctx := context.Background()
 	homeDir, _ := os.UserHomeDir()
-	dbPath := filepath.Join(homeDir, ".rago", "data", "example_chat.db")
+	dbPath := filepath.Join(homeDir, ".agentgo", "data", "example_chat.db")
 
 	// 1. 使用链式 Builder API 创建 Agent
 	svc, err := agent.New("Alice").

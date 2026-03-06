@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 	pb "github.com/qdrant/go-client/qdrant"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -18,7 +18,7 @@ const (
 	defaultTimeout     = 30 * time.Second
 	defaultVectorSize  = 768  // nomic-embed-text default
 	defaultDistance    = pb.Distance_Cosine
-	defaultCollection  = "rago_documents"
+	defaultCollection  = "agentgo_documents"
 )
 
 type QdrantStore struct {

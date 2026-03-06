@@ -1,18 +1,18 @@
-# RAGO
+# AgentGo
 
 **Local-first RAG + Agent framework for Go.**
 
 [中文文档](README_zh-CN.md) · [API Reference](references/API.md) · [Architecture](references/ARCHITECTURE.md)
 
-RAGO is a Go library for building AI applications that keep your data local. Start with semantic search over your documents, add agent automation when you need it.
+AgentGo is a Go library for building AI applications that keep your data local. Start with semantic search over your documents, add agent automation when you need it.
 
 ```bash
-go get github.com/liliang-cn/rago/v2
+go get github.com/liliang-cn/agent-go
 ```
 
 ---
 
-## What RAGO does
+## What AgentGo does
 
 | Capability | Details |
 |---|---|
@@ -46,7 +46,7 @@ fmt.Println(reply)
 svc, _ := agent.New("assistant").
     WithPrompt("Answer questions based on the provided documents.").
     WithRAG().
-    WithDBPath("~/.rago/data/agent.db").
+    WithDBPath("~/.agentgo/data/agent.db").
     Build()
 defer svc.Close()
 
@@ -76,17 +76,17 @@ Run the interactive chat with memory visibility:
 
 ```bash
 # Start interactive chat showing retrieved memories and reasoning
-go run ./cmd/rago-cli chat --show-memory
+go run ./cmd/agentgo-cli chat --show-memory
 
 # Enable JavaScript sandbox for complex logic
-go run ./cmd/rago-cli chat --with-ptc
+go run ./cmd/agentgo-cli chat --with-ptc
 ```
 
 ---
 
 ## Cognitive Memory (Hindsight & PageIndex)
 
-RAGO implements an evolving memory layer inspired by **Hindsight** (Cognitive Hierarchy) and **PageIndex** (Structural Navigation).
+AgentGo implements an evolving memory layer inspired by **Hindsight** (Cognitive Hierarchy) and **PageIndex** (Structural Navigation).
 
 | Concept | Description |
 |---|---|
@@ -185,7 +185,7 @@ svc, _ := agent.New("agent").WithMemory().Build()
 // LongRun agents share the same DB memory automatically
 lr, _ := agent.NewLongRun(svc).
     WithInterval(5 * time.Minute).
-    WithWorkDir("~/.rago/longrun").
+    WithWorkDir("~/.agentgo/longrun").
     Build()
 ```
 
@@ -241,16 +241,16 @@ result, _ := svc.Execute(ctx, plan.ID)
 
 ## Configuration & Storage
 
-Config file: `rago.toml` (auto-discovered in `./` → `~/.rago/` → `~/.rago/config/`).
+Config file: `agentgo.toml` (auto-discovered in `./` → `~/.agentgo/` → `~/.agentgo/config/`).
 
-### Directory layout (default `home = ~/.rago`)
+### Directory layout (default `home = ~/.agentgo`)
 
 ```
-~/.rago/
-├── rago.toml              ← config file
+~/.agentgo/
+├── agentgo.toml              ← config file
 ├── mcpServers.json        ← MCP server definitions
 ├── data/
-│   ├── rago.db            ← RAG vector store (sqlite-vec); also Memory vector store
+│   ├── agentgo.db            ← RAG vector store (sqlite-vec); also Memory vector store
 │   ├── agent.db           ← Agent sessions + execution plans
 │   └── memories/          ← Memory file store (one JSON per session)
 ├── skills/                ← SKILL.md files
@@ -262,7 +262,7 @@ Config file: `rago.toml` (auto-discovered in `./` → `~/.rago/` → `~/.rago/co
 
 | File | Default path | Purpose |
 |------|-------------|---------|
-| `rago.db` | `$home/data/rago.db` | RAG documents + vector index; shared as Memory vector store when `memory.store_type = "vector"` |
+| `agentgo.db` | `$home/data/agentgo.db` | RAG documents + vector index; shared as Memory vector store when `memory.store_type = "vector"` |
 | `agent.db` | `$home/data/agent.db` | Agent sessions and plan state |
 | `history.db` *(opt)* | via `WithHistoryDBPath()` | Detailed tool-call logs — only created when `WithStoreHistory(true)` |
 
@@ -271,17 +271,17 @@ Config file: `rago.toml` (auto-discovered in `./` → `~/.rago/` → `~/.rago/co
 | `store_type` | Storage | Requires embedder |
 |-------------|---------|-------------------|
 | `file` *(default)* | `data/memories/{session}.json` | No |
-| `vector` | `data/rago.db` (shared) | Yes |
-| `hybrid` | file primary + `rago.db` shadow index | Yes |
+| `vector` | `data/agentgo.db` (shared) | Yes |
+| `hybrid` | file primary + `agentgo.db` shadow index | Yes |
 
 ### Key config fields
 
 ```toml
-home = "~/.rago"             # base for all relative paths
+home = "~/.agentgo"             # base for all relative paths
 
 [cortexdb]
-db_path   = ""               # RAG db; default: $home/data/rago.db
-env:        RAGO_CORTEXDB_DB_PATH
+db_path   = ""               # RAG db; default: $home/data/agentgo.db
+env:        AgentGo_CORTEXDB_DB_PATH
 
 [memory]
 store_type  = "file"         # file | vector | hybrid
@@ -297,7 +297,7 @@ enabled  = true
 auto_load = true
 
 [mcp]
-servers = ["~/.rago/mcpServers.json"]
+servers = ["~/.agentgo/mcpServers.json"]
 ```
 
 See [`references/CONFIG.md`](references/CONFIG.md) for the full annotated config.
@@ -306,7 +306,7 @@ See [`references/CONFIG.md`](references/CONFIG.md) for the full annotated config
 
 ## Providers
 
-Configure in `rago.toml` (auto-discovered in `./`, `~/.rago/`, `~/.rago/config/`):
+Configure in `agentgo.toml` (auto-discovered in `./`, `~/.agentgo/`, `~/.agentgo/config/`):
 
 ```toml
 [[llm_pool.providers]]
@@ -351,5 +351,5 @@ examples/
 
 ## License
 
-MIT — Copyright (c) 2024–2026 RAGO Authors
+MIT — Copyright (c) 2024–2026 AgentGo Authors
 

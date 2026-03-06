@@ -17,8 +17,8 @@ func (c *Client) createInProcessTransport(ctx context.Context) (mcp.Transport, e
 	// For now, we only support the filesystem server as an in-process server
 	if c.config.Name == "filesystem" || c.config.Name == "builtin_filesystem" {
 		// Create pipes for bidirectional communication
-		// clientRead (rago reads from here) <- serverWrite (mark3labs writes to here)
-		// serverRead (mark3labs reads from here) <- clientWrite (rago writes to here)
+		// clientRead (agentgo reads from here) <- serverWrite (mark3labs writes to here)
+		// serverRead (mark3labs reads from here) <- clientWrite (agentgo writes to here)
 		clientRead, serverWrite := io.Pipe()
 		serverRead, clientWrite := io.Pipe()
 

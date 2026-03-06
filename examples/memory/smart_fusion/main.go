@@ -8,14 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 func main() {
 	ctx := context.Background()
 	homeDir, _ := os.UserHomeDir()
 	// 设置独立的测试目录
-	testDataDir := filepath.Join(homeDir, ".rago", "data", "file_memory_test")
+	testDataDir := filepath.Join(homeDir, ".agentgo", "data", "file_memory_test")
 	_ = os.RemoveAll(testDataDir) // 清理旧数据
 	os.MkdirAll(testDataDir, 0755)
 

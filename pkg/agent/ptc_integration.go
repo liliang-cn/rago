@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/ptc"
-	"github.com/liliang-cn/rago/v2/pkg/ptc/runtime/goja"
-	"github.com/liliang-cn/rago/v2/pkg/ptc/runtime/wazero"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/ptc"
+	"github.com/liliang-cn/agent-go/pkg/ptc/runtime/goja"
+	"github.com/liliang-cn/agent-go/pkg/ptc/runtime/wazero"
 )
 
 // PTCIntegration handles Programmatic Tool Calling integration
@@ -20,7 +20,7 @@ import (
 type PTCIntegration struct {
 	service *ptc.Service
 	config  *PTCConfig
-	router  *ptc.RAGORouter // used to enumerate callTool()-accessible tools for prompts
+	router  *ptc.AgentGoRouter // used to enumerate callTool()-accessible tools for prompts
 }
 
 // PTCConfig configures PTC integration
@@ -59,7 +59,7 @@ func DefaultPTCConfig() PTCConfig {
 }
 
 // NewPTCIntegration creates a new PTC integration instance
-func NewPTCIntegration(config PTCConfig, router *ptc.RAGORouter) (*PTCIntegration, error) {
+func NewPTCIntegration(config PTCConfig, router *ptc.AgentGoRouter) (*PTCIntegration, error) {
 	if !config.Enabled {
 		return &PTCIntegration{config: &config, router: router}, nil
 	}

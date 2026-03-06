@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 // ── Mock project metrics ─────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ func main() {
 		sa := svc.CreateSubAgent(a, spec.goal,
 			agent.WithSubAgentMaxTurns(5),
 			agent.WithSubAgentContext(map[string]interface{}{
-				"project":     "rago",
+				"project":     "agentgo",
 				"environment": "staging",
 			}),
 			agent.WithSubAgentProgressCallback(func(name string) agent.SubAgentProgressCallback {

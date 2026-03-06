@@ -12,10 +12,10 @@ import (
 
 	pdf "github.com/dslipak/pdf"
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/prompt"
-	"github.com/liliang-cn/rago/v2/pkg/rag/graphrag"
+	"github.com/liliang-cn/agent-go/pkg/config"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/prompt"
+	"github.com/liliang-cn/agent-go/pkg/rag/graphrag"
 )
 
 type Service struct {

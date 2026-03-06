@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	"github.com/liliang-cn/agent-go/pkg/mcp"
 )
 
 func main() {
@@ -293,7 +293,7 @@ func searchAndReadWorkflow(ctx context.Context, manager *mcp.Manager) {
 			relPath := file
 			if idx := strings.Index(file, "/"); idx > 0 {
 				// Keep relative path
-				relPath = "." + file[strings.Index(file, "/base/rago")+len("/base/rago"):]
+				relPath = "." + file[strings.Index(file, "/base/agentgo")+len("/base/agentgo"):]
 			}
 
 			readResult, err := manager.CallTool(ctx, "mcp_filesystem_read_text_file", map[string]interface{}{

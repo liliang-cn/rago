@@ -6,7 +6,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/Users/liliang/Things/AI/base/rago/"
+        "/Users/liliang/Things/AI/base/agentgo/"
       ]
     },
     "git": {

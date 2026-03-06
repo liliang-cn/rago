@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 	"gopkg.in/yaml.v3"
 )
 

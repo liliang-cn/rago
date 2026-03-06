@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 func main() {
@@ -15,7 +15,7 @@ func main() {
 
 	// Create agent service using fluent builder
 	homeDir, _ := os.UserHomeDir()
-	agentDBPath := filepath.Join(homeDir, ".rago", "data", "compact_session.db")
+	agentDBPath := filepath.Join(homeDir, ".agentgo", "data", "compact_session.db")
 
 	os.MkdirAll(filepath.Dir(agentDBPath), 0755)
 

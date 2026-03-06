@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture Priority (Important!)
 
-**RAGO's True Nature**: Primarily a **local RAG system** with **optional agent automation**. Core: document ingestion → chunking → vector storage → semantic search → Q&A. Agents are a secondary feature leveraging MCP tools.
+**AgentGo's True Nature**: Primarily a **local RAG system** with **optional agent automation**. Core: document ingestion → chunking → vector storage → semantic search → Q&A. Agents are a secondary feature leveraging MCP tools.
 
 **Feature Priority**: RAG System → Multi-Provider LLM → MCP Tools → Agent Automation → HTTP API → Local-First
 
@@ -99,27 +99,27 @@ git push origin main --tags
 
 ### Debugging Provider Issues
 
-1. Check provider connectivity: `./rago status --verbose`
-2. Test with minimal query: `./rago query "test" --verbose`
+1. Check provider connectivity: `./agentgo status --verbose`
+2. Test with minimal query: `./agentgo query "test" --verbose`
 3. Verify model availability on provider (Ollama: `ollama list`)
 
 ### Debugging MCP Issues
 
-1. Check server status: `./rago mcp status`
-2. Test tool directly: `./rago mcp tools call filesystem read_file '{"path": "test.txt"}'`
-3. Review server logs in `~/.rago/logs/`
+1. Check server status: `./agentgo mcp status`
+2. Test tool directly: `./agentgo mcp tools call filesystem read_file '{"path": "test.txt"}'`
+3. Review server logs in `~/.agentgo/logs/`
 
 ### Debugging Skills Issues
 
-1. List available skills: `./rago skills list`
-2. Show skill details: `./rago skills show [skill-id]`
-3. Test skill execution: `./rago skills run [skill-id] --var key=value`
+1. List available skills: `./agentgo skills list`
+2. Show skill details: `./agentgo skills show [skill-id]`
+3. Test skill execution: `./agentgo skills run [skill-id] --var key=value`
 4. Check for `SKILL.md` format errors in logs.
 
 ### Adding New Commands
 
-1. Create command file in `cmd/rago/`
-2. Add to root command in `cmd/rago/root.go`
+1. Create command file in `cmd/agentgo/`
+2. Add to root command in `cmd/agentgo/root.go`
 3. Follow existing patterns for config loading and error handling
 4. Add corresponding API endpoint in `api/handlers/` if needed
 

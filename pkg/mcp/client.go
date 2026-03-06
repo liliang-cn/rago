@@ -152,7 +152,7 @@ func (c *Client) Connect(ctx context.Context) error {
 
 	// Create MCP client with implementation info
 	clientImpl := &mcp.Implementation{
-		Name:    "rago",
+		Name:    "agentgo",
 		Version: "1.0.0",
 	}
 

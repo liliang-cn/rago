@@ -41,5 +41,5 @@ jobs:
 
       - name: Build (Cross-platform)
         run: |
-          GOOS=linux GOARCH=amd64 go build -o bin/rago-linux-amd64 ./cmd/rago-cli
-          GOOS=darwin GOARCH=arm64 go build -o bin/rago-darwin-arm64 ./cmd/rago-cli
+          GOOS=linux GOARCH=amd64 go build -o bin/agentgo-linux-amd64 ./cmd/agentgo-cli
+          GOOS=darwin GOARCH=arm64 go build -o bin/agentgo-darwin-arm64 ./cmd/agentgo-cli

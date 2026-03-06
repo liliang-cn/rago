@@ -7,7 +7,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 // EntityExtractor extracts entities and relations from text using LLM

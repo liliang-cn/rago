@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/ptc"
+	"github.com/liliang-cn/agent-go/pkg/ptc"
 )
 
 // Policy defines security policies for PTC execution

@@ -10,9 +10,9 @@ import (
 
 
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 
-	"github.com/liliang-cn/rago/v2/pkg/prompt"
+	"github.com/liliang-cn/agent-go/pkg/prompt"
 
 )
 

@@ -7,25 +7,25 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/v2/pkg/agent"
-	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/pool"
+	"github.com/liliang-cn/agent-go/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/config"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/pool"
 )
 
 func main() {
 	ctx := context.Background()
 
-	// 1. Configure RAGO Agent
+	// 1. Configure AgentGo Agent
 	cfg := &config.Config{
 		Cortexdb: config.CortexdbConfig{
-			DBPath:    "/tmp/rago-example-combined-rag.db",
+			DBPath:    "/tmp/agentgo-example-combined-rag.db",
 			TopK:      3,
 			Threshold: 0.1,
 		},
 		Memory: config.MemoryConfig{
 			StoreType:  "vector",
-			MemoryPath: "/tmp/rago-example-combined-mem.db",
+			MemoryPath: "/tmp/agentgo-example-combined-mem.db",
 		},
 		Chunker: config.ChunkerConfig{
 			ChunkSize: 500,
@@ -71,7 +71,7 @@ func main() {
 	// 3. Inject Data into RAG
 	fmt.Println("\n=== Ingesting Document into RAG ===")
 	ragProcessor := agentSvc.RAG
-	docContent := `RAGO Corp 是一家于 2025 年由一群 AI 爱好者创立的科技公司。他们的旗舰产品是一款名为 RAGO 的本地优先 AI 助手框架。该公司的总部位于中国杭州。`
+	docContent := `AgentGo Corp 是一家于 2025 年由一群 AI 爱好者创立的科技公司。他们的旗舰产品是一款名为 AgentGo 的本地优先 AI 助手框架。该公司的总部位于中国杭州。`
 	_, err = ragProcessor.Ingest(ctx, domain.IngestRequest{
 		Content:   docContent,
 		ChunkSize: 500,
@@ -89,7 +89,7 @@ func main() {
 	mem := &domain.Memory{
 		ID:         uuid.New().String(),
 		Type:       domain.MemoryTypePreference,
-		Content:    "我非常喜欢 RAGO Corp 的产品，并且我很想去他们总部所在的城市旅游。",
+		Content:    "我非常喜欢 AgentGo Corp 的产品，并且我很想去他们总部所在的城市旅游。",
 		Importance: 0.9,
 		SessionID:  "user-test",
 		CreatedAt:  time.Now(),

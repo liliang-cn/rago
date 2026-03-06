@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/v2/pkg/config"
+	"github.com/liliang-cn/agent-go/pkg/config"
 )
 
 // TaskScheduler implements the Scheduler interface

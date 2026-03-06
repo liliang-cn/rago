@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/pool"
-	"github.com/liliang-cn/rago/v2/pkg/providers"
-	"github.com/liliang-cn/rago/v2/pkg/rag/graphrag"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/pool"
+	"github.com/liliang-cn/agent-go/pkg/providers"
+	"github.com/liliang-cn/agent-go/pkg/rag/graphrag"
 )
 
 func main() {

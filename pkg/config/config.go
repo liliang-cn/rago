@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/liliang-cn/rago/v2/pkg/mcp"
-	"github.com/liliang-cn/rago/v2/pkg/pool"
+	"github.com/liliang-cn/agent-go/pkg/mcp"
+	"github.com/liliang-cn/agent-go/pkg/pool"
 	"github.com/spf13/viper"
 )
 
@@ -143,9 +143,9 @@ func Load(configPath string) (*Config, error) {
 	config := &Config{}
 
 	// 1. Determine the source of truth for Home
-	home := os.Getenv("RAGO_HOME")
+	home := os.Getenv("AgentGo_HOME")
 	if home == "" {
-		home = "~/.rago"
+		home = "~/.agentgo"
 	}
 	home = expandHomePath(home)
 
@@ -157,16 +157,16 @@ func Load(configPath string) (*Config, error) {
 		home = filepath.Dir(absPath)
 	} else {
 		// Check order:
-		// 1. ./rago.toml
-		// 2. ~/.rago/rago.toml
-		// 3. ~/.rago/config/rago.toml
-		if _, err := os.Stat("rago.toml"); err == nil {
-			abs, _ := filepath.Abs("rago.toml")
+		// 1. ./agentgo.toml
+		// 2. ~/.agentgo/agentgo.toml
+		// 3. ~/.agentgo/config/agentgo.toml
+		if _, err := os.Stat("agentgo.toml"); err == nil {
+			abs, _ := filepath.Abs("agentgo.toml")
 			viper.SetConfigFile(abs)
 			home = filepath.Dir(abs)
 		} else {
-			p1 := filepath.Join(home, "rago.toml")
-			p2 := filepath.Join(home, "config", "rago.toml")
+			p1 := filepath.Join(home, "agentgo.toml")
+			p2 := filepath.Join(home, "config", "agentgo.toml")
 			if _, err := os.Stat(p1); err == nil {
 				viper.SetConfigFile(p1)
 			} else if _, err := os.Stat(p2); err == nil {
@@ -365,78 +365,78 @@ func setDefaults() {
 }
 
 func bindEnvVars() {
-	viper.SetEnvPrefix("RAGO")
+	viper.SetEnvPrefix("AgentGo")
 	viper.AutomaticEnv()
 
-	if err := viper.BindEnv("home", "RAGO_HOME"); err != nil {
+	if err := viper.BindEnv("home", "AgentGo_HOME"); err != nil {
 		log.Printf("Warning: failed to bind home env var: %v", err)
 	}
-	if err := viper.BindEnv("server.port", "RAGO_SERVER_PORT"); err != nil {
+	if err := viper.BindEnv("server.port", "AgentGo_SERVER_PORT"); err != nil {
 		log.Printf("Warning: failed to bind server.port env var: %v", err)
 	}
-	if err := viper.BindEnv("server.host", "RAGO_SERVER_HOST"); err != nil {
+	if err := viper.BindEnv("server.host", "AgentGo_SERVER_HOST"); err != nil {
 		log.Printf("Warning: failed to bind server.host env var: %v", err)
 	}
-	if err := viper.BindEnv("cortexdb.db_path", "RAGO_CORTEXDB_DB_PATH"); err != nil {
+	if err := viper.BindEnv("cortexdb.db_path", "AgentGo_CORTEXDB_DB_PATH"); err != nil {
 		log.Printf("Warning: failed to bind cortexdb.db_path env var: %v", err)
 	}
-	if err := viper.BindEnv("chunker.chunk_size", "RAGO_CHUNKER_CHUNK_SIZE"); err != nil {
+	if err := viper.BindEnv("chunker.chunk_size", "AgentGo_CHUNKER_CHUNK_SIZE"); err != nil {
 		log.Printf("Warning: failed to bind chunker.chunk_size env var: %v", err)
 	}
-	if err := viper.BindEnv("chunker.overlap", "RAGO_CHUNKER_OVERLAP"); err != nil {
+	if err := viper.BindEnv("chunker.overlap", "AgentGo_CHUNKER_OVERLAP"); err != nil {
 		log.Printf("Warning: failed to bind chunker.overlap env var: %v", err)
 	}
-	if err := viper.BindEnv("chunker.method", "RAGO_CHUNKER_METHOD"); err != nil {
+	if err := viper.BindEnv("chunker.method", "AgentGo_CHUNKER_METHOD"); err != nil {
 		log.Printf("Warning: failed to bind chunker.method env var: %v", err)
 	}
-	if err := viper.BindEnv("ingest.metadata_extraction.enable", "RAGO_INGEST_METADATA_EXTRACTION_ENABLE"); err != nil {
+	if err := viper.BindEnv("ingest.metadata_extraction.enable", "AgentGo_INGEST_METADATA_EXTRACTION_ENABLE"); err != nil {
 		log.Printf("Warning: failed to bind ingest.metadata_extraction.enable env var: %v", err)
 	}
-	if err := viper.BindEnv("mcp.enabled", "RAGO_MCP_ENABLED"); err != nil {
+	if err := viper.BindEnv("mcp.enabled", "AgentGo_MCP_ENABLED"); err != nil {
 		log.Printf("Warning: failed to bind mcp.enabled env var: %v", err)
 	}
-	if err := viper.BindEnv("mcp.log_level", "RAGO_MCP_LOG_LEVEL"); err != nil {
+	if err := viper.BindEnv("mcp.log_level", "AgentGo_MCP_LOG_LEVEL"); err != nil {
 		log.Printf("Warning: failed to bind mcp.log_level env var: %v", err)
 	}
-	if err := viper.BindEnv("mcp.default_timeout", "RAGO_MCP_DEFAULT_TIMEOUT"); err != nil {
+	if err := viper.BindEnv("mcp.default_timeout", "AgentGo_MCP_DEFAULT_TIMEOUT"); err != nil {
 		log.Printf("Warning: failed to bind mcp.default_timeout env var: %v", err)
 	}
-	if err := viper.BindEnv("mcp.max_concurrent_requests", "RAGO_MCP_MAX_CONCURRENT_REQUESTS"); err != nil {
+	if err := viper.BindEnv("mcp.max_concurrent_requests", "AgentGo_MCP_MAX_CONCURRENT_REQUESTS"); err != nil {
 		log.Printf("Warning: failed to bind mcp.max_concurrent_requests env var: %v", err)
 	}
-	if err := viper.BindEnv("mcp.health_check_interval", "RAGO_MCP_HEALTH_CHECK_INTERVAL"); err != nil {
+	if err := viper.BindEnv("mcp.health_check_interval", "AgentGo_MCP_HEALTH_CHECK_INTERVAL"); err != nil {
 		log.Printf("Warning: failed to bind mcp.health_check_interval env var: %v", err)
 	}
 	// Skills environment variables
-	if err := viper.BindEnv("skills.enabled", "RAGO_SKILLS_ENABLED"); err != nil {
+	if err := viper.BindEnv("skills.enabled", "AgentGo_SKILLS_ENABLED"); err != nil {
 		log.Printf("Warning: failed to bind skills.enabled env var: %v", err)
 	}
-	if err := viper.BindEnv("skills.auto_load", "RAGO_SKILLS_AUTO_LOAD"); err != nil {
+	if err := viper.BindEnv("skills.auto_load", "AgentGo_SKILLS_AUTO_LOAD"); err != nil {
 		log.Printf("Warning: failed to bind skills.auto_load env var: %v", err)
 	}
-	if err := viper.BindEnv("skills.allow_command_injection", "RAGO_SKILLS_ALLOW_COMMAND_INJECTION"); err != nil {
+	if err := viper.BindEnv("skills.allow_command_injection", "AgentGo_SKILLS_ALLOW_COMMAND_INJECTION"); err != nil {
 		log.Printf("Warning: failed to bind skills.allow_command_injection env var: %v", err)
 	}
-	if err := viper.BindEnv("skills.require_confirmation", "RAGO_SKILLS_REQUIRE_CONFIRMATION"); err != nil {
+	if err := viper.BindEnv("skills.require_confirmation", "AgentGo_SKILLS_REQUIRE_CONFIRMATION"); err != nil {
 		log.Printf("Warning: failed to bind skills.require_confirmation env var: %v", err)
 	}
 	// Memory environment variables
-	if err := viper.BindEnv("memory.min_score", "RAGO_MEMORY_MIN_SCORE"); err != nil {
+	if err := viper.BindEnv("memory.min_score", "AgentGo_MEMORY_MIN_SCORE"); err != nil {
 		log.Printf("Warning: failed to bind memory.min_score env var: %v", err)
 	}
-	if err := viper.BindEnv("memory.max_memories", "RAGO_MEMORY_MAX_MEMORIES"); err != nil {
+	if err := viper.BindEnv("memory.max_memories", "AgentGo_MEMORY_MAX_MEMORIES"); err != nil {
 		log.Printf("Warning: failed to bind memory.max_memories env var: %v", err)
 	}
-	if err := viper.BindEnv("memory.scoring.enabled", "RAGO_MEMORY_SCORING_ENABLED"); err != nil {
+	if err := viper.BindEnv("memory.scoring.enabled", "AgentGo_MEMORY_SCORING_ENABLED"); err != nil {
 		log.Printf("Warning: failed to bind memory.scoring.enabled env var: %v", err)
 	}
-	if err := viper.BindEnv("memory.noise_filter.enabled", "RAGO_MEMORY_NOISE_FILTER_ENABLED"); err != nil {
+	if err := viper.BindEnv("memory.noise_filter.enabled", "AgentGo_MEMORY_NOISE_FILTER_ENABLED"); err != nil {
 		log.Printf("Warning: failed to bind memory.noise_filter.enabled env var: %v", err)
 	}
-	if err := viper.BindEnv("memory.adaptive.enabled", "RAGO_MEMORY_ADAPTIVE_ENABLED"); err != nil {
+	if err := viper.BindEnv("memory.adaptive.enabled", "AgentGo_MEMORY_ADAPTIVE_ENABLED"); err != nil {
 		log.Printf("Warning: failed to bind memory.adaptive.enabled env var: %v", err)
 	}
-	if err := viper.BindEnv("memory.hybrid.enabled", "RAGO_MEMORY_HYBRID_ENABLED"); err != nil {
+	if err := viper.BindEnv("memory.hybrid.enabled", "AgentGo_MEMORY_HYBRID_ENABLED"); err != nil {
 		log.Printf("Warning: failed to bind memory.hybrid.enabled env var: %v", err)
 	}
 }
@@ -468,7 +468,7 @@ func (c *Config) SkillsPaths() []string {
 	// 2. Add default paths
 	defaults := []string{
 		".skills",                              // Project root
-		filepath.Join(".rago", "skills"),       // Project .rago
+		filepath.Join(".agentgo", "skills"),       // Project .agentgo
 		c.SkillsDir(),                          // Home/skills
 	}
 	for _, p := range defaults {
@@ -614,7 +614,7 @@ func (c *Config) validateMCPConfig() error {
 
 func (c *Config) resolveDatabasePath() {
 	if c.Cortexdb.DBPath == "" {
-		c.Cortexdb.DBPath = filepath.Join(c.DataDir(), "rago.db")
+		c.Cortexdb.DBPath = filepath.Join(c.DataDir(), "agentgo.db")
 	}
 
 	if c.Memory.MemoryPath == "" {

@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 // RegisterAutoMemoryHook registers a hook that automatically saves important 

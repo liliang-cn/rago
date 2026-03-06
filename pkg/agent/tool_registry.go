@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/ptc"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/ptc"
 )
 
 // ToolHandler executes a tool call synchronously.
@@ -187,7 +187,7 @@ func (r *ToolRegistry) Call(ctx context.Context, name string, args map[string]in
 // SyncToPTCRouter registers all tools from this registry into the given PTC router
 // so that callTool() inside the JavaScript sandbox can find and execute them.
 // This is called once during PTC setup after all module tools have been registered.
-func (r *ToolRegistry) SyncToPTCRouter(router *ptc.RAGORouter) {
+func (r *ToolRegistry) SyncToPTCRouter(router *ptc.AgentGoRouter) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for name, t := range r.tools {

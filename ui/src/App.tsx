@@ -52,7 +52,7 @@ function App() {
       <header className="border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            RAGO UI
+            AgentGo UI
           </h1>
           <span className="text-sm text-gray-500 dark:text-gray-400">
             AI Agent SDK

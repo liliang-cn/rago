@@ -7,15 +7,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
-	"github.com/liliang-cn/rago/v2/pkg/skills"
+	"github.com/liliang-cn/agent-go/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/skills"
 )
 
 func main() {
 	ctx := context.Background()
 
 	homeDir, _ := os.UserHomeDir()
-	agentDBPath := filepath.Join(homeDir, ".rago", "data", "skills_integration.db")
+	agentDBPath := filepath.Join(homeDir, ".agentgo", "data", "skills_integration.db")
 	os.MkdirAll(filepath.Dir(agentDBPath), 0755)
 
 	// Get absolute path to skills directory

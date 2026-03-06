@@ -7,17 +7,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/memory"
-	"github.com/liliang-cn/rago/v2/pkg/providers"
-	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/memory"
+	"github.com/liliang-cn/agent-go/pkg/providers"
+	"github.com/liliang-cn/agent-go/pkg/store"
 )
 
 func main() {
 	ctx := context.Background()
 
 	// 1. Initialize vector memory store
-	memStore, err := store.NewMemoryStore("/tmp/rago-example-vector.db")
+	memStore, err := store.NewMemoryStore("/tmp/agentgo-example-vector.db")
 	if err != nil {
 		log.Fatalf("Failed to create memory store: %v", err)
 	}

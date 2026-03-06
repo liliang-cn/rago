@@ -1,6 +1,6 @@
-// Package main demonstrates the simplest way to get started with RAGO.
+// Package main demonstrates the simplest way to get started with AgentGo.
 //
-// RAGO is a Retrieval-Augmented Generation system with built-in:
+// AgentGo is a Retrieval-Augmented Generation system with built-in:
 // - Document ingestion and semantic search
 // - Multi-provider LLM support (OpenAI, Ollama, etc.)
 // - MCP tools integration
@@ -17,17 +17,17 @@ import (
 	"log"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	fmt.Println("=== RAGO Quickstart ===")
+	fmt.Println("=== AgentGo Quickstart ===")
 	fmt.Println()
 
-	// Create an agent - configuration is loaded from ~/.rago/config/rago.toml
+	// Create an agent - configuration is loaded from ~/.agentgo/config/agentgo.toml
 	svc, err := agent.New("quickstart").Build()
 	if err != nil {
 		log.Fatalf("Failed to create agent: %v", err)

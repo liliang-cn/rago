@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,7 +52,7 @@ func TestNewVectorStore(t *testing.T) {
 					"db_path": "",
 				},
 			},
-			shouldError: false, // Will use default path ./.rago/data/rag.db
+			shouldError: false, // Will use default path ./.agentgo/data/rag.db
 		},
 		{
 			name: "Unsupported store type",
@@ -95,9 +95,9 @@ func TestNewVectorStore(t *testing.T) {
 			if tt.config.Type == "sqlite" || tt.config.Type == "cortexdb" {
 				if tt.config.Parameters == nil || tt.config.Parameters["db_path"] == nil || tt.config.Parameters["db_path"] == "" {
 					// Create default directory for this test
-					err := os.MkdirAll("./.rago/data", 0755)
+					err := os.MkdirAll("./.agentgo/data", 0755)
 					require.NoError(t, err)
-					defer os.RemoveAll("./.rago")
+					defer os.RemoveAll("./.agentgo")
 				}
 			}
 
@@ -184,9 +184,9 @@ func TestNewVectorStore_ParameterTypes(t *testing.T) {
 			}
 			
 			if needsDefaultDir {
-				err := os.MkdirAll("./.rago/data", 0755)
+				err := os.MkdirAll("./.agentgo/data", 0755)
 				require.NoError(t, err)
-				defer os.RemoveAll("./.rago")
+				defer os.RemoveAll("./.agentgo")
 			}
 
 			config := StoreConfig{

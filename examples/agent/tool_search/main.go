@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
-	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/pool"
+	"github.com/liliang-cn/agent-go/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/config"
+	"github.com/liliang-cn/agent-go/pkg/pool"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-// Package agent provides the core agent primitives for RAGO.
+// Package agent provides the core agent primitives for AgentGo.
 // This file defines the Tool type and the ergonomic NewTool[T] generic constructor
 // that auto-generates a JSON Schema from a typed params struct.
 package agent
@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 // Tool is a self-contained tool definition: schema + handler.

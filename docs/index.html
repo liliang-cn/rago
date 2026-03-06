@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAGO - Privacy-First Local RAG & Agent System</title>
+    <title>AgentGo - Privacy-First Local RAG & Agent System</title>
     <meta name="description"
-        content="RAGO - Lightweight, privacy-first RAG and Agent system. 100% local document processing, semantic search, and autonomous workflows.">
+        content="AgentGo - Lightweight, privacy-first RAG and Agent system. 100% local document processing, semantic search, and autonomous workflows.">
 
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -150,11 +150,11 @@
             <div class="header-content">
                 <a href="/" class="logo">
                     <div class="logo-icon"><i data-lucide="zap"></i></div>
-                    <span class="logo-text">RAGO</span>
+                    <span class="logo-text">AgentGo</span>
                 </a>
                 <div class="header-controls">
                     <nav class="nav">
-                        <a href="https://github.com/liliang-cn/rago" class="nav-link">GitHub</a>
+                        <a href="https://github.com/liliang-cn/agentgo" class="nav-link">GitHub</a>
                     </nav>
                     <span class="lang-switch" onclick="toggleLanguage()">中文</span>
                     <button class="control-btn" onclick="toggleTheme()">
@@ -183,7 +183,7 @@
                 <a href="#examples" class="btn btn-primary">
                     <span data-en="Get Started" data-cn="开始使用">Get Started</span>
                 </a>
-                <a href="https://github.com/liliang-cn/rago" class="btn btn-outline">
+                <a href="https://github.com/liliang-cn/agentgo" class="btn btn-outline">
                     <i data-lucide="github"></i>
                     GitHub
                 </a>
@@ -239,16 +239,16 @@
                         </div>
                         <div class="code-content">
                             <pre><code># 1. Ingest documents into your local knowledge base
-$ rago rag ingest ./my-docs
+$ agentgo rag ingest ./my-docs
 
 # 2. Query with semantic search
-$ rago rag query "How does the system handle privacy?"
+$ agentgo rag query "How does the system handle privacy?"
 
 # 3. Run an autonomous agent to perform a task
-$ rago agent run "analyze the logs and create a summary report"
+$ agentgo agent run "analyze the logs and create a summary report"
 
 # 4. Interactive chat with MCP tool support
-$ rago chat</code></pre>
+$ agentgo chat</code></pre>
                         </div>
                     </div>
                 </div>
@@ -264,7 +264,7 @@ $ rago chat</code></pre>
                             <pre><code>package main
 
 import (
-    "github.com/liliang-cn/rago/v2/pkg/agent"
+    "github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 func main() {
@@ -288,10 +288,10 @@ func main() {
     <footer class="footer">
         <div class="container">
             <div class="footer-links">
-                <a href="https://github.com/liliang-cn/rago" class="footer-link">GitHub</a>
-                <a href="https://github.com/liliang-cn/rago/blob/main/README.md" class="footer-link">Docs</a>
+                <a href="https://github.com/liliang-cn/agentgo" class="footer-link">GitHub</a>
+                <a href="https://github.com/liliang-cn/agentgo/blob/main/README.md" class="footer-link">Docs</a>
             </div>
-            <p>© 2024-2026 RAGO Project. Privacy First. Always.</p>
+            <p>© 2024-2026 AgentGo Project. Privacy First. Always.</p>
         </div>
     </footer>
 
@@ -302,11 +302,11 @@ func main() {
             const isDark = html.getAttribute('data-theme') === 'dark';
             const newTheme = isDark ? 'light' : 'dark';
             html.setAttribute('data-theme', newTheme);
-            localStorage.setItem('rago-theme', newTheme);
+            localStorage.setItem('agentgo-theme', newTheme);
             document.getElementById('theme-icon').setAttribute('data-lucide', isDark ? 'sun' : 'moon');
             lucide.createIcons();
         }
-        if (localStorage.getItem('rago-theme') === 'dark') toggleTheme();
+        if (localStorage.getItem('agentgo-theme') === 'dark') toggleTheme();
 
         function showExample(type) {
             document.querySelectorAll('.example-panel').forEach(p => p.classList.remove('active'));
@@ -315,10 +315,10 @@ func main() {
             event.currentTarget.classList.add('active');
         }
 
-        let currentLang = localStorage.getItem('rago-lang') || 'en';
+        let currentLang = localStorage.getItem('agentgo-lang') || 'en';
         function switchLanguage(lang) {
             currentLang = lang;
-            localStorage.setItem('rago-lang', lang);
+            localStorage.setItem('agentgo-lang', lang);
             document.querySelectorAll('[data-en][data-cn]').forEach(el => {
                 el.textContent = el.getAttribute('data-' + lang);
             });

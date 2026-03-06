@@ -1,6 +1,6 @@
 # Agent 使用示例
 
-这些示例展示了 RAGO Agent 的不同使用场景和层级能力。
+这些示例展示了 AgentGo Agent 的不同使用场景和层级能力。
 
 ## 示例列表
 
@@ -21,7 +21,7 @@
 
 ## 层级结构说明
 
-RAGO 的设计遵循以下层级，Agent 是最上层的统一接口：
+AgentGo 的设计遵循以下层级，Agent 是最上层的统一接口：
 
 1. **LLM (基础)**: 处理文本生成和推理。
 2. **RAG (可选部件)**: 为 Agent 提供领域知识检索。
@@ -30,7 +30,7 @@ RAGO 的设计遵循以下层级，Agent 是最上层的统一接口：
 
 ## 如何运行
 
-确保你已经根据项目根目录的 `rago.toml.example` 配置好了环境变量（如 `OPENAI_API_KEY`）。
+确保你已经根据项目根目录的 `agentgo.toml.example` 配置好了环境变量（如 `OPENAI_API_KEY`）。
 
 ```bash
 # 运行示例 01

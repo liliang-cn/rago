@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 type DataStore struct {

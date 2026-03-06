@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 func main() {
@@ -39,7 +39,7 @@ func main() {
 	// 3. 发送带工具需求的请求
 	err = session.Send(ctx, domain.Message{
 		Role:    "user",
-		Content: "搜索我的知识库中关于 'RAGO' 的介绍，并告诉我现在的时间。",
+		Content: "搜索我的知识库中关于 'AgentGo' 的介绍，并告诉我现在的时间。",
 	})
 	if err != nil {
 		log.Fatalf("发送失败: %v", err)
@@ -67,7 +67,7 @@ func main() {
 				// 为了演示，我们回复一个模拟结果
 				session.Send(ctx, domain.Message{
 					Role:    "tool",
-					Content: "RAGO 是一个高性能的本地 RAG 系统。当前时间是 2026-02-25。",
+					Content: "AgentGo 是一个高性能的本地 RAG 系统。当前时间是 2026-02-25。",
 				})
 			}
 		}

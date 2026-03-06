@@ -1,12 +1,12 @@
-# Rago Configuration
+# AgentGo Configuration
 
-Config file: `rago.toml`  
-Auto-discovered in: `./` → `~/.rago/` → `~/.rago/config/`
+Config file: `agentgo.toml`  
+Auto-discovered in: `./` → `~/.agentgo/` → `~/.agentgo/config/`
 
 ## Full Example
 
 ```toml
-home = "~/.rago"   # base directory
+home = "~/.agentgo"   # base directory
 
 [llm_pool]
 enabled  = true
@@ -20,7 +20,7 @@ model_name      = "gpt-4o"
 
 # ── RAG Vector Store ───────────────────────────────────
 [cortexdb]
-db_path    = ""      # default: $home/data/rago.db
+db_path    = ""      # default: $home/data/agentgo.db
 index_type = "hnsw"
 
 # ── Cognitive Memory ────────────────────────────────────
@@ -51,24 +51,24 @@ max_memories = 5
 # ── Skills ──────────────────────────────────────────────
 [skills]
 enabled   = true
-paths     = ["~/.rago/skills"]
+paths     = ["~/.agentgo/skills"]
 auto_load = true
 
 # ── MCP ─────────────────────────────────────────────────
 [mcp]
-servers = ["~/.rago/mcpServers.json"]
+servers = ["~/.agentgo/mcpServers.json"]
 ```
 
 ---
 
-## Directory Layout (default `home = ~/.rago`)
+## Directory Layout (default `home = ~/.agentgo`)
 
 ```
-~/.rago/
-├── rago.toml              ← config file
+~/.agentgo/
+├── agentgo.toml              ← config file
 ├── mcpServers.json        ← MCP server definitions
 ├── data/
-│   ├── rago.db            ← RAG + Memory Shadow Index (sqlite-vec)
+│   ├── agentgo.db            ← RAG + Memory Shadow Index (sqlite-vec)
 │   ├── agent.db           ← Agent sessions + execution plans
 │   └── memories/          ← Cognitive Memory Store (Truth)
 │       ├── entities/      ← Fact and Observation files (.md)
@@ -84,7 +84,7 @@ servers = ["~/.rago/mcpServers.json"]
 
 | File | Config Key | Tables | Purpose |
 |------|-----------|--------|---------|
-| `data/rago.db` | `cortexdb.db_path` | `chunks`, `embeddings`, `memories` | RAG vector index + Memory vector index (shadow) |
+| `data/agentgo.db` | `cortexdb.db_path` | `chunks`, `embeddings`, `memories` | RAG vector index + Memory vector index (shadow) |
 | `data/agent.db` | `builder.WithDBPath()` | `agent_sessions`, `agent_plans` | Multi-turn chat history and plan state |
 
 ---
@@ -94,18 +94,18 @@ servers = ["~/.rago/mcpServers.json"]
 | `store_type` | Storage | Retrieval | Mode |
 |-------------|---------|-----------|------|
 | `file` *(def)* | `data/memories/` | Index Navigator (Reasoning) | PageIndex |
-| `vector` | `data/rago.db` | Vector Similarity | Semantic |
+| `vector` | `data/agentgo.db` | Vector Similarity | Semantic |
 | `hybrid` | Both | RRF Fusion (Vector + Navigator) | Cognitive |
 
 ## Environment Variables
 
 | Variable | Config equivalent | Description |
 |----------|------------------|-------------|
-| `RAGO_HOME` | `home` | Override base home directory |
-| `RAGO_CORTEXDB_DB_PATH` | `cortexdb.db_path` | Override RAG/Shadow database path |
+| `AgentGo_HOME` | `home` | Override base home directory |
+| `AgentGo_CORTEXDB_DB_PATH` | `cortexdb.db_path` | Override RAG/Shadow database path |
 
 ## Path Resolution Priority
 
 ```
-Explicit Builder Code > rago.toml > Environment variable > Default
+Explicit Builder Code > agentgo.toml > Environment variable > Default
 ```

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/skills"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/skills"
 	"github.com/robfig/cron/v3"
 )
 
@@ -52,7 +52,7 @@ type LongRunConfig struct {
 // DefaultLongRunConfig returns default configuration
 func DefaultLongRunConfig() *LongRunConfig {
 	homeDir, _ := os.UserHomeDir()
-	workDir := filepath.Join(homeDir, ".rago", "longrun")
+	workDir := filepath.Join(homeDir, ".agentgo", "longrun")
 
 	return &LongRunConfig{
 		Enabled:              false,

@@ -1,0 +1,242 @@
+package main
+
+import (
+	"context"
+	"embed"
+	"fmt"
+	"io/fs"
+	"net/http"
+	"time"
+
+	"github.com/liliang-cn/agent-go/cmd/agentgo-ui/internal/handler"
+	"github.com/liliang-cn/agent-go/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/config"
+	"github.com/liliang-cn/agent-go/pkg/mcp"
+	"github.com/liliang-cn/agent-go/pkg/memory"
+	"github.com/liliang-cn/agent-go/pkg/rag"
+	"github.com/liliang-cn/agent-go/pkg/store"
+	"github.com/liliang-cn/agent-go/pkg/services"
+	"github.com/liliang-cn/agent-go/pkg/skills"
+	agentgolog "github.com/liliang-cn/agent-go/pkg/log"
+	"github.com/spf13/cobra"
+)
+
+//go:embed all:dist
+var staticFS embed.FS
+
+var (
+	uiPort    int
+	uiHost    string
+	cfgFile   string
+	uiVersion string = "dev"
+)
+
+func main() {
+	if err := Execute(); err != nil {
+		fmt.Println("Error:", err)
+	}
+}
+
+func Execute() error {
+	var rootCmd = &cobra.Command{
+		Use:   "agentgo-ui",
+		Short: "AgentGo Web UI Server",
+		Long:  `AgentGo Web UI provides a web interface for interacting with AgentGo's RAG and Agent capabilities.`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load(cfgFile)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			// Initialize global pool service
+			globalPoolService := services.GetGlobalPoolService()
+			ctx := context.Background()
+			if err := globalPoolService.Initialize(ctx, cfg); err != nil {
+				return fmt.Errorf("failed to initialize global pool service: %w", err)
+			}
+
+			return nil
+		},
+		RunE: runServer,
+	}
+
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "configuration file path")
+	rootCmd.PersistentFlags().IntVarP(&uiPort, "port", "p", 7127, "port to run the UI server on")
+	rootCmd.PersistentFlags().StringVar(&uiHost, "host", "0.0.0.0", "host to bind the UI server to")
+	rootCmd.Version = uiVersion
+
+	return rootCmd.Execute()
+}
+
+func runServer(cmd *cobra.Command, args []string) error {
+	cfg, err := config.Load(cfgFile)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Get pool service
+	poolService := services.GetGlobalPoolService()
+
+	// Get LLM and Embedder from pool
+	llm, err := poolService.GetLLMService()
+	if err != nil {
+		return fmt.Errorf("failed to get LLM service: %w", err)
+	}
+
+	embedder, err := poolService.GetEmbeddingService(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to get embedding service: %w", err)
+	}
+
+	// Create RAG client
+	ragClient, err := rag.NewClient(cfg, embedder, llm, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create RAG client: %w", err)
+	}
+
+	// Create Skills service
+	skillsService, err := skills.NewService(&skills.Config{
+		Paths:   []string{".skills"},
+		Enabled: true,
+	})
+	if err != nil {
+		agentgolog.Warn("Failed to create skills service: %v", err)
+	}
+
+	// Create MCP service
+	mcpConfig := &mcp.Config{
+		Enabled:           cfg.MCP.Enabled,
+		Servers:           cfg.MCP.Servers,
+		ServersConfigPath: cfg.MCP.ServersConfigPath,
+	}
+	var mcpService *mcp.Service
+	if cfg.MCP.Enabled {
+		mcpService, err = mcp.NewService(mcpConfig, llm)
+		if err != nil {
+			agentgolog.Warn("Failed to create MCP service: %v", err)
+		} else {
+			if startErr := mcpService.StartServers(context.Background(), nil); startErr != nil {
+				agentgolog.Warn("Failed to start MCP servers: %v", startErr)
+			} else {
+				agentgolog.Infof("MCP servers started successfully")
+			}
+		}
+	}
+
+	// Create Memory service
+	memoryStore, err := store.NewFileMemoryStore(cfg.Memory.MemoryPath)
+	if err != nil {
+		agentgolog.Warn("Failed to create memory store: %v", err)
+	}
+	var memoryService *memory.Service
+	if memoryStore != nil {
+		memoryService = memory.NewService(memoryStore, llm, embedder, memory.DefaultConfig())
+	}
+
+	// Create Agent service using Builder
+	agentgolog.Infof("Creating agent service with Builder...")
+	b := agent.New("AgentGo Agent").
+		WithDebug().
+		WithPTC().
+		WithMCP().
+		WithMemory().
+		WithSkills().
+		WithConfig(cfg)
+
+	// Only enable RAG if cortexdb is configured (has a db_path)
+	if cfg.Cortexdb.DBPath != "" {
+		b = b.WithRAG()
+	}
+
+	agentService, err := b.Build()
+	if err != nil {
+		agentgolog.Warn("Failed to create agent service: %v", err)
+	} else {
+		agentgolog.Infof("Agent service created successfully")
+	}
+
+	// Create handler
+	h := handler.New(cfg, ragClient, skillsService, mcpService, memoryService, agentService, llm, embedder)
+
+	// Create API router
+	mux := http.NewServeMux()
+
+	// RAG endpoints
+	mux.HandleFunc("/api/query", h.HandleQuery)
+	mux.HandleFunc("/api/documents", h.HandleDocuments)
+	mux.HandleFunc("/api/documents/", h.HandleDocumentOperation)
+	mux.HandleFunc("/api/collections", h.HandleCollections)
+	mux.HandleFunc("/api/status", h.HandleStatus)
+	mux.HandleFunc("/api/chat", h.HandleChat)
+	mux.HandleFunc("/api/ingest", h.HandleIngest)
+
+	// Skills endpoints
+	mux.HandleFunc("/api/skills", h.HandleSkillsList)
+	mux.HandleFunc("/api/skills/add", h.HandleSkillsAdd)
+	mux.HandleFunc("/api/skills/", h.HandleSkillsOperation)
+
+	// MCP endpoints
+	mux.HandleFunc("/api/mcp/servers", h.HandleMCPServers)
+	mux.HandleFunc("/api/mcp/tools", h.HandleMCPTools)
+	mux.HandleFunc("/api/mcp/add", h.HandleMCPAddServer)
+	mux.HandleFunc("/api/mcp/call", h.HandleMCPCallTool)
+
+	// Memory endpoints
+	mux.HandleFunc("/api/memories", h.HandleMemories)
+	mux.HandleFunc("/api/memories/add", h.HandleMemoryAdd)
+	mux.HandleFunc("/api/memories/search", h.HandleMemorySearch)
+	mux.HandleFunc("/api/memories/", h.HandleMemoryOperation)
+
+	// Agent endpoints
+	mux.HandleFunc("/api/agent/run", h.HandleAgentRun)
+	mux.HandleFunc("/api/agent/stream", h.HandleAgentStream)
+
+	// Serve static files
+	distFS, err := fs.Sub(staticFS, "dist")
+	if err != nil {
+		return fmt.Errorf("failed to load static files: %w", err)
+	}
+
+	// SPA fallback - serve index.html for unmatched routes
+	fileServer := http.FileServer(http.FS(distFS))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Try to serve static file first
+		if r.URL.Path != "/" {
+			if _, err := distFS.Open(r.URL.Path[1:]); err == nil {
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+		}
+		// Serve index.html for SPA routes
+		r.URL.Path = "/"
+		fileServer.ServeHTTP(w, r)
+	})
+
+	addr := fmt.Sprintf("%s:%d", uiHost, uiPort)
+	agentgolog.Infof("Starting AgentGo UI server on %s", addr)
+
+	server := &http.Server{
+		Addr:         addr,
+		Handler:      corsMiddleware(mux),
+		ReadTimeout:  300 * time.Second,
+		WriteTimeout: 600 * time.Second,
+		IdleTimeout:  600 * time.Second,
+	}
+
+	return server.ListenAndServe()
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
