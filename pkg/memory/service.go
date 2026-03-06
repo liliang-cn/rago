@@ -277,9 +277,13 @@ func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStore
 		return err
 	}
 
+	if result.Raw == "" {
+		return nil // No valid JSON found in response
+	}
+
 	var summary domain.MemorySummaryResult
 	if err := json.Unmarshal([]byte(result.Raw), &summary); err != nil {
-		return err
+		return fmt.Errorf("failed to parse memory summary: %w. Raw: %s", err, result.Raw)
 	}
 
 	if !summary.ShouldStore {

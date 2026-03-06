@@ -533,7 +533,20 @@ func (p *OpenAILLMProvider) GenerateStructured(ctx context.Context, prompt strin
 		return nil, fmt.Errorf("no response choices returned")
 	}
 
-	rawJSON := resp.Choices[0].Message.Content
+	msg := resp.Choices[0].Message
+	rawJSON := msg.Content
+	
+	// If content is empty, try ExtraFields for reasoning_content (LMStudio) or reasoning (Ollama)
+	if rawJSON == "" {
+		if reasoning, ok := msg.JSON.ExtraFields["reasoning_content"]; ok {
+			rawJSON = strings.Trim(reasoning.Raw(), "\"")
+		} else if reasoning, ok := msg.JSON.ExtraFields["reasoning"]; ok {
+			rawJSON = strings.Trim(reasoning.Raw(), "\"")
+		}
+	}
+
+	// Strip possible markdown or thinking tags
+	rawJSON = extractJSON(rawJSON)
 
 	// Try to parse the JSON into the provided schema
 	var isValid bool
@@ -586,8 +599,19 @@ func (p *OpenAILLMProvider) generateStructuredFallback(ctx context.Context, prom
 		return nil, fmt.Errorf("no response choices returned")
 	}
 
-	rawText := resp.Choices[0].Message.Content
-	// Strip possible markdown code fences
+	msg := resp.Choices[0].Message
+	rawText := msg.Content
+	
+	// If content is empty, try ExtraFields for reasoning_content (LMStudio) or reasoning (Ollama)
+	if rawText == "" {
+		if reasoning, ok := msg.JSON.ExtraFields["reasoning_content"]; ok {
+			rawText = strings.Trim(reasoning.Raw(), "\"")
+		} else if reasoning, ok := msg.JSON.ExtraFields["reasoning"]; ok {
+			rawText = strings.Trim(reasoning.Raw(), "\"")
+		}
+	}
+
+	// Strip possible markdown code fences and thinking tags
 	rawJSON := extractJSON(rawText)
 
 	var isValid bool
@@ -603,7 +627,7 @@ func (p *OpenAILLMProvider) generateStructuredFallback(ctx context.Context, prom
 }
 
 // extractJSON pulls the first JSON object or array from a string,
-// stripping markdown code fences if present.
+// stripping markdown code fences and other non-JSON prefixes if present.
 func extractJSON(s string) string {
 	// Strip ```json ... ``` or ``` ... ```
 	for _, fence := range []string{"```json", "```"} {
@@ -614,6 +638,12 @@ func extractJSON(s string) string {
 			}
 		}
 	}
+	
+	// Strip <think>...</think> tags if they surround the whole response
+	if idx := strings.Index(s, "</think>"); idx != -1 {
+		s = s[idx+len("</think>"):]
+	}
+
 	s = strings.TrimSpace(s)
 	// Find first { or [
 	for i, ch := range s {
@@ -621,7 +651,10 @@ func extractJSON(s string) string {
 			return s[i:]
 		}
 	}
-	return s
+	
+	// If no JSON start found, return empty string to avoid unmarshaling errors
+	// starting with < or other non-JSON characters.
+	return ""
 }
 
 // Health checks the health of the OpenAI service
