@@ -1,4 +1,4 @@
-.PHONY: help build agentgo-cli agentgo-ui ui-dev ui-deps test clean deps
+.PHONY: help build agentgo-cli agentgo-ui ui-dev ui-deps test check clean deps
 
 GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
 LDFLAGS := -ldflags="-X 'main.version=$(GIT_TAG)'"
@@ -12,6 +12,7 @@ help:
 	@echo "  agentgo-cli    - Build agentgo-cli only"
 	@echo "  agentgo-ui     - Build agentgo-ui only"
 	@echo "  test        - Run tests"
+	@echo "  check       - Run format, vet and tests"
 	@echo "  clean       - Clean"
 	@echo "  deps        - Install deps"
 	@echo ""
@@ -44,6 +45,14 @@ ui-deps:
 	@cd ui && npm install
 
 test:
+	@go test ./...
+
+check:
+	@echo "Running format check..."
+	@go fmt ./...
+	@echo "Running vet..."
+	@go vet ./...
+	@echo "Running tests..."
 	@go test ./...
 
 clean:
