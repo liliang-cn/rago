@@ -40,7 +40,7 @@ export function Skills() {
   if (error) {
     return (
       <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-        <p className="text-red-600 dark:text-red-400">Error loading skills: {error.message}</p>
+        <p className="text-red-600 dark:text-red-400">{t('errorLoadingSkills')}: {error.message}</p>
         <button onClick={() => refetch()} className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg">
           Retry
         </button>
@@ -62,7 +62,7 @@ export function Skills() {
 
       {showAddForm && (
         <div className="p-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Create New Skill</h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">{t('createNewSkill')}</h3>
           <form onSubmit={handleCreateSkill} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

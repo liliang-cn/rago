@@ -343,7 +343,7 @@ export function Agent() {
       <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">
         {messages.length === 0 && (
           <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-            Configure the agent and send a message to start...
+            {t('configureAgent')}
           </div>
         )}
         {messages.map((message) => (
