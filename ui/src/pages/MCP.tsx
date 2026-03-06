@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   useMCPServers,
   useMCPTools,
@@ -8,6 +9,7 @@ import {
 import type { MCPServer, MCPTool, AddMCPServerRequest, CallToolRequest } from '../lib/api'
 
 export function MCP() {
+  const { t } = useTranslation()
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedTool, setSelectedTool] = useState<MCPTool | null>(null)
   const [toolResult, setToolResult] = useState<string | null>(null)

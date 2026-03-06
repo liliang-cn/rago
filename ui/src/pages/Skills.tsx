@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSkills, useCreateSkill, useDeleteSkill } from '../hooks/useApi'
 import type { Skill, CreateSkillRequest } from '../lib/api'
 
 export function Skills() {
+  const { t } = useTranslation()
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
   const { data: skills, isLoading, error, refetch } = useSkills()

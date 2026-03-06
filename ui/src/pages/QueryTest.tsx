@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQueryRAG } from '../hooks/useApi'
 
 export function QueryTest() {
+  const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [topK, setTopK] = useState(5)
   const mutation = useQueryRAG()

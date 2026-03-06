@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useMemories, useAddMemory, useDeleteMemory, useSearchMemories } from '../hooks/useApi'
 import type { Memory, AddMemoryRequest } from '../lib/api'
 
 export function Memory() {
+  const { t } = useTranslation()
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null)
