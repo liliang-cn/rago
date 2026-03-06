@@ -5,7 +5,6 @@ import LanguageDetector from 'i18next-browser-languagedetector'
 const resources = {
   en: {
     translation: {
-      // Nav
       agent: 'Agent',
       chat: 'Chat',
       skills: 'Skills',
@@ -15,8 +14,6 @@ const resources = {
       query: 'Query',
       documents: 'Documents',
       settings: 'Settings',
-
-      // Common
       save: 'Save',
       cancel: 'Cancel',
       delete: 'Delete',
@@ -38,28 +35,17 @@ const resources = {
       enabled: 'Enabled',
       importance: 'Importance',
       created: 'Created',
-      required: 'Required',
-      duration: 'Duration',
-      tokens: 'Tokens',
-      model: 'Model',
-      latency: 'Latency',
-
-      // Language
       language: 'Language',
-
-      // Settings
       workingDirectory: 'Working Directory',
       homeDirectory: 'Home Directory',
       homeDirectoryPlaceholder: '~/.agentgo',
-      homeDirectoryDesc: 'Base directory for all AgentGo data (default: ~/.agentgo)',
+      homeDirectoryDesc: 'Base directory for all AgentGo data',
       mcpFilesystem: 'MCP Filesystem',
-      allowedDirectories: 'Allowed Directories (one per line)',
+      allowedDirectories: 'Allowed Directories',
       allowedDirectoriesPlaceholder: '/Users/username/projects',
       allowedDirectoriesDesc: 'Directories that MCP filesystem server can access',
       saveSettings: 'Save Settings',
       settingsSaved: 'Settings saved successfully!',
-
-      // Documents
       documentList: 'Documents',
       viewDocument: 'View',
       deleteDocument: 'Delete',
@@ -70,8 +56,6 @@ const resources = {
       content: 'Content',
       metadata: 'Metadata',
       fileName: 'File Name',
-
-      // Status
       systemStatus: 'System Status',
       running: 'Running',
       stopped: 'Stopped',
@@ -87,16 +71,12 @@ const resources = {
       mcpServers: 'MCP Servers',
       showMemory: 'Show Memory',
       showThinking: 'Show Thinking',
-
-      // Chat
       sendMessage: 'Send',
       typeMessage: 'Type a message...',
       chatPlaceholder: 'Ask anything or use commands like /skill-name...',
       thinking: 'Thinking...',
       noMemory: 'No memory yet',
       availableTools: 'Available Tools',
-
-      // Skills
       skillList: 'Skills',
       noSkills: 'No skills available',
       addSkill: 'Add Skill',
@@ -111,14 +91,12 @@ const resources = {
       noPrompt: 'No prompt',
       createNewSkill: 'Create New Skill',
       errorLoadingSkills: 'Error loading skills',
-
-      // MCP
       mcpServersTitle: 'MCP Servers',
       noServers: 'No MCP servers configured',
       addServer: 'Add Server',
       serverName: 'Server Name',
       serverCommand: 'Command',
-      serverArgs: 'Arguments (space separated)',
+      serverArgs: 'Arguments',
       serverType: 'Type',
       serverUrl: 'URL',
       stdio: 'Stdio',
@@ -137,8 +115,8 @@ const resources = {
       pattern: 'Pattern',
       preference: 'Preference',
       skill: 'Skill',
-
-      // Memory
+      addMCPServer: 'Add MCP Server',
+      thinking3: 'Thinking...',
       memories: 'Memories',
       noMemories: 'No memories yet',
       addMemory: 'Add Memory',
@@ -150,8 +128,6 @@ const resources = {
       confirmDeleteMemory: 'Are you sure you want to delete this memory?',
       memoryDetails: 'Memory Details',
       errorLoadingMemories: 'Error loading memories',
-
-      // Query
       testQuery: 'Test Query',
       queryPlaceholder: 'Enter your query...',
       search: 'Search',
@@ -159,8 +135,6 @@ const resources = {
       noResults: 'No results found',
       score: 'Score',
       source: 'Source',
-
-      // Agent
       runAgent: 'Run',
       stopAgent: 'Stop',
       agentGoal: 'Goal',
@@ -176,11 +150,11 @@ const resources = {
       result: 'Result',
       sources: 'Sources',
       noSources: 'No sources',
+      configureAgent: 'Configure the agent and send a message to start...',
     }
   },
   zh: {
     translation: {
-      // Nav
       agent: '智能体',
       chat: '对话',
       skills: '技能',
@@ -190,8 +164,6 @@ const resources = {
       query: '查询',
       documents: '文档',
       settings: '设置',
-
-      // Common
       save: '保存',
       cancel: '取消',
       delete: '删除',
@@ -213,28 +185,17 @@ const resources = {
       enabled: '已启用',
       importance: '重要性',
       created: '创建时间',
-      required: '必填',
-      duration: '耗时',
-      tokens: 'Token',
-      model: '模型',
-      latency: '延迟',
-
-      // Language
       language: '语言',
-
-      // Settings
       workingDirectory: '工作目录',
       homeDirectory: '主目录',
       homeDirectoryPlaceholder: '~/.agentgo',
-      homeDirectoryDesc: '所有 AgentGo 数据的基础目录（默认：~/.agentgo）',
+      homeDirectoryDesc: '所有 AgentGo 数据的基础目录',
       mcpFilesystem: 'MCP 文件系统',
-      allowedDirectories: '允许的目录（每行一个）',
+      allowedDirectories: '允许的目录',
       allowedDirectoriesPlaceholder: '/Users/用户名/projects',
       allowedDirectoriesDesc: 'MCP 文件系统服务器可以访问的目录',
       saveSettings: '保存设置',
       settingsSaved: '设置保存成功！',
-
-      // Documents
       documentList: '文档列表',
       viewDocument: '查看',
       deleteDocument: '删除',
@@ -245,8 +206,6 @@ const resources = {
       content: '内容',
       metadata: '元数据',
       fileName: '文件名',
-
-      // Status
       systemStatus: '系统状态',
       running: '运行中',
       stopped: '已停止',
@@ -262,16 +221,12 @@ const resources = {
       mcpServers: 'MCP 服务器',
       showMemory: '显示记忆',
       showThinking: '显示思考',
-
-      // Chat
       sendMessage: '发送',
       typeMessage: '输入消息...',
       chatPlaceholder: '输入任何内容或使用命令如 /skill-name...',
       thinking: '思考中...',
       noMemory: '暂无记忆',
       availableTools: '可用工具',
-
-      // Skills
       skillList: '技能列表',
       noSkills: '暂无可用技能',
       addSkill: '添加技能',
@@ -286,14 +241,12 @@ const resources = {
       noPrompt: '无提示词',
       createNewSkill: '创建新技能',
       errorLoadingSkills: '加载技能出错',
-
-      // MCP
       mcpServersTitle: 'MCP 服务器',
       noServers: '未配置 MCP 服务器',
       addServer: '添加服务器',
       serverName: '服务器名称',
       serverCommand: '命令',
-      serverArgs: '参数（空格分隔）',
+      serverArgs: '参数',
       serverType: '类型',
       serverUrl: 'URL',
       stdio: 'Stdio',
@@ -312,8 +265,8 @@ const resources = {
       pattern: '模式',
       preference: '偏好',
       skill: '技能',
-
-      // Memory
+      addMCPServer: '添加 MCP 服务器',
+      thinking3: '思考中...',
       memories: '记忆列表',
       noMemories: '暂无记忆',
       addMemory: '添加记忆',
@@ -325,8 +278,6 @@ const resources = {
       confirmDeleteMemory: '确定要删除这条记忆吗？',
       memoryDetails: '记忆详情',
       errorLoadingMemories: '加载记忆出错',
-
-      // Query
       testQuery: '测试查询',
       queryPlaceholder: '输入查询内容...',
       search: '搜索',
@@ -334,8 +285,6 @@ const resources = {
       noResults: '未找到结果',
       score: '相似度',
       source: '来源',
-
-      // Agent
       runAgent: '运行',
       stopAgent: '停止',
       agentGoal: '目标',
@@ -351,6 +300,7 @@ const resources = {
       result: '结果',
       sources: '来源',
       noSources: '无来源',
+      configureAgent: '配置智能体并发送消息开始...',
     }
   }
 }
