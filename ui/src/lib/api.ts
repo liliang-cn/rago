@@ -18,11 +18,19 @@ export interface Source {
   metadata?: Record<string, unknown>
 }
 
+export interface DocumentMetadata {
+  creation_date?: string
+  file_ext?: string
+  file_path?: string
+  [key: string]: unknown
+}
+
 export interface Document {
   id: string
-  filename: string
-  collection: string
-  created_at: string
+  path?: string
+  content?: string
+  metadata?: DocumentMetadata
+  created?: string
   chunks?: number
 }
 
@@ -75,6 +83,7 @@ export interface Skill {
   enabled: boolean
   user_invocable?: boolean
   path: string
+  created: string
   created_at: string
   updated_at: string
   variables?: Record<string, VariableDef>
@@ -157,6 +166,7 @@ export interface Memory {
   content: string
   importance: number
   session_id?: string
+  created: string
   created_at: string
   updated_at?: string
 }

@@ -2,7 +2,10 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/liliang-cn/agent-go/pkg/rag"
 )
@@ -121,5 +124,61 @@ func (h *Handler) HandleChat(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleIngest(w http.ResponseWriter, r *http.Request) {
-	JSONError(w, "Use CLI to ingest files", http.StatusNotImplemented)
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse multipart form
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		JSONError(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		JSONError(w, "No file uploaded: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Create temp file
+	tempDir := os.TempDir()
+	tempFile := filepath.Join(tempDir, "agentgo-upload-"+filepath.Base(header.Filename))
+	out, err := os.Create(tempFile)
+	if err != nil {
+		JSONError(w, "Failed to create temp file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer out.Close()
+
+	// Copy uploaded file to temp
+	if _, err := io.Copy(out, file); err != nil {
+		os.Remove(tempFile)
+		JSONError(w, "Failed to save file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	out.Close()
+
+	// Ingest the file
+	resp, err := h.ragClient.IngestFile(r.Context(), tempFile, &rag.IngestOptions{
+		ChunkSize: 1000,
+		Overlap:   200,
+	})
+
+	// Clean up temp file
+	os.Remove(tempFile)
+
+	if err != nil {
+		JSONError(w, "Failed to ingest file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	JSONResponse(w, map[string]interface{}{
+		"success":    resp.Success,
+		"document":   header.Filename,
+		"documentId": resp.DocumentID,
+		"chunks":     resp.ChunkCount,
+		"message":    resp.Message,
+	})
 }
