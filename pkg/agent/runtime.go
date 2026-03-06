@@ -151,6 +151,36 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 		// 6. Handle Result
 		if len(toolCalls) > 0 {
+			// Check for task_complete signal before anything else.
+			// If the agent called task_complete (possibly alongside other calls),
+			// extract the result and terminate the loop immediately.
+			for _, tc := range toolCalls {
+				if tc.Function.Name == "task_complete" {
+					result, _ := tc.Function.Arguments["result"].(string)
+					if result == "" {
+						result = fullContent.String()
+					}
+					allSources := r.sources
+					r.svc.ragSourcesMu.RLock()
+					allSources = append(allSources, r.svc.ragSources...)
+					r.svc.ragSourcesMu.RUnlock()
+					r.svc.ragSourcesMu.Lock()
+					r.svc.ragSources = nil
+					r.svc.ragSourcesMu.Unlock()
+					r.eventChan <- &Event{
+						ID:        uuid.New().String(),
+						Type:      EventTypeComplete,
+						AgentName: r.currentAgent.Name(),
+						AgentID:   r.currentAgent.ID(),
+						Content:   result,
+						Sources:   allSources,
+						Timestamp: time.Now(),
+					}
+					go r.saveToMemory(context.Background(), goal, result)
+					return
+				}
+			}
+
 			// PTC fix: some models (e.g. gpt-5.2) emit valid JS as text content
 			// and then issue a broken execute_javascript tool call with garbage code.
 			// When PTC is active and the text stream contains valid JS, override the

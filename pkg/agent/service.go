@@ -135,7 +135,11 @@ func NewService(
 	if ragProcessor != nil {
 		toolList = append(toolList, "\n- RAG queries (rag_query, rag_ingest)")
 	}
-	toolList = append(toolList, "\n- MCP tools (external integrations)", "\n- Skills (reusable skill packages)", "\n- General LLM reasoning")
+	toolList = append(toolList,
+		"\n- MCP tools (external integrations)",
+		"\n- Skills (SKILL.md-based workflows: each skill tool returns its step-by-step instructions which you must follow to complete the task; pass variables to customise behaviour)",
+		"\n- General LLM reasoning",
+	)
 	instructions.WriteString(strings.Join(toolList, ""))
 
 	// Create default agent
