@@ -22,7 +22,7 @@ type NoiseFilterConfig struct {
 func DefaultNoiseFilterConfig() *NoiseFilterConfig {
 	return &NoiseFilterConfig{
 		Enabled:          true,
-		MinContentLength: 20,
+		MinContentLength: 5,
 		FilterRefusals:   true,
 		FilterMeta:       true,
 		FilterDuplicates: true,
@@ -76,7 +76,7 @@ func NewNoiseFilter(config *NoiseFilterConfig) *NoiseFilter {
 		regexp.MustCompile(`(?i)^(ok|okay|sure|yes|no|maybe|alright|fine)\s*[!.]?`),
 		regexp.MustCompile(`(?i)^(i\s+see|i\s+understand|got\s+it)\s*[!.]?`),
 		regexp.MustCompile(`(?i)^(thanks|thank\s+you|thx)\s*[!.]?`),
-		regexp.MustCompile(`(?i)^.{0,10}$`), // Very short content
+		regexp.MustCompile(`(?i)^.{0,4}$`), // Very short content
 	}
 
 	return f

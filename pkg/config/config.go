@@ -27,6 +27,7 @@ type Config struct {
 	VectorStore   *VectorStoreConfig `mapstructure:"vector_store"`
 	Skills        SkillsConfig    `mapstructure:"skills"`
 	Memory        MemoryConfig    `mapstructure:"memory"`
+	GraphRAG      GraphRAGConfig  `mapstructure:"graphrag"`
 }
 
 // SkillsConfig configures skills paths and behavior
@@ -123,6 +124,19 @@ type MemoryHybridConfig struct {
 	RRF_K    float64 `mapstructure:"rrf_k"`    // RRF fusion parameter
 	VectorWeight float64 `mapstructure:"vector_weight"`
 	BM25Weight   float64 `mapstructure:"bm25_weight"`
+}
+
+// GraphRAGConfig configures GraphRAG (Knowledge Graph + RAG)
+type GraphRAGConfig struct {
+	Enabled                   bool     `mapstructure:"enabled"`
+	EntityTypes               []string `mapstructure:"entity_types"`
+	MaxConcurrentExtractions int      `mapstructure:"max_concurrent_extractions"`
+	MinEntityLength          int      `mapstructure:"min_entity_length"`
+	CommunityDetection       bool     `mapstructure:"community_detection"`
+	CommunityAlgorithm       string   `mapstructure:"community_algorithm"` // "louvain", "leiden"
+	GraphQueryTopK           int      `mapstructure:"graph_query_topk"`
+	VectorWeight             float64  `mapstructure:"vector_weight"`
+	GraphWeight              float64  `mapstructure:"graph_weight"`
 }
 
 func Load(configPath string) (*Config, error) {
@@ -337,6 +351,17 @@ func setDefaults() {
 	viper.SetDefault("memory.hybrid.rrf_k", 60.0)
 	viper.SetDefault("memory.hybrid.vector_weight", 0.7)
 	viper.SetDefault("memory.hybrid.bm25_weight", 0.3)
+
+	// GraphRAG defaults
+	viper.SetDefault("graphrag.enabled", false)
+	viper.SetDefault("graphrag.entity_types", []string{"person", "organization", "location", "concept", "event", "product"})
+	viper.SetDefault("graphrag.max_concurrent_extractions", 3)
+	viper.SetDefault("graphrag.min_entity_length", 2)
+	viper.SetDefault("graphrag.community_detection", true)
+	viper.SetDefault("graphrag.community_algorithm", "louvain")
+	viper.SetDefault("graphrag.graph_query_topk", 10)
+	viper.SetDefault("graphrag.vector_weight", 0.7)
+	viper.SetDefault("graphrag.graph_weight", 0.3)
 }
 
 func bindEnvVars() {

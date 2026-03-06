@@ -97,11 +97,14 @@ func NewService(
 		maxMemories:      config.MaxMemories,
 		scorer:           NewMemoryScorer(config.ScoringConfig),
 		classifier:       NewQueryClassifier(config.ClassifierConfig),
-		noiseFilter:      NewNoiseFilter(config.NoiseFilterConfig),
 		scopeWeights:     config.ScopeWeights,
 		enableHybrid:     config.EnableHybrid,
 		rrfK:             config.RRFK,
 		reflectThreshold: config.ReflectThreshold,
+	}
+
+	if config.NoiseFilterConfig != nil {
+		svc.noiseFilter = NewNoiseFilter(config.NoiseFilterConfig)
 	}
 
 	// Wire up IndexNavigator for file-based stores when no embedder is available

@@ -195,6 +195,9 @@ func (p *OpenAILLMProvider) Generate(ctx context.Context, prompt string, opts *d
 		if opts.MaxTokens > 0 {
 			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
 		}
+		// Disable thinking/reasoning for models that support it (e.g., Qwen, DeepSeek)
+		// Set reasoning_effort to "none" to disable thinking
+		params.ReasoningEffort = openai.ReasoningEffort("none")
 	}
 
 	completion, err := p.client.Chat.Completions.New(ctx, params)
@@ -206,7 +209,22 @@ func (p *OpenAILLMProvider) Generate(ctx context.Context, prompt string, opts *d
 		return "", fmt.Errorf("%w: no choices returned", domain.ErrGenerationFailed)
 	}
 
-	return completion.Choices[0].Message.Content, nil
+	// Get content, or reasoning_content if content is empty (for models like Qwen with thinking mode)
+	msg := completion.Choices[0].Message
+	result := msg.Content
+	
+	// If content is empty, try ExtraFields for reasoning_content (LMStudio) or reasoning (Ollama)
+	if result == "" {
+		// Try reasoning_content first (LMStudio)
+		if reasoning, ok := msg.JSON.ExtraFields["reasoning_content"]; ok {
+			result = strings.Trim(reasoning.Raw(), "\"")
+		} else if reasoning, ok := msg.JSON.ExtraFields["reasoning"]; ok {
+			// Try reasoning (Ollama)
+			result = strings.Trim(reasoning.Raw(), "\"")
+		}
+	}
+
+	return result, nil
 }
 
 // Stream generates text with streaming using OpenAI API
@@ -234,6 +252,9 @@ func (p *OpenAILLMProvider) Stream(ctx context.Context, prompt string, opts *dom
 		if opts.MaxTokens > 0 {
 			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
 		}
+		// Disable thinking/reasoning for models that support it (e.g., Qwen, DeepSeek)
+		// Set reasoning_effort to "none" to disable thinking
+		params.ReasoningEffort = openai.ReasoningEffort("none")
 	}
 
 	stream := p.client.Chat.Completions.NewStreaming(ctx, params)
@@ -306,6 +327,9 @@ func (p *OpenAILLMProvider) GenerateWithTools(ctx context.Context, messages []do
 		if opts.MaxTokens > 0 {
 			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
 		}
+		// Disable thinking/reasoning for models that support it (e.g., Qwen, DeepSeek)
+		// Set reasoning_effort to "none" to disable thinking
+		params.ReasoningEffort = openai.ReasoningEffort("none")
 	}
 
 	completion, err := p.client.Chat.Completions.New(ctx, params)
@@ -401,6 +425,9 @@ func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []doma
 		if opts.MaxTokens > 0 {
 			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
 		}
+		// Disable thinking/reasoning for models that support it (e.g., Qwen, DeepSeek)
+		// Set reasoning_effort to "none" to disable thinking
+		params.ReasoningEffort = openai.ReasoningEffort("none")
 	}
 
 	stream := p.client.Chat.Completions.NewStreaming(ctx, params)
@@ -416,9 +443,10 @@ func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []doma
 			Content: choice.Delta.Content,
 		}
 
-		// Support reasoning_content from DeepSeek/Ollama via ExtraFields
+		// Support reasoning_content (LMStudio) and reasoning (Ollama) from DeepSeek/Ollama via ExtraFields
 		if reasoning, ok := choice.Delta.JSON.ExtraFields["reasoning_content"]; ok {
-			// Field value can be extracted using its raw representation or a simple string check
+			delta.ReasoningContent = strings.Trim(reasoning.Raw(), "\"")
+		} else if reasoning, ok := choice.Delta.JSON.ExtraFields["reasoning"]; ok {
 			delta.ReasoningContent = strings.Trim(reasoning.Raw(), "\"")
 		}
 
@@ -545,6 +573,9 @@ func (p *OpenAILLMProvider) generateStructuredFallback(ctx context.Context, prom
 		if opts.MaxTokens > 0 {
 			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
 		}
+		// Disable thinking/reasoning for models that support it (e.g., Qwen, DeepSeek)
+		// Set reasoning_effort to "none" to disable thinking
+		params.ReasoningEffort = openai.ReasoningEffort("none")
 	}
 
 	resp, err := p.client.Chat.Completions.New(ctx, params)

@@ -15,6 +15,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/config"
 	"github.com/liliang-cn/rago/v2/pkg/domain"
 	"github.com/liliang-cn/rago/v2/pkg/prompt"
+	"github.com/liliang-cn/rago/v2/pkg/rag/graphrag"
 )
 
 type Service struct {
@@ -30,6 +31,7 @@ type Service struct {
 	chatStore     domain.ChatStore
 	memoryService domain.MemoryService
 	promptManager *prompt.Manager
+	graphRAG      *graphrag.Service
 }
 
 func New(
@@ -64,6 +66,23 @@ func New(
 	if vectorStore != nil {
 		s.graphStore = vectorStore.GetGraphStore()
 		s.chatStore = vectorStore.GetChatStore()
+	}
+
+	// Initialize GraphRAG service if enabled in config
+	if config.GraphRAG.Enabled && generator != nil && embedder != nil {
+		graphragConfig := &graphrag.Config{
+			EnableGraphRAG:             config.GraphRAG.Enabled,
+			EntityTypes:                config.GraphRAG.EntityTypes,
+			MaxConcurrentExtractions:   config.GraphRAG.MaxConcurrentExtractions,
+			MinEntityLength:            config.GraphRAG.MinEntityLength,
+			CommunityDetectionEnabled:  config.GraphRAG.CommunityDetection,
+			CommunityAlgorithm:         config.GraphRAG.CommunityAlgorithm,
+			GraphQueryTopK:             config.GraphRAG.GraphQueryTopK,
+			VectorWeight:               config.GraphRAG.VectorWeight,
+			GraphWeight:               config.GraphRAG.GraphWeight,
+		}
+		s.graphRAG = graphrag.NewService(graphragConfig, generator, embedder, s.graphStore)
+		log.Println("[GraphRAG] Service initialized")
 	}
 
 	return s
@@ -172,101 +191,17 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 		return domain.IngestResponse{}, fmt.Errorf("failed to store vectors: %w", err)
 	}
 
-	// GraphRAG Extraction (disabled by default - too slow for most use cases)
-	// Set GRAPHRAG_ENABLED=true environment variable to enable
-	if s.graphStore != nil && s.extractor != nil && os.Getenv("GRAPHRAG_ENABLED") == "true" {
-		log.Println("Starting GraphRAG extraction (async)...")
-
-		// Run GraphRAG in background - does not block ingestion
+	// GraphRAG Extraction using new graphRAG service
+	// This runs asynchronously to not block ingestion
+	if s.graphRAG != nil && s.config.GraphRAG.Enabled {
+		log.Println("[GraphRAG] Starting knowledge graph extraction (async)...")
+		
 		go func() {
-			// Concurrency control (limit to 3 concurrent LLM calls to avoid rate limits/freezing)
-			concurrencyLimit := 3
-			sem := make(chan struct{}, concurrencyLimit)
-			var wg sync.WaitGroup
-
-			// Process chunks
-			for i, chunk := range chunks {
-				// Skip very small chunks
-				if len(chunk.Content) < 50 {
-					continue
-				}
-
-				wg.Add(1)
-				go func(idx int, c domain.Chunk) {
-					defer wg.Done()
-
-					// Acquire semaphore
-					sem <- struct{}{}
-					defer func() { <-sem }()
-
-					// Create a context with timeout for each extraction to prevent hanging
-					extractCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-					defer cancel()
-
-					graphData, err := s.extractor.Extract(extractCtx, c.Content)
-					if err != nil {
-						log.Printf("Graph extraction failed for chunk %d: %v", idx, err)
-						return
-					}
-
-					// Store Entities as Nodes
-					for _, entity := range graphData.Entities {
-						entityID := generateEntityID(entity.Name, "") // Ignore type for ID consistency
-
-						// Get embedding for entity (also needs context)
-						embedCtx, embedCancel := context.WithTimeout(context.Background(), 10*time.Second)
-						vec, err := s.embedder.Embed(embedCtx, entity.Description)
-						embedCancel()
-
-						if err != nil {
-							log.Printf("Failed to embed entity %s: %v", entity.Name, err)
-							continue
-						}
-
-						node := domain.GraphNode{
-							ID:       entityID,
-							Content:  entity.Description,
-							NodeType: entity.Type,
-							Properties: map[string]interface{}{
-								"name":            entity.Name,
-								"source_chunk_id": c.ID,
-								"source_doc_id":   c.DocumentID,
-							},
-							Vector: vec,
-						}
-
-						if err := s.graphStore.UpsertNode(extractCtx, node); err != nil {
-							log.Printf("Failed to upsert node %s: %v", entity.Name, err)
-						}
-					}
-
-					// Store Relationships as Edges
-					for _, rel := range graphData.Relationships {
-						fromID := generateEntityID(rel.Source, "")
-						toID := generateEntityID(rel.Target, "")
-
-						edge := domain.GraphEdge{
-							ID:         uuid.New().String(),
-							FromNodeID: fromID,
-							ToNodeID:   toID,
-							EdgeType:   rel.Type,
-							Weight:     1.0,
-							Properties: map[string]interface{}{
-								"description":     rel.Description,
-								"source_chunk_id": c.ID,
-							},
-						}
-
-						if err := s.graphStore.UpsertEdge(extractCtx, edge); err != nil {
-							log.Printf("Failed to upsert edge %s->%s: %v", rel.Source, rel.Target, err)
-						}
-					}
-				}(i, chunk)
+			if err := s.graphRAG.ProcessDocument(context.Background(), chunks, doc.ID); err != nil {
+				log.Printf("[GraphRAG] Error processing document: %v", err)
+			} else {
+				log.Println("[GraphRAG] Knowledge graph extraction completed")
 			}
-
-			// Wait for all routines to finish
-			wg.Wait()
-			log.Println("GraphRAG extraction completed.")
 		}()
 	}
 
