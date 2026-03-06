@@ -48,6 +48,8 @@ test:
 	@go test ./...
 
 check:
+	@echo "Ensuring embed directories exist..."
+	@mkdir -p cmd/agentgo-ui/dist && touch cmd/agentgo-ui/dist/index.html
 	@echo "Running format check..."
 	@go fmt ./...
 	@echo "Running vet..."
