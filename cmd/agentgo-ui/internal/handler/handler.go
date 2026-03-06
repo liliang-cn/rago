@@ -3,6 +3,8 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/liliang-cn/agent-go/pkg/agent"
 	"github.com/liliang-cn/agent-go/pkg/config"
@@ -32,10 +34,30 @@ func New(cfg *config.Config, ragClient *rag.Client, skillsService *skills.Servic
 	mcpService *mcp.Service, memoryService *memory.Service,
 	agentService *agent.Service, llm domain.Generator, embedder domain.Embedder) *Handler {
 
-	configHandler := NewConfigHandler(&Config{
-		Home:          cfg.Home,
+	configPath := filepath.Join(cfg.Home, "ui-config.json")
+
+	// Try to load existing UI config
+	initialConfig := &Config{
+		Home:           cfg.Home,
 		MCPAllowedDirs: getMCPAllowedDirs(cfg),
-	})
+	}
+	if data, err := os.ReadFile(configPath); err == nil {
+		var saved map[string]interface{}
+		if json.Unmarshal(data, &saved) == nil {
+			if home, ok := saved["home"].(string); ok && home != "" {
+				initialConfig.Home = home
+			}
+			if dirs, ok := saved["mcp_allowed_dirs"].([]interface{}); ok {
+				for _, d := range dirs {
+					if dir, ok := d.(string); ok {
+						initialConfig.MCPAllowedDirs = append(initialConfig.MCPAllowedDirs, dir)
+					}
+				}
+			}
+		}
+	}
+
+	configHandler := NewConfigHandler(initialConfig, configPath)
 
 	return &Handler{
 		cfg:           cfg,

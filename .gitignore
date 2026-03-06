@@ -14,3 +14,4 @@ data/
 ui/node_modules/
 ui/dist/
 cmd/agentgo-ui/dist/
+ui-config.json

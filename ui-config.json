@@ -1,0 +1,7 @@
+{
+  "home": "/tmp/test-home",
+  "mcp_allowed_dirs": [
+    "/Users/test",
+    "/Users/docs"
+  ]
+}
