@@ -154,6 +154,9 @@ const resources = {
       result: 'Result',
       sources: 'Sources',
       noSources: 'No sources',
+      id: 'ID',
+      importance: 'Importance',
+      availableTools: 'Available Tools',
     }
   },
   zh: {
@@ -307,6 +310,9 @@ const resources = {
       result: '结果',
       sources: '来源',
       noSources: '无来源',
+      id: 'ID',
+      importance: '重要性',
+      availableTools: '可用工具',
     }
   }
 }
