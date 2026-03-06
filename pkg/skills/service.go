@@ -7,16 +7,16 @@ import (
 	"sync"
 	"time"
 
-	skillgo "github.com/liliang-cn/skills-go/skill"
 	"github.com/liliang-cn/agent-go/pkg/domain"
+	skillgo "github.com/liliang-cn/skills-go/skill"
 )
 
 // Service orchestrates all skill functionality using skills-go as the backend
 type Service struct {
-	config     *Config
-	store      SkillStore
-	registry   *skillgo.Registry
-	loader     *skillgo.Loader
+	config   *Config
+	store    SkillStore
+	registry *skillgo.Registry
+	loader   *skillgo.Loader
 
 	// Integration services (optional)
 	ragService interface{} // domain.RAGProcessor
@@ -483,18 +483,18 @@ func getTypeString(typ string) string {
 // convertFromSkillGo converts a skills-go Skill to agentgo Skill
 func convertFromSkillGo(sk *skillgo.Skill) *Skill {
 	skill := &Skill{
-		ID:          sk.Name,
-		Name:        sk.Name,
-		Description: sk.Meta.Description,
-		Version:     sk.Version,
-		Path:        sk.Path,
-		Enabled:     true,
-		UserInvocable: sk.IsUserInvocable(),
+		ID:                     sk.Name,
+		Name:                   sk.Name,
+		Description:            sk.Meta.Description,
+		Version:                sk.Version,
+		Path:                   sk.Path,
+		Enabled:                true,
+		UserInvocable:          sk.IsUserInvocable(),
 		DisableModelInvocation: !sk.IsModelInvocable(),
-		ForkMode:    sk.ShouldFork(),
-		CreatedAt:   sk.LoadedAt,
-		UpdatedAt:   sk.LoadedAt,
-		Variables:   make(map[string]VariableDef),
+		ForkMode:               sk.ShouldFork(),
+		CreatedAt:              sk.LoadedAt,
+		UpdatedAt:              sk.LoadedAt,
+		Variables:              make(map[string]VariableDef),
 	}
 
 	// Extract category/tags from metadata

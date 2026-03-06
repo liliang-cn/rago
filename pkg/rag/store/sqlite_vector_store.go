@@ -9,8 +9,8 @@ import (
 
 	"github.com/liliang-cn/agent-go/pkg/domain"
 	"github.com/liliang-cn/cortexdb/v2/pkg/core"
-	"github.com/liliang-cn/cortexdb/v2/pkg/graph"
 	"github.com/liliang-cn/cortexdb/v2/pkg/cortexdb"
+	"github.com/liliang-cn/cortexdb/v2/pkg/graph"
 )
 
 type SQLiteStore struct {
@@ -33,7 +33,7 @@ func NewSQLiteStore(dbPath string, indexType string) (*SQLiteStore, error) {
 	default:
 		config.IndexType = core.IndexTypeHNSW // Default
 	}
-	
+
 	db, err := cortexdb.Open(config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cortexdb database: %w", err)
@@ -45,17 +45,17 @@ func NewSQLiteStore(dbPath string, indexType string) (*SQLiteStore, error) {
 		// Log error but continue as graph might not be needed immediately
 		fmt.Printf("Warning: Failed to init graph schema: %v\n", err)
 	}
-	
+
 	// Get the vector store from the database
 	vectorStore := db.Vector()
-	
+
 	// Type assert to get the concrete SQLiteStore
 	sqliteStore, ok := vectorStore.(*core.SQLiteStore)
 	if !ok {
 		db.Close()
 		return nil, fmt.Errorf("failed to get SQLiteStore from vector store")
 	}
-	
+
 	return &SQLiteStore{
 		db:       db,
 		cortexdb: sqliteStore,
@@ -790,13 +790,13 @@ func (s *SQLiteStore) ensureCollection(ctx context.Context, name string) error {
 	if err != nil {
 		return fmt.Errorf("failed to list collections: %w", err)
 	}
-	
+
 	for _, col := range collections {
 		if col.Name == name {
 			return nil // Collection already exists
 		}
 	}
-	
+
 	// Create the collection with auto-detect dimensions (0)
 	_, err = s.cortexdb.CreateCollection(ctx, name, 0)
 	if err != nil {
@@ -806,7 +806,7 @@ func (s *SQLiteStore) ensureCollection(ctx context.Context, name string) error {
 		}
 		return fmt.Errorf("failed to create collection %s: %w", name, err)
 	}
-	
+
 	return nil
 }
 
@@ -911,13 +911,13 @@ func (s *DocumentStore) ensureCollection(ctx context.Context, name string) error
 	if err != nil {
 		return fmt.Errorf("failed to list collections: %w", err)
 	}
-	
+
 	for _, col := range collections {
 		if col.Name == name {
 			return nil // Collection already exists
 		}
 	}
-	
+
 	// Create the collection with auto-detect dimensions (0)
 	_, err = s.cortexdb.CreateCollection(ctx, name, 0)
 	if err != nil {
@@ -927,7 +927,7 @@ func (s *DocumentStore) ensureCollection(ctx context.Context, name string) error
 		}
 		return fmt.Errorf("failed to create collection %s: %w", name, err)
 	}
-	
+
 	return nil
 }
 

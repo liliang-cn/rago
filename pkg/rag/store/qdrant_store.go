@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	defaultTimeout     = 30 * time.Second
-	defaultVectorSize  = 768  // nomic-embed-text default
-	defaultDistance    = pb.Distance_Cosine
-	defaultCollection  = "agentgo_documents"
+	defaultTimeout    = 30 * time.Second
+	defaultVectorSize = 768 // nomic-embed-text default
+	defaultDistance   = pb.Distance_Cosine
+	defaultCollection = "agentgo_documents"
 )
 
 type QdrantStore struct {
@@ -36,7 +36,7 @@ func NewQdrantStore(url string, collection string) (*QdrantStore, error) {
 	// Parse URL to extract host:port
 	url = strings.TrimPrefix(url, "http://")
 	url = strings.TrimPrefix(url, "https://")
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
@@ -197,7 +197,7 @@ func (s *QdrantStore) Store(ctx context.Context, chunks []domain.Chunk) error {
 		if s.vectorSize != actualSize {
 			log.Printf("Updating vector size from %d to %d based on actual embeddings", s.vectorSize, actualSize)
 			s.vectorSize = actualSize
-			
+
 			// Recreate collection if size mismatch (for first time)
 			collectionsClient := pb.NewCollectionsClient(s.conn)
 			if err := s.ensureCollectionWithSize(ctx, collectionsClient, actualSize); err != nil {
@@ -207,7 +207,7 @@ func (s *QdrantStore) Store(ctx context.Context, chunks []domain.Chunk) error {
 	}
 
 	points := make([]*pb.PointStruct, 0, len(chunks))
-	
+
 	for _, chunk := range chunks {
 		// Generate UUID if not present or not a valid UUID
 		chunkID := chunk.ID
@@ -229,9 +229,9 @@ func (s *QdrantStore) Store(ctx context.Context, chunks []domain.Chunk) error {
 
 		// Create payload
 		payload := map[string]*pb.Value{
-			"content":   {Kind: &pb.Value_StringValue{StringValue: chunk.Content}},
-			"doc_id":    {Kind: &pb.Value_StringValue{StringValue: chunk.DocumentID}},
-			"chunk_id":  {Kind: &pb.Value_StringValue{StringValue: chunk.ID}},
+			"content":  {Kind: &pb.Value_StringValue{StringValue: chunk.Content}},
+			"doc_id":   {Kind: &pb.Value_StringValue{StringValue: chunk.DocumentID}},
+			"chunk_id": {Kind: &pb.Value_StringValue{StringValue: chunk.ID}},
 		}
 
 		// Add metadata if present
@@ -309,7 +309,7 @@ func (s *QdrantStore) SearchWithFilters(ctx context.Context, vector []float64, t
 				})
 			}
 		}
-		
+
 		if len(conditions) > 0 {
 			filter = &pb.Filter{
 				Must: conditions,
@@ -468,7 +468,7 @@ func (s *QdrantStore) List(ctx context.Context) ([]domain.Document, error) {
 func (s *QdrantStore) Reset(ctx context.Context) error {
 	// The most reliable way to clear all points in Qdrant is to recreate the collection
 	collectionsClient := pb.NewCollectionsClient(s.conn)
-	
+
 	// Delete the collection
 	_, err := collectionsClient.Delete(ctx, &pb.DeleteCollection{
 		CollectionName: s.collectionName,
@@ -477,7 +477,7 @@ func (s *QdrantStore) Reset(ctx context.Context) error {
 		// If collection doesn't exist, that's fine
 		log.Printf("Warning during reset (delete collection): %v", err)
 	}
-	
+
 	// Recreate the collection with the same parameters
 	_, err = collectionsClient.Create(ctx, &pb.CreateCollection{
 		CollectionName: s.collectionName,
@@ -493,7 +493,7 @@ func (s *QdrantStore) Reset(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to recreate collection during reset: %w", err)
 	}
-	
+
 	log.Printf("Reset Qdrant collection: %s", s.collectionName)
 	return nil
 }

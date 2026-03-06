@@ -23,7 +23,7 @@ func TestStorageInitialization(t *testing.T) {
 	var taskCount int
 	err = storage.db.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&taskCount)
 	require.NoError(t, err)
-	
+
 	var execCount int
 	err = storage.db.QueryRow("SELECT COUNT(*) FROM task_executions").Scan(&execCount)
 	require.NoError(t, err)
@@ -306,7 +306,7 @@ func TestStorageConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			
+
 			// Retry logic for SQLite busy errors
 			var err error
 			for retry := 0; retry < 3; retry++ {

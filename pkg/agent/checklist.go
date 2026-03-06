@@ -30,9 +30,9 @@ type ChecklistItem struct {
 
 // Checklist represents the parsed HEARTBEAT.md
 type Checklist struct {
-	Items    []ChecklistItem `json:"items"`
-	Updated  time.Time       `json:"updated"`
-	RawContent string        `json:"raw_content,omitempty"`
+	Items      []ChecklistItem `json:"items"`
+	Updated    time.Time       `json:"updated"`
+	RawContent string          `json:"raw_content,omitempty"`
 }
 
 // ChecklistParser parses HEARTBEAT.md files

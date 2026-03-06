@@ -12,18 +12,18 @@ import (
 type DocumentType string
 
 const (
-	DocTypeCode       DocumentType = "code"
-	DocTypeMarkdown   DocumentType = "markdown"
-	DocTypePlainText  DocumentType = "text"
-	DocTypeHTML       DocumentType = "html"
-	DocTypeJSON       DocumentType = "json"
-	DocTypeXML        DocumentType = "xml"
-	DocTypePDF        DocumentType = "pdf"
-	DocTypeCSV        DocumentType = "csv"
-	DocTypeLog        DocumentType = "log"
-	DocTypeLegal      DocumentType = "legal"
-	DocTypeMedical    DocumentType = "medical"
-	DocTypeAcademic   DocumentType = "academic"
+	DocTypeCode      DocumentType = "code"
+	DocTypeMarkdown  DocumentType = "markdown"
+	DocTypePlainText DocumentType = "text"
+	DocTypeHTML      DocumentType = "html"
+	DocTypeJSON      DocumentType = "json"
+	DocTypeXML       DocumentType = "xml"
+	DocTypePDF       DocumentType = "pdf"
+	DocTypeCSV       DocumentType = "csv"
+	DocTypeLog       DocumentType = "log"
+	DocTypeLegal     DocumentType = "legal"
+	DocTypeMedical   DocumentType = "medical"
+	DocTypeAcademic  DocumentType = "academic"
 )
 
 // AdaptiveChunker provides intelligent document-type-aware chunking
@@ -42,7 +42,7 @@ func NewAdaptiveChunker() *AdaptiveChunker {
 func (ac *AdaptiveChunker) ChunkDocument(content string, filePath string, options domain.ChunkOptions) ([]string, error) {
 	// Detect document type
 	docType := ac.DetectDocumentType(content, filePath)
-	
+
 	// Apply type-specific chunking strategy
 	switch docType {
 	case DocTypeCode:
@@ -93,7 +93,7 @@ func (ac *AdaptiveChunker) DetectDocumentType(content string, filePath string) D
 			return DocTypeLog
 		}
 	}
-	
+
 	// Content-based detection
 	if ac.isCode(content) {
 		return DocTypeCode
@@ -116,18 +116,18 @@ func (ac *AdaptiveChunker) DetectDocumentType(content string, filePath string) D
 	if ac.isAcademicDocument(content) {
 		return DocTypeAcademic
 	}
-	
+
 	return DocTypePlainText
 }
 
 // chunkCode chunks source code intelligently
 func (ac *AdaptiveChunker) chunkCode(content string, options domain.ChunkOptions) ([]string, error) {
 	var chunks []string
-	
+
 	// Split by functions/methods
 	functionPattern := regexp.MustCompile(`(?m)^(func|def|function|class|interface|struct)\s+\w+`)
 	matches := functionPattern.FindAllStringIndex(content, -1)
-	
+
 	if len(matches) > 0 {
 		for i := 0; i < len(matches); i++ {
 			start := matches[i][0]
@@ -135,7 +135,7 @@ func (ac *AdaptiveChunker) chunkCode(content string, options domain.ChunkOptions
 			if i+1 < len(matches) {
 				end = matches[i+1][0]
 			}
-			
+
 			chunk := strings.TrimSpace(content[start:end])
 			if len(chunk) > options.Size && options.Size > 0 {
 				// If chunk is too large, split it further
@@ -150,21 +150,21 @@ func (ac *AdaptiveChunker) chunkCode(content string, options domain.ChunkOptions
 		lines := strings.Split(content, "\n")
 		return ac.combineLineChunks(lines, options), nil
 	}
-	
+
 	return chunks, nil
 }
 
 // chunkMarkdown chunks Markdown documents by headers and sections
 func (ac *AdaptiveChunker) chunkMarkdown(content string, options domain.ChunkOptions) ([]string, error) {
 	var chunks []string
-	
+
 	// Split by headers
 	headerPattern := regexp.MustCompile(`(?m)^#{1,6}\s+.*$`)
 	lines := strings.Split(content, "\n")
-	
+
 	var currentChunk strings.Builder
 	var currentSize int
-	
+
 	for _, line := range lines {
 		if headerPattern.MatchString(line) && currentChunk.Len() > 0 {
 			// Start a new chunk at headers
@@ -175,7 +175,7 @@ func (ac *AdaptiveChunker) chunkMarkdown(content string, options domain.ChunkOpt
 			currentChunk.Reset()
 			currentSize = 0
 		}
-		
+
 		lineSize := len(line)
 		if options.Size > 0 && currentSize+lineSize > options.Size && currentChunk.Len() > 0 {
 			// Current chunk is full
@@ -186,12 +186,12 @@ func (ac *AdaptiveChunker) chunkMarkdown(content string, options domain.ChunkOpt
 			currentChunk.Reset()
 			currentSize = 0
 		}
-		
+
 		currentChunk.WriteString(line)
 		currentChunk.WriteString("\n")
 		currentSize += lineSize + 1
 	}
-	
+
 	// Add remaining content
 	if currentChunk.Len() > 0 {
 		chunk := strings.TrimSpace(currentChunk.String())
@@ -199,7 +199,7 @@ func (ac *AdaptiveChunker) chunkMarkdown(content string, options domain.ChunkOpt
 			chunks = append(chunks, chunk)
 		}
 	}
-	
+
 	return chunks, nil
 }
 
@@ -208,7 +208,7 @@ func (ac *AdaptiveChunker) chunkHTML(content string, options domain.ChunkOptions
 	// Remove HTML tags for chunking (simple approach)
 	tagPattern := regexp.MustCompile(`<[^>]+>`)
 	textContent := tagPattern.ReplaceAllString(content, " ")
-	
+
 	// Use paragraph-based chunking for HTML content
 	return ac.baseService.splitByParagraph(textContent, options)
 }
@@ -217,13 +217,13 @@ func (ac *AdaptiveChunker) chunkHTML(content string, options domain.ChunkOptions
 func (ac *AdaptiveChunker) chunkJSON(content string, options domain.ChunkOptions) ([]string, error) {
 	// For JSON, try to preserve object boundaries
 	var chunks []string
-	
+
 	// Simple approach: split by top-level objects
 	if strings.HasPrefix(strings.TrimSpace(content), "[") {
 		// Array of objects
 		objectPattern := regexp.MustCompile(`\{[^{}]*\}`)
 		matches := objectPattern.FindAllString(content, -1)
-		
+
 		for _, match := range matches {
 			if len(match) <= options.Size || options.Size == 0 {
 				chunks = append(chunks, match)
@@ -237,22 +237,22 @@ func (ac *AdaptiveChunker) chunkJSON(content string, options domain.ChunkOptions
 		// Single object or complex structure
 		return ac.baseService.Split(content, options)
 	}
-	
+
 	if len(chunks) == 0 {
 		return ac.baseService.Split(content, options)
 	}
-	
+
 	return chunks, nil
 }
 
 // chunkCSV chunks CSV files by rows
 func (ac *AdaptiveChunker) chunkCSV(content string, options domain.ChunkOptions) ([]string, error) {
 	lines := strings.Split(content, "\n")
-	
+
 	if len(lines) == 0 {
 		return []string{}, nil
 	}
-	
+
 	// Keep header in each chunk
 	header := lines[0]
 	var chunks []string
@@ -260,11 +260,11 @@ func (ac *AdaptiveChunker) chunkCSV(content string, options domain.ChunkOptions)
 	currentChunk.WriteString(header)
 	currentChunk.WriteString("\n")
 	currentSize := len(header)
-	
+
 	for i := 1; i < len(lines); i++ {
 		line := lines[i]
 		lineSize := len(line)
-		
+
 		if options.Size > 0 && currentSize+lineSize > options.Size && currentChunk.Len() > len(header)+1 {
 			chunks = append(chunks, currentChunk.String())
 			currentChunk.Reset()
@@ -272,16 +272,16 @@ func (ac *AdaptiveChunker) chunkCSV(content string, options domain.ChunkOptions)
 			currentChunk.WriteString("\n")
 			currentSize = len(header)
 		}
-		
+
 		currentChunk.WriteString(line)
 		currentChunk.WriteString("\n")
 		currentSize += lineSize + 1
 	}
-	
+
 	if currentChunk.Len() > len(header)+1 {
 		chunks = append(chunks, currentChunk.String())
 	}
-	
+
 	return chunks, nil
 }
 
@@ -290,17 +290,17 @@ func (ac *AdaptiveChunker) chunkLog(content string, options domain.ChunkOptions)
 	// Common log patterns
 	timestampPattern := regexp.MustCompile(`(?m)^\d{4}[-/]\d{2}[-/]\d{2}|\[\d{4}[-/]\d{2}[-/]\d{2}`)
 	lines := strings.Split(content, "\n")
-	
+
 	var chunks []string
 	var currentChunk strings.Builder
 	currentSize := 0
-	
+
 	for _, line := range lines {
 		isNewEntry := timestampPattern.MatchString(line)
 		lineSize := len(line)
-		
-		if isNewEntry && currentChunk.Len() > 0 && 
-		   (options.Size == 0 || currentSize+lineSize > options.Size) {
+
+		if isNewEntry && currentChunk.Len() > 0 &&
+			(options.Size == 0 || currentSize+lineSize > options.Size) {
 			// Start new chunk at log entry boundary
 			chunk := strings.TrimSpace(currentChunk.String())
 			if chunk != "" {
@@ -309,12 +309,12 @@ func (ac *AdaptiveChunker) chunkLog(content string, options domain.ChunkOptions)
 			currentChunk.Reset()
 			currentSize = 0
 		}
-		
+
 		currentChunk.WriteString(line)
 		currentChunk.WriteString("\n")
 		currentSize += lineSize + 1
 	}
-	
+
 	// Add remaining content
 	if currentChunk.Len() > 0 {
 		chunk := strings.TrimSpace(currentChunk.String())
@@ -322,7 +322,7 @@ func (ac *AdaptiveChunker) chunkLog(content string, options domain.ChunkOptions)
 			chunks = append(chunks, chunk)
 		}
 	}
-	
+
 	return chunks, nil
 }
 
@@ -331,15 +331,15 @@ func (ac *AdaptiveChunker) chunkLegal(content string, options domain.ChunkOption
 	// Legal documents often have numbered sections
 	sectionPattern := regexp.MustCompile(`(?m)^(\d+\.|\([a-z]\)|\([ivx]+\)|Article\s+\d+|Section\s+\d+)`)
 	lines := strings.Split(content, "\n")
-	
+
 	var chunks []string
 	var currentChunk strings.Builder
 	currentSize := 0
-	
+
 	for _, line := range lines {
 		isNewSection := sectionPattern.MatchString(line)
 		lineSize := len(line)
-		
+
 		if isNewSection && currentChunk.Len() > 0 {
 			// Preserve section boundaries
 			chunk := strings.TrimSpace(currentChunk.String())
@@ -349,7 +349,7 @@ func (ac *AdaptiveChunker) chunkLegal(content string, options domain.ChunkOption
 			currentChunk.Reset()
 			currentSize = 0
 		}
-		
+
 		if options.Size > 0 && currentSize+lineSize > options.Size && currentChunk.Len() > 0 {
 			chunk := strings.TrimSpace(currentChunk.String())
 			if chunk != "" {
@@ -358,12 +358,12 @@ func (ac *AdaptiveChunker) chunkLegal(content string, options domain.ChunkOption
 			currentChunk.Reset()
 			currentSize = 0
 		}
-		
+
 		currentChunk.WriteString(line)
 		currentChunk.WriteString("\n")
 		currentSize += lineSize + 1
 	}
-	
+
 	// Add remaining content
 	if currentChunk.Len() > 0 {
 		chunk := strings.TrimSpace(currentChunk.String())
@@ -371,7 +371,7 @@ func (ac *AdaptiveChunker) chunkLegal(content string, options domain.ChunkOption
 			chunks = append(chunks, chunk)
 		}
 	}
-	
+
 	return chunks, nil
 }
 
@@ -383,21 +383,21 @@ func (ac *AdaptiveChunker) chunkMedical(content string, options domain.ChunkOpti
 		"MEDICATIONS", "ALLERGIES", "PHYSICAL EXAMINATION", "ASSESSMENT",
 		"PLAN", "DIAGNOSIS", "TREATMENT", "PROGNOSIS", "FINDINGS",
 	}
-	
+
 	// Create pattern for medical sections
 	patternStr := "(?i)(?m)^(" + strings.Join(sectionKeywords, "|") + ")"
 	sectionPattern := regexp.MustCompile(patternStr)
-	
+
 	// Use similar logic as legal documents
 	lines := strings.Split(content, "\n")
 	var chunks []string
 	var currentChunk strings.Builder
 	currentSize := 0
-	
+
 	for _, line := range lines {
 		isNewSection := sectionPattern.MatchString(line)
 		lineSize := len(line)
-		
+
 		if isNewSection && currentChunk.Len() > 0 {
 			chunk := strings.TrimSpace(currentChunk.String())
 			if chunk != "" {
@@ -406,7 +406,7 @@ func (ac *AdaptiveChunker) chunkMedical(content string, options domain.ChunkOpti
 			currentChunk.Reset()
 			currentSize = 0
 		}
-		
+
 		if options.Size > 0 && currentSize+lineSize > options.Size && currentChunk.Len() > 0 {
 			chunk := strings.TrimSpace(currentChunk.String())
 			if chunk != "" {
@@ -415,19 +415,19 @@ func (ac *AdaptiveChunker) chunkMedical(content string, options domain.ChunkOpti
 			currentChunk.Reset()
 			currentSize = 0
 		}
-		
+
 		currentChunk.WriteString(line)
 		currentChunk.WriteString("\n")
 		currentSize += lineSize + 1
 	}
-	
+
 	if currentChunk.Len() > 0 {
 		chunk := strings.TrimSpace(currentChunk.String())
 		if chunk != "" {
 			chunks = append(chunks, chunk)
 		}
 	}
-	
+
 	return chunks, nil
 }
 
@@ -439,19 +439,19 @@ func (ac *AdaptiveChunker) chunkAcademic(content string, options domain.ChunkOpt
 		"DISCUSSION", "CONCLUSION", "REFERENCES", "BIBLIOGRAPHY",
 		"LITERATURE REVIEW", "BACKGROUND", "RELATED WORK",
 	}
-	
+
 	patternStr := "(?i)(?m)^(" + strings.Join(sectionKeywords, "|") + ")"
 	sectionPattern := regexp.MustCompile(patternStr)
-	
+
 	lines := strings.Split(content, "\n")
 	var chunks []string
 	var currentChunk strings.Builder
 	currentSize := 0
-	
+
 	for _, line := range lines {
 		isNewSection := sectionPattern.MatchString(line)
 		lineSize := len(line)
-		
+
 		if isNewSection && currentChunk.Len() > 0 {
 			chunk := strings.TrimSpace(currentChunk.String())
 			if chunk != "" {
@@ -460,7 +460,7 @@ func (ac *AdaptiveChunker) chunkAcademic(content string, options domain.ChunkOpt
 			currentChunk.Reset()
 			currentSize = 0
 		}
-		
+
 		if options.Size > 0 && currentSize+lineSize > options.Size && currentChunk.Len() > 0 {
 			chunk := strings.TrimSpace(currentChunk.String())
 			if chunk != "" {
@@ -469,19 +469,19 @@ func (ac *AdaptiveChunker) chunkAcademic(content string, options domain.ChunkOpt
 			currentChunk.Reset()
 			currentSize = 0
 		}
-		
+
 		currentChunk.WriteString(line)
 		currentChunk.WriteString("\n")
 		currentSize += lineSize + 1
 	}
-	
+
 	if currentChunk.Len() > 0 {
 		chunk := strings.TrimSpace(currentChunk.String())
 		if chunk != "" {
 			chunks = append(chunks, chunk)
 		}
 	}
-	
+
 	return chunks, nil
 }
 
@@ -493,7 +493,7 @@ func (ac *AdaptiveChunker) isCode(content string) bool {
 		`import\s+\w+`, `package\s+\w+`, `#include\s*<`,
 		`if\s*\(.*\)\s*{`, `for\s*\(.*\)\s*{`,
 	}
-	
+
 	for _, pattern := range codePatterns {
 		if matched, _ := regexp.MatchString(pattern, content); matched {
 			return true
@@ -504,14 +504,14 @@ func (ac *AdaptiveChunker) isCode(content string) bool {
 
 func (ac *AdaptiveChunker) isMarkdown(content string) bool {
 	mdPatterns := []string{
-		`(?m)^#{1,6}\s+`,     // Headers
-		`(?m)^\*\s+|\-\s+`,   // Lists
-		`\[.*\]\(.*\)`,       // Links
-		`!\[.*\]\(.*\)`,      // Images
-		`\*\*.*\*\*`,         // Bold
-		"```",                // Code blocks
+		`(?m)^#{1,6}\s+`,   // Headers
+		`(?m)^\*\s+|\-\s+`, // Lists
+		`\[.*\]\(.*\)`,     // Links
+		`!\[.*\]\(.*\)`,    // Images
+		`\*\*.*\*\*`,       // Bold
+		"```",              // Code blocks
 	}
-	
+
 	matchCount := 0
 	for _, pattern := range mdPatterns {
 		if matched, _ := regexp.MatchString(pattern, content); matched {
@@ -529,7 +529,7 @@ func (ac *AdaptiveChunker) isHTML(content string) bool {
 func (ac *AdaptiveChunker) isJSON(content string) bool {
 	trimmed := strings.TrimSpace(content)
 	return (strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}")) ||
-		   (strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]"))
+		(strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]"))
 }
 
 func (ac *AdaptiveChunker) isLegalDocument(content string) bool {
@@ -538,7 +538,7 @@ func (ac *AdaptiveChunker) isLegalDocument(content string) bool {
 		"AGREEMENT", "CONTRACT", "CLAUSE", "ARTICLE", "SECTION",
 		"PLAINTIFF", "DEFENDANT", "COURT",
 	}
-	
+
 	upperContent := strings.ToUpper(content)
 	matchCount := 0
 	for _, keyword := range legalKeywords {
@@ -555,7 +555,7 @@ func (ac *AdaptiveChunker) isMedicalDocument(content string) bool {
 		"SYMPTOMS", "EXAMINATION", "HISTORY", "ALLERGY",
 		"PRESCRIPTION", "DOSAGE", "mg", "ml",
 	}
-	
+
 	upperContent := strings.ToUpper(content)
 	matchCount := 0
 	for _, keyword := range medicalKeywords {
@@ -572,7 +572,7 @@ func (ac *AdaptiveChunker) isAcademicDocument(content string) bool {
 		"CONCLUSION", "REFERENCES", "et al", "doi:",
 		"HYPOTHESIS", "RESEARCH", "STUDY",
 	}
-	
+
 	upperContent := strings.ToUpper(content)
 	matchCount := 0
 	for _, keyword := range academicKeywords {
@@ -588,15 +588,15 @@ func (ac *AdaptiveChunker) combineLineChunks(lines []string, options domain.Chun
 	var chunks []string
 	var currentChunk strings.Builder
 	currentSize := 0
-	
+
 	for _, line := range lines {
 		lineSize := len(line)
-		
+
 		if options.Size > 0 && currentSize+lineSize > options.Size && currentChunk.Len() > 0 {
 			chunks = append(chunks, currentChunk.String())
 			currentChunk.Reset()
 			currentSize = 0
-			
+
 			// Add overlap if specified
 			if options.Overlap > 0 && len(chunks) > 0 {
 				// Take last few lines as overlap
@@ -609,15 +609,15 @@ func (ac *AdaptiveChunker) combineLineChunks(lines []string, options domain.Chun
 				currentSize = overlapSize
 			}
 		}
-		
+
 		currentChunk.WriteString(line)
 		currentChunk.WriteString("\n")
 		currentSize += lineSize + 1
 	}
-	
+
 	if currentChunk.Len() > 0 {
 		chunks = append(chunks, currentChunk.String())
 	}
-	
+
 	return chunks
 }

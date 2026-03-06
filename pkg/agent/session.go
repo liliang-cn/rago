@@ -12,15 +12,15 @@ import (
 // Session represents an agent conversation session with UUID v4
 // Each conversation has its own unique UUID
 type Session struct {
-	mu       sync.RWMutex
-	ID       string                 `json:"id"`
-	AgentID  string                 `json:"agent_id"`
-	Messages []domain.Message       `json:"messages"`
-	Summary  string                 `json:"summary,omitempty"` // Compacted key points
-	Context  map[string]interface{} `json:"context,omitempty"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt time.Time             `json:"created_at"`
-	UpdatedAt time.Time             `json:"updated_at"`
+	mu        sync.RWMutex
+	ID        string                 `json:"id"`
+	AgentID   string                 `json:"agent_id"`
+	Messages  []domain.Message       `json:"messages"`
+	Summary   string                 `json:"summary,omitempty"` // Compacted key points
+	Context   map[string]interface{} `json:"context,omitempty"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	CreatedAt time.Time              `json:"created_at"`
+	UpdatedAt time.Time              `json:"updated_at"`
 }
 
 // NewSession creates a new session with a UUID v4 ID

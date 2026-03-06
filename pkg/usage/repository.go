@@ -24,18 +24,18 @@ type Repository interface {
 	CreateUsageRecord(ctx context.Context, record *UsageRecord) error
 	GetUsageRecord(ctx context.Context, id string) (*UsageRecord, error)
 	ListUsageRecords(ctx context.Context, filter *UsageFilter) ([]*UsageRecord, error)
-	
+
 	// Statistics operations
 	GetUsageStats(ctx context.Context, filter *UsageFilter) (*UsageStats, error)
 	GetUsageStatsByType(ctx context.Context, filter *UsageFilter) (UsageStatsByType, error)
 	GetUsageStatsByProvider(ctx context.Context, filter *UsageFilter) (UsageStatsByProvider, error)
 	GetConversationStats(ctx context.Context, conversationID string) (*UsageStats, error)
-	
+
 	// Aggregation operations
 	GetDailyUsage(ctx context.Context, days int) (map[string]*UsageStats, error)
 	GetTopModels(ctx context.Context, limit int) (map[string]int64, error)
 	GetCostByProvider(ctx context.Context, startTime, endTime time.Time) (map[string]float64, error)
-	
+
 	// RAG operations
 	CreateRAGQuery(ctx context.Context, query *RAGQueryRecord) error
 	GetRAGQuery(ctx context.Context, id string) (*RAGQueryRecord, error)
@@ -49,7 +49,7 @@ type Repository interface {
 	GetRAGVisualization(ctx context.Context, ragQueryID string) (*RAGQueryVisualization, error)
 	ListRAGVisualizations(ctx context.Context, filter *RAGSearchFilter) ([]*RAGQueryVisualization, error)
 	GetRAGAnalytics(ctx context.Context, filter *RAGSearchFilter) (*RAGAnalytics, error)
-	
+
 	// Database management
 	Initialize(ctx context.Context) error
 	Close() error

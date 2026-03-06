@@ -33,7 +33,7 @@ func main() {
 
 	// 3. Register Deferred Tools (Simulating a large catalog of tools)
 	// We will register a few normal tools and several deferred tools.
-	
+
 	// Tool 1: Weather (Deferred)
 	weatherTool := agent.BuildTool("check_climate_status").
 		Description("Get the current weather for a specific location. Use this to check weather conditions.").
@@ -80,15 +80,15 @@ func main() {
 	fmt.Println("\n=== Starting Query ===")
 	// The LLM will use the `search_available_tools` providing an instruction,
 	// so the tool will directly execute it.
-	
+
 	query := "Can you calculate the expenses for employee 'EMP123'? Use search_available_tools with an instruction to do it in one step."
-	
+
 	fmt.Printf("User: %s\n\n", query)
-	
+
 	resp, err := agentSvc.Chat(ctx, query)
 	if err != nil {
 		log.Fatalf("Chat failed: %v", err)
 	}
-	
+
 	fmt.Printf("\n=== Final Response ===\n%s\n", resp.Text())
 }

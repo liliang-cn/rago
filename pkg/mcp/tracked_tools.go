@@ -20,7 +20,7 @@ type TrackedMCPToolManager struct {
 // NewTrackedMCPToolManager creates a new tracked MCP tool manager
 func NewTrackedMCPToolManager(config *Config, usageTracker UsageTracker) *TrackedMCPToolManager {
 	baseManager := NewMCPToolManager(config)
-	
+
 	return &TrackedMCPToolManager{
 		MCPToolManager: baseManager,
 		usageTracker:   usageTracker,
@@ -30,10 +30,10 @@ func NewTrackedMCPToolManager(config *Config, usageTracker UsageTracker) *Tracke
 // CallTool calls an MCP tool with usage tracking
 func (tm *TrackedMCPToolManager) CallTool(ctx context.Context, toolName string, args map[string]interface{}) (*MCPToolResult, error) {
 	startTime := time.Now()
-	
+
 	// Call the underlying tool
 	result, err := tm.MCPToolManager.CallTool(ctx, toolName, args)
-	
+
 	// Track the usage
 	if tm.usageTracker != nil {
 		if err != nil {
@@ -44,7 +44,7 @@ func (tm *TrackedMCPToolManager) CallTool(ctx context.Context, toolName string, 
 			_, _ = tm.usageTracker.TrackMCPCall(ctx, toolName, args, startTime)
 		}
 	}
-	
+
 	return result, err
 }
 
@@ -53,7 +53,7 @@ func WithUsageTracking(component interface{}, usageTracker UsageTracker) interfa
 	if usageTracker == nil {
 		return component
 	}
-	
+
 	switch c := component.(type) {
 	case *MCPToolManager:
 		return &TrackedMCPToolManager{

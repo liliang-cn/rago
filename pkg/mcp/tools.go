@@ -163,7 +163,7 @@ func (tm *MCPToolManager) Start(ctx context.Context) error {
 	loadedServers := tm.manager.config.GetLoadedServers()
 	fmt.Printf("[MCP] Found %d configured servers\n", len(loadedServers))
 	for _, serverConfig := range loadedServers {
-		fmt.Printf("[MCP] Server '%s': AutoStart=%v, Command=%v, Args=%v\n", 
+		fmt.Printf("[MCP] Server '%s': AutoStart=%v, Command=%v, Args=%v\n",
 			serverConfig.Name, serverConfig.AutoStart, serverConfig.Command, serverConfig.Args)
 		if serverConfig.AutoStart {
 			fmt.Printf("[MCP] Starting server '%s'...\n", serverConfig.Name)

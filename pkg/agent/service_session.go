@@ -42,6 +42,7 @@ func (s *Service) ListPlans(sessionID string, limit int) ([]*Plan, error) {
 //	svc, _ := agent.New(&agent.AgentConfig{Name: "assistant"})
 //	result, _ := svc.Chat(ctx, "My name is Alice")
 //	result, _ = svc.Chat(ctx, "What's my name?") // Will remember "Alice"
+//
 // Chat sends a message and returns the full ExecutionResult (with session, sources, PTC details).
 // For simple text extraction, call result.Text() on the returned value.
 //
@@ -289,4 +290,3 @@ func (s *Service) AddMCPServer(ctx context.Context, name string, command string,
 	}
 	return s.mcpService.AddServer(ctx, name, command, args)
 }
-

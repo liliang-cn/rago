@@ -219,9 +219,9 @@ type Client struct {
 	connected         bool
 
 	// Health monitoring
-	cmd            *exec.Cmd      // Process for Stdio servers
+	cmd             *exec.Cmd     // Process for Stdio servers
 	stopHealthCheck chan struct{} // Channel to stop health check goroutine
-	mu             sync.Mutex     // Protects connected state
+	mu              sync.Mutex    // Protects connected state
 
 	// SDK client (for adding roots dynamically)
 	mcpClient *mcp.Client

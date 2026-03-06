@@ -98,7 +98,7 @@ func (r *SQLiteRepository) Initialize(ctx context.Context) error {
 func (r *SQLiteRepository) CreateConversation(ctx context.Context, conversation *Conversation) error {
 	query := `INSERT INTO conversations (id, title, created_at, updated_at, metadata) 
 			  VALUES (?, ?, ?, ?, ?)`
-	
+
 	_, err := r.db.ExecContext(ctx, query,
 		conversation.ID,
 		conversation.Title,
@@ -113,7 +113,7 @@ func (r *SQLiteRepository) CreateConversation(ctx context.Context, conversation 
 func (r *SQLiteRepository) GetConversation(ctx context.Context, id string) (*Conversation, error) {
 	query := `SELECT id, title, created_at, updated_at, metadata 
 			  FROM conversations WHERE id = ?`
-	
+
 	var conv Conversation
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&conv.ID,
@@ -134,7 +134,7 @@ func (r *SQLiteRepository) ListConversations(ctx context.Context, limit, offset 
 			  FROM conversations 
 			  ORDER BY updated_at DESC 
 			  LIMIT ? OFFSET ?`
-	
+
 	rows, err := r.db.QueryContext(ctx, query, limit, offset)
 	if err != nil {
 		return nil, err
@@ -178,7 +178,7 @@ func (r *SQLiteRepository) DeleteConversation(ctx context.Context, id string) er
 func (r *SQLiteRepository) CreateMessage(ctx context.Context, message *Message) error {
 	query := `INSERT INTO messages (id, conversation_id, role, content, token_count, created_at, metadata) 
 			  VALUES (?, ?, ?, ?, ?, ?, ?)`
-	
+
 	_, err := r.db.ExecContext(ctx, query,
 		message.ID,
 		message.ConversationID,
@@ -195,7 +195,7 @@ func (r *SQLiteRepository) CreateMessage(ctx context.Context, message *Message) 
 func (r *SQLiteRepository) GetMessage(ctx context.Context, id string) (*Message, error) {
 	query := `SELECT id, conversation_id, role, content, token_count, created_at, metadata 
 			  FROM messages WHERE id = ?`
-	
+
 	var msg Message
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&msg.ID,
@@ -218,7 +218,7 @@ func (r *SQLiteRepository) ListMessages(ctx context.Context, conversationID stri
 			  FROM messages 
 			  WHERE conversation_id = ? 
 			  ORDER BY created_at ASC`
-	
+
 	rows, err := r.db.QueryContext(ctx, query, conversationID)
 	if err != nil {
 		return nil, err
@@ -260,7 +260,7 @@ func (r *SQLiteRepository) CreateUsageRecord(ctx context.Context, record *UsageR
 		input_tokens, output_tokens, total_tokens, cost, latency,
 		success, error_message, request_metadata, response_metadata, created_at
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	
+
 	_, err := r.db.ExecContext(ctx, query,
 		record.ID,
 		record.ConversationID,
@@ -288,7 +288,7 @@ func (r *SQLiteRepository) GetUsageRecord(ctx context.Context, id string) (*Usag
 			  input_tokens, output_tokens, total_tokens, cost, latency,
 			  success, error_message, request_metadata, response_metadata, created_at
 			  FROM usage_records WHERE id = ?`
-	
+
 	var record UsageRecord
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&record.ID,
@@ -320,9 +320,9 @@ func (r *SQLiteRepository) ListUsageRecords(ctx context.Context, filter *UsageFi
 			  input_tokens, output_tokens, total_tokens, cost, latency,
 			  success, error_message, request_metadata, response_metadata, created_at
 			  FROM usage_records WHERE 1=1`
-	
+
 	args := []interface{}{}
-	
+
 	if filter.ConversationID != "" {
 		query += " AND conversation_id = ?"
 		args = append(args, filter.ConversationID)
@@ -347,9 +347,9 @@ func (r *SQLiteRepository) ListUsageRecords(ctx context.Context, filter *UsageFi
 		query += " AND created_at <= ?"
 		args = append(args, filter.EndTime)
 	}
-	
+
 	query += " ORDER BY created_at DESC"
-	
+
 	if filter.Limit > 0 {
 		query += " LIMIT ?"
 		args = append(args, filter.Limit)
@@ -358,7 +358,7 @@ func (r *SQLiteRepository) ListUsageRecords(ctx context.Context, filter *UsageFi
 		query += " OFFSET ?"
 		args = append(args, filter.Offset)
 	}
-	
+
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -406,9 +406,9 @@ func (r *SQLiteRepository) GetUsageStats(ctx context.Context, filter *UsageFilte
 		COALESCE(AVG(latency), 0) as average_latency,
 		COALESCE(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END), 0) as success_rate
 		FROM usage_records WHERE 1=1`
-	
+
 	args := []interface{}{}
-	
+
 	if filter.ConversationID != "" {
 		query += " AND conversation_id = ?"
 		args = append(args, filter.ConversationID)
@@ -433,7 +433,7 @@ func (r *SQLiteRepository) GetUsageStats(ctx context.Context, filter *UsageFilte
 		query += " AND created_at <= ?"
 		args = append(args, filter.EndTime)
 	}
-	
+
 	var stats UsageStats
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(
 		&stats.TotalCalls,
@@ -444,7 +444,7 @@ func (r *SQLiteRepository) GetUsageStats(ctx context.Context, filter *UsageFilte
 		&stats.AverageLatency,
 		&stats.SuccessRate,
 	)
-	
+
 	return &stats, err
 }
 
@@ -460,9 +460,9 @@ func (r *SQLiteRepository) GetUsageStatsByType(ctx context.Context, filter *Usag
 		COALESCE(AVG(latency), 0) as average_latency,
 		COALESCE(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END), 0) as success_rate
 		FROM usage_records WHERE 1=1`
-	
+
 	args := []interface{}{}
-	
+
 	if filter.ConversationID != "" {
 		query += " AND conversation_id = ?"
 		args = append(args, filter.ConversationID)
@@ -475,9 +475,9 @@ func (r *SQLiteRepository) GetUsageStatsByType(ctx context.Context, filter *Usag
 		query += " AND created_at <= ?"
 		args = append(args, filter.EndTime)
 	}
-	
+
 	query += " GROUP BY call_type"
-	
+
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -519,9 +519,9 @@ func (r *SQLiteRepository) GetUsageStatsByProvider(ctx context.Context, filter *
 		COALESCE(AVG(latency), 0) as average_latency,
 		COALESCE(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END), 0) as success_rate
 		FROM usage_records WHERE provider IS NOT NULL`
-	
+
 	args := []interface{}{}
-	
+
 	if filter.ConversationID != "" {
 		query += " AND conversation_id = ?"
 		args = append(args, filter.ConversationID)
@@ -534,9 +534,9 @@ func (r *SQLiteRepository) GetUsageStatsByProvider(ctx context.Context, filter *
 		query += " AND created_at <= ?"
 		args = append(args, filter.EndTime)
 	}
-	
+
 	query += " GROUP BY provider"
-	
+
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -586,7 +586,7 @@ func (r *SQLiteRepository) GetDailyUsage(ctx context.Context, days int) (map[str
 		WHERE ur.created_at >= DATE('now', '-' || ? || ' days')
 		GROUP BY DATE(ur.created_at)
 		ORDER BY date DESC`
-	
+
 	rows, err := r.db.QueryContext(ctx, query, days)
 	if err != nil {
 		return nil, err
@@ -624,7 +624,7 @@ func (r *SQLiteRepository) GetTopModels(ctx context.Context, limit int) (map[str
 		GROUP BY ur.model
 		ORDER BY usage_count DESC
 		LIMIT ?`
-	
+
 	rows, err := r.db.QueryContext(ctx, query, limit)
 	if err != nil {
 		return nil, err
@@ -650,9 +650,9 @@ func (r *SQLiteRepository) GetCostByProvider(ctx context.Context, startTime, end
 	query := `SELECT ur.provider, COALESCE(SUM(ur.cost), 0) as total_cost
 		FROM usage_records ur
 		WHERE ur.provider IS NOT NULL`
-	
+
 	args := []interface{}{}
-	
+
 	if !startTime.IsZero() {
 		query += " AND ur.created_at >= ?"
 		args = append(args, startTime)
@@ -661,9 +661,9 @@ func (r *SQLiteRepository) GetCostByProvider(ctx context.Context, startTime, end
 		query += " AND ur.created_at <= ?"
 		args = append(args, endTime)
 	}
-	
+
 	query += " GROUP BY ur.provider"
-	
+
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err

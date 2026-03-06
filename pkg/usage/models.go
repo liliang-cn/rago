@@ -57,13 +57,13 @@ type UsageRecord struct {
 
 // UsageStats represents aggregated usage statistics
 type UsageStats struct {
-	TotalCalls       int64   `json:"total_calls"`
-	TotalInputTokens int64   `json:"total_input_tokens"`
+	TotalCalls        int64   `json:"total_calls"`
+	TotalInputTokens  int64   `json:"total_input_tokens"`
 	TotalOutputTokens int64   `json:"total_output_tokens"`
-	TotalTokens      int64   `json:"total_tokens"`
-	TotalCost        float64 `json:"total_cost"`
-	AverageLatency   float64 `json:"average_latency"`
-	SuccessRate      float64 `json:"success_rate"`
+	TotalTokens       int64   `json:"total_tokens"`
+	TotalCost         float64 `json:"total_cost"`
+	AverageLatency    float64 `json:"average_latency"`
+	SuccessRate       float64 `json:"success_rate"`
 }
 
 // UsageStatsByType represents usage statistics grouped by call type

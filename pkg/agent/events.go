@@ -11,35 +11,35 @@ type EventType string
 
 const (
 	// Workflow Events
-	EventTypeStart       EventType = "workflow_start"
-	EventTypeComplete    EventType = "workflow_complete"
-	EventTypeError       EventType = "workflow_error"
+	EventTypeStart    EventType = "workflow_start"
+	EventTypeComplete EventType = "workflow_complete"
+	EventTypeError    EventType = "workflow_error"
 
 	// Thinking & Streaming
-	EventTypeThinking    EventType = "thinking"     // Agent is processing
-	EventTypePartial     EventType = "partial"      // Streaming text output
+	EventTypeThinking EventType = "thinking" // Agent is processing
+	EventTypePartial  EventType = "partial"  // Streaming text output
 
 	// Tool Execution
-	EventTypeToolCall    EventType = "tool_call"    // Agent requests tool execution
-	EventTypeToolResult  EventType = "tool_result"  // Runner returns tool result
+	EventTypeToolCall   EventType = "tool_call"   // Agent requests tool execution
+	EventTypeToolResult EventType = "tool_result" // Runner returns tool result
 
 	// State Management
 	EventTypeStateUpdate EventType = "state_update" // Request to update session state
 
 	// Handoff
-	EventTypeHandoff     EventType = "handoff"      // Transferring to another agent
+	EventTypeHandoff EventType = "handoff" // Transferring to another agent
 
 	// Debug (prompts/responses, emitted when debug=true)
-	EventTypeDebug       EventType = "debug"
+	EventTypeDebug EventType = "debug"
 )
 
 // Event represents a discrete occurrence in the agent execution loop
 type Event struct {
-	ID        string                 `json:"id"`
-	Type      EventType              `json:"type"`
-	AgentID   string                 `json:"agent_id,omitempty"`
-	AgentName string                 `json:"agent_name,omitempty"`
-	Content   string                 `json:"content,omitempty"` // For text/thinking
+	ID        string    `json:"id"`
+	Type      EventType `json:"type"`
+	AgentID   string    `json:"agent_id,omitempty"`
+	AgentName string    `json:"agent_name,omitempty"`
+	Content   string    `json:"content,omitempty"` // For text/thinking
 
 	// Tool data
 	ToolName   string                 `json:"tool_name,omitempty"`
@@ -67,7 +67,7 @@ func NewEvent(evtType EventType, agent *Agent) *Event {
 		agentName = agent.Name()
 		agentID = agent.ID()
 	}
-	
+
 	return &Event{
 		Type:      evtType,
 		AgentName: agentName,

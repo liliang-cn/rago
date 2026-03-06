@@ -97,7 +97,9 @@ func (s *Service) buildPromptFromMessages(messages []domain.Message) string {
 
 // Health checks the health of the underlying generator
 func (s *Service) Health(ctx context.Context) error {
-	if gen, ok := s.generator.(interface{ Health(ctx context.Context) error }); ok {
+	if gen, ok := s.generator.(interface {
+		Health(ctx context.Context) error
+	}); ok {
 		return gen.Health(ctx)
 	}
 	return nil // No health check available
@@ -288,4 +290,3 @@ func (s *Service) SetSystemPrompt(convID, prompt string) {
 		}
 	}
 }
-

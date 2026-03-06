@@ -86,10 +86,10 @@ func Items(t ParamType) ParamOption {
 // ToolBuilder is a fluent builder that constructs a *Tool step-by-step.
 // All Param() calls return the same *ToolBuilder so the chain stays on one type.
 type ToolBuilder struct {
-	name        string
-	description string
-	params      []paramDef
-	handler     func(context.Context, map[string]interface{}) (interface{}, error)
+	name         string
+	description  string
+	params       []paramDef
+	handler      func(context.Context, map[string]interface{}) (interface{}, error)
 	deferLoading bool
 }
 
@@ -144,10 +144,10 @@ func (b *ToolBuilder) Build() *Tool {
 	}
 
 	return &Tool{
-		name:        b.name,
-		description: b.description,
-		parameters:  b.buildSchema(),
-		handler:     b.handler,
+		name:         b.name,
+		description:  b.description,
+		parameters:   b.buildSchema(),
+		handler:      b.handler,
 		deferLoading: b.deferLoading,
 	}
 }

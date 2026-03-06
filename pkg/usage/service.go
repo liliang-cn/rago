@@ -18,7 +18,7 @@ type Service struct {
 	tokenCounter *TokenCounter
 	config       *config.Config
 	mu           sync.RWMutex
-	
+
 	// Current conversation tracking
 	currentConversation *Conversation
 	currentMessages     []Message
@@ -58,7 +58,7 @@ func (s *Service) StartConversation(ctx context.Context, title string) (*Convers
 
 	s.currentConversation = conversation
 	s.currentMessages = []Message{}
-	
+
 	return conversation, nil
 }
 
@@ -110,14 +110,14 @@ func (s *Service) AddMessage(ctx context.Context, role, content string) (*Messag
 
 	// Estimate token count
 	tokenCount := s.tokenCounter.EstimateTokens(content, "default")
-	
+
 	message := NewMessage(s.currentConversation.ID, role, content, tokenCount)
 	if err := s.repo.CreateMessage(ctx, message); err != nil {
 		return nil, fmt.Errorf("failed to create message: %w", err)
 	}
 
 	s.currentMessages = append(s.currentMessages, *message)
-	
+
 	// Update conversation timestamp
 	s.currentConversation.UpdatedAt = time.Now()
 	if err := s.repo.UpdateConversation(ctx, s.currentConversation.ID, s.currentConversation.Title); err != nil {
@@ -135,25 +135,25 @@ func (s *Service) TrackLLMCall(ctx context.Context, provider, model string, inpu
 
 	// Create usage record
 	record := NewUsageRecord("", "", CallTypeLLM)
-	
+
 	if s.currentConversation != nil {
 		record.ConversationID = s.currentConversation.ID
 	}
-	
+
 	record.Provider = provider
 	record.Model = model
 	record.Latency = time.Since(startTime).Milliseconds()
-	
+
 	// Estimate tokens
 	record.InputTokens = s.tokenCounter.EstimateTokens(input, model)
 	record.OutputTokens = s.tokenCounter.EstimateTokens(output, model)
 	record.TotalTokens = record.InputTokens + record.OutputTokens
-	
+
 	// Calculate cost
 	record.Cost = CalculateCost(model, record.InputTokens, record.OutputTokens)
-	
+
 	record.Success = true
-	
+
 	// Save to database
 	if err := s.repo.CreateUsageRecord(ctx, record); err != nil {
 		return nil, fmt.Errorf("failed to create usage record: %w", err)
@@ -168,11 +168,11 @@ func (s *Service) TrackLLMCallWithTokens(ctx context.Context, provider, model st
 	defer s.mu.Unlock()
 
 	record := NewUsageRecord("", "", CallTypeLLM)
-	
+
 	if s.currentConversation != nil {
 		record.ConversationID = s.currentConversation.ID
 	}
-	
+
 	record.Provider = provider
 	record.Model = model
 	record.InputTokens = inputTokens
@@ -181,7 +181,7 @@ func (s *Service) TrackLLMCallWithTokens(ctx context.Context, provider, model st
 	record.Latency = time.Since(startTime).Milliseconds()
 	record.Cost = CalculateCost(model, inputTokens, outputTokens)
 	record.Success = true
-	
+
 	if err := s.repo.CreateUsageRecord(ctx, record); err != nil {
 		return nil, fmt.Errorf("failed to create usage record: %w", err)
 	}
@@ -195,22 +195,22 @@ func (s *Service) TrackMCPCall(ctx context.Context, toolName string, params inte
 	defer s.mu.Unlock()
 
 	record := NewUsageRecord("", "", CallTypeMCP)
-	
+
 	if s.currentConversation != nil {
 		record.ConversationID = s.currentConversation.ID
 	}
-	
+
 	record.Provider = "mcp"
 	record.Model = toolName
 	record.Latency = time.Since(startTime).Milliseconds()
 	record.Success = true
-	
+
 	// Store params as metadata
 	if params != nil {
 		paramsJSON, _ := json.Marshal(params)
 		record.RequestMetadata = string(paramsJSON)
 	}
-	
+
 	if err := s.repo.CreateUsageRecord(ctx, record); err != nil {
 		return nil, fmt.Errorf("failed to create usage record: %w", err)
 	}
@@ -224,21 +224,21 @@ func (s *Service) TrackRAGCall(ctx context.Context, operation string, query stri
 	defer s.mu.Unlock()
 
 	record := NewUsageRecord("", "", CallTypeRAG)
-	
+
 	if s.currentConversation != nil {
 		record.ConversationID = s.currentConversation.ID
 	}
-	
+
 	record.Provider = "rag"
 	record.Model = operation // e.g., "query", "ingest", "embed"
 	record.Latency = time.Since(startTime).Milliseconds()
 	record.Success = true
-	
+
 	// Estimate tokens for the query
 	if query != "" {
 		record.InputTokens = s.tokenCounter.EstimateTokens(query, "default")
 	}
-	
+
 	// Store metadata
 	metadata := map[string]interface{}{
 		"query":        query,
@@ -246,7 +246,7 @@ func (s *Service) TrackRAGCall(ctx context.Context, operation string, query stri
 	}
 	metadataJSON, _ := json.Marshal(metadata)
 	record.RequestMetadata = string(metadataJSON)
-	
+
 	if err := s.repo.CreateUsageRecord(ctx, record); err != nil {
 		return nil, fmt.Errorf("failed to create usage record: %w", err)
 	}
@@ -260,17 +260,17 @@ func (s *Service) TrackError(ctx context.Context, callType CallType, provider, m
 	defer s.mu.Unlock()
 
 	record := NewUsageRecord("", "", callType)
-	
+
 	if s.currentConversation != nil {
 		record.ConversationID = s.currentConversation.ID
 	}
-	
+
 	record.Provider = provider
 	record.Model = model
 	record.Latency = time.Since(startTime).Milliseconds()
 	record.Success = false
 	record.ErrorMessage = errorMsg
-	
+
 	if err := s.repo.CreateUsageRecord(ctx, record); err != nil {
 		return nil, fmt.Errorf("failed to create usage record: %w", err)
 	}

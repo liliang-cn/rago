@@ -93,7 +93,7 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	if ragEnabled && h.ragClient != nil {
 		stats, _ := h.ragClient.GetStats(r.Context())
 		ragInfo = map[string]interface{}{
-			"enabled":    true,
+			"enabled":   true,
 			"db_path":   h.cfg.Cortexdb.DBPath,
 			"documents": stats.TotalDocuments,
 			"chunks":    stats.TotalChunks,
@@ -140,8 +140,8 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	if memoryEnabled {
 		memories, _, _ := h.memoryService.List(r.Context(), 100, 0)
 		memoryInfo = map[string]interface{}{
-			"enabled":  true,
-			"count":    len(memories),
+			"enabled": true,
+			"count":   len(memories),
 		}
 	} else {
 		memoryInfo = map[string]interface{}{"enabled": false}
@@ -152,7 +152,7 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	var agentInfo map[string]interface{}
 	if agentEnabled {
 		agentInfo = map[string]interface{}{
-			"enabled":   true,
+			"enabled": true,
 		}
 	} else {
 		agentInfo = map[string]interface{}{"enabled": false}
@@ -168,7 +168,7 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	// Build providers list with detailed info from pool service
 	poolService := services.GetGlobalPoolService()
 	providers := []map[string]interface{}{}
-	
+
 	// Get LLM pool status
 	llmStatus := poolService.GetLLMPoolStatus()
 	for name, st := range llmStatus {
@@ -177,14 +177,14 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 			status = "enabled"
 		}
 		providers = append(providers, map[string]interface{}{
-			"name":     name,
-			"status":   status,
-			"type":     "llm",
-			"model":    st.ModelName,
-			"healthy":  st.Healthy,
+			"name":    name,
+			"status":  status,
+			"type":    "llm",
+			"model":   st.ModelName,
+			"healthy": st.Healthy,
 		})
 	}
-	
+
 	// Get Embedding pool status
 	embedStatus := poolService.GetEmbeddingPoolStatus()
 	for name, st := range embedStatus {
@@ -193,14 +193,14 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 			status = "enabled"
 		}
 		providers = append(providers, map[string]interface{}{
-			"name":     name,
-			"status":   status,
-			"type":     "embedding",
-			"model":    st.ModelName,
-			"healthy":  st.Healthy,
+			"name":    name,
+			"status":  status,
+			"type":    "embedding",
+			"model":   st.ModelName,
+			"healthy": st.Healthy,
 		})
 	}
-	
+
 	// Add other services
 	if enabled, ok := ragInfo["enabled"].(bool); ok && enabled {
 		providers = append(providers, map[string]interface{}{
@@ -239,15 +239,15 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	JSONResponse(w, map[string]interface{}{
-		"status":   "running",
-		"version":  version,
+		"status":    "running",
+		"version":   version,
 		"providers": providers,
-		"llm":      llmInfo,
-		"embedder": embedderInfo,
-		"rag":      ragInfo,
-		"mcp":      mcpInfo,
-		"skills":   skillsInfo,
-		"memory":   memoryInfo,
-		"agent":    agentInfo,
+		"llm":       llmInfo,
+		"embedder":  embedderInfo,
+		"rag":       ragInfo,
+		"mcp":       mcpInfo,
+		"skills":    skillsInfo,
+		"memory":    memoryInfo,
+		"agent":     agentInfo,
 	})
 }

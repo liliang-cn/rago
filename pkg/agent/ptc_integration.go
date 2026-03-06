@@ -246,7 +246,7 @@ func (p *PTCIntegration) ExecuteCode(ctx context.Context, code string, contextVa
 	}
 
 	// WRAPPER: Goja returns the value of the last statement.
-	// If the code defines a main function and calls it at the end, 
+	// If the code defines a main function and calls it at the end,
 	// we wrap it to ensure that value is returned.
 	wrappedCode := fmt.Sprintf("return (function(){\n%s\n})()", code)
 

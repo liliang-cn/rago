@@ -9,8 +9,8 @@ import (
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/rag"
 	"github.com/liliang-cn/agent-go/pkg/domain"
 	"github.com/liliang-cn/agent-go/pkg/rag/chunker"
-	ragstore "github.com/liliang-cn/agent-go/pkg/rag/store"
 	"github.com/liliang-cn/agent-go/pkg/rag/processor"
+	ragstore "github.com/liliang-cn/agent-go/pkg/rag/store"
 	"github.com/liliang-cn/agent-go/pkg/services"
 	"github.com/liliang-cn/agent-go/pkg/skills"
 	"github.com/spf13/cobra"
@@ -35,16 +35,16 @@ func initializeSkills(cmd *cobra.Command) error {
 		if ragCfg != nil {
 			// Use multi-path from global config
 			skillCfg = &skills.Config{
-				Enabled:               ragCfg.Skills.Enabled,
-				Paths:                 ragCfg.SkillsPaths(),
-				AutoLoad:              ragCfg.Skills.AutoLoad,
-				CacheEnabled:          true,
-				DBPath:                filepath.Join(ragCfg.DataDir(), "skills.db"),
-				LogLevel:              "info",
-				AllowCommandInjection: ragCfg.Skills.AllowCommandInjection,
-				RequireConfirmation:   ragCfg.Skills.RequireConfirmation,
-				EnableRAGIntegration:  true,
-				EnableMCPIntegration:  true,
+				Enabled:                ragCfg.Skills.Enabled,
+				Paths:                  ragCfg.SkillsPaths(),
+				AutoLoad:               ragCfg.Skills.AutoLoad,
+				CacheEnabled:           true,
+				DBPath:                 filepath.Join(ragCfg.DataDir(), "skills.db"),
+				LogLevel:               "info",
+				AllowCommandInjection:  ragCfg.Skills.AllowCommandInjection,
+				RequireConfirmation:    ragCfg.Skills.RequireConfirmation,
+				EnableRAGIntegration:   true,
+				EnableMCPIntegration:   true,
 				EnableAgentIntegration: true,
 			}
 		} else {

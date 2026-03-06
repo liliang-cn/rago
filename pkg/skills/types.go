@@ -7,11 +7,11 @@ import (
 
 // Skill represents a loaded skill from SKILL.md
 type Skill struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Version     string                 `json:"version"`
-	Author      string                 `json:"author,omitempty"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Version     string `json:"version"`
+	Author      string `json:"author,omitempty"`
 
 	// Progressive disclosure
 	Steps []SkillStep `json:"steps"`
@@ -22,11 +22,11 @@ type Skill struct {
 	Variables map[string]VariableDef `json:"variables,omitempty"`
 
 	// Execution
-	Command     string `json:"command,omitempty"`
-	Handler     func(ctx context.Context, vars map[string]interface{}) (string, error) `json:"-"` // Direct Go function handler
-	ForkMode    bool   `json:"fork_mode,omitempty"`
-	UserInvocable bool `json:"user_invocable,omitempty"`
-	DisableModelInvocation bool `json:"disable_model_invocation,omitempty"`
+	Command                string                                                                 `json:"command,omitempty"`
+	Handler                func(ctx context.Context, vars map[string]interface{}) (string, error) `json:"-"` // Direct Go function handler
+	ForkMode               bool                                                                   `json:"fork_mode,omitempty"`
+	UserInvocable          bool                                                                   `json:"user_invocable,omitempty"`
+	DisableModelInvocation bool                                                                   `json:"disable_model_invocation,omitempty"`
 
 	// System
 	Path      string    `json:"path"` // Path to SKILL.md

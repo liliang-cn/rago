@@ -56,7 +56,7 @@ func main() {
 
 	// 2. Build Agent with Memory and RAG
 	fmt.Println("=== Building Agent ===")
-	
+
 	agentSvc, err := agent.New("Combined Agent").
 		WithDebug(true).
 		WithConfig(cfg).
@@ -102,16 +102,16 @@ func main() {
 	// 5. Query Agent requiring both facts
 	fmt.Println("\n=== Querying Agent ===")
 	query := "根据我的喜好，我喜欢的公司是哪一年成立的？他们总部在哪个城市？我为什么想去那个城市？"
-	
+
 	fmt.Printf("User: %s\n\n", query)
-	
+
 	resp, err := agentSvc.Chat(ctx, query)
 	if err != nil {
 		log.Fatalf("Chat failed: %v", err)
 	}
-	
+
 	fmt.Printf("\nAgent Response:\n%s\n", resp.Text())
-	
+
 	if len(resp.Sources) > 0 {
 		fmt.Printf("\n--- RAG Sources Used ---\n")
 		for i, src := range resp.Sources {

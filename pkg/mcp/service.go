@@ -109,18 +109,18 @@ func (s *Service) AddDynamicServer(ctx context.Context, name string, command str
 // ListServers returns a list of configured servers and their status
 func (s *Service) ListServers() []ServerStatus {
 	var servers []ServerStatus
-	
+
 	loadedServers := s.mcpConfig.GetLoadedServers()
 	for _, config := range loadedServers {
 		client, exists := s.manager.GetClient(config.Name)
-		
+
 		status := ServerStatus{
 			Name:        config.Name,
 			Description: config.Description,
 			Command:     strings.Join(config.Command, " "),
 			Running:     exists && client != nil && client.IsConnected(),
 		}
-		
+
 		if status.Running {
 			tools := client.GetTools()
 			status.ToolCount = len(tools)
@@ -132,10 +132,10 @@ func (s *Service) ListServers() []ServerStatus {
 				})
 			}
 		}
-		
+
 		servers = append(servers, status)
 	}
-	
+
 	return servers
 }
 
@@ -148,7 +148,6 @@ type ServerStatus struct {
 	ToolCount   int           `json:"tool_count"`
 	Tools       []ToolSummary `json:"tools,omitempty"`
 }
-
 
 // GetAvailableTools returns all available tools from all running servers
 func (s *Service) GetAvailableTools(ctx context.Context) []AgentToolInfo {
@@ -167,13 +166,13 @@ func (s *Service) CallTool(ctx context.Context, toolName string, arguments map[s
 
 // ChatOptions configures MCP-enabled chat
 type ChatOptions struct {
-	Model           string   // LLM model to use
-	Temperature     float64  // Generation temperature
-	MaxTokens       int      // Maximum tokens
-	SystemPrompt    string   // System prompt
-	AllowedServers  []string // Specific servers to use
-	MaxToolCalls    int      // Maximum tool calls per message
-	ShowToolCalls   bool     // Display tool calls in response
+	Model          string   // LLM model to use
+	Temperature    float64  // Generation temperature
+	MaxTokens      int      // Maximum tokens
+	SystemPrompt   string   // System prompt
+	AllowedServers []string // Specific servers to use
+	MaxToolCalls   int      // Maximum tool calls per message
+	ShowToolCalls  bool     // Display tool calls in response
 }
 
 // DefaultChatOptions returns default chat options
@@ -194,7 +193,7 @@ func (s *Service) ChatSingle(ctx context.Context, message string, opts *ChatOpti
 
 	// Get available tools
 	tools := s.manager.GetAvailableTools(ctx)
-	
+
 	// Filter tools by allowed servers if specified
 	if len(opts.AllowedServers) > 0 {
 		filtered := []AgentToolInfo{}
@@ -272,19 +271,19 @@ func (s *Service) ChatSingle(ctx context.Context, message string, opts *ChatOpti
 
 			// Execute the tool
 			toolResult, err := s.manager.CallTool(ctx, call.Function.Name, call.Function.Arguments)
-			
+
 			executed := ExecutedToolCall{
 				ToolName:  call.Function.Name,
 				Arguments: call.Function.Arguments,
 				Success:   toolResult != nil && toolResult.Success,
 			}
-			
+
 			if err != nil {
 				executed.Error = err.Error()
 			} else if toolResult != nil {
 				executed.Result = toolResult.Data
 			}
-			
+
 			executedCalls = append(executedCalls, executed)
 		}
 	}
@@ -472,8 +471,8 @@ func (s *Service) GetConversationMessages(convID string) []domain.Message {
 
 // ChatResponse represents a chat response with potential tool calls
 type ChatResponse struct {
-	Message   string              `json:"message"`
-	ToolCalls []ExecutedToolCall  `json:"tool_calls,omitempty"`
+	Message   string             `json:"message"`
+	ToolCalls []ExecutedToolCall `json:"tool_calls,omitempty"`
 }
 
 // ExecutedToolCall represents a tool call that was executed

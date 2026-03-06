@@ -792,11 +792,11 @@ func (m *Manager) Close() error {
 
 // AgentToolInfo represents tool information for agent layer
 type AgentToolInfo struct {
-	Name        string                 `json:"name"`                  // Full prefixed name (mcp_server_tool)
+	Name        string                 `json:"name"`                   // Full prefixed name (mcp_server_tool)
 	ServerName  string                 `json:"server_name"`            // Server that provides this tool
 	ActualName  string                 `json:"actual_name"`            // Actual tool name on server (without prefix)
-	Description string                 `json:"description"`             // Tool description
-	Parameters  []string               `json:"parameters,omitempty"`  // List of parameter names (for backward compatibility)
+	Description string                 `json:"description"`            // Tool description
+	Parameters  []string               `json:"parameters,omitempty"`   // List of parameter names (for backward compatibility)
 	InputSchema map[string]interface{} `json:"input_schema,omitempty"` // Full parameter schema for LLM
 }
 

@@ -59,6 +59,7 @@ func (a *Agent) AddToolWithHandler(def domain.ToolDefinition, handler func(conte
 	a.handlers[def.Function.Name] = handler
 	a.tools = append(a.tools, def)
 }
+
 // GetHandler returns the handler for a specific tool
 func (a *Agent) GetHandler(name string) (func(context.Context, map[string]interface{}) (interface{}, error), bool) {
 	if a.handlers == nil {

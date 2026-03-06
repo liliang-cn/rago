@@ -13,9 +13,9 @@ import (
 type Service struct {
 	router        *Router
 	embedder      domain.Embedder
-	intentToTool  map[string]string      // Maps intent names to tool names
-	intentAliases map[string]string      // Maps aliases to canonical intent names
-	intents       []*Intent              // Tracked intents for listing
+	intentToTool  map[string]string // Maps intent names to tool names
+	intentAliases map[string]string // Maps aliases to canonical intent names
+	intents       []*Intent         // Tracked intents for listing
 	mu            sync.RWMutex
 }
 

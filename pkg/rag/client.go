@@ -18,14 +18,14 @@ import (
 
 // Client provides high-level RAG operations
 type Client struct {
-	processor   *processor.Service
-	vectorStore domain.VectorStore
-	docStore    *store.DocumentStore
-	embedder    domain.Embedder
-	llm         domain.Generator
-	config      *config.Config
-	mcpService  *mcp.Service
-	mcpConfig   *mcp.Config
+	processor    *processor.Service
+	vectorStore  domain.VectorStore
+	docStore     *store.DocumentStore
+	embedder     domain.Embedder
+	llm          domain.Generator
+	config       *config.Config
+	mcpService   *mcp.Service
+	mcpConfig    *mcp.Config
 	agentService *agent.Service
 	agentDBPath  string
 }
@@ -96,7 +96,7 @@ func NewClient(cfg *config.Config, embedder domain.Embedder, llm domain.Generato
 	// MCP service configuration
 	mcpConfig := &mcp.Config{
 		ServersConfigPath: cfg.MCP.ServersConfigPath,
-		Enabled:          cfg.MCP.Enabled,
+		Enabled:           cfg.MCP.Enabled,
 	}
 
 	var mcpService *mcp.Service
@@ -257,17 +257,17 @@ func (c *Client) Query(ctx context.Context, query string, opts *QueryOptions) (*
 	}
 
 	req := domain.QueryRequest{
-		Query:        query,
-		TopK:         opts.TopK,
-		Temperature:  opts.Temperature,
-		MaxTokens:    opts.MaxTokens,
-		ShowSources:  opts.ShowSources,
-		ShowThinking: opts.ShowThinking,
-		Stream:       opts.Stream,
-		ToolsEnabled: opts.ToolsEnabled,
-		AllowedTools: opts.AllowedTools,
-		MaxToolCalls: opts.MaxToolCalls,
-		Filters:      opts.Filters,
+		Query:           query,
+		TopK:            opts.TopK,
+		Temperature:     opts.Temperature,
+		MaxTokens:       opts.MaxTokens,
+		ShowSources:     opts.ShowSources,
+		ShowThinking:    opts.ShowThinking,
+		Stream:          opts.Stream,
+		ToolsEnabled:    opts.ToolsEnabled,
+		AllowedTools:    opts.AllowedTools,
+		MaxToolCalls:    opts.MaxToolCalls,
+		Filters:         opts.Filters,
 		RerankStrategy:  opts.RerankStrategy,
 		RerankBoost:     opts.RerankBoost,
 		DiversityLambda: opts.DiversityLambda,
@@ -314,13 +314,13 @@ func (c *Client) Reset(ctx context.Context) error {
 func (c *Client) GetStats(ctx context.Context) (*domain.Stats, error) {
 	var docs []domain.Document
 	var err error
-	
+
 	if c.docStore != nil {
 		docs, err = c.docStore.List(ctx)
 	} else {
 		docs, err = c.vectorStore.List(ctx)
 	}
-	
+
 	if err != nil {
 		return nil, err
 	}
@@ -503,7 +503,7 @@ func (c *Client) IngestTextWithMetadata(ctx context.Context, text, source string
 	modifiedOpts.Metadata = mergedMetadata
 
 	req := domain.IngestRequest{
-	Content:   text,
+		Content:   text,
 		ChunkSize: opts.ChunkSize,
 		Overlap:   opts.Overlap,
 		Metadata:  modifiedOpts.Metadata,
@@ -579,17 +579,17 @@ func (c *Client) StartChat(ctx context.Context, metadata map[string]interface{})
 // Chat performs a chat interaction with history
 func (c *Client) Chat(ctx context.Context, sessionID string, message string, opts *QueryOptions) (*domain.QueryResponse, error) {
 	req := &domain.QueryRequest{
-		Query:        message,
-		TopK:         opts.TopK,
-		Temperature:  opts.Temperature,
-		MaxTokens:    opts.MaxTokens,
-		ShowSources:  opts.ShowSources,
-		ShowThinking: opts.ShowThinking,
-		Stream:       opts.Stream,
-		ToolsEnabled: opts.ToolsEnabled,
-		AllowedTools: opts.AllowedTools,
-		MaxToolCalls: opts.MaxToolCalls,
-		Filters:      opts.Filters,
+		Query:           message,
+		TopK:            opts.TopK,
+		Temperature:     opts.Temperature,
+		MaxTokens:       opts.MaxTokens,
+		ShowSources:     opts.ShowSources,
+		ShowThinking:    opts.ShowThinking,
+		Stream:          opts.Stream,
+		ToolsEnabled:    opts.ToolsEnabled,
+		AllowedTools:    opts.AllowedTools,
+		MaxToolCalls:    opts.MaxToolCalls,
+		Filters:         opts.Filters,
 		RerankStrategy:  opts.RerankStrategy,
 		RerankBoost:     opts.RerankBoost,
 		DiversityLambda: opts.DiversityLambda,
@@ -605,12 +605,12 @@ func (c *Client) Chat(ctx context.Context, sessionID string, message string, opt
 
 // AgentOptions configures agent behavior
 type AgentOptions struct {
-	EnableHandoffs   bool                   // Enable agent handoffs
-	EnableGuardrails bool                   // Enable input/output guardrails
-	EnableTracing    bool                   // Enable execution tracing
-	Guardrails       []*agent.Guardrail     // Custom guardrails
-	Handoffs         []agent.HandoffOption  // Handoff configurations
-	SessionID        string                 // Resume existing session
+	EnableHandoffs   bool                  // Enable agent handoffs
+	EnableGuardrails bool                  // Enable input/output guardrails
+	EnableTracing    bool                  // Enable execution tracing
+	Guardrails       []*agent.Guardrail    // Custom guardrails
+	Handoffs         []agent.HandoffOption // Handoff configurations
+	SessionID        string                // Resume existing session
 }
 
 // DefaultAgentOptions returns default agent options
@@ -686,7 +686,7 @@ func (a *mcpToolAdapter) ListTools() []domain.ToolDefinition {
 				Name:        t.Name,
 				Description: t.Description,
 				Parameters: map[string]interface{}{
-					"type":       "object",
+					"type": "object",
 					"properties": map[string]interface{}{
 						"arguments": map[string]interface{}{
 							"type":        "object",
@@ -829,4 +829,3 @@ func (c *Client) AgentChat(ctx context.Context, sessionID, message string) (*age
 
 	return c.agentService.Run(ctx, message, agent.WithSessionID(sessionID))
 }
-

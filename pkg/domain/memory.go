@@ -65,11 +65,11 @@ func (f FlexibleStringArray) Strings() []string {
 type MemoryScopeType string
 
 const (
-	MemoryScopeGlobal   MemoryScopeType = "global"
-	MemoryScopeAgent    MemoryScopeType = "agent"
-	MemoryScopeProject  MemoryScopeType = "project"
-	MemoryScopeUser     MemoryScopeType = "user"
-	MemoryScopeSession  MemoryScopeType = "session"
+	MemoryScopeGlobal  MemoryScopeType = "global"
+	MemoryScopeAgent   MemoryScopeType = "agent"
+	MemoryScopeProject MemoryScopeType = "project"
+	MemoryScopeUser    MemoryScopeType = "user"
+	MemoryScopeSession MemoryScopeType = "session"
 )
 
 // MemoryScope represents a memory isolation scope
@@ -80,11 +80,11 @@ type MemoryScope struct {
 
 // MemoryBankConfig represents the configuration for a Hindsight memory bank
 type MemoryBankConfig struct {
-	Mission     string `json:"mission"`     // The identity/purpose of this memory bank
-	Directives  []string `json:"directives"` // Hard rules the agent must follow
-	Skepticism  int    `json:"skepticism"`  // 1-5, how much to doubt new information
-	Literalism  int    `json:"literalism"`  // 1-5, how strictly to interpret language
-	Empathy     int    `json:"empathy"`     // 1-5, level of emotional resonance
+	Mission    string   `json:"mission"`    // The identity/purpose of this memory bank
+	Directives []string `json:"directives"` // Hard rules the agent must follow
+	Skepticism int      `json:"skepticism"` // 1-5, how much to doubt new information
+	Literalism int      `json:"literalism"` // 1-5, how strictly to interpret language
+	Empathy    int      `json:"empathy"`    // 1-5, level of emotional resonance
 }
 
 // MentalModel represents a user-curated summary or rule
@@ -127,7 +127,7 @@ const (
 
 // MemoryRevision records a single modification to a memory.
 type MemoryRevision struct {
-	At      time.Time `json:"at"`               // when the change occurred
+	At      time.Time `json:"at"`                // when the change occurred
 	By      string    `json:"by,omitempty"`      // actor: "user", "agent", "reflect", etc.
 	Summary string    `json:"summary,omitempty"` // brief description of what changed
 }
@@ -139,7 +139,7 @@ type Memory struct {
 	Type         MemoryType             `json:"type"`
 	Content      string                 `json:"content"`
 	Vector       []float64              `json:"vector,omitempty"`
-	Importance   float64                `json:"importance"`   // 0-1, used for sorting/priority
+	Importance   float64                `json:"importance"` // 0-1, used for sorting/priority
 	AccessCount  int                    `json:"access_count"`
 	LastAccessed time.Time              `json:"last_accessed"`
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
@@ -147,14 +147,14 @@ type Memory struct {
 	UpdatedAt    time.Time              `json:"updated_at"`
 
 	// Hindsight: temporal and evidence fields
-	EvidenceIDs     []string          `json:"evidence_ids,omitempty"`      // fact IDs that support this observation
-	Confidence      float64           `json:"confidence,omitempty"`        // 0-1, confidence of this observation
-	ValidFrom       time.Time         `json:"valid_from,omitempty"`        // when this fact became valid
-	ValidTo         *time.Time        `json:"valid_to,omitempty"`          // nil means currently valid
-	SupersededBy    string            `json:"superseded_by,omitempty"`     // ID of the memory that replaced this one
-	SourceType      MemorySourceType  `json:"source_type,omitempty"`       // how this memory was created
-	Conflicting     bool              `json:"conflicting,omitempty"`       // true if this observation has conflicting evidence
-	RevisionHistory []MemoryRevision  `json:"revision_history,omitempty"`  // ordered list of changes to this memory
+	EvidenceIDs     []string         `json:"evidence_ids,omitempty"`     // fact IDs that support this observation
+	Confidence      float64          `json:"confidence,omitempty"`       // 0-1, confidence of this observation
+	ValidFrom       time.Time        `json:"valid_from,omitempty"`       // when this fact became valid
+	ValidTo         *time.Time       `json:"valid_to,omitempty"`         // nil means currently valid
+	SupersededBy    string           `json:"superseded_by,omitempty"`    // ID of the memory that replaced this one
+	SourceType      MemorySourceType `json:"source_type,omitempty"`      // how this memory was created
+	Conflicting     bool             `json:"conflicting,omitempty"`      // true if this observation has conflicting evidence
+	RevisionHistory []MemoryRevision `json:"revision_history,omitempty"` // ordered list of changes to this memory
 }
 
 // MemoryWithScore represents a memory with its similarity score
@@ -167,7 +167,7 @@ type MemoryWithScore struct {
 type MemoryRetrieveResult struct {
 	Memories    []*MemoryWithScore `json:"memories"`
 	Query       string             `json:"query"`
-	Threshold   float64            `json:"threshold"`   // Minimum relevance score
+	Threshold   float64            `json:"threshold"`    // Minimum relevance score
 	HasRelevant bool               `json:"has_relevant"` // Whether relevant memories were found
 }
 
@@ -189,11 +189,11 @@ type MemorySummaryResult struct {
 
 // MemoryItem represents a single memory item extracted by LLM
 type MemoryItem struct {
-	Type       MemoryType           `json:"type"`
-	Content    string               `json:"content"`
-	Importance float64              `json:"importance"`
-	Tags       FlexibleStringArray  `json:"tags,omitempty"`
-	Entities   FlexibleStringArray  `json:"entities,omitempty"`
+	Type       MemoryType          `json:"type"`
+	Content    string              `json:"content"`
+	Importance float64             `json:"importance"`
+	Tags       FlexibleStringArray `json:"tags,omitempty"`
+	Entities   FlexibleStringArray `json:"entities,omitempty"`
 }
 
 // MemoryStore defines the interface for memory persistence

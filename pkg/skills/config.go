@@ -8,10 +8,10 @@ import (
 // Config configures the skills module
 type Config struct {
 	Enabled      bool     `json:"enabled"`
-	Paths        []string `json:"paths"`         // Paths to search for skills
-	AutoLoad     bool     `json:"auto_load"`     // Auto-load skills on startup
+	Paths        []string `json:"paths"`     // Paths to search for skills
+	AutoLoad     bool     `json:"auto_load"` // Auto-load skills on startup
 	CacheEnabled bool     `json:"cache_enabled"`
-	DBPath       string   `json:"db_path"`       // Path to skills database
+	DBPath       string   `json:"db_path"` // Path to skills database
 	LogLevel     string   `json:"log_level"`
 
 	// Security
@@ -19,8 +19,8 @@ type Config struct {
 	RequireConfirmation   bool `json:"require_confirmation"`
 
 	// Integration
-	EnableRAGIntegration  bool `json:"enable_rag_integration"`
-	EnableMCPIntegration  bool `json:"enable_mcp_integration"`
+	EnableRAGIntegration   bool `json:"enable_rag_integration"`
+	EnableMCPIntegration   bool `json:"enable_mcp_integration"`
 	EnableAgentIntegration bool `json:"enable_agent_integration"`
 }
 
@@ -31,16 +31,16 @@ func DefaultConfig() *Config {
 	userSkills := filepath.Join(homeDir, ".agentgo", "skills")
 
 	return &Config{
-		Enabled:               true,
-		Paths:                 []string{".skills", localSkills, userSkills},
-		AutoLoad:              true,
-		CacheEnabled:          true,
-		DBPath:                filepath.Join(homeDir, ".agentgo", "data", "skills.db"),
-		LogLevel:              "info",
-		AllowCommandInjection: false,
-		RequireConfirmation:   true,
-		EnableRAGIntegration:  true,
-		EnableMCPIntegration:  true,
+		Enabled:                true,
+		Paths:                  []string{".skills", localSkills, userSkills},
+		AutoLoad:               true,
+		CacheEnabled:           true,
+		DBPath:                 filepath.Join(homeDir, ".agentgo", "data", "skills.db"),
+		LogLevel:               "info",
+		AllowCommandInjection:  false,
+		RequireConfirmation:    true,
+		EnableRAGIntegration:   true,
+		EnableMCPIntegration:   true,
 		EnableAgentIntegration: true,
 	}
 }

@@ -73,14 +73,14 @@ func DefaultConfig() Config {
 		DefaultRuntime: RuntimeGoja, // Start with Goja as it's simpler
 		DefaultTimeout: 30 * time.Second,
 		MaxMemoryMB:    64,
-		MaxCodeSize:    64 * 1024,    // 64KB
-		MaxOutputSize:  1024 * 1024,  // 1MB
+		MaxCodeSize:    64 * 1024,   // 64KB
+		MaxOutputSize:  1024 * 1024, // 1MB
 		MaxToolCalls:   20,
 		GRPC: GRPCConfig{
-			Enabled:         false,
-			Address:         "unix:///tmp/ptc.sock",
-			MaxRecvMsgSize:  4 * 1024 * 1024, // 4MB
-			MaxSendMsgSize:  4 * 1024 * 1024, // 4MB
+			Enabled:        false,
+			Address:        "unix:///tmp/ptc.sock",
+			MaxRecvMsgSize: 4 * 1024 * 1024, // 4MB
+			MaxSendMsgSize: 4 * 1024 * 1024, // 4MB
 		},
 		Security: SecurityConfig{
 			AllowFileAccess: false,

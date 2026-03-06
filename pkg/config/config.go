@@ -15,19 +15,19 @@ import (
 )
 
 type Config struct {
-	Home          string          `mapstructure:"home"`
-	Debug         bool            `mapstructure:"debug"`
-	Server        ServerConfig    `mapstructure:"server"`
-	LLMPool       pool.PoolConfig `mapstructure:"llm_pool"`
-	EmbeddingPool pool.PoolConfig `mapstructure:"embedding_pool"`
-	Cortexdb      CortexdbConfig  `mapstructure:"cortexdb"`
-	Chunker       ChunkerConfig   `mapstructure:"chunker"`
-	Ingest        IngestConfig    `mapstructure:"ingest"`
-	MCP           mcp.Config      `mapstructure:"mcp"`
+	Home          string             `mapstructure:"home"`
+	Debug         bool               `mapstructure:"debug"`
+	Server        ServerConfig       `mapstructure:"server"`
+	LLMPool       pool.PoolConfig    `mapstructure:"llm_pool"`
+	EmbeddingPool pool.PoolConfig    `mapstructure:"embedding_pool"`
+	Cortexdb      CortexdbConfig     `mapstructure:"cortexdb"`
+	Chunker       ChunkerConfig      `mapstructure:"chunker"`
+	Ingest        IngestConfig       `mapstructure:"ingest"`
+	MCP           mcp.Config         `mapstructure:"mcp"`
 	VectorStore   *VectorStoreConfig `mapstructure:"vector_store"`
-	Skills        SkillsConfig    `mapstructure:"skills"`
-	Memory        MemoryConfig    `mapstructure:"memory"`
-	GraphRAG      GraphRAGConfig  `mapstructure:"graphrag"`
+	Skills        SkillsConfig       `mapstructure:"skills"`
+	Memory        MemoryConfig       `mapstructure:"memory"`
+	GraphRAG      GraphRAGConfig     `mapstructure:"graphrag"`
 }
 
 // SkillsConfig configures skills paths and behavior
@@ -77,28 +77,28 @@ type ChunkerConfig struct {
 
 // MemoryConfig configures the memory system
 type MemoryConfig struct {
-	StoreType   string             `mapstructure:"store_type"` // "file", "vector", "hybrid"
-	MemoryPath  string             `mapstructure:"memory_path"`
-	MinScore    float64            `mapstructure:"min_score"`
-	MaxMemories int                `mapstructure:"max_memories"`
-	Scoring     MemoryScoringConfig    `mapstructure:"scoring"`
+	StoreType   string                  `mapstructure:"store_type"` // "file", "vector", "hybrid"
+	MemoryPath  string                  `mapstructure:"memory_path"`
+	MinScore    float64                 `mapstructure:"min_score"`
+	MaxMemories int                     `mapstructure:"max_memories"`
+	Scoring     MemoryScoringConfig     `mapstructure:"scoring"`
 	NoiseFilter MemoryNoiseFilterConfig `mapstructure:"noise_filter"`
-	Adaptive    MemoryAdaptiveConfig   `mapstructure:"adaptive"`
-	Hybrid      MemoryHybridConfig     `mapstructure:"hybrid"`
+	Adaptive    MemoryAdaptiveConfig    `mapstructure:"adaptive"`
+	Hybrid      MemoryHybridConfig      `mapstructure:"hybrid"`
 }
 
 // MemoryScoringConfig configures memory scoring
 type MemoryScoringConfig struct {
-	Enabled          bool    `mapstructure:"enabled"`
-	RecencyWeight    float64 `mapstructure:"recency_weight"`
-	HalfLifeDays     float64 `mapstructure:"half_life_days"`
-	EnableRecency    bool    `mapstructure:"enable_recency"`
-	ImportanceWeight float64 `mapstructure:"importance_weight"`
-	MinImportance    float64 `mapstructure:"min_importance"`
-	EnableImportance bool    `mapstructure:"enable_importance"`
-	LengthNormWeight float64 `mapstructure:"length_norm_weight"`
-	AnchorLength     int     `mapstructure:"anchor_length"`
-	EnableLengthNorm bool    `mapstructure:"enable_length_norm"`
+	Enabled           bool    `mapstructure:"enabled"`
+	RecencyWeight     float64 `mapstructure:"recency_weight"`
+	HalfLifeDays      float64 `mapstructure:"half_life_days"`
+	EnableRecency     bool    `mapstructure:"enable_recency"`
+	ImportanceWeight  float64 `mapstructure:"importance_weight"`
+	MinImportance     float64 `mapstructure:"min_importance"`
+	EnableImportance  bool    `mapstructure:"enable_importance"`
+	LengthNormWeight  float64 `mapstructure:"length_norm_weight"`
+	AnchorLength      int     `mapstructure:"anchor_length"`
+	EnableLengthNorm  bool    `mapstructure:"enable_length_norm"`
 	AccessBoostWeight float64 `mapstructure:"access_boost_weight"`
 	EnableAccessBoost bool    `mapstructure:"enable_access_boost"`
 }
@@ -114,22 +114,22 @@ type MemoryNoiseFilterConfig struct {
 
 // MemoryAdaptiveConfig configures adaptive retrieval
 type MemoryAdaptiveConfig struct {
-	Enabled        bool    `mapstructure:"enabled"`
-	MinQueryLength int     `mapstructure:"min_query_length"`
+	Enabled        bool `mapstructure:"enabled"`
+	MinQueryLength int  `mapstructure:"min_query_length"`
 }
 
 // MemoryHybridConfig configures hybrid search (BM25 + Vector)
 type MemoryHybridConfig struct {
-	Enabled  bool    `mapstructure:"enabled"`
-	RRF_K    float64 `mapstructure:"rrf_k"`    // RRF fusion parameter
+	Enabled      bool    `mapstructure:"enabled"`
+	RRF_K        float64 `mapstructure:"rrf_k"` // RRF fusion parameter
 	VectorWeight float64 `mapstructure:"vector_weight"`
 	BM25Weight   float64 `mapstructure:"bm25_weight"`
 }
 
 // GraphRAGConfig configures GraphRAG (Knowledge Graph + RAG)
 type GraphRAGConfig struct {
-	Enabled                   bool     `mapstructure:"enabled"`
-	EntityTypes               []string `mapstructure:"entity_types"`
+	Enabled                  bool     `mapstructure:"enabled"`
+	EntityTypes              []string `mapstructure:"entity_types"`
 	MaxConcurrentExtractions int      `mapstructure:"max_concurrent_extractions"`
 	MinEntityLength          int      `mapstructure:"min_entity_length"`
 	CommunityDetection       bool     `mapstructure:"community_detection"`
@@ -467,9 +467,9 @@ func (c *Config) SkillsPaths() []string {
 
 	// 2. Add default paths
 	defaults := []string{
-		".skills",                              // Project root
-		filepath.Join(".agentgo", "skills"),       // Project .agentgo
-		c.SkillsDir(),                          // Home/skills
+		".skills",                           // Project root
+		filepath.Join(".agentgo", "skills"), // Project .agentgo
+		c.SkillsDir(),                       // Home/skills
 	}
 	for _, p := range defaults {
 		expanded := expandHomePath(p)

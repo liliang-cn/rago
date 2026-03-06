@@ -46,10 +46,10 @@ type Step struct {
 	Status      string                 `json:"status"`
 	Result      interface{}            `json:"result,omitempty"`
 	Error       string                 `json:"error,omitempty"`
-	DependsOn   []string               `json:"depends_on,omitempty"` // IDs of steps this step depends on
-	OutputFile  string                 `json:"output_file,omitempty"`  // Write result to this file
+	DependsOn   []string               `json:"depends_on,omitempty"`  // IDs of steps this step depends on
+	OutputFile  string                 `json:"output_file,omitempty"` // Write result to this file
 	StartedAt   *time.Time             `json:"started_at,omitempty"`
-	CompletedAt *time.Time            `json:"completed_at,omitempty"`
+	CompletedAt *time.Time             `json:"completed_at,omitempty"`
 }
 
 // Plan represents an agent's execution plan for a goal
@@ -67,37 +67,37 @@ type Plan struct {
 
 // ExecutionResult represents the result of an agent execution
 type ExecutionResult struct {
-	PlanID      string                 `json:"plan_id"`
-	SessionID   string                 `json:"session_id"`
-	Success     bool                   `json:"success"`
-	StepsTotal  int                    `json:"steps_total"`
-	StepsDone   int                    `json:"steps_done"`
-	StepsFailed int                    `json:"steps_failed"`
-	FinalResult interface{}            `json:"final_result,omitempty"`
-	Sources     []domain.Chunk         `json:"sources,omitempty"`            // RAG sources when EnableRAG is true
-	Memories    []*domain.MemoryWithScore `json:"memories,omitempty"`         // Retrieved long-term memories
-	MemoryLogic string                 `json:"memory_logic,omitempty"`       // IndexNavigator's reasoning for memory selection
-	Error       string                 `json:"error,omitempty"`
-	Duration    string                 `json:"duration"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	PlanID      string                    `json:"plan_id"`
+	SessionID   string                    `json:"session_id"`
+	Success     bool                      `json:"success"`
+	StepsTotal  int                       `json:"steps_total"`
+	StepsDone   int                       `json:"steps_done"`
+	StepsFailed int                       `json:"steps_failed"`
+	FinalResult interface{}               `json:"final_result,omitempty"`
+	Sources     []domain.Chunk            `json:"sources,omitempty"`      // RAG sources when EnableRAG is true
+	Memories    []*domain.MemoryWithScore `json:"memories,omitempty"`     // Retrieved long-term memories
+	MemoryLogic string                    `json:"memory_logic,omitempty"` // IndexNavigator's reasoning for memory selection
+	Error       string                    `json:"error,omitempty"`
+	Duration    string                    `json:"duration"`
+	Metadata    map[string]interface{}    `json:"metadata,omitempty"`
 	// PTCResult contains PTC execution details when PTC mode is active.
 	PTCResult *PTCResult `json:"ptc_result,omitempty"`
 }
 
 // AgentInfo contains information about an agent's status and configuration
 type AgentInfo struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Status       string   `json:"status"` // "running", "idle"
-	Model        string   `json:"model,omitempty"`
-	BaseURL      string   `json:"base_url,omitempty"`
-	Debug        bool     `json:"debug"`
-	RAGEnabled   bool     `json:"rag_enabled"`
-	PTCEnabled   bool     `json:"ptc_enabled"`
-	MemoryEnabled bool    `json:"memory_enabled"`
-	MCPEnabled   bool     `json:"mcp_enabled"`
-	SkillsEnabled bool    `json:"skills_enabled"`
-	Tools        []string `json:"tools,omitempty"`
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	Status        string   `json:"status"` // "running", "idle"
+	Model         string   `json:"model,omitempty"`
+	BaseURL       string   `json:"base_url,omitempty"`
+	Debug         bool     `json:"debug"`
+	RAGEnabled    bool     `json:"rag_enabled"`
+	PTCEnabled    bool     `json:"ptc_enabled"`
+	MemoryEnabled bool     `json:"memory_enabled"`
+	MCPEnabled    bool     `json:"mcp_enabled"`
+	SkillsEnabled bool     `json:"skills_enabled"`
+	Tools         []string `json:"tools,omitempty"`
 }
 
 // Text returns the agent's text response as a plain string.

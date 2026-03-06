@@ -212,7 +212,7 @@ func (p *OpenAILLMProvider) Generate(ctx context.Context, prompt string, opts *d
 	// Get content, or reasoning_content if content is empty (for models like Qwen with thinking mode)
 	msg := completion.Choices[0].Message
 	result := msg.Content
-	
+
 	// If content is empty, try ExtraFields for reasoning_content (LMStudio) or reasoning (Ollama)
 	if result == "" {
 		// Try reasoning_content first (LMStudio)
@@ -456,7 +456,7 @@ func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []doma
 				var args map[string]interface{}
 				// In streaming, arguments arrive in fragments
 				_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
-				
+
 				delta.ToolCalls[i] = domain.ToolCall{
 					ID:   tc.ID,
 					Type: "function",
@@ -535,7 +535,7 @@ func (p *OpenAILLMProvider) GenerateStructured(ctx context.Context, prompt strin
 
 	msg := resp.Choices[0].Message
 	rawJSON := msg.Content
-	
+
 	// If content is empty, try ExtraFields for reasoning_content (LMStudio) or reasoning (Ollama)
 	if rawJSON == "" {
 		if reasoning, ok := msg.JSON.ExtraFields["reasoning_content"]; ok {
@@ -601,7 +601,7 @@ func (p *OpenAILLMProvider) generateStructuredFallback(ctx context.Context, prom
 
 	msg := resp.Choices[0].Message
 	rawText := msg.Content
-	
+
 	// If content is empty, try ExtraFields for reasoning_content (LMStudio) or reasoning (Ollama)
 	if rawText == "" {
 		if reasoning, ok := msg.JSON.ExtraFields["reasoning_content"]; ok {
@@ -638,7 +638,7 @@ func extractJSON(s string) string {
 			}
 		}
 	}
-	
+
 	// Strip <think>...</think> tags if they surround the whole response
 	if idx := strings.Index(s, "</think>"); idx != -1 {
 		s = s[idx+len("</think>"):]
@@ -651,7 +651,7 @@ func extractJSON(s string) string {
 			return s[i:]
 		}
 	}
-	
+
 	// If no JSON start found, return empty string to avoid unmarshaling errors
 	// starting with < or other non-JSON characters.
 	return ""

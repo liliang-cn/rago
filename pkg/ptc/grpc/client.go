@@ -113,9 +113,9 @@ func (c *Client) Execute(ctx context.Context, req *ptc.ExecutionRequest) (*ptc.E
 	// Parse tool calls
 	for _, tc := range resp.ToolCalls {
 		toolCall := ptc.ToolCallRecord{
-			ToolName:  tc.ToolName,
-			Error:     tc.Error,
-			Duration:  time.Duration(tc.DurationMs) * time.Millisecond,
+			ToolName: tc.ToolName,
+			Error:    tc.Error,
+			Duration: time.Duration(tc.DurationMs) * time.Millisecond,
 		}
 
 		if tc.Arguments != "" {

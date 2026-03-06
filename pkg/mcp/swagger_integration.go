@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
-	
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -26,16 +26,16 @@ func NewSwaggerManager() *SwaggerManager {
 func (m *SwaggerManager) AddServer(name string, config *SwaggerConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if _, exists := m.servers[name]; exists {
 		return fmt.Errorf("server %s already exists", name)
 	}
-	
+
 	server, err := NewSwaggerServer(config)
 	if err != nil {
 		return fmt.Errorf("failed to create server %s: %w", name, err)
 	}
-	
+
 	m.servers[name] = server
 	return nil
 }
@@ -44,16 +44,16 @@ func (m *SwaggerManager) AddServer(name string, config *SwaggerConfig) error {
 func (m *SwaggerManager) RemoveServer(name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	server, exists := m.servers[name]
 	if !exists {
 		return fmt.Errorf("server %s not found", name)
 	}
-	
+
 	if err := server.Stop(); err != nil {
 		return fmt.Errorf("failed to stop server %s: %w", name, err)
 	}
-	
+
 	delete(m.servers, name)
 	return nil
 }
@@ -62,12 +62,12 @@ func (m *SwaggerManager) RemoveServer(name string) error {
 func (m *SwaggerManager) GetServer(name string) (*SwaggerServer, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	server, exists := m.servers[name]
 	if !exists {
 		return nil, fmt.Errorf("server %s not found", name)
 	}
-	
+
 	return server, nil
 }
 
@@ -75,12 +75,12 @@ func (m *SwaggerManager) GetServer(name string) (*SwaggerServer, error) {
 func (m *SwaggerManager) ListServers() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	names := make([]string, 0, len(m.servers))
 	for name := range m.servers {
 		names = append(names, name)
 	}
-	
+
 	return names
 }
 
@@ -88,13 +88,13 @@ func (m *SwaggerManager) ListServers() []string {
 func (m *SwaggerManager) StartAll(ctx context.Context) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	for name, server := range m.servers {
 		if err := server.Start(ctx); err != nil {
 			return fmt.Errorf("failed to start server %s: %w", name, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -102,18 +102,18 @@ func (m *SwaggerManager) StartAll(ctx context.Context) error {
 func (m *SwaggerManager) StopAll() error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	var errs []error
 	for name, server := range m.servers {
 		if err := server.Stop(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to stop server %s: %w", name, err))
 		}
 	}
-	
+
 	if len(errs) > 0 {
 		return fmt.Errorf("errors stopping servers: %v", errs)
 	}
-	
+
 	return nil
 }
 
@@ -121,15 +121,15 @@ func (m *SwaggerManager) StopAll() error {
 func (m *SwaggerManager) GetAllTools() (map[string][]*mcp.Tool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	allTools := make(map[string][]*mcp.Tool)
-	
+
 	for name, server := range m.servers {
 		tools, err := server.GetTools()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get tools from server %s: %w", name, err)
 		}
-		
+
 		// Convert to internal Tool type
 		internalTools := make([]*mcp.Tool, 0, len(tools))
 		for _, tool := range tools {
@@ -140,10 +140,10 @@ func (m *SwaggerManager) GetAllTools() (map[string][]*mcp.Tool, error) {
 			}
 			internalTools = append(internalTools, internalTool)
 		}
-		
+
 		allTools[name] = internalTools
 	}
-	
+
 	return allTools, nil
 }
 
@@ -153,7 +153,7 @@ func (m *SwaggerManager) CallTool(ctx context.Context, serverName, toolName stri
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return server.CallTool(ctx, toolName, args)
 }
 
@@ -179,7 +179,7 @@ func (si *SwaggerIntegration) LoadSwaggerConfigs(configs map[string]*SwaggerConf
 			return fmt.Errorf("failed to add swagger server %s: %w", name, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -190,7 +190,7 @@ func (si *SwaggerIntegration) RegisterWithService() error {
 	if err != nil {
 		return fmt.Errorf("failed to get swagger tools: %w", err)
 	}
-	
+
 	// Register each tool with the MCP service
 	// Note: The Service type doesn't have RegisterToolHandler method
 	// This would need to be implemented based on the actual MCP service API
@@ -200,18 +200,18 @@ func (si *SwaggerIntegration) RegisterWithService() error {
 			_ = serverName
 			_ = tool
 			/*
-			si.service.RegisterToolHandler(tool.Name, func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-				// Extract the actual tool name (remove server prefix)
-				actualToolName := tool.Name
-				if len(serverName) > 0 {
-					actualToolName = actualToolName[len(serverName)+1:] // Remove "servername." prefix
-				}
-				return si.manager.CallTool(ctx, serverName, actualToolName, args)
-			})
+				si.service.RegisterToolHandler(tool.Name, func(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+					// Extract the actual tool name (remove server prefix)
+					actualToolName := tool.Name
+					if len(serverName) > 0 {
+						actualToolName = actualToolName[len(serverName)+1:] // Remove "servername." prefix
+					}
+					return si.manager.CallTool(ctx, serverName, actualToolName, args)
+				})
 			*/
 		}
 	}
-	
+
 	return nil
 }
 

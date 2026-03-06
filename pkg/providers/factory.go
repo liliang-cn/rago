@@ -182,12 +182,12 @@ func GetProviderConfigByName(providers map[string]interface{}, name string) (int
 	if providers == nil {
 		return nil, fmt.Errorf("no providers configured")
 	}
-	
+
 	config, exists := providers[name]
 	if !exists {
 		return nil, fmt.Errorf("provider %s not found", name)
 	}
-	
+
 	return config, nil
 }
 
@@ -197,17 +197,17 @@ func DetectProviderType(config interface{}) (domain.ProviderType, error) {
 	if !ok {
 		return "", fmt.Errorf("invalid provider configuration format")
 	}
-	
+
 	typeStr, exists := configMap["type"]
 	if !exists {
 		return "", fmt.Errorf("provider type not specified in configuration")
 	}
-	
+
 	typeString, ok := typeStr.(string)
 	if !ok {
 		return "", fmt.Errorf("provider type must be a string")
 	}
-	
+
 	switch typeString {
 	case "openai":
 		return domain.ProviderOpenAI, nil
@@ -220,11 +220,11 @@ func DetectProviderType(config interface{}) (domain.ProviderType, error) {
 func mapToStruct(m map[string]interface{}, s interface{}) error {
 	structValue := reflect.ValueOf(s).Elem()
 	structType := structValue.Type()
-	
+
 	for i := 0; i < structType.NumField(); i++ {
 		field := structType.Field(i)
 		fieldValue := structValue.Field(i)
-		
+
 		// Get the mapstructure tag or use field name
 		tagName := field.Tag.Get("mapstructure")
 		if tagName == "" || tagName == ",squash" {
@@ -234,18 +234,18 @@ func mapToStruct(m map[string]interface{}, s interface{}) error {
 			parts := strings.Split(tagName, ",")
 			tagName = parts[0]
 		}
-		
+
 		// Skip if field is not settable
 		if !fieldValue.CanSet() {
 			continue
 		}
-		
+
 		// Get value from map
 		value, exists := m[tagName]
 		if !exists {
 			continue
 		}
-		
+
 		// Handle different types
 		switch fieldValue.Kind() {
 		case reflect.String:
@@ -281,7 +281,7 @@ func mapToStruct(m map[string]interface{}, s interface{}) error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 

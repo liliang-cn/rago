@@ -33,7 +33,7 @@ func TestScriptExecutorValidate(t *testing.T) {
 		name       string
 		parameters map[string]string
 		wantErr    bool
-		errMsg    string
+		errMsg     string
 	}{
 		{
 			name:       "Valid inline command",
@@ -336,9 +336,9 @@ func TestScriptExecutorWithStderr(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, output.Output, "stdout message")
 	// Stderr might be combined with stdout or in Error field
-	assert.True(t, 
-		strings.Contains(output.Output, "stderr message") || 
-		strings.Contains(output.Error, "stderr message"),
+	assert.True(t,
+		strings.Contains(output.Output, "stderr message") ||
+			strings.Contains(output.Error, "stderr message"),
 		"stderr message should be in output or error")
 }
 
@@ -367,14 +367,14 @@ func TestScriptExecutorTimeoutExceeded(t *testing.T) {
 func TestScriptExecutorContextCancellation(t *testing.T) {
 	executor := NewScriptExecutor(nil)
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Cancel immediately
 	cancel()
-	
+
 	params := map[string]string{
 		"script": "echo test",
 	}
-	
+
 	result, err := executor.Execute(ctx, params)
 	// Should still work even with cancelled context for short commands
 	require.NoError(t, err)

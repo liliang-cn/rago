@@ -120,7 +120,7 @@ func main() {
 		} else {
 			fmt.Printf("⚠️ PTC not used. LLM Response:\n%s\n", result.LLMResponse)
 		}
-		
+
 		fmt.Println("-------------------------------------------")
 	}
 

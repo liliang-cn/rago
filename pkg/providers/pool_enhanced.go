@@ -98,7 +98,7 @@ func (pm *ProviderMetrics) RecordRequest(success bool, latencyMs int64) {
 
 	// Update latency metrics
 	atomic.AddInt64(&pm.TotalLatency, latencyMs)
-	
+
 	// Store in circular buffer
 	pm.latencyHistory[pm.historyIndex] = latencyMs
 	pm.historyIndex = (pm.historyIndex + 1) % len(pm.latencyHistory)
@@ -121,7 +121,7 @@ func (pm *ProviderMetrics) calculatePercentiles() {
 			sorted = append(sorted, lat)
 		}
 	}
-	
+
 	if len(sorted) == 0 {
 		return
 	}
@@ -136,9 +136,9 @@ func (pm *ProviderMetrics) calculatePercentiles() {
 	}
 
 	// Calculate percentiles
-	p95Index := int(math.Ceil(float64(len(sorted)) * 0.95)) - 1
-	p99Index := int(math.Ceil(float64(len(sorted)) * 0.99)) - 1
-	
+	p95Index := int(math.Ceil(float64(len(sorted))*0.95)) - 1
+	p99Index := int(math.Ceil(float64(len(sorted))*0.99)) - 1
+
 	if p95Index >= 0 && p95Index < len(sorted) {
 		pm.P95Latency = float64(sorted[p95Index])
 	}
@@ -151,7 +151,7 @@ func (pm *ProviderMetrics) calculatePercentiles() {
 func (pm *ProviderMetrics) GetSuccessRate() float64 {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
-	
+
 	if pm.TotalRequests == 0 {
 		return 1.0 // Assume 100% for new providers
 	}
@@ -222,13 +222,13 @@ func (cb *CircuitBreaker) CanRequest() bool {
 // EnhancedLLMPoolConfig extends pool configuration
 type EnhancedLLMPoolConfig struct {
 	LLMPoolConfig
-	EnableMetrics         bool
-	EnableCircuitBreaker  bool
-	CircuitFailThreshold  int
-	CircuitRecoveryTime   time.Duration
-	ProviderWeights       map[string]int
-	ProviderCosts         map[string]float64
-	MaxConcurrencyLimits  map[string]int32
+	EnableMetrics        bool
+	EnableCircuitBreaker bool
+	CircuitFailThreshold int
+	CircuitRecoveryTime  time.Duration
+	ProviderWeights      map[string]int
+	ProviderCosts        map[string]float64
+	MaxConcurrencyLimits map[string]int32
 }
 
 // NewEnhancedLLMPool creates an enhanced LLM pool
@@ -250,9 +250,9 @@ func NewEnhancedLLMPool(providers map[string]domain.LLMProvider, config Enhanced
 	for _, baseStatus := range basePool.providers {
 		enhanced := &EnhancedProviderStatus{
 			ProviderStatus: baseStatus,
-			Weight:        1, // Default weight
-			Cost:          0.001, // Default cost per 1000 tokens
-			MaxConcurrency: 10, // Default max concurrent requests
+			Weight:         1,     // Default weight
+			Cost:           0.001, // Default cost per 1000 tokens
+			MaxConcurrency: 10,    // Default max concurrent requests
 		}
 
 		// Apply custom weights
@@ -333,13 +333,13 @@ func (p *EnhancedLLMPool) selectEnhancedProvider(strategy LoadBalancingStrategy)
 	switch strategy {
 	case WeightedRoundRobinStrategy:
 		return p.selectWeightedRoundRobin(availableProviders), nil
-		
+
 	case LatencyBasedStrategy:
 		return p.selectLatencyBased(availableProviders), nil
-		
+
 	case CostOptimizedStrategy:
 		return p.selectCostOptimized(availableProviders), nil
-		
+
 	default:
 		// Fall back to base selection
 		baseProvider, err := p.LLMPool.selectProvider()
@@ -451,10 +451,10 @@ func (p *EnhancedLLMPool) selectCostOptimized(providers []*EnhancedProviderStatu
 // GenerateWithMetrics wraps Generate with metrics collection
 func (p *EnhancedLLMPool) GenerateWithMetrics(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
 	start := time.Now()
-	
+
 	var response string
 	var selectedProvider *EnhancedProviderStatus
-	
+
 	err := p.withRetry(ctx, func(provider *ProviderStatus) error {
 		// Find enhanced provider
 		for _, ep := range p.enhancedProviders {
@@ -463,7 +463,7 @@ func (p *EnhancedLLMPool) GenerateWithMetrics(ctx context.Context, prompt string
 				break
 			}
 		}
-		
+
 		if selectedProvider == nil {
 			return fmt.Errorf("provider not found")
 		}
@@ -471,7 +471,7 @@ func (p *EnhancedLLMPool) GenerateWithMetrics(ctx context.Context, prompt string
 		// Execute request
 		var err error
 		response, err = provider.Provider.Generate(ctx, prompt, opts)
-		
+
 		// Record metrics
 		if p.metricsEnabled && selectedProvider.Metrics != nil {
 			latency := time.Since(start).Milliseconds()
@@ -496,20 +496,20 @@ func (p *EnhancedLLMPool) GenerateWithMetrics(ctx context.Context, prompt string
 // GetMetrics returns current metrics for all providers
 func (p *EnhancedLLMPool) GetMetrics() map[string]*ProviderMetrics {
 	metrics := make(map[string]*ProviderMetrics)
-	
+
 	for _, provider := range p.enhancedProviders {
 		if provider.Metrics != nil {
 			metrics[provider.Name] = provider.Metrics
 		}
 	}
-	
+
 	return metrics
 }
 
 // GetCircuitStates returns circuit breaker states
 func (p *EnhancedLLMPool) GetCircuitStates() map[string]CircuitBreakerState {
 	states := make(map[string]CircuitBreakerState)
-	
+
 	for _, provider := range p.enhancedProviders {
 		if provider.CircuitBreaker != nil {
 			provider.CircuitBreaker.mu.RLock()
@@ -517,6 +517,6 @@ func (p *EnhancedLLMPool) GetCircuitStates() map[string]CircuitBreakerState {
 			provider.CircuitBreaker.mu.RUnlock()
 		}
 	}
-	
+
 	return states
 }

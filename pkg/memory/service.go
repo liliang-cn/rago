@@ -289,7 +289,7 @@ func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStore
 
 	var summary domain.MemorySummaryResult
 	if err := json.Unmarshal([]byte(result.Raw), &summary); err != nil {
-		// Only log if there's actual content that failed to parse, 
+		// Only log if there's actual content that failed to parse,
 		// but since we checked result.Valid, this is unlikely.
 		return nil
 	}
@@ -593,7 +593,7 @@ func (s *Service) buildSummaryPrompt(req *domain.MemoryStoreRequest) string {
 // MemoryEvolutionNode represents one step in a memory's evolution path.
 type MemoryEvolutionNode struct {
 	Memory     *domain.Memory         `json:"memory"`
-	Children   []*MemoryEvolutionNode `json:"children,omitempty"`  // memories that supersede this one
+	Children   []*MemoryEvolutionNode `json:"children,omitempty"`    // memories that supersede this one
 	EvidenceOf *domain.Memory         `json:"evidence_of,omitempty"` // observation this is evidence for
 }
 

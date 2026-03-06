@@ -11,17 +11,17 @@ import (
 	"github.com/liliang-cn/agent-go/cmd/agentgo-ui/internal/handler"
 	"github.com/liliang-cn/agent-go/pkg/agent"
 	"github.com/liliang-cn/agent-go/pkg/config"
+	agentgolog "github.com/liliang-cn/agent-go/pkg/log"
 	"github.com/liliang-cn/agent-go/pkg/mcp"
 	"github.com/liliang-cn/agent-go/pkg/memory"
 	"github.com/liliang-cn/agent-go/pkg/rag"
-	"github.com/liliang-cn/agent-go/pkg/store"
 	"github.com/liliang-cn/agent-go/pkg/services"
 	"github.com/liliang-cn/agent-go/pkg/skills"
-	agentgolog "github.com/liliang-cn/agent-go/pkg/log"
+	"github.com/liliang-cn/agent-go/pkg/store"
 	"github.com/spf13/cobra"
 )
 
-//go:embed all:dist
+//go:embed dist
 var staticFS embed.FS
 
 var (

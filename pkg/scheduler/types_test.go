@@ -29,8 +29,8 @@ func TestTaskType(t *testing.T) {
 
 func TestTaskStatus(t *testing.T) {
 	tests := []struct {
-		name   string
-		status TaskStatus
+		name     string
+		status   TaskStatus
 		expected string
 	}{
 		{"Pending status", TaskStatusPending, "pending"},

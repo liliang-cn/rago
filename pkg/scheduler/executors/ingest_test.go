@@ -31,7 +31,7 @@ func TestIngestExecutorValidate(t *testing.T) {
 		name       string
 		parameters map[string]string
 		wantErr    bool
-		errMsg    string
+		errMsg     string
 	}{
 		{
 			name:       "Valid path",
@@ -106,18 +106,18 @@ func TestIngestExecutorParameterParsing(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name               string
-		parameters         map[string]string
-		expectedSource     string
-		expectedChunkSize  int
-		expectedOverlap    int
+		name              string
+		parameters        map[string]string
+		expectedSource    string
+		expectedChunkSize int
+		expectedOverlap   int
 	}{
 		{
-			name:               "Path only",
-			parameters:         map[string]string{"path": "/test.txt"},
-			expectedSource:     "path",
-			expectedChunkSize:  500,
-			expectedOverlap:    50,
+			name:              "Path only",
+			parameters:        map[string]string{"path": "/test.txt"},
+			expectedSource:    "path",
+			expectedChunkSize: 500,
+			expectedOverlap:   50,
 		},
 		{
 			name: "Path with recursive",
@@ -125,9 +125,9 @@ func TestIngestExecutorParameterParsing(t *testing.T) {
 				"path":      "/test/dir",
 				"recursive": "true",
 			},
-			expectedSource:     "path",
-			expectedChunkSize:  500,
-			expectedOverlap:    50,
+			expectedSource:    "path",
+			expectedChunkSize: 500,
+			expectedOverlap:   50,
 		},
 	}
 
@@ -150,7 +150,7 @@ func TestIngestExecutorParameterParsing(t *testing.T) {
 func TestIngestExecutorSetProcessor(t *testing.T) {
 	executor := NewIngestExecutor(nil)
 	assert.Nil(t, executor.processor)
-	
+
 	// We can't easily create a real processor.Service, but we can test the setter
 	// This mainly tests that the method exists and is callable
 	executor.SetProcessor(nil)

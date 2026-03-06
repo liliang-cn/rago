@@ -36,6 +36,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Chat failed: %v", err)
 	}
-	
+
 	fmt.Printf("User: Hi\nAgent: %s\n", resp.Text())
 }

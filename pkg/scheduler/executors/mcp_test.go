@@ -34,7 +34,7 @@ func TestMCPExecutorValidate(t *testing.T) {
 		name       string
 		parameters map[string]string
 		wantErr    bool
-		errMsg    string
+		errMsg     string
 	}{
 		{
 			name:       "Valid with tool and prompt",
@@ -118,17 +118,17 @@ func TestMCPExecutorExecuteWithoutServices(t *testing.T) {
 
 func TestMCPExecutorSetters(t *testing.T) {
 	executor := NewMCPExecutor(nil)
-	
+
 	// Test SetMCPClient
 	assert.Nil(t, executor.mcpClient)
 	executor.SetMCPClient(nil)
 	assert.Nil(t, executor.mcpClient)
-	
+
 	// Test SetMCPToolManager
 	assert.Nil(t, executor.mcpToolManager)
 	executor.SetMCPToolManager(nil)
 	assert.Nil(t, executor.mcpToolManager)
-	
+
 	// Test SetLLMService
 	assert.Nil(t, executor.llmService)
 	executor.SetLLMService(nil)
@@ -181,11 +181,11 @@ func TestGetToolNames(t *testing.T) {
 	// Test nil map
 	names := getToolNames(nil)
 	assert.Empty(t, names)
-	
+
 	// Test empty map
 	names = getToolNames(map[string]*mcp.MCPToolWrapper{})
 	assert.Empty(t, names)
-	
+
 	// Test with tools
 	tools := map[string]*mcp.MCPToolWrapper{
 		"tool1": {},
@@ -257,8 +257,8 @@ func TestMCPExecutorParameterExtraction(t *testing.T) {
 			expectedPromptCall: true,
 		},
 		{
-			name: "Empty parameters (uses defaults)",
-			parameters: map[string]string{},
+			name:               "Empty parameters (uses defaults)",
+			parameters:         map[string]string{},
 			expectedToolCall:   false,
 			expectedPromptCall: true,
 		},

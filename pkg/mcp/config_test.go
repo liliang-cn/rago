@@ -272,14 +272,14 @@ func TestOverwrite(t *testing.T) {
 
 func TestServerConfigToSimple(t *testing.T) {
 	cfg := &ServerConfig{
-		Name:        "test",
-		Type:        ServerTypeStdio,
-		Command:     []string{"node", "extra"},
-		Args:        []string{"arg1"},
-		URL:         "",
-		Headers:     nil,
-		WorkingDir:  "/tmp",
-		Env:         map[string]string{"DEBUG": "true"},
+		Name:       "test",
+		Type:       ServerTypeStdio,
+		Command:    []string{"node", "extra"},
+		Args:       []string{"arg1"},
+		URL:        "",
+		Headers:    nil,
+		WorkingDir: "/tmp",
+		Env:        map[string]string{"DEBUG": "true"},
 	}
 
 	simple := ServerConfigToSimple(cfg)

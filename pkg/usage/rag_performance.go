@@ -25,37 +25,37 @@ type RAGPerformanceReport struct {
 	// Time range
 	StartTime time.Time `json:"start_time"`
 	EndTime   time.Time `json:"end_time"`
-	
+
 	// Overall metrics
-	TotalQueries      int     `json:"total_queries"`
-	SuccessRate       float64 `json:"success_rate"`
-	AvgLatency        float64 `json:"avg_latency"`
-	MedianLatency     float64 `json:"median_latency"`
-	P95Latency        float64 `json:"p95_latency"`
-	P99Latency        float64 `json:"p99_latency"`
-	
+	TotalQueries  int     `json:"total_queries"`
+	SuccessRate   float64 `json:"success_rate"`
+	AvgLatency    float64 `json:"avg_latency"`
+	MedianLatency float64 `json:"median_latency"`
+	P95Latency    float64 `json:"p95_latency"`
+	P99Latency    float64 `json:"p99_latency"`
+
 	// Retrieval performance
 	AvgRetrievalTime  float64 `json:"avg_retrieval_time"`
 	AvgGenerationTime float64 `json:"avg_generation_time"`
 	RetrievalRatio    float64 `json:"retrieval_ratio"` // Retrieval time / Total time
-	
+
 	// Quality metrics
-	AvgChunksFound     float64 `json:"avg_chunks_found"`
-	AvgTopScore        float64 `json:"avg_top_score"`
-	AvgSourceUtil      float64 `json:"avg_source_utilization"`
-	AvgConfidence      float64 `json:"avg_confidence"`
-	AvgFactuality      float64 `json:"avg_factuality"`
-	
+	AvgChunksFound float64 `json:"avg_chunks_found"`
+	AvgTopScore    float64 `json:"avg_top_score"`
+	AvgSourceUtil  float64 `json:"avg_source_utilization"`
+	AvgConfidence  float64 `json:"avg_confidence"`
+	AvgFactuality  float64 `json:"avg_factuality"`
+
 	// Performance trends
-	LatencyTrend       Trend `json:"latency_trend"`
-	QualityTrend       Trend `json:"quality_trend"`
-	
+	LatencyTrend Trend `json:"latency_trend"`
+	QualityTrend Trend `json:"quality_trend"`
+
 	// Performance bottlenecks
-	SlowQueries        []QueryPerformanceIssue `json:"slow_queries"`
-	LowQualityQueries  []QueryPerformanceIssue `json:"low_quality_queries"`
-	
+	SlowQueries       []QueryPerformanceIssue `json:"slow_queries"`
+	LowQualityQueries []QueryPerformanceIssue `json:"low_quality_queries"`
+
 	// Recommendations
-	Recommendations    []PerformanceRecommendation `json:"recommendations"`
+	Recommendations []PerformanceRecommendation `json:"recommendations"`
 }
 
 // Trend represents a performance trend (improving, declining, stable)
@@ -69,22 +69,22 @@ const (
 
 // QueryPerformanceIssue represents a performance issue with a specific query
 type QueryPerformanceIssue struct {
-	QueryID     string  `json:"query_id"`
-	Query       string  `json:"query"`
-	Latency     int64   `json:"latency"`
-	Score       float64 `json:"score"`
-	Issue       string  `json:"issue"`
-	Severity    string  `json:"severity"`
-	Timestamp   time.Time `json:"timestamp"`
+	QueryID   string    `json:"query_id"`
+	Query     string    `json:"query"`
+	Latency   int64     `json:"latency"`
+	Score     float64   `json:"score"`
+	Issue     string    `json:"issue"`
+	Severity  string    `json:"severity"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // PerformanceRecommendation represents an optimization recommendation
 type PerformanceRecommendation struct {
-	Type        string  `json:"type"`
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	Impact      string  `json:"impact"`
-	Priority    string  `json:"priority"`
+	Type        string                 `json:"type"`
+	Title       string                 `json:"title"`
+	Description string                 `json:"description"`
+	Impact      string                 `json:"impact"`
+	Priority    string                 `json:"priority"`
 	Metrics     map[string]interface{} `json:"metrics"`
 }
 
@@ -95,44 +95,44 @@ func (a *RAGPerformanceAnalyzer) GeneratePerformanceReport(ctx context.Context, 
 		filter.EndTime = time.Now()
 		filter.StartTime = filter.EndTime.AddDate(0, 0, -7) // Last 7 days
 	}
-	
+
 	// Get all queries in the time range
 	queries, err := a.repository.ListRAGQueries(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch RAG queries: %w", err)
 	}
-	
+
 	if len(queries) == 0 {
 		return &RAGPerformanceReport{
 			StartTime: filter.StartTime,
 			EndTime:   filter.EndTime,
 		}, nil
 	}
-	
+
 	report := &RAGPerformanceReport{
 		StartTime:    filter.StartTime,
 		EndTime:      filter.EndTime,
 		TotalQueries: len(queries),
 	}
-	
+
 	// Calculate overall metrics
 	a.calculateOverallMetrics(report, queries)
-	
+
 	// Calculate quality metrics
 	err = a.calculateQualityMetrics(ctx, report, queries)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate quality metrics: %w", err)
 	}
-	
+
 	// Calculate trends
 	a.calculateTrends(report, queries)
-	
+
 	// Identify performance issues
 	a.identifyPerformanceIssues(report, queries)
-	
+
 	// Generate recommendations
 	a.generateRecommendations(report, queries)
-	
+
 	return report, nil
 }
 
@@ -141,30 +141,30 @@ func (a *RAGPerformanceAnalyzer) calculateOverallMetrics(report *RAGPerformanceR
 	var totalLatency, totalRetrievalTime, totalGenerationTime int64
 	var successCount int
 	var latencies []int64
-	
+
 	for _, query := range queries {
 		totalLatency += query.TotalLatency
 		totalRetrievalTime += query.RetrievalTime
 		totalGenerationTime += query.GenerationTime
 		latencies = append(latencies, query.TotalLatency)
-		
+
 		if query.Success {
 			successCount++
 		}
 	}
-	
+
 	report.SuccessRate = float64(successCount) / float64(len(queries))
 	report.AvgLatency = float64(totalLatency) / float64(len(queries))
 	report.AvgRetrievalTime = float64(totalRetrievalTime) / float64(len(queries))
 	report.AvgGenerationTime = float64(totalGenerationTime) / float64(len(queries))
-	
+
 	if totalLatency > 0 {
 		report.RetrievalRatio = float64(totalRetrievalTime) / float64(totalLatency)
 	}
-	
+
 	// Calculate percentiles
 	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
-	
+
 	if len(latencies) > 0 {
 		report.MedianLatency = float64(latencies[len(latencies)/2])
 		p95Index := int(float64(len(latencies)) * 0.95)
@@ -172,7 +172,7 @@ func (a *RAGPerformanceAnalyzer) calculateOverallMetrics(report *RAGPerformanceR
 			p95Index = len(latencies) - 1
 		}
 		report.P95Latency = float64(latencies[p95Index])
-		
+
 		p99Index := int(float64(len(latencies)) * 0.99)
 		if p99Index >= len(latencies) {
 			p99Index = len(latencies) - 1
@@ -186,16 +186,16 @@ func (a *RAGPerformanceAnalyzer) calculateQualityMetrics(ctx context.Context, re
 	var totalChunks int
 	var totalTopScore, totalSourceUtil, totalConfidence, totalFactuality float64
 	var qualityCount int
-	
+
 	for _, query := range queries {
 		totalChunks += query.ChunksFound
-		
+
 		// Get visualization data for quality metrics
 		viz, err := a.repository.GetRAGVisualization(ctx, query.ID)
 		if err != nil {
 			continue // Skip if visualization data not available
 		}
-		
+
 		// Get top score from chunk hits
 		if len(viz.ChunkHits) > 0 {
 			topScore := viz.ChunkHits[0].Score
@@ -206,25 +206,25 @@ func (a *RAGPerformanceAnalyzer) calculateQualityMetrics(ctx context.Context, re
 			}
 			totalTopScore += topScore
 		}
-		
+
 		// Add quality metrics
 		totalSourceUtil += viz.QualityMetrics.SourceUtilization
 		totalConfidence += viz.QualityMetrics.ConfidenceScore
 		totalFactuality += viz.QualityMetrics.FactualityScore
 		qualityCount++
 	}
-	
+
 	if len(queries) > 0 {
 		report.AvgChunksFound = float64(totalChunks) / float64(len(queries))
 	}
-	
+
 	if qualityCount > 0 {
 		report.AvgTopScore = totalTopScore / float64(qualityCount)
 		report.AvgSourceUtil = totalSourceUtil / float64(qualityCount)
 		report.AvgConfidence = totalConfidence / float64(qualityCount)
 		report.AvgFactuality = totalFactuality / float64(qualityCount)
 	}
-	
+
 	return nil
 }
 
@@ -235,29 +235,29 @@ func (a *RAGPerformanceAnalyzer) calculateTrends(report *RAGPerformanceReport, q
 		report.QualityTrend = TrendStable
 		return
 	}
-	
+
 	// Sort queries by time
 	sort.Slice(queries, func(i, j int) bool {
 		return queries[i].CreatedAt.Before(queries[j].CreatedAt)
 	})
-	
+
 	// Split into first and second half
 	midpoint := len(queries) / 2
 	firstHalf := queries[:midpoint]
 	secondHalf := queries[midpoint:]
-	
+
 	// Calculate average latency for each half
 	var firstAvgLatency, secondAvgLatency float64
 	for _, q := range firstHalf {
 		firstAvgLatency += float64(q.TotalLatency)
 	}
 	firstAvgLatency /= float64(len(firstHalf))
-	
+
 	for _, q := range secondHalf {
 		secondAvgLatency += float64(q.TotalLatency)
 	}
 	secondAvgLatency /= float64(len(secondHalf))
-	
+
 	// Determine latency trend
 	latencyChange := (secondAvgLatency - firstAvgLatency) / firstAvgLatency
 	if math.Abs(latencyChange) < 0.1 { // Less than 10% change
@@ -267,7 +267,7 @@ func (a *RAGPerformanceAnalyzer) calculateTrends(report *RAGPerformanceReport, q
 	} else {
 		report.LatencyTrend = TrendDeclining
 	}
-	
+
 	// Calculate success rate for each half for quality trend
 	firstSuccess := 0
 	for _, q := range firstHalf {
@@ -276,7 +276,7 @@ func (a *RAGPerformanceAnalyzer) calculateTrends(report *RAGPerformanceReport, q
 		}
 	}
 	firstSuccessRate := float64(firstSuccess) / float64(len(firstHalf))
-	
+
 	secondSuccess := 0
 	for _, q := range secondHalf {
 		if q.Success {
@@ -284,7 +284,7 @@ func (a *RAGPerformanceAnalyzer) calculateTrends(report *RAGPerformanceReport, q
 		}
 	}
 	secondSuccessRate := float64(secondSuccess) / float64(len(secondHalf))
-	
+
 	// Determine quality trend
 	qualityChange := secondSuccessRate - firstSuccessRate
 	if math.Abs(qualityChange) < 0.05 { // Less than 5% change
@@ -300,7 +300,7 @@ func (a *RAGPerformanceAnalyzer) calculateTrends(report *RAGPerformanceReport, q
 func (a *RAGPerformanceAnalyzer) identifyPerformanceIssues(report *RAGPerformanceReport, queries []*RAGQueryRecord) {
 	// Find slow queries (P95 threshold)
 	slowThreshold := report.P95Latency
-	
+
 	for _, query := range queries {
 		if float64(query.TotalLatency) > slowThreshold {
 			issue := QueryPerformanceIssue{
@@ -313,7 +313,7 @@ func (a *RAGPerformanceAnalyzer) identifyPerformanceIssues(report *RAGPerformanc
 			}
 			report.SlowQueries = append(report.SlowQueries, issue)
 		}
-		
+
 		// Check for low success rate (failed queries)
 		if !query.Success {
 			issue := QueryPerformanceIssue{
@@ -327,7 +327,7 @@ func (a *RAGPerformanceAnalyzer) identifyPerformanceIssues(report *RAGPerformanc
 			report.LowQualityQueries = append(report.LowQualityQueries, issue)
 		}
 	}
-	
+
 	// Sort issues by severity and timestamp
 	sort.Slice(report.SlowQueries, func(i, j int) bool {
 		if report.SlowQueries[i].Severity != report.SlowQueries[j].Severity {
@@ -335,11 +335,11 @@ func (a *RAGPerformanceAnalyzer) identifyPerformanceIssues(report *RAGPerformanc
 		}
 		return report.SlowQueries[i].Timestamp.After(report.SlowQueries[j].Timestamp)
 	})
-	
+
 	sort.Slice(report.LowQualityQueries, func(i, j int) bool {
 		return report.LowQualityQueries[i].Timestamp.After(report.LowQualityQueries[j].Timestamp)
 	})
-	
+
 	// Limit to top 10 issues
 	if len(report.SlowQueries) > 10 {
 		report.SlowQueries = report.SlowQueries[:10]
@@ -352,7 +352,7 @@ func (a *RAGPerformanceAnalyzer) identifyPerformanceIssues(report *RAGPerformanc
 // generateRecommendations generates performance optimization recommendations
 func (a *RAGPerformanceAnalyzer) generateRecommendations(report *RAGPerformanceReport, queries []*RAGQueryRecord) {
 	recommendations := []PerformanceRecommendation{}
-	
+
 	// High latency recommendation
 	if report.AvgLatency > 5000 { // 5 seconds
 		rec := PerformanceRecommendation{
@@ -368,7 +368,7 @@ func (a *RAGPerformanceAnalyzer) generateRecommendations(report *RAGPerformanceR
 		}
 		recommendations = append(recommendations, rec)
 	}
-	
+
 	// Low success rate recommendation
 	if report.SuccessRate < 0.9 {
 		rec := PerformanceRecommendation{
@@ -384,7 +384,7 @@ func (a *RAGPerformanceAnalyzer) generateRecommendations(report *RAGPerformanceR
 		}
 		recommendations = append(recommendations, rec)
 	}
-	
+
 	// Retrieval optimization recommendation
 	if report.RetrievalRatio > 0.7 {
 		rec := PerformanceRecommendation{
@@ -394,13 +394,13 @@ func (a *RAGPerformanceAnalyzer) generateRecommendations(report *RAGPerformanceR
 			Impact:      "Reduce retrieval time by 20-40%",
 			Priority:    "medium",
 			Metrics: map[string]interface{}{
-				"retrieval_ratio":     report.RetrievalRatio,
-				"avg_retrieval_time":  report.AvgRetrievalTime,
+				"retrieval_ratio":    report.RetrievalRatio,
+				"avg_retrieval_time": report.AvgRetrievalTime,
 			},
 		}
 		recommendations = append(recommendations, rec)
 	}
-	
+
 	// Quality improvement recommendation
 	if report.AvgConfidence < 0.7 {
 		rec := PerformanceRecommendation{
@@ -410,13 +410,13 @@ func (a *RAGPerformanceAnalyzer) generateRecommendations(report *RAGPerformanceR
 			Impact:      "Increase answer confidence and accuracy",
 			Priority:    "medium",
 			Metrics: map[string]interface{}{
-				"avg_confidence": report.AvgConfidence,
+				"avg_confidence":    report.AvgConfidence,
 				"target_confidence": 0.8,
 			},
 		}
 		recommendations = append(recommendations, rec)
 	}
-	
+
 	// Source utilization recommendation
 	if report.AvgSourceUtil < 0.5 {
 		rec := PerformanceRecommendation{
@@ -426,13 +426,13 @@ func (a *RAGPerformanceAnalyzer) generateRecommendations(report *RAGPerformanceR
 			Impact:      "Better resource efficiency and answer quality",
 			Priority:    "low",
 			Metrics: map[string]interface{}{
-				"avg_source_util": report.AvgSourceUtil,
+				"avg_source_util":    report.AvgSourceUtil,
 				"target_source_util": 0.7,
 			},
 		}
 		recommendations = append(recommendations, rec)
 	}
-	
+
 	report.Recommendations = recommendations
 }
 

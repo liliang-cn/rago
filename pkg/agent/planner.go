@@ -58,24 +58,24 @@ func (p *Planner) SetRouter(routerService RouterService) {
 
 // PlanRequest represents a planning request
 type PlanRequest struct {
-	Goal       string `json:"goal"`
-	Context    string `json:"context,omitempty"`
-	SessionID  string `json:"session_id"`
+	Goal      string `json:"goal"`
+	Context   string `json:"context,omitempty"`
+	SessionID string `json:"session_id"`
 }
 
 // IntentRecognitionResult represents the recognized intent from the goal
 type IntentRecognitionResult struct {
-	IntentType     string   `json:"intent_type"`     // file_create, file_read, web_search, rag_query, general_qa, etc
-	TargetFile     string   `json:"target_file"`     // extracted file path if any
-	Topic          string   `json:"topic"`          // main topic/subject
-	Requirements    []string `json:"requirements"`    // specific requirements extracted
-	Confidence      float64  `json:"confidence"`      // confidence score
+	IntentType   string   `json:"intent_type"`  // file_create, file_read, web_search, rag_query, general_qa, etc
+	TargetFile   string   `json:"target_file"`  // extracted file path if any
+	Topic        string   `json:"topic"`        // main topic/subject
+	Requirements []string `json:"requirements"` // specific requirements extracted
+	Confidence   float64  `json:"confidence"`   // confidence score
 }
 
 // PlanResponse represents the LLM's plan response
 type PlanResponse struct {
-	Reasoning string  `json:"reasoning"`
-	Steps     []Step  `json:"steps"`
+	Reasoning string `json:"reasoning"`
+	Steps     []Step `json:"steps"`
 }
 
 // Plan generates an execution plan for the given goal
@@ -85,8 +85,8 @@ func (p *Planner) Plan(ctx context.Context, goal string, session *Session) (*Pla
 	if err != nil {
 		// Fall back to planning without intent context
 		intent = &IntentRecognitionResult{
-			IntentType:  "general",
-			Confidence:  0.0,
+			IntentType: "general",
+			Confidence: 0.0,
 		}
 	}
 
@@ -119,7 +119,7 @@ func (p *Planner) Plan(ctx context.Context, goal string, session *Session) (*Pla
 						"tool": map[string]interface{}{
 							"type":        "string",
 							"description": "The tool to use for this step. MUST be one of the available tools listed above, or 'llm' for general reasoning.",
-							"enum":         p.buildToolEnum(),
+							"enum":        p.buildToolEnum(),
 						},
 						"arguments": map[string]interface{}{
 							"type":        "object",
@@ -431,11 +431,11 @@ func (p *Planner) RecognizeIntent(ctx context.Context, goal string, session *Ses
 		if err == nil && routerResult.Confidence >= 0.75 {
 			// Good semantic match - use it directly
 			return &IntentRecognitionResult{
-				IntentType:    routerResult.IntentType,
-				TargetFile:    routerResult.TargetFile,
-				Topic:         routerResult.Topic,
-				Requirements:  routerResult.Requirements,
-				Confidence:    routerResult.Confidence,
+				IntentType:   routerResult.IntentType,
+				TargetFile:   routerResult.TargetFile,
+				Topic:        routerResult.Topic,
+				Requirements: routerResult.Requirements,
+				Confidence:   routerResult.Confidence,
 			}, nil
 		}
 		// Low confidence or error - fall through to LLM
@@ -508,7 +508,7 @@ func (p *Planner) llmIntentRecognition(ctx context.Context, goal string, session
 // buildIntentRecognitionPrompt creates the prompt for LLM-based intent recognition
 func (p *Planner) buildIntentRecognitionPrompt(goal string, session *Session) string {
 	data := map[string]interface{}{
-		"Goal":  goal,
+		"Goal":   goal,
 		"HasRAG": p.hasRAGTools(),
 	}
 

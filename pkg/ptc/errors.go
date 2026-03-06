@@ -59,13 +59,13 @@ var (
 
 // ExecutionError wraps an error with execution context
 type ExecutionError struct {
-	Err       error
-	ID        string
-	Phase     string // "compile", "execute", "tool_call"
-	ToolName  string
-	Line      int
-	Column    int
-	Source    string
+	Err      error
+	ID       string
+	Phase    string // "compile", "execute", "tool_call"
+	ToolName string
+	Line     int
+	Column   int
+	Source   string
 }
 
 // Error implements the error interface

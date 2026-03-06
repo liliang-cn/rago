@@ -38,7 +38,7 @@ var resetCmd = &cobra.Command{
 		// Initialize vector store based on configuration
 		var vectorStore domain.VectorStore
 		var err error
-		
+
 		if Cfg.VectorStore != nil && Cfg.VectorStore.Type != "" {
 			// Use configured vector store
 			storeConfig := store.StoreConfig{
@@ -56,7 +56,7 @@ var resetCmd = &cobra.Command{
 				return fmt.Errorf("failed to create vector store: %w", err)
 			}
 		}
-		
+
 		// Close the store when done
 		defer func() {
 			if closer, ok := vectorStore.(interface{ Close() error }); ok {

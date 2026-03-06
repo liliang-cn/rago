@@ -12,7 +12,7 @@ import (
 type QueryEngine struct {
 	graphStore domain.GraphStore
 	embedder   domain.Embedder
-	config    *Config
+	config     *Config
 }
 
 // NewQueryEngine creates a new query engine
@@ -129,5 +129,5 @@ type EntityContext struct {
 	Entity   GraphEntityResult   `json:"entity"`
 	Parents  []GraphEntityResult `json:"parents"`
 	Children []GraphEntityResult `json:"children"`
-	Paths    []GraphPathResult  `json:"paths"`
+	Paths    []GraphPathResult   `json:"paths"`
 }

@@ -15,9 +15,9 @@ type AddServerOptions struct {
 
 // AddServerResult contains the result of adding a server
 type AddServerResult struct {
-	ServerName string
-	Config     ServerConfig
-	ConfigPath string
+	ServerName  string
+	Config      ServerConfig
+	ConfigPath  string
 	Overwritten bool // True if an existing server was overwritten
 }
 

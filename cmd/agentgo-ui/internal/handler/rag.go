@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-		"github.com/liliang-cn/agent-go/pkg/rag"
+	"github.com/liliang-cn/agent-go/pkg/rag"
 )
 
 // RAG handlers

@@ -72,14 +72,14 @@ type HookMatcher interface {
 
 // Hook represents a registered hook
 type Hook struct {
-	ID          string       `json:"id"`
-	Event       HookEvent    `json:"event"`
-	Handler     HookHandler  `json:"-"`
-	Matcher     HookMatcher  `json:"-"`
-	Priority    int          `json:"priority"`    // Lower = higher priority
-	Enabled     bool         `json:"enabled"`
-	Description string       `json:"description"`
-	CreatedAt   time.Time    `json:"created_at"`
+	ID          string      `json:"id"`
+	Event       HookEvent   `json:"event"`
+	Handler     HookHandler `json:"-"`
+	Matcher     HookMatcher `json:"-"`
+	Priority    int         `json:"priority"` // Lower = higher priority
+	Enabled     bool        `json:"enabled"`
+	Description string      `json:"description"`
+	CreatedAt   time.Time   `json:"created_at"`
 }
 
 // HookOption configures a Hook

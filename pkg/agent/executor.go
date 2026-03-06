@@ -49,7 +49,7 @@ func NewExecutor(
 		toolExecutor:  toolExecutor,
 		mcpService:    mcpService,
 		ragProcessor:  ragProcessor,
-		memoryService:  memoryService,
+		memoryService: memoryService,
 		skillsService: nil,
 	}
 }

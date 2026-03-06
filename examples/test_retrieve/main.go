@@ -20,9 +20,9 @@ func main() {
 
 	provConfig := &domain.OpenAIProviderConfig{
 		BaseProviderConfig: domain.BaseProviderConfig{Timeout: 30},
-		BaseURL:        "http://localhost:11434/v1",
-		APIKey:         "ollama",
-		EmbeddingModel: "qwen3-embedding:8b",
+		BaseURL:            "http://localhost:11434/v1",
+		APIKey:             "ollama",
+		EmbeddingModel:     "qwen3-embedding:8b",
 	}
 	factory := providers.NewFactory()
 	embedder, _ := factory.CreateEmbedderProvider(ctx, provConfig)
@@ -35,7 +35,7 @@ func main() {
 	// Add 4 memories
 	mems := []struct {
 		content string
-		typ domain.MemoryType
+		typ     domain.MemoryType
 	}{
 		{"我住在上海浦东", domain.MemoryTypeFact},
 		{"我是一名软件工程师", domain.MemoryTypeFact},

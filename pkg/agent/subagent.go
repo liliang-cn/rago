@@ -773,7 +773,7 @@ type SubAgentResult struct {
 
 // SubAgentCoordinator manages multiple SubAgents running concurrently
 type SubAgentCoordinator struct {
-	mu       sync.RWMutex
+	mu        sync.RWMutex
 	subagents map[string]*SubAgent
 	results   map[string]*SubAgentResult
 	running   map[string]context.CancelFunc

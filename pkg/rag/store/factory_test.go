@@ -182,7 +182,7 @@ func TestNewVectorStore_ParameterTypes(t *testing.T) {
 			} else if _, isString := dbPath.(string); !isString {
 				needsDefaultDir = true
 			}
-			
+
 			if needsDefaultDir {
 				err := os.MkdirAll("./.agentgo/data", 0755)
 				require.NoError(t, err)
