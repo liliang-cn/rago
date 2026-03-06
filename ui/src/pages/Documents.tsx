@@ -296,7 +296,7 @@ export function Documents() {
       {(!documents || documents.length === 0) && (
         <div className="text-center py-12">
           <p className="text-gray-500 dark:text-gray-400">
-            No documents found. Upload a file to get started.
+            {t('noDocuments')} found. Upload a file to get started.
           </p>
         </div>
       )}

@@ -30,6 +30,19 @@ const resources = {
       description: 'Description',
       type: 'Type',
       tools: 'Tools',
+      yes: 'Yes',
+      no: 'No',
+      id: 'ID',
+      path: 'Path',
+      version: 'Version',
+      enabled: 'Enabled',
+      importance: 'Importance',
+      created: 'Created',
+      required: 'Required',
+      duration: 'Duration',
+      tokens: 'Tokens',
+      model: 'Model',
+      latency: 'Latency',
 
       // Language
       language: 'Language',
@@ -41,7 +54,7 @@ const resources = {
       homeDirectoryDesc: 'Base directory for all AgentGo data (default: ~/.agentgo)',
       mcpFilesystem: 'MCP Filesystem',
       allowedDirectories: 'Allowed Directories (one per line)',
-      allowedDirectoriesPlaceholder: '/Users/username/projects\n/Users/username/documents',
+      allowedDirectoriesPlaceholder: '/Users/username/projects',
       allowedDirectoriesDesc: 'Directories that MCP filesystem server can access',
       saveSettings: 'Save Settings',
       settingsSaved: 'Settings saved successfully!',
@@ -55,8 +68,6 @@ const resources = {
       uploadDocument: 'Upload Document',
       selectFile: 'Select file to upload',
       content: 'Content',
-      path: 'Path',
-      created: 'Created',
       metadata: 'Metadata',
       fileName: 'File Name',
 
@@ -64,8 +75,6 @@ const resources = {
       systemStatus: 'System Status',
       running: 'Running',
       stopped: 'Stopped',
-      version: 'Version',
-      enabled: 'Enabled',
       disabled: 'Disabled',
       providers: 'Providers',
       rag: 'RAG',
@@ -81,10 +90,11 @@ const resources = {
 
       // Chat
       sendMessage: 'Send',
-      typeMessage: 'Type your message...',
+      typeMessage: 'Type a message...',
       chatPlaceholder: 'Ask anything or use commands like /skill-name...',
       thinking: 'Thinking...',
       noMemory: 'No memory yet',
+      availableTools: 'Available Tools',
 
       // Skills
       skillList: 'Skills',
@@ -99,6 +109,8 @@ const resources = {
       editSkill: 'Edit Skill',
       noDescription: 'No description',
       noPrompt: 'No prompt',
+      createNewSkill: 'Create New Skill',
+      errorLoadingSkills: 'Error loading skills',
 
       // MCP
       mcpServersTitle: 'MCP Servers',
@@ -109,7 +121,7 @@ const resources = {
       serverArgs: 'Arguments (space separated)',
       serverType: 'Type',
       serverUrl: 'URL',
-      stdio: 'stdio',
+      stdio: 'Stdio',
       http: 'HTTP',
       callTool: 'Call Tool',
       toolName: 'Tool Name',
@@ -118,16 +130,26 @@ const resources = {
       running2: 'Running',
       stopped2: 'Stopped',
       toolCount: '{count} tools',
+      servers: 'Servers',
+      variables: 'Variables',
+      context: 'Context',
+      fact: 'Fact',
+      pattern: 'Pattern',
+      preference: 'Preference',
+      skill: 'Skill',
 
       // Memory
       memories: 'Memories',
       noMemories: 'No memories yet',
       addMemory: 'Add Memory',
-      searchMemories: 'Search Memories...',
+      addNewMemory: 'Add New Memory',
+      searchMemories: 'Search memories...',
       memoryContent: 'Content',
       memoryCreated: 'Created',
       deleteMemory: 'Delete',
       confirmDeleteMemory: 'Are you sure you want to delete this memory?',
+      memoryDetails: 'Memory Details',
+      errorLoadingMemories: 'Error loading memories',
 
       // Query
       testQuery: 'Test Query',
@@ -154,9 +176,6 @@ const resources = {
       result: 'Result',
       sources: 'Sources',
       noSources: 'No sources',
-      id: 'ID',
-      importance: 'Importance',
-      availableTools: 'Available Tools',
     }
   },
   zh: {
@@ -186,6 +205,19 @@ const resources = {
       description: '描述',
       type: '类型',
       tools: '工具',
+      yes: '是',
+      no: '否',
+      id: 'ID',
+      path: '路径',
+      version: '版本',
+      enabled: '已启用',
+      importance: '重要性',
+      created: '创建时间',
+      required: '必填',
+      duration: '耗时',
+      tokens: 'Token',
+      model: '模型',
+      latency: '延迟',
 
       // Language
       language: '语言',
@@ -197,7 +229,7 @@ const resources = {
       homeDirectoryDesc: '所有 AgentGo 数据的基础目录（默认：~/.agentgo）',
       mcpFilesystem: 'MCP 文件系统',
       allowedDirectories: '允许的目录（每行一个）',
-      allowedDirectoriesPlaceholder: '/Users/用户名/projects\n/Users/用户名/documents',
+      allowedDirectoriesPlaceholder: '/Users/用户名/projects',
       allowedDirectoriesDesc: 'MCP 文件系统服务器可以访问的目录',
       saveSettings: '保存设置',
       settingsSaved: '设置保存成功！',
@@ -211,8 +243,6 @@ const resources = {
       uploadDocument: '上传文档',
       selectFile: '选择要上传的文件',
       content: '内容',
-      path: '路径',
-      created: '创建时间',
       metadata: '元数据',
       fileName: '文件名',
 
@@ -220,8 +250,6 @@ const resources = {
       systemStatus: '系统状态',
       running: '运行中',
       stopped: '已停止',
-      version: '版本',
-      enabled: '已启用',
       disabled: '已禁用',
       providers: '提供商',
       rag: 'RAG',
@@ -241,6 +269,7 @@ const resources = {
       chatPlaceholder: '输入任何内容或使用命令如 /skill-name...',
       thinking: '思考中...',
       noMemory: '暂无记忆',
+      availableTools: '可用工具',
 
       // Skills
       skillList: '技能列表',
@@ -255,6 +284,8 @@ const resources = {
       editSkill: '编辑技能',
       noDescription: '无描述',
       noPrompt: '无提示词',
+      createNewSkill: '创建新技能',
+      errorLoadingSkills: '加载技能出错',
 
       // MCP
       mcpServersTitle: 'MCP 服务器',
@@ -265,7 +296,7 @@ const resources = {
       serverArgs: '参数（空格分隔）',
       serverType: '类型',
       serverUrl: 'URL',
-      stdio: 'stdio',
+      stdio: 'Stdio',
       http: 'HTTP',
       callTool: '调用工具',
       toolName: '工具名称',
@@ -274,16 +305,26 @@ const resources = {
       running2: '运行中',
       stopped2: '已停止',
       toolCount: '{count} 个工具',
+      servers: '服务器',
+      variables: '变量',
+      context: '上下文',
+      fact: '事实',
+      pattern: '模式',
+      preference: '偏好',
+      skill: '技能',
 
       // Memory
       memories: '记忆列表',
       noMemories: '暂无记忆',
       addMemory: '添加记忆',
+      addNewMemory: '添加新记忆',
       searchMemories: '搜索记忆...',
       memoryContent: '内容',
       memoryCreated: '创建时间',
       deleteMemory: '删除',
       confirmDeleteMemory: '确定要删除这条记忆吗？',
+      memoryDetails: '记忆详情',
+      errorLoadingMemories: '加载记忆出错',
 
       // Query
       testQuery: '测试查询',
@@ -310,9 +351,6 @@ const resources = {
       result: '结果',
       sources: '来源',
       noSources: '无来源',
-      id: 'ID',
-      importance: '重要性',
-      availableTools: '可用工具',
     }
   }
 }
