@@ -119,8 +119,14 @@ func (c *Config) LoadServersFromJSON() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Preserve built-in servers when loading
+	builtinServers := c.LoadedServers
+
 	// Clear loaded servers
 	c.LoadedServers = []ServerConfig{}
+
+	// Add back built-in servers first
+	c.LoadedServers = append(c.LoadedServers, builtinServers...)
 
 	// Load from new Servers array
 	for _, serverFile := range c.Servers {
