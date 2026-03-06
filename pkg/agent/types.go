@@ -91,6 +91,7 @@ type AgentInfo struct {
 	Status       string   `json:"status"` // "running", "idle"
 	Model        string   `json:"model,omitempty"`
 	BaseURL      string   `json:"base_url,omitempty"`
+	Debug        bool     `json:"debug"`
 	RAGEnabled   bool     `json:"rag_enabled"`
 	PTCEnabled   bool     `json:"ptc_enabled"`
 	MemoryEnabled bool    `json:"memory_enabled"`
