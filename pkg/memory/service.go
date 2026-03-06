@@ -251,6 +251,12 @@ func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStore
 		return nil
 	}
 
+	// 1. Triviality check: Don't bother LLM for very short/common greetings
+	cleanGoal := strings.ToLower(strings.TrimSpace(req.TaskGoal))
+	if len(cleanGoal) < 5 || cleanGoal == "hi" || cleanGoal == "hello" || cleanGoal == "hey" {
+		return nil
+	}
+
 	prompt := s.buildSummaryPrompt(req)
 	schema := map[string]interface{}{
 		"type": "object",
@@ -272,18 +278,20 @@ func (s *Service) StoreIfWorthwhile(ctx context.Context, req *domain.MemoryStore
 		"required": []string{"should_store", "memories"},
 	}
 
-	result, err := s.llm.GenerateStructured(ctx, prompt, schema, &domain.GenerationOptions{Temperature: 0.3})
+	result, err := s.llm.GenerateStructured(ctx, prompt, schema, &domain.GenerationOptions{Temperature: 0.1})
 	if err != nil {
-		return err
+		return nil // Silent ignore for extraction errors to keep the chat clean
 	}
 
-	if result.Raw == "" {
-		return nil // No valid JSON found in response
+	if result.Raw == "" || !result.Valid {
+		return nil // No valid JSON found or schema mismatch - nothing worth storing
 	}
 
 	var summary domain.MemorySummaryResult
 	if err := json.Unmarshal([]byte(result.Raw), &summary); err != nil {
-		return fmt.Errorf("failed to parse memory summary: %w. Raw: %s", err, result.Raw)
+		// Only log if there's actual content that failed to parse, 
+		// but since we checked result.Valid, this is unlikely.
+		return nil
 	}
 
 	if !summary.ShouldStore {
@@ -579,7 +587,7 @@ func (s *Service) formatMemories(memories []*domain.MemoryWithScore) string {
 }
 
 func (s *Service) buildSummaryPrompt(req *domain.MemoryStoreRequest) string {
-	return fmt.Sprintf("Goal: %s\nResult: %s\nExtract memory.", req.TaskGoal, req.TaskResult)
+	return fmt.Sprintf("SYSTEM: You are a background background memory process. ANALYZE the following interaction and EXTRACT new facts or user preferences. RETURN VALID JSON ONLY.\n\nInteraction:\nGoal: %s\nResult: %s\n\nTask: Extract potential memories according to the schema.", req.TaskGoal, req.TaskResult)
 }
 
 // MemoryEvolutionNode represents one step in a memory's evolution path.
