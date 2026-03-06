@@ -396,6 +396,24 @@ export const api = {
       method: 'DELETE',
     }),
 
+  getConfig: () => fetchAPI<Config>('/config'),
+
+  updateConfig: (data: UpdateConfigRequest) =>
+    fetchAPI<{ success: boolean }>('/config', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
   searchMemories: (query: string) =>
     fetchAPI<Memory[]>(`/memories/search?q=${encodeURIComponent(query)}`),
+}
+
+export interface Config {
+  home: string
+  mcpAllowedDirs: string[]
+}
+
+export interface UpdateConfigRequest {
+  home?: string
+  mcpAllowedDirs?: string[]
 }

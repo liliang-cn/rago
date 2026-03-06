@@ -7,6 +7,7 @@ import { Skills } from './pages/Skills'
 import { MCP } from './pages/MCP'
 import { Memory } from './pages/Memory'
 import { Agent } from './pages/Agent'
+import { Settings } from './pages/Settings'
 
 function Nav() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -42,6 +43,9 @@ function Nav() {
       <NavLink to="/documents" className={linkClass}>
         Documents
       </NavLink>
+      <NavLink to="/settings" className={linkClass}>
+        Settings
+      </NavLink>
     </nav>
   )
 }
@@ -70,6 +74,7 @@ function App() {
           <Route path="/status" element={<Status />} />
           <Route path="/query" element={<QueryTest />} />
           <Route path="/documents" element={<Documents />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
     </div>
