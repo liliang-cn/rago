@@ -1,4 +1,4 @@
-module github.com/liliang-cn/rago/v2
+module github.com/liliang-cn/agent-go
 
 go 1.24.0
 

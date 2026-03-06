@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 func main() {
@@ -26,7 +26,7 @@ func main() {
 		map[string]interface{}{"type": "object", "properties": map[string]interface{}{}},
 		func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 			fmt.Println("\n[LOG] ==> Go function 'get_secret_key' was actually EXECUTED!")
-			return "RAGO-DYNAMIC-TOOL-SUCCESS-999", nil
+			return "AgentGo-DYNAMIC-TOOL-SUCCESS-999", nil
 		},
 	)
 
@@ -51,7 +51,7 @@ func main() {
 
 	fmt.Printf("\n--- Final Response ---\n%s\n", result.Text())
 
-	if contains(result.Text(), "RAGO-DYNAMIC-TOOL-SUCCESS-999") {
+	if contains(result.Text(), "AgentGo-DYNAMIC-TOOL-SUCCESS-999") {
 		fmt.Println("\n✅ SUCCESS: Logical proof confirmed! Multi-agent handoff and Custom Tool both worked.")
 	} else {
 		fmt.Println("\n❌ FAILED: The agent answered without using the dynamic tool.")

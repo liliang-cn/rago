@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,8 +17,8 @@ func TestTokenize(t *testing.T) {
 			expected: []string{"hello", "world"},
 		},
 		{
-			input:    "RAGO is a modular RAG system.",
-			expected: []string{"rago", "is", "modular", "rag", "system"},
+			input:    "AgentGo is a modular RAG system.",
+			expected: []string{"agentgo", "is", "modular", "rag", "system"},
 		},
 		{
 			input:    "Go (Golang) is great; system-level programming!",
@@ -49,14 +49,14 @@ func TestCalculateBM25(t *testing.T) {
 	docFreq := map[string]int{
 		"golang": 1,
 		"system": 2,
-		"rago":   1,
+		"agentgo":   1,
 	}
 	totalDocs := 3
 	avgDocLength := 5.0
 
 	t.Run("High relevance match", func(t *testing.T) {
-		docContent := "RAGO is a golang system"
-		queryTerms := []string{"rago", "golang"}
+		docContent := "AgentGo is a golang system"
+		queryTerms := []string{"agentgo", "golang"}
 
 		score := searcher.calculateBM25(docContent, queryTerms, docFreq, totalDocs, avgDocLength)
 		assert.True(t, score > 0)
@@ -64,23 +64,23 @@ func TestCalculateBM25(t *testing.T) {
 
 	t.Run("No match", func(t *testing.T) {
 		docContent := "Python is another language"
-		queryTerms := []string{"rago"}
+		queryTerms := []string{"agentgo"}
 
 		score := searcher.calculateBM25(docContent, queryTerms, docFreq, totalDocs, avgDocLength)
 		assert.Equal(t, 0.0, score)
 	})
 
 	t.Run("IDF effect - rare terms score higher", func(t *testing.T) {
-		// "rago" appears in 1/3 docs, "system" appears in 2/3 docs.
-		// Matching "rago" should typically yield a higher score contribution than "system".
+		// "agentgo" appears in 1/3 docs, "system" appears in 2/3 docs.
+		// Matching "agentgo" should typically yield a higher score contribution than "system".
 
-		doc1 := "rago is here"
+		doc1 := "agentgo is here"
 		doc2 := "system is here"
 
-		scoreRago := searcher.calculateBM25(doc1, []string{"rago"}, docFreq, totalDocs, avgDocLength)
+		scoreAgentGo := searcher.calculateBM25(doc1, []string{"agentgo"}, docFreq, totalDocs, avgDocLength)
 		scoreSystem := searcher.calculateBM25(doc2, []string{"system"}, docFreq, totalDocs, avgDocLength)
 
-		assert.True(t, scoreRago > scoreSystem, "Rare term 'rago' should have higher score than common term 'system'")
+		assert.True(t, scoreAgentGo > scoreSystem, "Rare term 'agentgo' should have higher score than common term 'system'")
 	})
 }
 

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 // Config holds GraphRAG configuration

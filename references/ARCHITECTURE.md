@@ -1,8 +1,8 @@
-# Rago Architecture
+# AgentGo Architecture
 
 ## Overview
 
-Rago is a local-first RAG + Agent framework. Core capability priority:
+AgentGo is a local-first RAG + Agent framework. Core capability priority:
 
 ```
 RAG System → Cognitive Memory → Multi-Provider LLM → MCP Tools → Agent Automation
@@ -39,7 +39,7 @@ RAG System → Cognitive Memory → Multi-Provider LLM → MCP Tools → Agent A
 
 ## Cognitive Memory Model
 
-Rago's memory system is inspired by **Hindsight** and **PageIndex**, providing an evolving, reasoning-driven cognitive layer.
+AgentGo's memory system is inspired by **Hindsight** and **PageIndex**, providing an evolving, reasoning-driven cognitive layer.
 
 ### Three-Layer Memory Hierarchy
 | Level | Name | Description |
@@ -49,7 +49,7 @@ Rago's memory system is inspired by **Hindsight** and **PageIndex**, providing a
 | **L1** | **Fact** | Atomic data points extracted from interactions (provenance: `user`, `inferred`). |
 
 ### Hybrid Retrieval Strategy
-Rago uses a parallel search approach to ensure both high recall and high precision:
+AgentGo uses a parallel search approach to ensure both high recall and high precision:
 - **Vector Search (Similarity)**: Uses cosine similarity in SQLite-vec to find semantically related chunks.
 - **Index Navigator (Reasoning)**: PageIndex-style search where the LLM reads structural summaries in `_index/` to logically select relevant memories.
 - **RRF Fusion**: Results are merged via Reciprocal Rank Fusion, giving higher weight to memories that appear in both tracks.
@@ -83,9 +83,9 @@ runWithConfig()
 
 ## Memory System Implementation
 
-Rago uses a **Shadow Index** architecture for memory:
+AgentGo uses a **Shadow Index** architecture for memory:
 - **Truth Store (File-based)**: Human-editable Markdown/YAML files in `data/memories/`. This is the source of truth for all metadata and evidence.
-- **Shadow Index (Vector-based)**: A vector index in `data/rago.db` used for fast similarity recall.
+- **Shadow Index (Vector-based)**: A vector index in `data/agentgo.db` used for fast similarity recall.
 
 ### Hierarchy Tracking
 `MemoryService.GetEvolution(id)` allows tracing the life of a memory:

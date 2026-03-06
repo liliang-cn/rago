@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 func TestMemoryScorer_Score(t *testing.T) {

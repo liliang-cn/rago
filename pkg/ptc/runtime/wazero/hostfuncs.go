@@ -10,7 +10,7 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
-	"github.com/liliang-cn/rago/v2/pkg/ptc"
+	"github.com/liliang-cn/agent-go/pkg/ptc"
 )
 
 // executionState holds state during execution

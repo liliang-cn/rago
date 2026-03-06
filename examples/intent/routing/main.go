@@ -7,14 +7,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 func main() {
 	ctx := context.Background()
 
 	homeDir, _ := os.UserHomeDir()
-	agentDBPath := filepath.Join(homeDir, ".rago", "data", "intent_routing.db")
+	agentDBPath := filepath.Join(homeDir, ".agentgo", "data", "intent_routing.db")
 	os.MkdirAll(filepath.Dir(agentDBPath), 0755)
 
 	svc, err := agent.New("intent-routing-agent").

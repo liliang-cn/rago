@@ -1,10 +1,10 @@
 bin/
 
-rago.toml
+agentgo.toml
 
 .DS_Store
 
-.rago/vendor/
+.agentgo/vendor/
 delegation/
 *.db
 
@@ -13,4 +13,4 @@ data/
 # UI
 ui/node_modules/
 ui/dist/
-cmd/rago-ui/dist/
+cmd/agentgo-ui/dist/

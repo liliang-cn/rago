@@ -1,9 +1,9 @@
-# Rago API Reference
+# AgentGo API Reference
 
 ## Agent Builder
 
 ```go
-import "github.com/liliang-cn/rago/v2/pkg/agent"
+import "github.com/liliang-cn/agent-go/pkg/agent"
 
 svc, err := agent.New("my-agent").
     WithRAG().                            // Enable RAG
@@ -13,7 +13,7 @@ svc, err := agent.New("my-agent").
     WithMemoryReflect(5).                 // Reflect facts into observations after 5 entries
     WithMemoryHybrid().                  // Enable Parallel Vector + Index Reasoning
     WithMemoryBank("You are an expert", []string{"Never lie"}). // Mission/Directives
-    WithDBPath("~/.rago/data/agent.db").  // Storage path
+    WithDBPath("~/.agentgo/data/agent.db").  // Storage path
     Build()
 ```
 
@@ -114,13 +114,13 @@ for evt := range events {
 ### Chat with Memory Visibility
 ```bash
 # Show retrieved memories, source types, and navigator reasoning
-rago chat "What's my tech stack?" --show-memory
+agentgo chat "What's my tech stack?" --show-memory
 ```
 
 ### Enable PTC (JS Sandbox)
 ```bash
 # Run agent in Programmatic Tool Calling mode
-rago chat "Compare these three cities" --with-ptc
+agentgo chat "Compare these three cities" --with-ptc
 ```
 
 ## Memory Storage Layout
@@ -129,4 +129,4 @@ rago chat "Compare these three cities" --with-ptc
 |---|---|---|
 | `data/memories/` | Raw facts and observations | Markdown + YAML |
 | `data/memories/_index/` | PageIndex-style summaries | Markdown |
-| `data/rago.db` | Vector index for acceleration | SQLite-vec |
+| `data/agentgo.db` | Vector index for acceleration | SQLite-vec |

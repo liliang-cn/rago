@@ -3,7 +3,7 @@ package embedder
 import (
 	"context"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 // Service wraps a provider-based embedder

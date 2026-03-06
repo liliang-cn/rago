@@ -27,15 +27,15 @@ type Config struct {
 // DefaultConfig returns default skills configuration
 func DefaultConfig() *Config {
 	homeDir, _ := os.UserHomeDir()
-	localSkills := "./.rago/skills"
-	userSkills := filepath.Join(homeDir, ".rago", "skills")
+	localSkills := "./.agentgo/skills"
+	userSkills := filepath.Join(homeDir, ".agentgo", "skills")
 
 	return &Config{
 		Enabled:               true,
 		Paths:                 []string{".skills", localSkills, userSkills},
 		AutoLoad:              true,
 		CacheEnabled:          true,
-		DBPath:                filepath.Join(homeDir, ".rago", "data", "skills.db"),
+		DBPath:                filepath.Join(homeDir, ".agentgo", "data", "skills.db"),
 		LogLevel:              "info",
 		AllowCommandInjection: false,
 		RequireConfirmation:   true,
@@ -86,7 +86,7 @@ func (c *Config) Validate() error {
 	}
 	if c.DBPath == "" {
 		homeDir, _ := os.UserHomeDir()
-		c.DBPath = filepath.Join(homeDir, ".rago", "data", "skills.db")
+		c.DBPath = filepath.Join(homeDir, ".agentgo", "data", "skills.db")
 	}
 	return nil
 }

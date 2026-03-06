@@ -1,6 +1,6 @@
 // Package main demonstrates MCP (Model Context Protocol) tools integration.
 //
-// MCP allows RAGO to use external tools from MCP servers like filesystem,
+// MCP allows AgentGo to use external tools from MCP servers like filesystem,
 // web search, databases, etc.
 //
 // This example shows:
@@ -19,7 +19,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 func main() {

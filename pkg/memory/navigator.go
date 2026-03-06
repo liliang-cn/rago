@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/store"
 )
 
 const navigatorCacheTTL = 5 * time.Minute

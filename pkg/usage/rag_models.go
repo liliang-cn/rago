@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 // RAGQueryRecord represents a detailed record of a RAG query

@@ -8,16 +8,16 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/memory"
-	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/memory"
+	"github.com/liliang-cn/agent-go/pkg/store"
 )
 
 func main() {
 	ctx := context.Background()
 
 	// 1. Setup temporary directory for file-based memory
-	tempDir := filepath.Join(os.TempDir(), "rago-memory-test")
+	tempDir := filepath.Join(os.TempDir(), "agentgo-memory-test")
 	os.RemoveAll(tempDir)
 	defer os.RemoveAll(tempDir)
 
@@ -38,7 +38,7 @@ func main() {
 		{
 			ID:         "mem-1",
 			Type:       domain.MemoryTypeFact,
-			Content:    "The project RAGO is a modular local-first RAG system.",
+			Content:    "The project AgentGo is a modular local-first RAG system.",
 			Importance: 0.9,
 			CreatedAt:  time.Now(),
 		},

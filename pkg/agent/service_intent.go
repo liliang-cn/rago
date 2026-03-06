@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/liliang-cn/rago/v2/pkg/skills"
+	"github.com/liliang-cn/agent-go/pkg/skills"
 )
 
 // recognizeIntent performs intent recognition using planner

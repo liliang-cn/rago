@@ -13,9 +13,9 @@ func TestPromptManager(t *testing.T) {
 	assert.Equal(t, "Hello {{.Name}}", m.Get("test.hello"))
 
 	// 2. Test rendering
-	rendered, err := m.Render("test.hello", map[string]string{"Name": "RAGO"})
+	rendered, err := m.Render("test.hello", map[string]string{"Name": "AgentGo"})
 	assert.NoError(t, err)
-	assert.Equal(t, "Hello RAGO", rendered)
+	assert.Equal(t, "Hello AgentGo", rendered)
 
 	// 3. Test override
 	m.SetPrompt("test.hello", "Hi {{.Name}}, how are you?")

@@ -1,16 +1,16 @@
 ---
-name: rago
-description: Use Rago for local RAG (Retrieval Augmented Generation) operations including document ingestion, semantic search, and Q&A. Supports multi-provider LLM, MCP tools, Skills, and cognitive memory (Hindsight/PageIndex). Use when building local knowledge bases, AI assistants with evolving long-term memory.
+name: agentgo
+description: Use AgentGo for local RAG (Retrieval Augmented Generation) operations including document ingestion, semantic search, and Q&A. Supports multi-provider LLM, MCP tools, Skills, and cognitive memory (Hindsight/PageIndex). Use when building local knowledge bases, AI assistants with evolving long-term memory.
 license: MIT
 metadata:
   author: liliang-cn
   version: "2.50.0"
-  github: https://github.com/liliang-cn/rago
+  github: https://github.com/liliang-cn/agentgo
 ---
 
-# Rago - Local RAG System with Cognitive Memory
+# AgentGo - Local RAG System with Cognitive Memory
 
-Rago is a **local-first RAG + Agent framework** that features an evolving memory layer. It transitions from raw data points to high-level insights via autonomous reflection.
+AgentGo is a **local-first RAG + Agent framework** that features an evolving memory layer. It transitions from raw data points to high-level insights via autonomous reflection.
 
 ## When to Use
 
@@ -31,7 +31,7 @@ package main
 import (
     "context"
     "fmt"
-    "github.com/liliang-cn/rago/v2/pkg/agent"
+    "github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 func main() {
@@ -60,16 +60,16 @@ func main() {
 
 ```bash
 # Ingest documents
-rago ingest ./documents/
+agentgo ingest ./documents/
 
 # Chat with memory transparency
-rago chat "What do you know about my projects?" --show-memory
+agentgo chat "What do you know about my projects?" --show-memory
 ```
 
 ## Core Features
 
 ### 1. Cognitive Memory (Hindsight)
-Rago doesn't just store facts; it learns patterns.
+AgentGo doesn't just store facts; it learns patterns.
 - **Facts**: Atomic data from chat.
 - **Observations**: Synthesized insights from multiple facts via `Reflect()`.
 - **Traceability**: Track the evolution from raw fact to high-level belief.
@@ -92,7 +92,7 @@ Extensible via YAML+Markdown Skills or standard MCP tool servers.
 
 ```
 ┌──────────────────────────────────────────────┐
-│                Rago System                   │
+│                AgentGo System                   │
 ├──────────────────────────────────────────────┤
 │  RAG Store │ LLM Pool │ Cognitive Memory     │
 │       ┌────┴──────────┴────────┐             │

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	skillgo "github.com/liliang-cn/skills-go/skill"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 // Service orchestrates all skill functionality using skills-go as the backend
@@ -218,7 +218,7 @@ func (s *Service) Execute(ctx context.Context, req *ExecutionRequest) (*Executio
 		}, err
 	}
 
-	// Convert to rago skill for consistency
+	// Convert to agentgo skill for consistency
 	skill := convertFromSkillGo(sk)
 	if !skill.Enabled {
 		return &ExecutionResult{
@@ -480,7 +480,7 @@ func getTypeString(typ string) string {
 	}
 }
 
-// convertFromSkillGo converts a skills-go Skill to rago Skill
+// convertFromSkillGo converts a skills-go Skill to agentgo Skill
 func convertFromSkillGo(sk *skillgo.Skill) *Skill {
 	skill := &Skill{
 		ID:          sk.Name,

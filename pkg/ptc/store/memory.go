@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/ptc"
+	"github.com/liliang-cn/agent-go/pkg/ptc"
 )
 
 // MemoryStore is an in-memory execution history store

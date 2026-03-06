@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/skills"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/skills"
 )
 
 // SearchAndExecute searches for tools matching the query and optionally executes them.

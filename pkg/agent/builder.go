@@ -7,18 +7,18 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/mcp"
-	"github.com/liliang-cn/rago/v2/pkg/memory"
-	"github.com/liliang-cn/rago/v2/pkg/ptc"
-	"github.com/liliang-cn/rago/v2/pkg/rag/chunker"
-	ragprocessor "github.com/liliang-cn/rago/v2/pkg/rag/processor"
-	ragstore "github.com/liliang-cn/rago/v2/pkg/rag/store"
-	"github.com/liliang-cn/rago/v2/pkg/router"
-	"github.com/liliang-cn/rago/v2/pkg/services"
-	"github.com/liliang-cn/rago/v2/pkg/skills"
-	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/agent-go/pkg/config"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/mcp"
+	"github.com/liliang-cn/agent-go/pkg/memory"
+	"github.com/liliang-cn/agent-go/pkg/ptc"
+	"github.com/liliang-cn/agent-go/pkg/rag/chunker"
+	ragprocessor "github.com/liliang-cn/agent-go/pkg/rag/processor"
+	ragstore "github.com/liliang-cn/agent-go/pkg/rag/store"
+	"github.com/liliang-cn/agent-go/pkg/router"
+	"github.com/liliang-cn/agent-go/pkg/services"
+	"github.com/liliang-cn/agent-go/pkg/skills"
+	"github.com/liliang-cn/agent-go/pkg/store"
 )
 
 // ============================================================
@@ -89,7 +89,7 @@ type SkillsConfig struct {
 // Assign to (*Service, error) to build - no explicit Build() needed!
 type Builder struct {
 	name         string
-	ragoCfg      *config.Config
+	agentgoCfg      *config.Config
 	dbPath       string
 	systemPrompt string
 	debug        bool
@@ -131,7 +131,7 @@ func New(name string) *Builder {
 }
 
 // WithRAG enables RAG processor
-func (b *Builder) WithRAG(opts ...RAGOption) *Builder {
+func (b *Builder) WithRAG(opts ...AgentGoption) *Builder {
 	b.enableRAG = true
 	cfg := RAGConfig{}
 	for _, opt := range opts {
@@ -254,9 +254,9 @@ func (b *Builder) WithProgress(cb ProgressCallback) *Builder {
 	return b
 }
 
-// WithConfig sets rago config
+// WithConfig sets agentgo config
 func (b *Builder) WithConfig(cfg *config.Config) *Builder {
-	b.ragoCfg = cfg
+	b.agentgoCfg = cfg
 	return b
 }
 
@@ -314,17 +314,17 @@ func (b *Builder) build() (*Service, error) {
 		return nil, fmt.Errorf("agent name is required")
 	}
 
-	ragoCfg := b.ragoCfg
+	agentgoCfg := b.agentgoCfg
 	var err error
-	if ragoCfg == nil {
-		ragoCfg, err = config.Load("")
+	if agentgoCfg == nil {
+		agentgoCfg, err = config.Load("")
 		if err != nil {
 			return nil, fmt.Errorf("failed to load config: %w", err)
 		}
 	}
 
 	globalPool := services.GetGlobalPoolService()
-	if err := globalPool.Initialize(context.Background(), ragoCfg); err != nil {
+	if err := globalPool.Initialize(context.Background(), agentgoCfg); err != nil {
 		return nil, fmt.Errorf("failed to initialize pool: %w", err)
 	}
 
@@ -342,7 +342,7 @@ func (b *Builder) build() (*Service, error) {
 	var mcpSvc *mcp.Service
 	var mcpAdapter MCPToolExecutor
 	if b.enableMCP {
-		mcpCfg := &ragoCfg.MCP
+		mcpCfg := &agentgoCfg.MCP
 		if len(b.mcpCfgPaths) > 0 {
 			loadedCfg, loadErr := config.LoadMCPConfig(b.mcpCfgPaths...)
 			if loadErr != nil {
@@ -366,7 +366,7 @@ func (b *Builder) build() (*Service, error) {
 	// Build Memory
 	var memSvc domain.MemoryService
 	if b.enableMemory {
-		memSvc, err = b.buildMemoryService(ragoCfg, embedSvc, llmSvc)
+		memSvc, err = b.buildMemoryService(agentgoCfg, embedSvc, llmSvc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create memory service: %w", err)
 		}
@@ -378,7 +378,7 @@ func (b *Builder) build() (*Service, error) {
 		if embedSvc == nil {
 			log.Printf("[WARN] RAG requires embedding model, but none available. RAG disabled.")
 		} else {
-			ragProcessor, err = b.buildRAGProcessor(ragoCfg, embedSvc, llmSvc, memSvc)
+			ragProcessor, err = b.buildRAGProcessor(agentgoCfg, embedSvc, llmSvc, memSvc)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create RAG processor: %w", err)
 			}
@@ -401,7 +401,7 @@ func (b *Builder) build() (*Service, error) {
 	// Build Skills
 	var skillsSvc *skills.Service
 	if b.enableSkills {
-		skillsSvc, err = b.buildSkillsService(ragoCfg)
+		skillsSvc, err = b.buildSkillsService(agentgoCfg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create skills service: %w", err)
 		}
@@ -410,7 +410,7 @@ func (b *Builder) build() (*Service, error) {
 	// DB Path
 	dbPath := b.dbPath
 	if dbPath == "" {
-		dbPath = filepath.Join(ragoCfg.DataDir(), "agent.db")
+		dbPath = filepath.Join(agentgoCfg.DataDir(), "agent.db")
 	}
 
 	// Create service
@@ -476,8 +476,8 @@ func (b *Builder) build() (*Service, error) {
 	}
 
 	// Store model metadata for Info()
-	if len(ragoCfg.LLMPool.Providers) > 0 {
-		p := ragoCfg.LLMPool.Providers[0]
+	if len(agentgoCfg.LLMPool.Providers) > 0 {
+		p := agentgoCfg.LLMPool.Providers[0]
 		svc.SetModelInfo(p.ModelName, p.BaseURL)
 	}
 
@@ -495,7 +495,7 @@ func (b *Builder) build() (*Service, error) {
 		// Build the PTC router: MCP and Skills are dynamic providers; all static
 		// tools (RAG, Memory, custom) are synced from the ToolRegistry below.
 		routerOpts := buildPTCRouterOptions(mcpAdapter, skillsSvc)
-		ptcRouter := ptc.NewRAGORouter(routerOpts...)
+		ptcRouter := ptc.NewAgentGoRouter(routerOpts...)
 		// Sync registry tools into the ptcRouter so callTool() can reach them.
 		svc.toolRegistry.SyncToPTCRouter(ptcRouter)
 		ptcInteg, ptcErr := NewPTCIntegration(*b.ptcCfg, ptcRouter)
@@ -518,14 +518,14 @@ func (b *Builder) build() (*Service, error) {
 	return svc, nil
 }
 
-func (b *Builder) buildMemoryService(ragoCfg *config.Config, embedSvc domain.Embedder, llmSvc domain.Generator) (domain.MemoryService, error) {
+func (b *Builder) buildMemoryService(agentgoCfg *config.Config, embedSvc domain.Embedder, llmSvc domain.Generator) (domain.MemoryService, error) {
 	var memStore domain.MemoryStore
 	var shadowStore domain.MemoryStore
 	var err error
 
 	memPath := b.memoryCfg.DBPath
 	if memPath == "" {
-		memPath = filepath.Join(ragoCfg.DataDir(), "memories")
+		memPath = filepath.Join(agentgoCfg.DataDir(), "memories")
 	}
 
 	storeType := b.memoryCfg.StoreType
@@ -546,7 +546,7 @@ func (b *Builder) buildMemoryService(ragoCfg *config.Config, embedSvc domain.Emb
 			return nil, fmt.Errorf("failed to create file memory store: %w", err)
 		}
 	case "vector":
-		sqlitePath := filepath.Join(ragoCfg.DataDir(), "rago.db")
+		sqlitePath := filepath.Join(agentgoCfg.DataDir(), "agentgo.db")
 		memStore, err = store.NewMemoryStore(sqlitePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create vector memory store: %w", err)
@@ -564,7 +564,7 @@ func (b *Builder) buildMemoryService(ragoCfg *config.Config, embedSvc domain.Emb
 			fileStore.WithLLM(llmSvc)
 		}
 		memStore = fileStore
-		sqlitePath := filepath.Join(ragoCfg.DataDir(), "rago.db")
+		sqlitePath := filepath.Join(agentgoCfg.DataDir(), "agentgo.db")
 		if sqliteStore, serr := store.NewMemoryStore(sqlitePath); serr == nil {
 			_ = sqliteStore.InitSchema(context.Background())
 			shadowStore = sqliteStore
@@ -611,26 +611,26 @@ func (b *Builder) buildMemoryService(ragoCfg *config.Config, embedSvc domain.Emb
 	return memSvc, nil
 }
 
-func (b *Builder) buildRAGProcessor(ragoCfg *config.Config, embedSvc domain.Embedder, llmSvc domain.Generator, memSvc domain.MemoryService) (domain.Processor, error) {
+func (b *Builder) buildRAGProcessor(agentgoCfg *config.Config, embedSvc domain.Embedder, llmSvc domain.Generator, memSvc domain.MemoryService) (domain.Processor, error) {
 	vectorStore, err := ragstore.NewVectorStore(ragstore.StoreConfig{
 		Type:       "sqlite",
-		Parameters: map[string]interface{}{"db_path": ragoCfg.Cortexdb.DBPath},
+		Parameters: map[string]interface{}{"db_path": agentgoCfg.Cortexdb.DBPath},
 	})
 	if err != nil {
 		return nil, err
 	}
 	docStore := ragstore.NewDocumentStoreFor(vectorStore)
-	return ragprocessor.New(embedSvc, llmSvc, chunker.New(), vectorStore, docStore, ragoCfg, nil, memSvc), nil
+	return ragprocessor.New(embedSvc, llmSvc, chunker.New(), vectorStore, docStore, agentgoCfg, nil, memSvc), nil
 }
 
-func (b *Builder) buildSkillsService(ragoCfg *config.Config) (*skills.Service, error) {
+func (b *Builder) buildSkillsService(agentgoCfg *config.Config) (*skills.Service, error) {
 	skillsCfg := skills.DefaultConfig()
 	paths := b.skillsPaths
 	if len(paths) == 0 {
-		paths = []string{ragoCfg.SkillsDir()}
+		paths = []string{agentgoCfg.SkillsDir()}
 	}
 	skillsCfg.Paths = paths
-	skillsCfg.DBPath = ragoCfg.Cortexdb.DBPath
+	skillsCfg.DBPath = agentgoCfg.Cortexdb.DBPath
 	svc, err := skills.NewService(skillsCfg)
 	if err != nil {
 		return nil, err
@@ -643,17 +643,17 @@ func (b *Builder) buildSkillsService(ragoCfg *config.Config) (*skills.Service, e
 // Option types for nested configuration
 // ============================================================
 
-// RAGOption modifies RAGConfig
-type RAGOption func(*RAGConfig)
+// AgentGoption modifies RAGConfig
+type AgentGoption func(*RAGConfig)
 
 // WithRAGChunkSize sets RAG chunk size
-func WithRAGChunkSize(size int) RAGOption { return func(c *RAGConfig) { c.ChunkSize = size } }
+func WithRAGChunkSize(size int) AgentGoption { return func(c *RAGConfig) { c.ChunkSize = size } }
 
-// WithRAGOverlap sets RAG overlap
-func WithRAGOverlap(overlap int) RAGOption { return func(c *RAGConfig) { c.Overlap = overlap } }
+// WithAgentGoverlap sets RAG overlap
+func WithAgentGoverlap(overlap int) AgentGoption { return func(c *RAGConfig) { c.Overlap = overlap } }
 
 // WithRAGDBPath sets RAG database path
-func WithRAGDBPath(path string) RAGOption { return func(c *RAGConfig) { c.DBPath = path } }
+func WithRAGDBPath(path string) AgentGoption { return func(c *RAGConfig) { c.DBPath = path } }
 
 // MCPOption modifies MCPConfig
 type MCPOption func(*MCPConfig)

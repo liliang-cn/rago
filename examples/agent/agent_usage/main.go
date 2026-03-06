@@ -1,4 +1,4 @@
-// Package main shows how to use the rago agent library
+// Package main shows how to use the agentgo agent library
 package main
 
 import (
@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 func main() {

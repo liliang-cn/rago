@@ -241,7 +241,7 @@ func resolveConfigPath(opts *AddServerOptions) string {
 	}
 
 	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".rago", "mcpServers.json")
+	return filepath.Join(homeDir, ".agentgo", "mcpServers.json")
 }
 
 func saveJSONConfig(path string, config *JSONServersConfig) error {

@@ -6,18 +6,18 @@ import (
 	"log"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/pool"
-	"github.com/liliang-cn/rago/v2/pkg/providers"
-	"github.com/liliang-cn/rago/v2/pkg/rag"
+	"github.com/liliang-cn/agent-go/pkg/config"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/pool"
+	"github.com/liliang-cn/agent-go/pkg/providers"
+	"github.com/liliang-cn/agent-go/pkg/rag"
 )
 
 func main() {
 
 	ctx := context.Background()
 
-	// 1. Configure RAGO
+	// 1. Configure AgentGo
 	cfg := &config.Config{
 		Cortexdb: config.CortexdbConfig{
 			DBPath:    "./data/advanced_rag.db",
@@ -78,14 +78,14 @@ func main() {
 		content string
 	}{
 		{
-			name: "rago_intro.txt",
-			content: `RAGO is an Autonomous Agent & RAG Library for Go.
+			name: "agentgo_intro.txt",
+			content: `AgentGo is an Autonomous Agent & RAG Library for Go.
 It enables you to build autonomous agents with "hands" (MCP Tools & Skills),
 "brains" (Planning & Reasoning), and "memory" (Vector RAG & GraphRAG).`,
 		},
 		{
 			name: "features.txt",
-			content: `RAGO supports multiple LLM providers (OpenAI, Ollama, DeepSeek),
+			content: `AgentGo supports multiple LLM providers (OpenAI, Ollama, DeepSeek),
 hybrid RAG (Vector + Knowledge Graph), and MCP tools integration.
 It's designed to be the intelligence layer of your application.`,
 		},
@@ -111,7 +111,7 @@ It's designed to be the intelligence layer of your application.`,
 	// 5. Advanced Querying with Filters
 	fmt.Println("\nQuerying knowledge base...")
 
-	query := "What are the main features of RAGO?"
+	query := "What are the main features of AgentGo?"
 
 	queryOpts := &rag.QueryOptions{
 		TopK:        3,

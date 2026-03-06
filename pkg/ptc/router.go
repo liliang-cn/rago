@@ -59,10 +59,10 @@ type skillInfo struct {
 	Description string
 }
 
-// RAGORouter routes tool calls to existing RAGO services.
+// AgentGoRouter routes tool calls to existing AgentGo services.
 // External services are stored as interface{} and resolved lazily via type assertions
 // so that pkg/ptc remains free of concrete-package imports.
-type RAGORouter struct {
+type AgentGoRouter struct {
 	mu sync.RWMutex
 
 	// Tool handlers by name
@@ -81,14 +81,14 @@ type RAGORouter struct {
 }
 
 // RouterOption configures the router.
-type RouterOption func(*RAGORouter)
+type RouterOption func(*AgentGoRouter)
 
 // WithMCPService sets the MCP service.
 // The value must implement at minimum:
 //
 //	CallTool(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error)
 func WithMCPService(svc interface{}) RouterOption {
-	return func(r *RAGORouter) {
+	return func(r *AgentGoRouter) {
 		r.mcpService = svc
 	}
 }
@@ -96,21 +96,21 @@ func WithMCPService(svc interface{}) RouterOption {
 // WithSkillsService sets the skills service.
 // The value must be *skills.Service (or any type with ListSkills / Execute methods).
 func WithSkillsService(svc interface{}) RouterOption {
-	return func(r *RAGORouter) {
+	return func(r *AgentGoRouter) {
 		r.skillsService = svc
 	}
 }
 
 // WithRAGProcessor sets the RAG processor.
 func WithRAGProcessor(proc interface{}) RouterOption {
-	return func(r *RAGORouter) {
+	return func(r *AgentGoRouter) {
 		r.ragProcessor = proc
 	}
 }
 
-// NewRAGORouter creates a new tool router.
-func NewRAGORouter(opts ...RouterOption) *RAGORouter {
-	r := &RAGORouter{
+// NewAgentGoRouter creates a new tool router.
+func NewAgentGoRouter(opts ...RouterOption) *AgentGoRouter {
+	r := &AgentGoRouter{
 		handlers: make(map[string]ToolHandler),
 		toolInfo: make(map[string]*ToolInfo),
 	}
@@ -127,7 +127,7 @@ func NewRAGORouter(opts ...RouterOption) *RAGORouter {
 }
 
 // registerBuiltinTools registers built-in RAG tools.
-func (r *RAGORouter) registerBuiltinTools() {
+func (r *AgentGoRouter) registerBuiltinTools() {
 	// RAG query tool
 	r.RegisterTool("rag_query", &ToolInfo{
 		Name:        "rag_query",
@@ -183,7 +183,7 @@ func (r *RAGORouter) registerBuiltinTools() {
 }
 
 // Route routes a tool call to the appropriate handler.
-func (r *RAGORouter) Route(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error) {
+func (r *AgentGoRouter) Route(ctx context.Context, toolName string, args map[string]interface{}) (interface{}, error) {
 	// 1. Try explicitly registered handlers first
 	r.mu.RLock()
 	handler, ok := r.handlers[toolName]
@@ -227,7 +227,7 @@ func (r *RAGORouter) Route(ctx context.Context, toolName string, args map[string
 }
 
 // RegisterTool registers a tool with the router.
-func (r *RAGORouter) RegisterTool(name string, info *ToolInfo, handler ToolHandler) error {
+func (r *AgentGoRouter) RegisterTool(name string, info *ToolInfo, handler ToolHandler) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -237,7 +237,7 @@ func (r *RAGORouter) RegisterTool(name string, info *ToolInfo, handler ToolHandl
 }
 
 // UnregisterTool removes a tool from the router.
-func (r *RAGORouter) UnregisterTool(name string) error {
+func (r *AgentGoRouter) UnregisterTool(name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -247,7 +247,7 @@ func (r *RAGORouter) UnregisterTool(name string) error {
 }
 
 // ListAvailableTools returns all available tools.
-func (r *RAGORouter) ListAvailableTools(ctx context.Context) ([]ToolInfo, error) {
+func (r *AgentGoRouter) ListAvailableTools(ctx context.Context) ([]ToolInfo, error) {
 	r.mu.RLock()
 	registeredTools := make([]ToolInfo, 0, len(r.toolInfo))
 	for _, info := range r.toolInfo {
@@ -271,7 +271,7 @@ func (r *RAGORouter) ListAvailableTools(ctx context.Context) ([]ToolInfo, error)
 }
 
 // GetToolInfo returns information about a specific tool.
-func (r *RAGORouter) GetToolInfo(ctx context.Context, name string) (*ToolInfo, error) {
+func (r *AgentGoRouter) GetToolInfo(ctx context.Context, name string) (*ToolInfo, error) {
 	r.mu.RLock()
 	info, ok := r.toolInfo[name]
 	r.mu.RUnlock()
@@ -298,7 +298,7 @@ func (r *RAGORouter) GetToolInfo(ctx context.Context, name string) (*ToolInfo, e
 }
 
 // HasTool checks if a tool is registered locally.
-func (r *RAGORouter) HasTool(name string) bool {
+func (r *AgentGoRouter) HasTool(name string) bool {
 	r.mu.RLock()
 	_, ok := r.handlers[name]
 	r.mu.RUnlock()
@@ -309,7 +309,7 @@ func (r *RAGORouter) HasTool(name string) bool {
 // Built-in RAG handlers
 // -------------------------------------------------------------------------
 
-func (r *RAGORouter) ragQueryHandler(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (r *AgentGoRouter) ragQueryHandler(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	if r.ragProcessor == nil {
 		return nil, fmt.Errorf("RAG processor not configured")
 	}
@@ -358,7 +358,7 @@ func (r *RAGORouter) ragQueryHandler(ctx context.Context, args map[string]interf
 	}, nil
 }
 
-func (r *RAGORouter) ragIngestHandler(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (r *AgentGoRouter) ragIngestHandler(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	if r.ragProcessor == nil {
 		return nil, fmt.Errorf("RAG processor not configured")
 	}
@@ -377,7 +377,7 @@ func (r *RAGORouter) ragIngestHandler(ctx context.Context, args map[string]inter
 	}, nil
 }
 
-func (r *RAGORouter) ragListHandler(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+func (r *AgentGoRouter) ragListHandler(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	if r.ragProcessor == nil {
 		return nil, fmt.Errorf("RAG processor not configured")
 	}
@@ -395,7 +395,7 @@ func (r *RAGORouter) ragListHandler(ctx context.Context, args map[string]interfa
 // getMCPTools returns ToolInfo for every tool exposed by the MCP service.
 // It duck-types against ListTools() []T where T has Function.Name, Function.Description,
 // Function.Parameters — which is how agent.MCPToolExecutor works.
-func (r *RAGORouter) getMCPTools(ctx context.Context) []ToolInfo {
+func (r *AgentGoRouter) getMCPTools(ctx context.Context) []ToolInfo {
 	type domainTool struct {
 		Function struct {
 			Name        string
@@ -466,7 +466,7 @@ func (r *RAGORouter) getMCPTools(ctx context.Context) []ToolInfo {
 }
 
 // getMCPToolInfo returns ToolInfo for a named MCP tool.
-func (r *RAGORouter) getMCPToolInfo(ctx context.Context, name string) *ToolInfo {
+func (r *AgentGoRouter) getMCPToolInfo(ctx context.Context, name string) *ToolInfo {
 	for _, t := range r.getMCPTools(ctx) {
 		if t.Name == name {
 			t := t
@@ -483,7 +483,7 @@ func (r *RAGORouter) getMCPToolInfo(ctx context.Context, name string) *ToolInfo 
 // -------------------------------------------------------------------------
 
 // callSkill executes a skill by ID using duck-typed Execute method.
-func (r *RAGORouter) callSkill(ctx context.Context, skillID string, vars map[string]interface{}) (interface{}, error) {
+func (r *AgentGoRouter) callSkill(ctx context.Context, skillID string, vars map[string]interface{}) (interface{}, error) {
 	// The skills.Service has a RunSkill(context.Context, string, map[string]interface{}) (string, error) method.
 	type skillRunner interface {
 		RunSkill(ctx context.Context, id string, vars map[string]interface{}) (string, error)
@@ -497,7 +497,7 @@ func (r *RAGORouter) callSkill(ctx context.Context, skillID string, vars map[str
 }
 
 // getSkillTools returns ToolInfo for every available skill.
-func (r *RAGORouter) getSkillTools(ctx context.Context) []ToolInfo {
+func (r *AgentGoRouter) getSkillTools(ctx context.Context) []ToolInfo {
 	type skillLister interface {
 		ListSkillInfos(ctx context.Context) []ToolInfo
 	}
@@ -510,7 +510,7 @@ func (r *RAGORouter) getSkillTools(ctx context.Context) []ToolInfo {
 // skillToolInfos holds pre-resolved skill infos injected at construction time.
 
 // getSkillToolInfo returns ToolInfo for a named skill.
-func (r *RAGORouter) getSkillToolInfo(ctx context.Context, name string) *ToolInfo {
+func (r *AgentGoRouter) getSkillToolInfo(ctx context.Context, name string) *ToolInfo {
 	skillID := strings.TrimPrefix(name, "skill_")
 	for _, t := range r.getSkillTools(ctx) {
 		if t.Name == name || t.Name == skillID {
@@ -529,7 +529,7 @@ func (r *RAGORouter) getSkillToolInfo(ctx context.Context, name string) *ToolInf
 // This is used by pkg/agent to inject a closure that calls domain.Processor.Query
 // without creating an import cycle.
 func WithRAGQueryHandler(handler ToolHandler) RouterOption {
-	return func(r *RAGORouter) {
+	return func(r *AgentGoRouter) {
 		// Override the stub handler registered in registerBuiltinTools
 		r.mu.Lock()
 		r.handlers["rag_query"] = handler
@@ -539,7 +539,7 @@ func WithRAGQueryHandler(handler ToolHandler) RouterOption {
 
 // WithRAGIngestHandler overrides the default rag_ingest stub with a real handler.
 func WithRAGIngestHandler(handler ToolHandler) RouterOption {
-	return func(r *RAGORouter) {
+	return func(r *AgentGoRouter) {
 		r.mu.Lock()
 		r.handlers["rag_ingest"] = handler
 		r.mu.Unlock()
@@ -548,21 +548,21 @@ func WithRAGIngestHandler(handler ToolHandler) RouterOption {
 
 // This is called from pkg/agent after converting domain.ToolDefinition → ptc.ToolInfo.
 func WithMCPToolInfos(infos []ToolInfo) RouterOption {
-	return func(r *RAGORouter) {
+	return func(r *AgentGoRouter) {
 		r.mcpToolInfos = infos
 	}
 }
 
 // WithSkillToolInfos injects pre-resolved skill tool info.
 func WithSkillToolInfos(infos []ToolInfo) RouterOption {
-	return func(r *RAGORouter) {
+	return func(r *AgentGoRouter) {
 		r.skillToolInfos = infos
 	}
 }
 
 // WithToolHandler registers a custom tool handler.
 func WithToolHandler(name string, handler ToolHandler) RouterOption {
-	return func(r *RAGORouter) {
+	return func(r *AgentGoRouter) {
 		r.mu.Lock()
 		r.handlers[name] = handler
 		r.mu.Unlock()
@@ -572,7 +572,7 @@ func WithToolHandler(name string, handler ToolHandler) RouterOption {
 // WithMemoryToolInfos injects pre-resolved memory tool info into the router so
 // they appear in ListAvailableTools and are visible to the LLM via callTool().
 func WithMemoryToolInfos(infos []ToolInfo) RouterOption {
-	return func(r *RAGORouter) {
+	return func(r *AgentGoRouter) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		for i := range infos {

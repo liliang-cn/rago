@@ -1,4 +1,4 @@
-// cognitive_layer 验证 RAGO 认知记忆层的完整功能：
+// cognitive_layer 验证 AgentGo 认知记忆层的完整功能：
 //
 //   - FileMemoryStore：带 RevisionHistory 的记忆持久化
 //   - _index/ 多文件索引：observations.md / facts.md 等
@@ -20,24 +20,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/memory"
-	"github.com/liliang-cn/rago/v2/pkg/services"
-	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/agent-go/pkg/config"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/memory"
+	"github.com/liliang-cn/agent-go/pkg/services"
+	"github.com/liliang-cn/agent-go/pkg/store"
 )
 
 func main() {
 	ctx := context.Background()
 
-	// ── 1. 初始化 LLM（从 rago.toml 读取，使用 ollama qwen3.5:latest） ────────
-	ragoCfg, err := config.Load("")
+	// ── 1. 初始化 LLM（从 agentgo.toml 读取，使用 ollama qwen3.5:latest） ────────
+	agentgoCfg, err := config.Load("")
 	if err != nil {
 		log.Fatalf("加载配置失败: %v", err)
 	}
 
 	globalPool := services.GetGlobalPoolService()
-	if err := globalPool.Initialize(ctx, ragoCfg); err != nil {
+	if err := globalPool.Initialize(ctx, agentgoCfg); err != nil {
 		log.Fatalf("初始化 LLM Pool 失败: %v", err)
 	}
 
@@ -45,10 +45,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("获取 LLM 失败（请确认 Ollama 已启动且 qwen3.5:latest 已拉取）: %v", err)
 	}
-	fmt.Println("✅ LLM 已就绪（来自 rago.toml）")
+	fmt.Println("✅ LLM 已就绪（来自 agentgo.toml）")
 
 	// ── 2. 初始化 FileMemoryStore ──────────────────────────────────────────────
-	memDir := filepath.Join(os.TempDir(), "rago-cognitive-demo")
+	memDir := filepath.Join(os.TempDir(), "agentgo-cognitive-demo")
 	os.RemoveAll(memDir)
 	defer os.RemoveAll(memDir)
 

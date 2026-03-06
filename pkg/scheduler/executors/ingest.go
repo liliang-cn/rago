@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/liliang-cn/rago/v2/pkg/config"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/rag/processor"
-	"github.com/liliang-cn/rago/v2/pkg/scheduler"
+	"github.com/liliang-cn/agent-go/pkg/config"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/rag/processor"
+	"github.com/liliang-cn/agent-go/pkg/scheduler"
 )
 
 // IngestExecutor executes document ingestion tasks

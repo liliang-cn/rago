@@ -6,16 +6,16 @@ import (
 	"log"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/memory"
-	"github.com/liliang-cn/rago/v2/pkg/providers"
-	"github.com/liliang-cn/rago/v2/pkg/store"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/memory"
+	"github.com/liliang-cn/agent-go/pkg/providers"
+	"github.com/liliang-cn/agent-go/pkg/store"
 )
 
 func main() {
 	ctx := context.Background()
 
-	memStore, _ := store.NewMemoryStore("/tmp/rago-test-retrieve.db")
+	memStore, _ := store.NewMemoryStore("/tmp/agentgo-test-retrieve.db")
 	defer memStore.Close()
 
 	provConfig := &domain.OpenAIProviderConfig{

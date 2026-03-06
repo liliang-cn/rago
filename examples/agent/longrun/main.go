@@ -31,8 +31,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
-	"github.com/liliang-cn/rago/v2/pkg/skills"
+	"github.com/liliang-cn/agent-go/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/skills"
 )
 
 func main() {
@@ -55,8 +55,8 @@ func main() {
 
 	// Setup
 	homeDir, _ := os.UserHomeDir()
-	dbPath := filepath.Join(homeDir, ".rago", "data", "longrun_demo.db")
-	workDir := filepath.Join(homeDir, ".rago", "longrun")
+	dbPath := filepath.Join(homeDir, ".agentgo", "data", "longrun_demo.db")
+	workDir := filepath.Join(homeDir, ".agentgo", "longrun")
 	skillsPath := filepath.Join(homeDir, ".agents", "skills")
 
 	os.MkdirAll(filepath.Dir(dbPath), 0755)

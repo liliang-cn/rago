@@ -24,7 +24,7 @@ type ConverterConfig struct {
 func DefaultConverterConfig() *ConverterConfig {
 	homeDir, _ := os.UserHomeDir()
 	return &ConverterConfig{
-		OutputDir:  filepath.Join(homeDir, ".rago", "skills"),
+		OutputDir:  filepath.Join(homeDir, ".agentgo", "skills"),
 		UseLLM:     false,
 		LLMModel:   "gpt-4o",
 	}

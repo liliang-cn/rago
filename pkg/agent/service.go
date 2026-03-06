@@ -11,14 +11,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	ragolog "github.com/liliang-cn/rago/v2/pkg/log"
-	"github.com/liliang-cn/rago/v2/pkg/mcp"
-	memorypkg "github.com/liliang-cn/rago/v2/pkg/memory"
-	"github.com/liliang-cn/rago/v2/pkg/prompt"
-	"github.com/liliang-cn/rago/v2/pkg/ptc"
-	"github.com/liliang-cn/rago/v2/pkg/router"
-	"github.com/liliang-cn/rago/v2/pkg/skills"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	agentgolog "github.com/liliang-cn/agent-go/pkg/log"
+	"github.com/liliang-cn/agent-go/pkg/mcp"
+	memorypkg "github.com/liliang-cn/agent-go/pkg/memory"
+	"github.com/liliang-cn/agent-go/pkg/prompt"
+	"github.com/liliang-cn/agent-go/pkg/ptc"
+	"github.com/liliang-cn/agent-go/pkg/router"
+	"github.com/liliang-cn/agent-go/pkg/skills"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -34,7 +34,7 @@ type ProgressEvent struct {
 type ProgressCallback func(ProgressEvent)
 
 // Service is the main agent service that handles planning and execution
-// This matches the interface expected by the CLI in cmd/rago-cli/agent/agent.go
+// This matches the interface expected by the CLI in cmd/agentgo-cli/agent/agent.go
 type Service struct {
 	debug            bool
 	llmService       domain.Generator
@@ -118,7 +118,7 @@ func NewService(
 
 	// Build default agent instructions based on enabled features
 	var instructions strings.Builder
-	instructions.WriteString("You are RAGO, a helpful AI assistant")
+	instructions.WriteString("You are AgentGo, a helpful AI assistant")
 	instructions.WriteString(" with access to")
 
 	var features []string
@@ -138,7 +138,7 @@ func NewService(
 
 	// Create default agent
 	agent := NewAgentWithConfig(
-		"RAGO Agent",
+		"AgentGo Agent",
 		instructions.String(),
 		tools,
 	)
@@ -162,7 +162,7 @@ func NewService(
 	executor := NewExecutor(llmService, nil, mcpService, ragProcessor, memoryService)
 
 	// Initialize logger
-	logger := ragolog.WithModule("agent.service")
+	logger := agentgolog.WithModule("agent.service")
 
 	return &Service{
 		llmService:    llmService,

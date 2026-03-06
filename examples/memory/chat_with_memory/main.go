@@ -8,13 +8,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 func main() {
 	ctx := context.Background()
 	homeDir, _ := os.UserHomeDir()
-	testDir := filepath.Join(homeDir, ".rago", "data", "chat_memory_test")
+	testDir := filepath.Join(homeDir, ".agentgo", "data", "chat_memory_test")
 	_ = os.RemoveAll(testDir)
 	os.MkdirAll(testDir, 0755)
 

@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/liliang-cn/rago/v2/pkg/agent"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
 // List of scenarios to demonstrate PTC power

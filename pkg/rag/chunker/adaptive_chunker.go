@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 // DocumentType represents different types of documents

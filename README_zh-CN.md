@@ -1,13 +1,13 @@
-# RAGO
+# AgentGo
 
 **本地优先的 RAG + Agent Go 框架。**
 
 [English](README.md) · [API 参考](references/API.md) · [架构文档](references/ARCHITECTURE.md)
 
-RAGO 是一个 Go 库，用于构建数据保持本地的 AI 应用。从文档语义搜索开始，按需添加 Agent 自动化能力。
+AgentGo 是一个 Go 库，用于构建数据保持本地的 AI 应用。从文档语义搜索开始，按需添加 Agent 自动化能力。
 
 ```bash
-go get github.com/liliang-cn/rago/v2
+go get github.com/liliang-cn/agent-go
 ```
 
 ---
@@ -46,7 +46,7 @@ fmt.Println(reply)
 svc, _ := agent.New("assistant").
     WithPrompt("根据提供的文档回答问题。").
     WithRAG().
-    WithDBPath("~/.rago/data/agent.db").
+    WithDBPath("~/.agentgo/data/agent.db").
     Build()
 defer svc.Close()
 
@@ -76,17 +76,17 @@ reply, _ := svc.Chat(ctx, "我在哪个团队？")
 
 ```bash
 # 启动交互对话，并显示检索到的记忆和推理过程
-go run ./cmd/rago-cli chat --show-memory
+go run ./cmd/agentgo-cli chat --show-memory
 
 # 开启 JavaScript 沙箱用于处理复杂逻辑
-go run ./cmd/rago-cli chat --with-ptc
+go run ./cmd/agentgo-cli chat --with-ptc
 ```
 
 ---
 
 ## 认知记忆层 (Hindsight & PageIndex)
 
-RAGO 实现了一个受 **Hindsight** (认知分层) 和 **PageIndex** (结构化导航) 启发的演化记忆层。
+AgentGo 实现了一个受 **Hindsight** (认知分层) 和 **PageIndex** (结构化导航) 启发的演化记忆层。
 
 | 概念 | 说明 |
 |---|---|
@@ -185,7 +185,7 @@ svc, _ := agent.New("agent").WithMemory().Build()
 // LongRun Agent 自动共享同一个 DB 记忆
 lr, _ := agent.NewLongRun(svc).
     WithInterval(5 * time.Minute).
-    WithWorkDir("~/.rago/longrun").
+    WithWorkDir("~/.agentgo/longrun").
     Build()
 ```
 
@@ -241,16 +241,16 @@ result, _ := svc.Execute(ctx, plan.ID)
 
 ## 配置与存储
 
-配置文件：`rago.toml`（自动发现路径：`./` → `~/.rago/` → `~/.rago/config/`）
+配置文件：`agentgo.toml`（自动发现路径：`./` → `~/.agentgo/` → `~/.agentgo/config/`）
 
-### 目录结构（默认 `home = ~/.rago`）
+### 目录结构（默认 `home = ~/.agentgo`）
 
 ```
-~/.rago/
-├── rago.toml              ← 配置文件
+~/.agentgo/
+├── agentgo.toml              ← 配置文件
 ├── mcpServers.json        ← MCP 服务器定义
 ├── data/
-│   ├── rago.db            ← RAG 向量库（sqlite-vec）；memory.store_type=vector 时共用
+│   ├── agentgo.db            ← RAG 向量库（sqlite-vec）；memory.store_type=vector 时共用
 │   ├── agent.db           ← Agent 会话 + 执行计划
 │   └── memories/          ← Memory 文件存储（每个 session 一个 JSON）
 ├── skills/                ← SKILL.md 技能文件
@@ -262,7 +262,7 @@ result, _ := svc.Execute(ctx, plan.ID)
 
 | 文件 | 默认路径 | 用途 |
 |------|---------|------|
-| `rago.db` | `$home/data/rago.db` | RAG 文档 + 向量索引；`memory.store_type=vector` 时同时作为 Memory 向量库 |
+| `agentgo.db` | `$home/data/agentgo.db` | RAG 文档 + 向量索引；`memory.store_type=vector` 时同时作为 Memory 向量库 |
 | `agent.db` | `$home/data/agent.db` | Agent 会话消息历史和执行计划 |
 | `history.db` *(可选)* | 通过 `WithHistoryDBPath()` 指定 | 详细工具调用日志，仅在 `WithStoreHistory(true)` 时创建 |
 
@@ -271,17 +271,17 @@ result, _ := svc.Execute(ctx, plan.ID)
 | `store_type` | 存储方式 | 是否需要 Embedder |
 |-------------|---------|-----------------|
 | `file` *(默认)* | `data/memories/{session}.json` | 否 |
-| `vector` | `data/rago.db`（共用） | 是 |
-| `hybrid` | 文件为主 + `rago.db` 影子索引 | 是 |
+| `vector` | `data/agentgo.db`（共用） | 是 |
+| `hybrid` | 文件为主 + `agentgo.db` 影子索引 | 是 |
 
 ### 核心配置字段
 
 ```toml
-home = "~/.rago"             # 所有相对路径的基准目录
+home = "~/.agentgo"             # 所有相对路径的基准目录
 
 [cortexdb]
-db_path   = ""               # RAG 数据库，默认 $home/data/rago.db
-                             # 环境变量：RAGO_CORTEXDB_DB_PATH
+db_path   = ""               # RAG 数据库，默认 $home/data/agentgo.db
+                             # 环境变量：AgentGo_CORTEXDB_DB_PATH
 
 [memory]
 store_type  = "file"         # file | vector | hybrid
@@ -297,7 +297,7 @@ enabled   = true
 auto_load = true
 
 [mcp]
-servers = ["~/.rago/mcpServers.json"]
+servers = ["~/.agentgo/mcpServers.json"]
 ```
 
 完整带注释的配置参见 [`references/CONFIG.md`](references/CONFIG.md)。
@@ -306,7 +306,7 @@ servers = ["~/.rago/mcpServers.json"]
 
 ## Provider 配置
 
-`rago.toml` 自动发现路径：`./`、`~/.rago/`、`~/.rago/config/`
+`agentgo.toml` 自动发现路径：`./`、`~/.agentgo/`、`~/.agentgo/config/`
 
 ```toml
 [[llm_pool.providers]]
@@ -351,4 +351,4 @@ examples/
 
 ## License
 
-MIT — Copyright (c) 2024–2026 RAGO Authors
+MIT — Copyright (c) 2024–2026 AgentGo Authors

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/liliang-cn/rago/v2/pkg/domain"
-	"github.com/liliang-cn/rago/v2/pkg/mcp"
+	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/mcp"
 )
 
 // mcpToolAdapter wraps mcp.Service to implement MCPToolExecutor

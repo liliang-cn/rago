@@ -1,4 +1,4 @@
-.PHONY: help build rago-cli rago-ui ui-dev ui-deps test clean deps
+.PHONY: help build agentgo-cli agentgo-ui ui-dev ui-deps test clean deps
 
 GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
 LDFLAGS := -ldflags="-X 'main.version=$(GIT_TAG)'"
@@ -6,11 +6,11 @@ LDFLAGS := -ldflags="-X 'main.version=$(GIT_TAG)'"
 all: help
 
 help:
-	@echo "RAGO - AI Agent SDK"
+	@echo "AgentGo - AI Agent SDK"
 	@echo ""
-	@echo "  build       - Build all (rago-cli + rago-ui)"
-	@echo "  rago-cli    - Build rago-cli only"
-	@echo "  rago-ui     - Build rago-ui only"
+	@echo "  build       - Build all (agentgo-cli + agentgo-ui)"
+	@echo "  agentgo-cli    - Build agentgo-cli only"
+	@echo "  agentgo-ui     - Build agentgo-ui only"
 	@echo "  test        - Run tests"
 	@echo "  clean       - Clean"
 	@echo "  deps        - Install deps"
@@ -21,21 +21,21 @@ help:
 	@echo ""
 	@echo "Version: $(GIT_TAG)"
 
-build: rago-cli rago-ui
+build: agentgo-cli agentgo-ui
 	@echo "✅ Done"
 
-rago-cli:
-	@echo "Building rago-cli..."
+agentgo-cli:
+	@echo "Building agentgo-cli..."
 	@mkdir -p bin
-	@go build $(LDFLAGS) -o bin/rago-cli ./cmd/rago-cli
+	@go build $(LDFLAGS) -o bin/agentgo-cli ./cmd/agentgo-cli
 
-rago-ui:
-	@echo "Building rago-ui..."
+agentgo-ui:
+	@echo "Building agentgo-ui..."
 	@mkdir -p bin
 	@cd ui && npm run build
-	@cp -r ui/dist cmd/rago-ui/dist
-	@go build $(LDFLAGS) -o bin/rago-ui ./cmd/rago-ui
-	@rm -rf cmd/rago-ui/dist
+	@cp -r ui/dist cmd/agentgo-ui/dist
+	@go build $(LDFLAGS) -o bin/agentgo-ui ./cmd/agentgo-ui
+	@rm -rf cmd/agentgo-ui/dist
 
 ui-dev:
 	@cd ui && npm run dev
@@ -47,7 +47,7 @@ test:
 	@go test ./...
 
 clean:
-	@rm -rf bin/ cmd/rago-ui/dist .rago/data/*.db
+	@rm -rf bin/ cmd/agentgo-ui/dist .agentgo/data/*.db
 
 deps:
 	@go mod download && go mod tidy

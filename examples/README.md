@@ -1,6 +1,6 @@
-# RAGO v2 Examples
+# AgentGo v2 Examples
 
-This directory contains comprehensive examples demonstrating how to use RAGO v2 as a library. The examples showcase the simplified, streamlined API introduced in v2.
+This directory contains comprehensive examples demonstrating how to use AgentGo v2 as a library. The examples showcase the simplified, streamlined API introduced in v2.
 
 ## 📁 Example Structure
 
@@ -51,7 +51,7 @@ go run main.go
 **Run**:
 ```bash
 cd examples/config_based
-go run main.go rago.toml
+go run main.go agentgo.toml
 ```
 
 ## 🔧 Environment Variables
@@ -60,10 +60,10 @@ All examples support these environment variables for configuration:
 
 ```bash
 # LLM Provider Configuration
-export RAGO_OPENAI_BASE_URL="http://localhost:11434/v1"
-export RAGO_OPENAI_API_KEY="your-api-key"
-export RAGO_OPENAI_LLM_MODEL="qwen3"
-export RAGO_OPENAI_EMBEDDING_MODEL="nomic-embed-text"
+export AgentGo_OPENAI_BASE_URL="http://localhost:11434/v1"
+export AgentGo_OPENAI_API_KEY="your-api-key"
+export AgentGo_OPENAI_LLM_MODEL="qwen3"
+export AgentGo_OPENAI_EMBEDDING_MODEL="nomic-embed-text"
 ```
 
 ## 📋 Prerequisites
@@ -85,14 +85,14 @@ ollama pull nomic-embed-text
 
 1. **Clone the repository**:
 ```bash
-git clone https://github.com/liliang-cn/rago.git
-cd rago
+git clone https://github.com/liliang-cn/agentgo.git
+cd agentgo
 ```
 
 2. **Set up environment variables** (optional):
 ```bash
-export RAGO_OPENAI_BASE_URL="http://localhost:11434/v1"
-export RAGO_OPENAI_API_KEY="ollama"
+export AgentGo_OPENAI_BASE_URL="http://localhost:11434/v1"
+export AgentGo_OPENAI_API_KEY="ollama"
 ```
 
 3. **Run any example**:
@@ -123,7 +123,7 @@ go run main.go
 
 ## 📚 Related Documentation
 
-- [RAGO Client API](../pkg/rag/) - Core RAG client documentation
+- [AgentGo Client API](../pkg/rag/) - Core RAG client documentation
 - [LLM Service API](../pkg/llm/) - LLM service documentation
 - [Configuration Guide](../pkg/config/) - Full configuration options
 - [Main README](../README.md) - Complete project documentation
@@ -132,10 +132,10 @@ go run main.go
 
 Found an issue or want to improve the examples? Please:
 
-1. Check existing [issues](https://github.com/liliang-cn/rago/issues)
+1. Check existing [issues](https://github.com/liliang-cn/agentgo/issues)
 2. Create a new issue with detailed description
 3. Submit a pull request with your improvements
 
 ## 📄 License
 
-These examples are part of the RAGO project and licensed under the MIT License - see the main [LICENSE](../LICENSE) file for details.
+These examples are part of the AgentGo project and licensed under the MIT License - see the main [LICENSE](../LICENSE) file for details.

@@ -3,7 +3,7 @@ package store
 import (
 	"fmt"
 	
-	"github.com/liliang-cn/rago/v2/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 // StoreConfig holds configuration for vector stores
@@ -22,7 +22,7 @@ func NewVectorStore(config StoreConfig) (domain.VectorStore, error) {
 			indexType, _ = config.Parameters["index_type"].(string)
 		}
 		if dbPath == "" {
-			dbPath = "./.rago/data/rag.db"
+			dbPath = "./.agentgo/data/rag.db"
 		}
 		return NewSQLiteStore(dbPath, indexType)
 		
@@ -36,7 +36,7 @@ func NewVectorStore(config StoreConfig) (domain.VectorStore, error) {
 			url = "localhost:6334" // Default Qdrant gRPC port
 		}
 		if collection == "" {
-			collection = "rago_documents"
+			collection = "agentgo_documents"
 		}
 		return NewQdrantStore(url, collection)
 		
