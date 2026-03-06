@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface AgentMessage {
   id: string
@@ -104,6 +105,7 @@ function EventItem({ event }: { event: AgentEvent }) {
 }
 
 export function Agent() {
+  const { t } = useTranslation()
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
