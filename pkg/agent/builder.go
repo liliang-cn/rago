@@ -61,7 +61,7 @@ type MCPConfig struct {
 type MemoryConfig struct {
 	Enabled          bool     `json:"enabled"`
 	DBPath           string   `json:"db_path,omitempty"`
-	StoreType        string   `json:"store_type,omitempty"` // "file", "vector", "hybrid"
+	StoreType        string   `json:"store_type,omitempty"`        // "file", "vector", "hybrid"
 	ReflectThreshold int      `json:"reflect_threshold,omitempty"` // auto-reflect after N new facts (0 = disabled)
 	Mission          string   `json:"mission,omitempty"`           // MemoryBank mission statement
 	Directives       []string `json:"directives,omitempty"`        // MemoryBank hard directives
@@ -89,11 +89,16 @@ type SkillsConfig struct {
 // Assign to (*Service, error) to build - no explicit Build() needed!
 type Builder struct {
 	name         string
-	agentgoCfg      *config.Config
+	agentgoCfg   *config.Config
 	dbPath       string
 	systemPrompt string
 	debug        bool
 	progressCb   ProgressCallback
+
+	// Custom LLM service (optional - if not set, uses global pool)
+	llmService domain.Generator
+	// Custom Embedder service (optional - used with custom LLM for RAG/Memory)
+	embedService domain.Embedder
 
 	enableRAG       bool
 	ragCfg          RAGConfig
@@ -260,6 +265,37 @@ func (b *Builder) WithConfig(cfg *config.Config) *Builder {
 	return b
 }
 
+// WithLLM sets a custom LLM service for the agent.
+// This overrides the default LLM from the global pool configured in agentgo.toml.
+//
+// The provided LLM must implement the domain.Generator interface.
+//
+// Example:
+//
+//	svc, err := agent.New("my-agent").
+//	    WithLLM(myCustomLLM).
+//	    Build()
+func (b *Builder) WithLLM(llm domain.Generator) *Builder {
+	b.llmService = llm
+	return b
+}
+
+// WithEmbedder sets a custom embedding service for RAG and memory.
+// This is optional - if not set, the global pool's embedder will be used.
+// You typically need to provide this when using a custom LLM.
+//
+// Example:
+//
+//	svc, err := agent.New("my-agent").
+//	    WithLLM(myCustomLLM).
+//	    WithEmbedder(myCustomEmbedder).
+//	    WithRAG().
+//	    Build()
+func (b *Builder) WithEmbedder(embedder domain.Embedder) *Builder {
+	b.embedService = embedder
+	return b
+}
+
 // WithTool adds a single tool to the agent inline in the builder chain.
 // Tools registered here are available at Build() time, before PTC sync,
 // so they are reachable via callTool() in JS sandboxes as well.
@@ -323,19 +359,35 @@ func (b *Builder) build() (*Service, error) {
 		}
 	}
 
-	globalPool := services.GetGlobalPoolService()
-	if err := globalPool.Initialize(context.Background(), agentgoCfg); err != nil {
-		return nil, fmt.Errorf("failed to initialize pool: %w", err)
+	// Determine LLM service: use custom if provided, otherwise get from global pool
+	var llmSvc domain.Generator
+	if b.llmService != nil {
+		llmSvc = b.llmService
+	} else {
+		// Initialize global pool for LLM
+		globalPool := services.GetGlobalPoolService()
+		if err := globalPool.Initialize(context.Background(), agentgoCfg); err != nil {
+			return nil, fmt.Errorf("failed to initialize pool: %w", err)
+		}
+		llmSvc, err = globalPool.GetLLMService()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get LLM: %w", err)
+		}
 	}
 
-	llmSvc, err := globalPool.GetLLMService()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get LLM: %w", err)
-	}
-
-	embedSvc, err := globalPool.GetEmbeddingService(context.Background())
-	if err != nil {
-		log.Printf("[INFO] Embedding service not available: %v", err)
+	// Determine Embedder service: use custom if provided, otherwise try global pool
+	var embedSvc domain.Embedder
+	if b.embedService != nil {
+		embedSvc = b.embedService
+	} else {
+		// Try to get embedder from global pool (may not be available)
+		globalPool := services.GetGlobalPoolService()
+		// Only initialize if not already initialized (when custom LLM was provided)
+		if err := globalPool.Initialize(context.Background(), agentgoCfg); err != nil {
+			log.Printf("[INFO] Embedding service not available: %v", err)
+		} else if emb, err := globalPool.GetEmbeddingService(context.Background()); err == nil {
+			embedSvc = emb
+		}
 	}
 
 	// Build MCP
@@ -723,6 +775,3 @@ func WithPTCMaxToolCalls(n int) PTCOption { return func(c *PTCConfig) { c.MaxToo
 
 // WithPTCTimeout sets PTC timeout
 func WithPTCTimeout(d time.Duration) PTCOption { return func(c *PTCConfig) { c.Timeout = d } }
-
-
-
