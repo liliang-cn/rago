@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useDocuments, useCollections, useDeleteDocument, useDocument } from '../hooks/useApi'
 import { api } from '../lib/api'
 
@@ -28,6 +29,7 @@ function formatDocumentDate(value: string) {
 }
 
 function DocumentDetailModal({ docId, onClose }: { docId: string; onClose: () => void }) {
+  const { t } = useTranslation()
   const { data: doc, isLoading, error } = useDocument(docId)
 
   if (isLoading) {
@@ -44,7 +46,7 @@ function DocumentDetailModal({ docId, onClose }: { docId: string; onClose: () =>
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg">
-          <p className="text-red-600 dark:text-red-400">Error loading document</p>
+          <p className="text-red-600 dark:text-red-400">{t('error')} loading document</p>
           <button onClick={onClose} className="mt-4 px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded">
             Close
           </button>
@@ -76,11 +78,11 @@ function DocumentDetailModal({ docId, onClose }: { docId: string; onClose: () =>
             <span className="font-mono text-gray-900 dark:text-white">{doc.id}</span>
           </div>
           <div>
-            <span className="text-gray-500 dark:text-gray-400">Path: </span>
+            <span className="text-gray-500 dark:text-gray-400">{t('path')}: </span>
             <span className="text-gray-900 dark:text-white break-all">{path || '-'}</span>
           </div>
           <div>
-            <span className="text-gray-500 dark:text-gray-400">Created: </span>
+            <span className="text-gray-500 dark:text-gray-400">{t('created')}: </span>
             <span className="text-gray-900 dark:text-white">{formatDocumentDate(created)}</span>
           </div>
           <div>
@@ -89,7 +91,7 @@ function DocumentDetailModal({ docId, onClose }: { docId: string; onClose: () =>
           </div>
           {metadataEntries.length > 0 && (
             <div>
-              <span className="text-gray-500 dark:text-gray-400">Metadata: </span>
+              <span className="text-gray-500 dark:text-gray-400">{t('metadata')}: </span>
               <div className="mt-2 rounded-lg bg-gray-50 p-3 dark:bg-gray-900/50">
                 <dl className="space-y-2">
                   {metadataEntries.map(([key, value]) => (
@@ -104,7 +106,7 @@ function DocumentDetailModal({ docId, onClose }: { docId: string; onClose: () =>
           )}
           {doc.content && (
             <div>
-              <span className="text-gray-500 dark:text-gray-400">Content: </span>
+              <span className="text-gray-500 dark:text-gray-400">{t('content')}: </span>
               <pre className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-gray-50 p-3 text-xs text-gray-900 dark:bg-gray-900/50 dark:text-white max-h-96 overflow-auto">{doc.content}</pre>
             </div>
           )}
@@ -115,6 +117,7 @@ function DocumentDetailModal({ docId, onClose }: { docId: string; onClose: () =>
 }
 
 export function Documents() {
+  const { t } = useTranslation()
   const { data: documents, isLoading: docsLoading, error: docsError } = useDocuments()
   const { data: collections } = useCollections()
   const deleteDoc = useDeleteDocument()
@@ -168,7 +171,7 @@ export function Documents() {
     return (
       <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
         <p className="text-red-600 dark:text-red-400">
-          Error loading documents: {docsError.message}
+          {t('error')} loading documents: {docsError.message}
         </p>
       </div>
     )

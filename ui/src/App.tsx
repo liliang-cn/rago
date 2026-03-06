@@ -1,4 +1,5 @@
 import { Routes, Route, NavLink } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { QueryTest } from './pages/QueryTest'
 import { Documents } from './pages/Documents'
 import { Chat } from './pages/Chat'
@@ -10,6 +11,7 @@ import { Agent } from './pages/Agent'
 import { Settings } from './pages/Settings'
 
 function Nav() {
+  const { t } = useTranslation()
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `px-4 py-2 rounded-lg transition-colors ${
       isActive
@@ -20,31 +22,31 @@ function Nav() {
   return (
     <nav className="max-w-7xl mx-auto px-4 flex gap-2 py-4 overflow-x-auto">
       <NavLink to="/" className={linkClass} end>
-        Agent
+        {t('agent')}
       </NavLink>
       <NavLink to="/chat" className={linkClass}>
-        Chat
+        {t('chat')}
       </NavLink>
       <NavLink to="/skills" className={linkClass}>
-        Skills
+        {t('skills')}
       </NavLink>
       <NavLink to="/mcp" className={linkClass}>
-        MCP
+        {t('mcp')}
       </NavLink>
       <NavLink to="/memory" className={linkClass}>
-        Memory
+        {t('memory')}
       </NavLink>
       <NavLink to="/status" className={linkClass}>
-        Status
+        {t('status')}
       </NavLink>
       <NavLink to="/query" className={linkClass}>
-        Query
+        {t('query')}
       </NavLink>
       <NavLink to="/documents" className={linkClass}>
-        Documents
+        {t('documents')}
       </NavLink>
       <NavLink to="/settings" className={linkClass}>
-        Settings
+        {t('settings')}
       </NavLink>
     </nav>
   )
