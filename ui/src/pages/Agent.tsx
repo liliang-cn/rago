@@ -309,7 +309,7 @@ export function Agent() {
   return (
     <div className="flex flex-col h-[calc(100vh-200px)]">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Agent</h2>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('agent')}</h2>
         <div className="flex items-center gap-4">
           <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <input
