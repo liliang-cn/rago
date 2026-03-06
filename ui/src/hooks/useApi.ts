@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, QueryRequest, ChatRequest, CreateSkillRequest, AddMCPServerRequest, CallToolRequest, AddMemoryRequest } from '../lib/api'
+import { api, QueryRequest, ChatRequest, CreateSkillRequest, AddMCPServerRequest, CallToolRequest, AddMemoryRequest, UpdateConfigRequest } from '../lib/api'
 
 // RAG Hooks
 export function useQueryRAG() {
@@ -163,6 +163,23 @@ export function useDeleteMemory() {
     mutationFn: (id: string) => api.deleteMemory(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['memories'] })
+    },
+  })
+}
+
+export function useConfig() {
+  return useQuery({
+    queryKey: ['config'],
+    queryFn: api.getConfig,
+  })
+}
+
+export function useUpdateConfig() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: UpdateConfigRequest) => api.updateConfig(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['config'] })
     },
   })
 }

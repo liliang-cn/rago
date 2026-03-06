@@ -24,6 +24,7 @@ type Handler struct {
 	agentService  *agent.Service
 	llm           domain.Generator
 	embedder      domain.Embedder
+	ConfigHandler  *ConfigHandler
 }
 
 // New creates a new handler
@@ -31,8 +32,14 @@ func New(cfg *config.Config, ragClient *rag.Client, skillsService *skills.Servic
 	mcpService *mcp.Service, memoryService *memory.Service,
 	agentService *agent.Service, llm domain.Generator, embedder domain.Embedder) *Handler {
 
+	configHandler := NewConfigHandler(&Config{
+		Home:          cfg.Home,
+		MCPAllowedDirs: getMCPAllowedDirs(cfg),
+	})
+
 	return &Handler{
 		cfg:           cfg,
+		ConfigHandler:  configHandler,
 		ragClient:     ragClient,
 		skillsService: skillsService,
 		mcpService:    mcpService,
@@ -250,4 +257,11 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 		"memory":    memoryInfo,
 		"agent":     agentInfo,
 	})
+}
+
+
+func getMCPAllowedDirs(cfg *config.Config) []string {
+	// Read from mcpServers.json to find filesystem server allowed directories
+	// For now, return a default empty list
+	return []string{}
 }

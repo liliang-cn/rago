@@ -191,6 +191,8 @@ func runServer(cmd *cobra.Command, args []string) error {
 	mux.HandleFunc("/api/agent/run", h.HandleAgentRun)
 	mux.HandleFunc("/api/agent/stream", h.HandleAgentStream)
 
+	mux.HandleFunc("/api/config", h.ConfigHandler.HandleConfig)
+
 	// Serve static files
 	distFS, err := fs.Sub(staticFS, "dist")
 	if err != nil {
