@@ -16,6 +16,7 @@ import (
 	"github.com/liliang-cn/rago/v2/pkg/mcp"
 	memorypkg "github.com/liliang-cn/rago/v2/pkg/memory"
 	"github.com/liliang-cn/rago/v2/pkg/prompt"
+	"github.com/liliang-cn/rago/v2/pkg/ptc"
 	"github.com/liliang-cn/rago/v2/pkg/router"
 	"github.com/liliang-cn/rago/v2/pkg/skills"
 	"golang.org/x/sync/errgroup"
@@ -87,6 +88,9 @@ type Service struct {
 	Prompts *prompt.Manager
 	PTC     *PTCIntegration
 }
+
+// Ensure Service implements ptc.SearchProvider
+var _ ptc.SearchProvider = (*Service)(nil)
 
 // NewService creates a new agent service with the given dependencies.
 //

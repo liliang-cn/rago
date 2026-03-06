@@ -90,6 +90,7 @@ type ToolBuilder struct {
 	description string
 	params      []paramDef
 	handler     func(context.Context, map[string]interface{}) (interface{}, error)
+	deferLoading bool
 }
 
 // BuildTool starts a new ToolBuilder chain for a tool with the given name.
@@ -100,6 +101,12 @@ func BuildTool(name string) *ToolBuilder {
 // Description sets the human-readable description for the tool.
 func (b *ToolBuilder) Description(desc string) *ToolBuilder {
 	b.description = desc
+	return b
+}
+
+// Deferred marks the tool as deferred loading (only loaded via search_tools).
+func (b *ToolBuilder) Deferred(deferLoading bool) *ToolBuilder {
+	b.deferLoading = deferLoading
 	return b
 }
 
@@ -141,6 +148,7 @@ func (b *ToolBuilder) Build() *Tool {
 		description: b.description,
 		parameters:  b.buildSchema(),
 		handler:     b.handler,
+		deferLoading: b.deferLoading,
 	}
 }
 

@@ -38,16 +38,17 @@ func (s *Service) addRAGSources(sources []domain.Chunk) {
 func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Agent) []domain.ToolDefinition {
 	toolsMap := make(map[string]domain.ToolDefinition)
 	ptcEnabled := s.isPTCEnabled()
+	sessionID := s.CurrentSessionID()
 
 	// Helper to add tools with deduplication
 	addTools := func(defs []domain.ToolDefinition) {
-		for _, tool := range defs {
-			toolsMap[tool.Function.Name] = tool
+		for _, d := range defs {
+			toolsMap[d.Function.Name] = d
 		}
 	}
 
-	// ToolRegistry (custom, RAG, Memory tools) — registry handles visibility per mode.
-	addTools(s.toolRegistry.ListForLLM(ptcEnabled))
+	// 1. Add static tools and active deferred tools from Registry
+	addTools(s.toolRegistry.ListForLLM(ptcEnabled, sessionID))
 
 	// Agent Handoffs — always visible so the LLM can route between agents.
 	if currentAgent != nil {
@@ -70,12 +71,21 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 	// MCP tools — dynamic (servers may change at runtime); hidden in PTC mode.
 	if s.mcpService != nil && !ptcEnabled {
 		allMCP := s.mcpService.ListTools()
+		activeMap := s.toolRegistry.sessionActivated[sessionID]
+		deferAllMCP := len(allMCP) > 5 // Automatically defer if there are many tools
+
 		if currentAgent == nil || isAllAllowed(currentAgent.mcpTools) {
-			addTools(allMCP)
+			for _, tool := range allMCP {
+				if !deferAllMCP || (activeMap != nil && activeMap[tool.Function.Name]) {
+					addTools([]domain.ToolDefinition{tool})
+				}
+			}
 		} else {
 			for _, tool := range allMCP {
 				if containsStr(currentAgent.mcpTools, tool.Function.Name) {
-					addTools([]domain.ToolDefinition{tool})
+					if !deferAllMCP || (activeMap != nil && activeMap[tool.Function.Name]) {
+						addTools([]domain.ToolDefinition{tool})
+					}
 				}
 			}
 		}
@@ -84,16 +94,21 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 	// Skills tools — dynamic; hidden in PTC mode.
 	if s.skillsService != nil && !ptcEnabled {
 		skillsList, _ := s.skillsService.ListSkills(ctx, skills.SkillFilter{})
+		activeMap := s.toolRegistry.sessionActivated[sessionID]
+		deferAllSkills := len(skillsList) > 5
+
 		allowedAll := currentAgent == nil || isAllAllowed(currentAgent.skills)
 		for _, sk := range skillsList {
 			if allowedAll || containsStr(currentAgent.skills, sk.ID) {
-				toolsMap[sk.ID] = domain.ToolDefinition{
-					Type: "function",
-					Function: domain.ToolFunction{
-						Name:        sk.ID,
-						Description: sk.Description,
-						Parameters:  map[string]interface{}{},
-					},
+				if !deferAllSkills || (activeMap != nil && activeMap[sk.ID]) {
+					toolsMap[sk.ID] = domain.ToolDefinition{
+						Type: "function",
+						Function: domain.ToolFunction{
+							Name:        sk.ID,
+							Description: sk.Description,
+							Parameters:  map[string]interface{}{},
+						},
+					}
 				}
 			}
 		}

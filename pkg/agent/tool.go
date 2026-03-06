@@ -21,6 +21,7 @@ type Tool struct {
 	description string
 	parameters  map[string]interface{} // JSON Schema object
 	handler     func(context.Context, map[string]interface{}) (interface{}, error)
+	deferLoading bool
 }
 
 // Name returns the tool name.
@@ -31,6 +32,9 @@ func (t *Tool) Description() string { return t.description }
 
 // Parameters returns the JSON Schema map (passed directly to the LLM SDK).
 func (t *Tool) Parameters() map[string]interface{} { return t.parameters }
+
+// DeferLoading returns whether the tool should be excluded from initial context.
+func (t *Tool) DeferLoading() bool { return t.deferLoading }
 
 // Handler returns the raw map-based handler (used internally by agent/ptc router).
 func (t *Tool) Handler() func(context.Context, map[string]interface{}) (interface{}, error) {
@@ -46,6 +50,7 @@ func (t *Tool) toToolDefinition() domain.ToolDefinition {
 			Description: t.description,
 			Parameters:  t.parameters,
 		},
+		DeferLoading: t.deferLoading,
 	}
 }
 

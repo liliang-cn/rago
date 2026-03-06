@@ -165,6 +165,7 @@ type GenerationOptions struct {
 type ToolDefinition struct {
 	Type     string       `json:"type"` // Always "function"
 	Function ToolFunction `json:"function"`
+	DeferLoading bool     `json:"defer_loading,omitempty"`
 }
 
 // ToolFunction defines a function that can be called

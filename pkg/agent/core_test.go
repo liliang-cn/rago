@@ -62,7 +62,7 @@ func TestToolRegistry_ListForLLM_NativeMode(t *testing.T) {
 	)
 
 	// ptcEnabled=false → should return tool definitions
-	defs := reg.ListForLLM(false)
+	defs := reg.ListForLLM(false, "")
 	if len(defs) == 0 {
 		t.Fatal("expected non-empty tool list for native mode")
 	}
@@ -80,7 +80,7 @@ func TestToolRegistry_ListForLLM_PTCMode(t *testing.T) {
 	)
 
 	// ptcEnabled=true → hidden from LLM (JS sandbox exposes them via callTool)
-	defs := reg.ListForLLM(true)
+	defs := reg.ListForLLM(true, "")
 	if defs != nil {
 		t.Errorf("expected nil tool list for PTC mode, got %v", defs)
 	}

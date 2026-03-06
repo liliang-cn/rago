@@ -81,6 +81,11 @@ type ToolCallRecord struct {
 // ToolHandler is the function signature for tool handlers
 type ToolHandler func(ctx context.Context, args map[string]interface{}) (interface{}, error)
 
+// SearchProvider provides on-demand tool discovery and execution
+type SearchProvider interface {
+	SearchAndExecute(ctx context.Context, query string, instruction string) (interface{}, error)
+}
+
 // SandboxRuntime defines the interface for sandbox runtimes
 type SandboxRuntime interface {
 	// Type returns the runtime type
@@ -93,6 +98,8 @@ type SandboxRuntime interface {
 	UnregisterTool(name string) error
 	// ListTools returns all registered tool names
 	ListTools() []string
+	// SetSearchProvider sets the search provider for on-demand tool discovery
+	SetSearchProvider(provider SearchProvider)
 	// Close releases resources
 	Close() error
 }

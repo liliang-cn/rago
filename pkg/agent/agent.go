@@ -41,21 +41,24 @@ func NewAgent(name string) *Agent {
 
 // AddTool adds a custom Go function tool to the agent
 func (a *Agent) AddTool(name, description string, parameters map[string]interface{}, handler func(context.Context, map[string]interface{}) (interface{}, error)) {
-	if a.handlers == nil {
-		a.handlers = make(map[string]func(context.Context, map[string]interface{}) (interface{}, error))
-	}
-	a.handlers[name] = handler
-	
-	a.tools = append(a.tools, domain.ToolDefinition{
+	a.AddToolWithHandler(domain.ToolDefinition{
 		Type: "function",
 		Function: domain.ToolFunction{
 			Name:        name,
 			Description: description,
 			Parameters:  parameters,
 		},
-	})
+	}, handler)
 }
 
+// AddToolWithHandler adds a pre-built tool definition and its handler
+func (a *Agent) AddToolWithHandler(def domain.ToolDefinition, handler func(context.Context, map[string]interface{}) (interface{}, error)) {
+	if a.handlers == nil {
+		a.handlers = make(map[string]func(context.Context, map[string]interface{}) (interface{}, error))
+	}
+	a.handlers[def.Function.Name] = handler
+	a.tools = append(a.tools, def)
+}
 // GetHandler returns the handler for a specific tool
 func (a *Agent) GetHandler(name string) (func(context.Context, map[string]interface{}) (interface{}, error), bool) {
 	if a.handlers == nil {
