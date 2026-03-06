@@ -1,4 +1,5 @@
 import { useStatus } from '../hooks/useApi'
+import { useTranslation } from 'react-i18next'
 
 interface Provider {
   name: string
@@ -9,6 +10,7 @@ interface Provider {
 }
 
 export function Status() {
+  const { t } = useTranslation()
   const { data, isLoading, error, refetch } = useStatus()
 
   if (isLoading) {
