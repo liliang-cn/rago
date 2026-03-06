@@ -116,11 +116,11 @@ func (s *Service) AddTool(name, description string, parameters map[string]interf
 func (s *Service) Register(tool *Tool) {
 	def := tool.toToolDefinition()
 	s.toolRegistry.Register(def, tool.handler, CategoryCustom)
-	
+
 	if s.agent != nil {
 		s.agent.AddToolWithHandler(def, tool.handler)
 	}
-	
+
 	if s.ptcIntegration != nil && s.ptcIntegration.config.Enabled {
 		info := &ptc.ToolInfo{
 			Name:        def.Function.Name,

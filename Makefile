@@ -36,7 +36,7 @@ agentgo-ui:
 	@cd ui && npm run build
 	@cp -r ui/dist cmd/agentgo-ui/dist
 	@go build $(LDFLAGS) -o bin/agentgo-ui ./cmd/agentgo-ui
-	@rm -rf cmd/agentgo-ui/dist
+	
 
 ui-dev:
 	@cd ui && npm run dev

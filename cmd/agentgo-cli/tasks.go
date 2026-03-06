@@ -266,7 +266,7 @@ func (m model) View() string {
 				// Task struct has NextRun/LastRun but not "Status" of execution.
 				// We need to fetch executions or infer.
 				// For now, simple list.
-				
+
 				s += fmt.Sprintf("ID: %s | Type: %s | Enabled: %v\n", t.ID[:8], t.Type, t.Enabled)
 			}
 		}

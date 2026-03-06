@@ -22,10 +22,10 @@ import (
 
 // MemoryManager manages memory files for LongRun
 type MemoryManager struct {
-	workDir    string
-	files      map[string]*MemoryFile
-	mu         sync.RWMutex
-	autoSave   bool
+	workDir      string
+	files        map[string]*MemoryFile
+	mu           sync.RWMutex
+	autoSave     bool
 	saveInterval time.Duration
 }
 

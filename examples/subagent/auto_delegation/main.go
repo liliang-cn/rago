@@ -133,11 +133,11 @@ func main() {
 
 	svc, err := agent.New("Orchestrator").
 		WithPrompt(
-			"You are an expert technical writer. "+
-				"For research-heavy tasks, break them into focused sub-tasks and "+
-				"delegate each to a sub-agent using the delegate_to_subagent tool. "+
-				"Each sub-agent should use search_topic to gather information on ONE topic. "+
-				"When delegating, always set max_turns=10. "+
+			"You are an expert technical writer. " +
+				"For research-heavy tasks, break them into focused sub-tasks and " +
+				"delegate each to a sub-agent using the delegate_to_subagent tool. " +
+				"Each sub-agent should use search_topic to gather information on ONE topic. " +
+				"When delegating, always set max_turns=10. " +
 				"After all research is done, use write_report to produce the final document.").
 		WithTool(searchTool).
 		WithTool(reportTool).

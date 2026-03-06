@@ -19,19 +19,19 @@ import (
 // Gateway provides a WebSocket control plane for LongRun
 // Similar to OpenClaw's ws://127.0.0.1:18789
 type Gateway struct {
-	port        int
-	longRun     *LongRunService
-	agent       *Service
-	upgrader    websocket.Upgrader
-	clients     map[*websocket.Conn]bool
-	clientsMu   sync.RWMutex
-	logger      *slog.Logger
-	httpServer  *http.Server
+	port       int
+	longRun    *LongRunService
+	agent      *Service
+	upgrader   websocket.Upgrader
+	clients    map[*websocket.Conn]bool
+	clientsMu  sync.RWMutex
+	logger     *slog.Logger
+	httpServer *http.Server
 
 	// Channels
-	broadcast   chan GatewayMessage
-	register    chan *websocket.Conn
-	unregister  chan *websocket.Conn
+	broadcast  chan GatewayMessage
+	register   chan *websocket.Conn
+	unregister chan *websocket.Conn
 }
 
 // GatewayMessage represents a message sent over the gateway
@@ -43,11 +43,11 @@ type GatewayMessage struct {
 
 // GatewayConfig configures the gateway
 type GatewayConfig struct {
-	Port       int    `json:"port"`
-	AuthMode   string `json:"auth_mode"` // "none", "password", "token"
-	Password   string `json:"password,omitempty"`
-	Token      string `json:"token,omitempty"`
-	StaticDir  string `json:"static_dir,omitempty"` // Web UI files
+	Port      int    `json:"port"`
+	AuthMode  string `json:"auth_mode"` // "none", "password", "token"
+	Password  string `json:"password,omitempty"`
+	Token     string `json:"token,omitempty"`
+	StaticDir string `json:"static_dir,omitempty"` // Web UI files
 }
 
 // DefaultGatewayConfig returns default config

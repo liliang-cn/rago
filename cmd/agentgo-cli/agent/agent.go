@@ -461,7 +461,7 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 	// Initialize using agent Builder
 	var agentService *agent.Service
 	var buildErr error
-	
+
 	b := agent.New("AgentGo Agent").
 		WithRAG().
 		WithMCP().
@@ -469,11 +469,11 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 		WithRouter().
 		WithSkills().
 		WithPTC()
-	
+
 	if Debug {
 		b = b.WithDebug()
 	}
-	
+
 	agentService, buildErr = b.Build()
 	if buildErr != nil {
 		return nil, nil, fmt.Errorf("failed to init agent: %w", buildErr)

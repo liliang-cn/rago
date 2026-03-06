@@ -2,7 +2,7 @@ package handler
 
 import (
 	"encoding/json"
-		"net/http"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"

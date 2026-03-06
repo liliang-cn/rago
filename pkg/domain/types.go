@@ -163,9 +163,9 @@ type GenerationOptions struct {
 
 // ToolDefinition represents a tool that can be called by the LLM
 type ToolDefinition struct {
-	Type     string       `json:"type"` // Always "function"
-	Function ToolFunction `json:"function"`
-	DeferLoading bool     `json:"defer_loading,omitempty"`
+	Type         string       `json:"type"` // Always "function"
+	Function     ToolFunction `json:"function"`
+	DeferLoading bool         `json:"defer_loading,omitempty"`
 }
 
 // ToolFunction defines a function that can be called

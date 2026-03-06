@@ -52,7 +52,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		fmt.Printf("[AGENT] Runtime loop finished\n")
 		close(r.eventChan)
 	}()
-	
+
 	fmt.Printf("[AGENT] Runtime loop started for goal: %s\n", goal)
 
 	r.emit(EventTypeStart, fmt.Sprintf("Starting task: %s", goal))

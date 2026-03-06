@@ -37,31 +37,31 @@ func (me *MetadataExtractor) ExtractEnhancedMetadata(ctx context.Context, conten
 
 	// Build extraction prompt based on document type
 	prompt := me.buildExtractionPrompt(content, docType)
-	
+
 	// Use structured generation for reliable output
 	schema := MetadataSchema{
 		Type: "object",
 		Properties: map[string]SchemaProperty{
-			"title": {Type: "string", Description: "Document title"},
+			"title":   {Type: "string", Description: "Document title"},
 			"summary": {Type: "string", Description: "Brief summary (max 200 words)"},
 			"keywords": {
-				Type: "array",
-				Items: &SchemaProperty{Type: "string"},
+				Type:        "array",
+				Items:       &SchemaProperty{Type: "string"},
 				Description: "Key terms and concepts",
 			},
 			"entities": {
 				Type: "object",
 				Properties: map[string]SchemaProperty{
-					"people": {Type: "array", Items: &SchemaProperty{Type: "string"}},
+					"people":        {Type: "array", Items: &SchemaProperty{Type: "string"}},
 					"organizations": {Type: "array", Items: &SchemaProperty{Type: "string"}},
-					"locations": {Type: "array", Items: &SchemaProperty{Type: "string"}},
-					"dates": {Type: "array", Items: &SchemaProperty{Type: "string"}},
-					"products": {Type: "array", Items: &SchemaProperty{Type: "string"}},
+					"locations":     {Type: "array", Items: &SchemaProperty{Type: "string"}},
+					"dates":         {Type: "array", Items: &SchemaProperty{Type: "string"}},
+					"products":      {Type: "array", Items: &SchemaProperty{Type: "string"}},
 				},
 			},
 			"topics": {
-				Type: "array",
-				Items: &SchemaProperty{Type: "string"},
+				Type:        "array",
+				Items:       &SchemaProperty{Type: "string"},
 				Description: "Main topics discussed",
 			},
 			"sentiment": {
@@ -198,9 +198,9 @@ func (me *MetadataExtractor) parseEntities(entities map[string]interface{}) map[
 	entityTypes := map[string]string{
 		"people":        "person",
 		"organizations": "organization",
-		"locations":    "location",
-		"dates":        "date",
-		"products":     "product",
+		"locations":     "location",
+		"dates":         "date",
+		"products":      "product",
 	}
 
 	for key, entityType := range entityTypes {
@@ -281,7 +281,7 @@ func (me *MetadataExtractor) extractKeywords(content string, n int) []string {
 	// Simple word frequency analysis
 	words := strings.Fields(strings.ToLower(content))
 	wordCount := make(map[string]int)
-	
+
 	// Common stop words to exclude
 	stopWords := map[string]bool{
 		"the": true, "a": true, "an": true, "and": true, "or": true,
@@ -355,9 +355,9 @@ func (me *MetadataExtractor) enhanceCodeMetadata(metadata *domain.ExtractedMetad
 	langPatterns := map[string]string{
 		"python":     `\bimport\s+\w+|def\s+\w+|class\s+\w+`,
 		"javascript": `\bfunction\s+\w+|const\s+\w+|var\s+\w+|=>\s*{`,
-		"go":        `\bpackage\s+\w+|func\s+\w+|type\s+\w+`,
-		"java":      `\bpublic\s+class|private\s+\w+|import\s+java`,
-		"rust":      `\bfn\s+\w+|impl\s+\w+|use\s+\w+`,
+		"go":         `\bpackage\s+\w+|func\s+\w+|type\s+\w+`,
+		"java":       `\bpublic\s+class|private\s+\w+|import\s+java`,
+		"rust":       `\bfn\s+\w+|impl\s+\w+|use\s+\w+`,
 	}
 
 	for lang, pattern := range langPatterns {
@@ -505,16 +505,16 @@ func hashContent(content string) string {
 
 // MetadataSchema defines the JSON schema for structured metadata extraction
 type MetadataSchema struct {
-	Type       string                     `json:"type"`
+	Type       string                    `json:"type"`
 	Properties map[string]SchemaProperty `json:"properties"`
-	Required   []string                   `json:"required"`
+	Required   []string                  `json:"required"`
 }
 
 // SchemaProperty defines a property in the schema
 type SchemaProperty struct {
-	Type        string                     `json:"type"`
-	Description string                     `json:"description,omitempty"`
-	Items       *SchemaProperty            `json:"items,omitempty"`
+	Type        string                    `json:"type"`
+	Description string                    `json:"description,omitempty"`
+	Items       *SchemaProperty           `json:"items,omitempty"`
 	Properties  map[string]SchemaProperty `json:"properties,omitempty"`
-	Enum        []string                   `json:"enum,omitempty"`
+	Enum        []string                  `json:"enum,omitempty"`
 }

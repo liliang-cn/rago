@@ -12,8 +12,8 @@ import (
 type ExportFormat string
 
 const (
-	ExportFormatJSON  ExportFormat = "json"
-	ExportFormatPretty ExportFormat = "pretty"
+	ExportFormatJSON    ExportFormat = "json"
+	ExportFormatPretty  ExportFormat = "pretty"
 	ExportFormatConsole ExportFormat = "console"
 )
 
@@ -247,15 +247,15 @@ func (e *TraceExporter) ExportAllToFile(filename string, format ExportFormat) er
 
 // TraceSummary provides a summary of a trace
 type TraceSummary struct {
-	TraceID        string            `json:"trace_id"`
-	Duration       time.Duration     `json:"duration"`
-	SpanCount      int               `json:"span_count"`
-	ErrorCount     int               `json:"error_count"`
-	AgentID        string            `json:"agent_id,omitempty"`
-	SessionID      string            `json:"session_id,omitempty"`
-	SpanKinds      map[SpanKind]int  `json:"span_kinds"`
-	LongestSpan    *Span             `json:"longest_span,omitempty"`
-	SlowestSpan    *Span             `json:"slowest_span,omitempty"`
+	TraceID     string           `json:"trace_id"`
+	Duration    time.Duration    `json:"duration"`
+	SpanCount   int              `json:"span_count"`
+	ErrorCount  int              `json:"error_count"`
+	AgentID     string           `json:"agent_id,omitempty"`
+	SessionID   string           `json:"session_id,omitempty"`
+	SpanKinds   map[SpanKind]int `json:"span_kinds"`
+	LongestSpan *Span            `json:"longest_span,omitempty"`
+	SlowestSpan *Span            `json:"slowest_span,omitempty"`
 }
 
 // Summarize creates a summary of a trace

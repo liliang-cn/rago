@@ -46,7 +46,7 @@ func TestQueryExecutorValidate(t *testing.T) {
 		name       string
 		parameters map[string]string
 		wantErr    bool
-		errMsg    string
+		errMsg     string
 	}{
 		{
 			name:       "Valid query",
@@ -148,7 +148,7 @@ func TestQueryExecutorExecuteWithProcessor(t *testing.T) {
 	// Test with nil processor (service unavailable case)
 	// The actual processor integration would require a full service setup
 	// which is beyond the scope of unit tests
-	
+
 	ctx := context.Background()
 	params := map[string]string{
 		"query":        "test query",
@@ -168,18 +168,18 @@ func TestQueryExecutorParameterParsing(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name           string
-		parameters     map[string]string
-		expectedTopK   int
+		name            string
+		parameters      map[string]string
+		expectedTopK    int
 		expectedSources bool
-		expectedMCP    bool
+		expectedMCP     bool
 	}{
 		{
-			name:           "Default values",
-			parameters:     map[string]string{"query": "test"},
-			expectedTopK:   5,
+			name:            "Default values",
+			parameters:      map[string]string{"query": "test"},
+			expectedTopK:    5,
 			expectedSources: false,
-			expectedMCP:    false,
+			expectedMCP:     false,
 		},
 		{
 			name: "Custom values",
@@ -189,9 +189,9 @@ func TestQueryExecutorParameterParsing(t *testing.T) {
 				"show-sources": "true",
 				"mcp":          "true",
 			},
-			expectedTopK:   10,
+			expectedTopK:    10,
 			expectedSources: true,
-			expectedMCP:    true,
+			expectedMCP:     true,
 		},
 		{
 			name: "Invalid values use defaults",
@@ -201,9 +201,9 @@ func TestQueryExecutorParameterParsing(t *testing.T) {
 				"show-sources": "invalid",
 				"mcp":          "invalid",
 			},
-			expectedTopK:   5,
+			expectedTopK:    5,
 			expectedSources: false,
-			expectedMCP:    false,
+			expectedMCP:     false,
 		},
 	}
 
@@ -228,7 +228,7 @@ func TestQueryExecutorParameterParsing(t *testing.T) {
 func TestQueryExecutorSetProcessor(t *testing.T) {
 	executor := NewQueryExecutor(nil)
 	assert.Nil(t, executor.processor)
-	
+
 	// Test SetProcessor method
 	executor.SetProcessor(nil)
 	assert.Nil(t, executor.processor)
@@ -353,7 +353,6 @@ func TestQueryTaskOutputSerialization(t *testing.T) {
 	assert.Len(t, decoded.Sources, 1)
 	assert.Len(t, decoded.ToolCalls, 1)
 }
-
 
 func TestQueryExecutorExecuteWithInvalidButDefaultableParams(t *testing.T) {
 	executor := NewQueryExecutor(nil)

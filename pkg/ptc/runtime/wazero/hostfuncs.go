@@ -246,4 +246,3 @@ func allocateMemory(mem api.Memory, size uint32) uint32 {
 
 	return ptr
 }
-

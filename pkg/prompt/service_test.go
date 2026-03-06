@@ -1,8 +1,8 @@
 package prompt
 
 import (
-	"testing"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestPromptManager(t *testing.T) {
@@ -32,7 +32,7 @@ func TestPromptManager(t *testing.T) {
 
 func TestDefaultPromptsExist(t *testing.T) {
 	m := NewManager()
-	
+
 	// Ensure core prompts are loaded by default
 	assert.NotEmpty(t, m.Get(PlannerIntentRecognition))
 	assert.NotEmpty(t, m.Get(PlannerSystemPrompt))

@@ -31,7 +31,7 @@ type Config struct {
 
 	//社区检测相关配置
 	CommunityDetectionEnabled bool   `mapstructure:"community_detection" json:"community_detection"`
-	CommunityAlgorithm       string `mapstructure:"community_algorithm" json:"community_algorithm"` // "louvain", "leiden"
+	CommunityAlgorithm        string `mapstructure:"community_algorithm" json:"community_algorithm"` // "louvain", "leiden"
 
 	// Graph query configuration
 	GraphQueryTopK int     `mapstructure:"graph_query_topk" json:"graph_query_topk"`
@@ -43,10 +43,10 @@ type Config struct {
 // DefaultConfig returns default GraphRAG configuration
 func DefaultConfig() *Config {
 	return &Config{
-		EnableGraphRAG:             false,
-		EntityTypes:                []string{"person", "organization", "location", "concept", "event", "product"},
+		EnableGraphRAG:            false,
+		EntityTypes:               []string{"person", "organization", "location", "concept", "event", "product"},
 		MaxConcurrentExtractions:  3,
-		MinEntityLength:            2,
+		MinEntityLength:           2,
 		CommunityDetectionEnabled: true,
 		CommunityAlgorithm:        "louvain",
 		GraphQueryTopK:            10,
@@ -57,13 +57,13 @@ func DefaultConfig() *Config {
 
 // Service handles GraphRAG operations
 type Service struct {
-	config      *Config
-	generator   domain.Generator
-	embedder    domain.Embedder
-	graphStore  domain.GraphStore
-	extractor   *EntityExtractor
+	config       *Config
+	generator    domain.Generator
+	embedder     domain.Embedder
+	graphStore   domain.GraphStore
+	extractor    *EntityExtractor
 	graphBuilder *GraphBuilder
-	queryEngine *QueryEngine
+	queryEngine  *QueryEngine
 
 	// Caches for performance
 	entityCache map[string]*CachedEntity
@@ -91,11 +91,11 @@ func NewService(
 	}
 
 	s := &Service{
-		config:       config,
-		generator:    generator,
-		embedder:     embedder,
-		graphStore:   graphStore,
-		entityCache:  make(map[string]*CachedEntity),
+		config:      config,
+		generator:   generator,
+		embedder:    embedder,
+		graphStore:  graphStore,
+		entityCache: make(map[string]*CachedEntity),
 	}
 
 	// Initialize components
@@ -324,11 +324,11 @@ func (s *Service) GetGraphStats(ctx context.Context) (*GraphStats, error) {
 	}
 
 	stats := &GraphStats{
-		TotalNodes:     0,
-		TotalEdges:     0,
-		EntityTypes:   make(map[string]int),
-		Communities:    0,
-		LastUpdated:    time.Now(),
+		TotalNodes:  0,
+		TotalEdges:  0,
+		EntityTypes: make(map[string]int),
+		Communities: 0,
+		LastUpdated: time.Now(),
 	}
 
 	// For now, return basic stats
@@ -364,20 +364,20 @@ func GenerateEntityID(name, entityType string) string {
 
 // GraphStats holds knowledge graph statistics
 type GraphStats struct {
-	TotalNodes    int            `json:"total_nodes"`
-	TotalEdges    int            `json:"total_edges"`
-	EntityTypes   map[string]int `json:"entity_types"`
-	Communities   int            `json:"communities"`
-	LastUpdated   time.Time      `json:"last_updated"`
+	TotalNodes  int            `json:"total_nodes"`
+	TotalEdges  int            `json:"total_edges"`
+	EntityTypes map[string]int `json:"entity_types"`
+	Communities int            `json:"communities"`
+	LastUpdated time.Time      `json:"last_updated"`
 }
 
 // GraphRAGResult holds the result of a GraphRAG query
 type GraphRAGResult struct {
-	Answer          string             `json:"answer"`
-	VectorSources   []domain.Chunk     `json:"vector_sources"`
+	Answer          string              `json:"answer"`
+	VectorSources   []domain.Chunk      `json:"vector_sources"`
 	GraphEntities   []GraphEntityResult `json:"graph_entities"`
-	GraphPaths      []GraphPathResult  `json:"graph_paths"`
-	UsedGraphSearch bool               `json:"used_graph_search"`
+	GraphPaths      []GraphPathResult   `json:"graph_paths"`
+	UsedGraphSearch bool                `json:"used_graph_search"`
 }
 
 // GraphEntityResult represents an entity from graph search
@@ -392,8 +392,8 @@ type GraphEntityResult struct {
 
 // GraphPathResult represents a path between entities
 type GraphPathResult struct {
-	Entities []string  `json:"entities"`
-	Edges    []string  `json:"edges"`
-	Length   int       `json:"length"`
-	Weight   float64   `json:"weight"`
+	Entities []string `json:"entities"`
+	Edges    []string `json:"edges"`
+	Length   int      `json:"length"`
+	Weight   float64  `json:"weight"`
 }

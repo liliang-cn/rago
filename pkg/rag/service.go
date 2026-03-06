@@ -73,9 +73,9 @@ type SearchResult struct {
 
 // SearchOptions configures the search behavior
 type SearchOptions struct {
-	MaxResults         int     // Maximum number of results to return
-	MinRelevanceScore  float64 // Minimum score for a result to be considered relevant
-	IncludeIrrelevant  bool    // If true, return all results even if below threshold
+	MaxResults        int     // Maximum number of results to return
+	MinRelevanceScore float64 // Minimum score for a result to be considered relevant
+	IncludeIrrelevant bool    // If true, return all results even if below threshold
 }
 
 // DefaultSearchOptions returns sensible defaults
@@ -111,9 +111,9 @@ func (s *Service) SearchWithRelevance(ctx context.Context, query string, opts Se
 		// Calculate cosine similarity if we have chunk embeddings
 		// For now, we'll use a simple heuristic based on content matching
 		score := s.calculateRelevanceScore(query, &chunk)
-		
+
 		isRelevant := score >= opts.MinRelevanceScore
-		
+
 		if isRelevant || opts.IncludeIrrelevant {
 			results = append(results, SearchResult{
 				Chunk:      &chunk,
@@ -168,7 +168,7 @@ func (s *Service) GetRelevantContext(ctx context.Context, query string, maxDocs 
 		if result.Chunk.Metadata != nil && result.Chunk.Metadata["source"] != nil {
 			source = fmt.Sprintf("%v", result.Chunk.Metadata["source"])
 		}
-		
+
 		// Include score in context for transparency
 		contexts = append(contexts, fmt.Sprintf(
 			"[Source: %s | Relevance: %.2f]\n%s",
@@ -188,13 +188,13 @@ func (s *Service) calculateRelevanceScore(query string, chunk *domain.Chunk) flo
 	// Convert to lowercase for comparison
 	queryLower := strings.ToLower(query)
 	contentLower := strings.ToLower(chunk.Content)
-	
+
 	// Split query into words
 	queryWords := strings.Fields(queryLower)
 	if len(queryWords) == 0 {
 		return 0.0
 	}
-	
+
 	// Count matching words
 	matchCount := 0
 	for _, word := range queryWords {
@@ -202,19 +202,19 @@ func (s *Service) calculateRelevanceScore(query string, chunk *domain.Chunk) flo
 			matchCount++
 		}
 	}
-	
+
 	// Calculate score based on match ratio
 	score := float64(matchCount) / float64(len(queryWords))
-	
+
 	// Boost score if query appears as exact substring
 	if strings.Contains(contentLower, queryLower) {
 		score = math.Min(score*1.5, 1.0)
 	}
-	
+
 	// Add small random component to simulate vector similarity variance
 	// In production, this would be actual cosine similarity from embeddings
-	score = score * 0.9 + 0.1*0.5 // Adding 0.05 base score
-	
+	score = score*0.9 + 0.1*0.5 // Adding 0.05 base score
+
 	return math.Min(score, 1.0)
 }
 

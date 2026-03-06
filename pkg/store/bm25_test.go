@@ -47,9 +47,9 @@ func TestCalculateBM25(t *testing.T) {
 
 	// Mock corpus stats
 	docFreq := map[string]int{
-		"golang": 1,
-		"system": 2,
-		"agentgo":   1,
+		"golang":  1,
+		"system":  2,
+		"agentgo": 1,
 	}
 	totalDocs := 3
 	avgDocLength := 5.0

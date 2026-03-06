@@ -9,8 +9,8 @@ type lruNode struct {
 
 // lruList implements a doubly linked list for LRU cache
 type lruList struct {
-	head *lruNode
-	tail *lruNode
+	head  *lruNode
+	tail  *lruNode
 	nodes map[string]*lruNode
 }
 
@@ -20,7 +20,7 @@ func newLRUList() *lruList {
 	tail := &lruNode{}
 	head.next = tail
 	tail.prev = head
-	
+
 	return &lruList{
 		head:  head,
 		tail:  tail,
@@ -34,16 +34,16 @@ func (l *lruList) addToFront(key string) {
 	if node, exists := l.nodes[key]; exists {
 		l.removeNode(node)
 	}
-	
+
 	// Create new node
 	node := &lruNode{key: key}
-	
+
 	// Insert at front (after head)
 	node.prev = l.head
 	node.next = l.head.next
 	l.head.next.prev = node
 	l.head.next = node
-	
+
 	// Store in map
 	l.nodes[key] = node
 }
@@ -69,13 +69,13 @@ func (l *lruList) removeLast() string {
 	if l.tail.prev == l.head {
 		return "" // List is empty
 	}
-	
+
 	lastNode := l.tail.prev
 	key := lastNode.key
-	
+
 	l.removeNode(lastNode)
 	delete(l.nodes, key)
-	
+
 	return key
 }
 

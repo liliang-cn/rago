@@ -397,14 +397,19 @@ func (r *Runtime) registerBuiltins(vm *goja.Runtime, state *executionState) {
 		// Execute search and execute
 		start := time.Now()
 		result, err := state.searchProvider.SearchAndExecute(state.ctx, query, instruction)
-		
+
 		// Log the search/execute call as a pseudo-tool call
 		*state.toolCalls = append(*state.toolCalls, ptc.ToolCallRecord{
 			ToolName:  "search_and_execute",
 			Arguments: map[string]interface{}{"query": query, "instruction": instruction},
 			Result:    result,
-			Error:     func() string { if err != nil { return err.Error() }; return "" }(),
-			Duration:  time.Since(start),
+			Error: func() string {
+				if err != nil {
+					return err.Error()
+				}
+				return ""
+			}(),
+			Duration: time.Since(start),
 		})
 
 		if err != nil {

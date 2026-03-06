@@ -71,7 +71,7 @@ type LongRunService struct {
 	agent       *Service
 	scheduler   *cron.Cron
 	queue       *TaskQueue
-	memory      *MemoryManager    // file-based: SOUL.md / AGENTS.md / TOOLS.md persona config
+	memory      *MemoryManager       // file-based: SOUL.md / AGENTS.md / TOOLS.md persona config
 	memSvc      domain.MemoryService // DB-based: same store as agent (may be nil)
 	coordinator *SubAgentCoordinator // Manages concurrent SubAgent execution
 	logger      *slog.Logger
@@ -84,9 +84,9 @@ type LongRunService struct {
 
 // LongRunBuilder provides a fluent interface for creating LongRunService
 type LongRunBuilder struct {
-	agent   *Service
-	config  *LongRunConfig
-	err     error
+	agent  *Service
+	config *LongRunConfig
+	err    error
 }
 
 // NewLongRun creates a new LongRun builder with the given Agent Service
@@ -595,11 +595,11 @@ func (s *LongRunService) GetStatus() map[string]interface{} {
 	pendingCount, _ := s.queue.CountByStatus(context.Background(), TaskStatusPending)
 
 	return map[string]interface{}{
-		"running":           s.running,
-		"last_run":          s.lastRun,
+		"running":            s.running,
+		"last_run":           s.lastRun,
 		"heartbeat_interval": s.config.HeartbeatInterval.String(),
-		"pending_tasks":     pendingCount,
-		"work_dir":          s.config.WorkDir,
+		"pending_tasks":      pendingCount,
+		"work_dir":           s.config.WorkDir,
 	}
 }
 

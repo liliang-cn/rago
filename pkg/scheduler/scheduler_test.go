@@ -13,7 +13,7 @@ import (
 
 // MockExecutor is a test executor
 type MockExecutor struct {
-	taskType TaskType
+	taskType   TaskType
 	validateFn func(map[string]string) error
 	executeFn  func(context.Context, map[string]string) (*TaskResult, error)
 }
@@ -134,7 +134,7 @@ func TestCreateTask(t *testing.T) {
 		name    string
 		task    *Task
 		wantErr bool
-		errMsg string
+		errMsg  string
 	}{
 		{
 			name: "Valid task with schedule",

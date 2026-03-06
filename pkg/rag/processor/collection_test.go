@@ -34,27 +34,27 @@ func (m *MockLLMWithCollections) ExtractMetadata(ctx context.Context, content st
 		metadata.Collection = "medical_records"
 		metadata.DocumentType = "Medical Record"
 		metadata.Keywords = []string{"medical", "patient", "health"}
-		
+
 	case containsAny(content, []string{"meeting", "agenda", "minutes", "discussion"}):
 		metadata.Collection = "meeting_notes"
 		metadata.DocumentType = "Meeting Notes"
 		metadata.Keywords = []string{"meeting", "discussion", "notes"}
-		
+
 	case containsAny(content, []string{"invoice", "payment", "bill", "financial"}):
 		metadata.Collection = "financial_reports"
 		metadata.DocumentType = "Invoice"
 		metadata.Keywords = []string{"invoice", "payment", "financial"}
-		
+
 	case containsAny(content, []string{"research", "paper", "study", "abstract"}):
 		metadata.Collection = "research_papers"
 		metadata.DocumentType = "Article"
 		metadata.Keywords = []string{"research", "study", "paper"}
-		
+
 	case containsAny(content, []string{"code", "function", "class", "algorithm"}):
 		metadata.Collection = "code_snippets"
 		metadata.DocumentType = "Code"
 		metadata.Keywords = []string{"code", "programming", "function"}
-		
+
 	default:
 		metadata.Collection = "default"
 		metadata.DocumentType = "Document"
@@ -251,7 +251,7 @@ func TestCollectionExtraction(t *testing.T) {
 			}
 		}
 		collectionCounts[collection]++
-		
+
 		assert.Equal(t, doc.collection, collection,
 			"Document %s should be in collection %s", doc.id, doc.collection)
 	}

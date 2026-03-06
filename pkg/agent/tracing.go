@@ -30,21 +30,21 @@ const (
 
 // Span represents a single operation in a trace
 type Span struct {
-	ID          string            `json:"id"`
-	TraceID     string            `json:"trace_id"`
-	ParentID    string            `json:"parent_id,omitempty"`
-	Name        string            `json:"name"`
-	Kind        SpanKind          `json:"kind"`
-	Status      SpanStatus        `json:"status"`
-	StartTime   time.Time         `json:"start_time"`
-	EndTime     time.Time         `json:"end_time,omitempty"`
-	Duration    time.Duration     `json:"duration,omitempty"`
-	Events      []SpanEvent       `json:"events,omitempty"`
-	Attributes  map[string]string `json:"attributes,omitempty"`
-	AgentID     string            `json:"agent_id,omitempty"`
-	SessionID   string            `json:"session_id,omitempty"`
-	PlanID      string            `json:"plan_id,omitempty"`
-	StepID      string            `json:"step_id,omitempty"`
+	ID         string            `json:"id"`
+	TraceID    string            `json:"trace_id"`
+	ParentID   string            `json:"parent_id,omitempty"`
+	Name       string            `json:"name"`
+	Kind       SpanKind          `json:"kind"`
+	Status     SpanStatus        `json:"status"`
+	StartTime  time.Time         `json:"start_time"`
+	EndTime    time.Time         `json:"end_time,omitempty"`
+	Duration   time.Duration     `json:"duration,omitempty"`
+	Events     []SpanEvent       `json:"events,omitempty"`
+	Attributes map[string]string `json:"attributes,omitempty"`
+	AgentID    string            `json:"agent_id,omitempty"`
+	SessionID  string            `json:"session_id,omitempty"`
+	PlanID     string            `json:"plan_id,omitempty"`
+	StepID     string            `json:"step_id,omitempty"`
 }
 
 // SpanEvent represents an event within a span
@@ -67,10 +67,10 @@ type Trace struct {
 
 // Tracer creates and manages spans
 type Tracer struct {
-	mu         sync.RWMutex
-	traces     map[string]*Trace
+	mu           sync.RWMutex
+	traces       map[string]*Trace
 	currentSpans map[string]*Span
-	enabled    bool
+	enabled      bool
 }
 
 // NewTracer creates a new tracer
@@ -117,14 +117,14 @@ func (t *Tracer) StartSpan(ctx context.Context, name string, kind SpanKind, opts
 
 	// Create span
 	span := &Span{
-		ID:        newID(),
-		TraceID:   traceID,
-		ParentID:  parentID,
-		Name:      name,
-		Kind:      kind,
-		Status:    SpanStatusOK,
-		StartTime: time.Now(),
-		Events:    []SpanEvent{},
+		ID:         newID(),
+		TraceID:    traceID,
+		ParentID:   parentID,
+		Name:       name,
+		Kind:       kind,
+		Status:     SpanStatusOK,
+		StartTime:  time.Now(),
+		Events:     []SpanEvent{},
 		Attributes: make(map[string]string),
 	}
 

@@ -23,21 +23,21 @@ type HistoryStore struct {
 
 // HistoryRecord represents a single execution history record
 type HistoryRecord struct {
-	ID          string                 `json:"id"`
-	SessionID   string                 `json:"session_id"`
-	AgentID     string                 `json:"agent_id"`
-	Goal        string                 `json:"goal"`
-	Role        string                 `json:"role"`        // "user", "assistant", "tool"
-	Content     string                 `json:"content"`
-	ToolName    string                 `json:"tool_name"`   // For tool messages
-	ToolCallID  string                 `json:"tool_call_id"`
-	ToolArgs    map[string]interface{} `json:"tool_args"`
-	ToolResult  interface{}            `json:"tool_result"`
-	Round       int                    `json:"round"`
-	CreatedAt   time.Time              `json:"created_at"`
-	DurationMs  int64                  `json:"duration_ms"`
-	Success     bool                   `json:"success"`
-	Error       string                 `json:"error,omitempty"`
+	ID         string                 `json:"id"`
+	SessionID  string                 `json:"session_id"`
+	AgentID    string                 `json:"agent_id"`
+	Goal       string                 `json:"goal"`
+	Role       string                 `json:"role"` // "user", "assistant", "tool"
+	Content    string                 `json:"content"`
+	ToolName   string                 `json:"tool_name"` // For tool messages
+	ToolCallID string                 `json:"tool_call_id"`
+	ToolArgs   map[string]interface{} `json:"tool_args"`
+	ToolResult interface{}            `json:"tool_result"`
+	Round      int                    `json:"round"`
+	CreatedAt  time.Time              `json:"created_at"`
+	DurationMs int64                  `json:"duration_ms"`
+	Success    bool                   `json:"success"`
+	Error      string                 `json:"error,omitempty"`
 }
 
 // HistorySummary provides a summary of an execution session

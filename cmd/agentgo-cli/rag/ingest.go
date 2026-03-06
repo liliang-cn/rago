@@ -53,7 +53,7 @@ You can also use --text flag to ingest text directly.`,
 		var vectorStore domain.VectorStore
 		var docStore domain.DocumentStore
 		var err error
-		
+
 		if Cfg.VectorStore != nil && Cfg.VectorStore.Type != "" {
 			// Use configured vector store
 			storeConfig := store.StoreConfig{
@@ -64,7 +64,7 @@ You can also use --text flag to ingest text directly.`,
 			if err != nil {
 				return fmt.Errorf("failed to create vector store: %w", err)
 			}
-			
+
 			// For Qdrant, we need a separate document store
 			if Cfg.VectorStore.Type == "qdrant" {
 				sqliteStore, err := store.NewSQLiteStore(Cfg.Cortexdb.DBPath, Cfg.Cortexdb.IndexType)
@@ -92,7 +92,7 @@ You can also use --text flag to ingest text directly.`,
 				}
 			}()
 		}
-		
+
 		// Close Qdrant connection if applicable
 		if qdrantStore, ok := vectorStore.(*store.QdrantStore); ok {
 			defer func() {
@@ -101,7 +101,7 @@ You can also use --text flag to ingest text directly.`,
 				}
 			}()
 		}
-		
+
 		// If docStore is still nil (for SQLite vector store), create it
 		if docStore == nil {
 			if sqliteStore, ok := vectorStore.(*store.SQLiteStore); ok {

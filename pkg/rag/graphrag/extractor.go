@@ -18,35 +18,35 @@ type EntityExtractor struct {
 
 // ExtractedEntity represents an entity extracted from text
 type ExtractedEntity struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Type        string                 `json:"type"`
-	Description string                 `json:"description"`
-	Properties  map[string]interface{} `json:"properties,omitempty"`
-	Vector      []float64              `json:"vector,omitempty"`
-	Sources     []string               `json:"sources"`
-	SourceChunkIDs []string            `json:"source_chunk_ids"`
-	SourceChunkID  string             `json:"-"`
-	DocumentID  string                 `json:"-"`
-	Confidence  float64                `json:"confidence"`
+	ID             string                 `json:"id"`
+	Name           string                 `json:"name"`
+	Type           string                 `json:"type"`
+	Description    string                 `json:"description"`
+	Properties     map[string]interface{} `json:"properties,omitempty"`
+	Vector         []float64              `json:"vector,omitempty"`
+	Sources        []string               `json:"sources"`
+	SourceChunkIDs []string               `json:"source_chunk_ids"`
+	SourceChunkID  string                 `json:"-"`
+	DocumentID     string                 `json:"-"`
+	Confidence     float64                `json:"confidence"`
 }
 
 // ExtractedRelation represents a relation between entities
 type ExtractedRelation struct {
-	ID         string                 `json:"id"`
-	Source     string                 `json:"source"`
-	Target     string                 `json:"target"`
-	Type       string                 `json:"type"`
-	Weight     float64                `json:"weight"`
-	Properties map[string]interface{} `json:"properties,omitempty"`
-	Sources    []string               `json:"sources"`
-	SourceChunkID string              `json:"-"`
+	ID            string                 `json:"id"`
+	Source        string                 `json:"source"`
+	Target        string                 `json:"target"`
+	Type          string                 `json:"type"`
+	Weight        float64                `json:"weight"`
+	Properties    map[string]interface{} `json:"properties,omitempty"`
+	Sources       []string               `json:"sources"`
+	SourceChunkID string                 `json:"-"`
 }
 
 // entityExtractionResult is the structured output from LLM
 type entityExtractionResult struct {
-	Entities   []entityJSON   `json:"entities"`
-	Relations  []relationJSON `json:"relations"`
+	Entities  []entityJSON   `json:"entities"`
+	Relations []relationJSON `json:"relations"`
 }
 
 type entityJSON struct {
@@ -100,7 +100,7 @@ func (e *EntityExtractor) Extract(ctx context.Context, text string) ([]Extracted
 
 	// Clean thinking tags from result (in case it contains reasoning content)
 	result = cleanThinkingTags(result)
-	
+
 	// If result is still empty after cleaning, try to get reasoning content
 	if result == "" {
 		log.Printf("[GraphRAG] Warning: LLM returned empty content after cleaning")
@@ -171,13 +171,13 @@ func (e *EntityExtractor) Extract(ctx context.Context, text string) ([]Extracted
 func (e *EntityExtractor) parseJSONResponse(response string) ([]entityJSON, []relationJSON, error) {
 	// For Qwen/DeepSeek models, the thinking/reasoning might contain the JSON at the end
 	// We need to look for JSON patterns in the response
-	
+
 	// Try multiple extraction strategies
 	jsonStr := ""
-	
+
 	// Strategy 1: Direct JSON extraction
 	jsonStr = extractJSON(response)
-	
+
 	// Strategy 2: Look for JSON after ``` markers
 	if jsonStr == "" {
 		if idx := strings.Index(response, "```json"); idx != -1 {
@@ -187,7 +187,7 @@ func (e *EntityExtractor) parseJSONResponse(response string) ([]entityJSON, []re
 			}
 		}
 	}
-	
+
 	// Strategy 3: Look for array or object patterns at the end
 	if jsonStr == "" {
 		lines := strings.Split(response, "\n")

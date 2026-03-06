@@ -36,9 +36,9 @@ func NewService(config *Config, router ToolRouter, store ExecutionStore) (*Servi
 	}
 
 	return &Service{
-		config:  config,
-		router:  router,
-		store:   store,
+		config: config,
+		router: router,
+		store:  store,
 	}, nil
 }
 

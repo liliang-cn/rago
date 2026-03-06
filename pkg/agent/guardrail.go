@@ -144,16 +144,16 @@ func (g *Guardrail) Check(ctx context.Context, content string, kind GuardrailKin
 
 // GuardrailChain runs multiple guardrails in sequence
 type GuardrailChain struct {
-	guardrails     []*Guardrail
-	failFast       bool
+	guardrails      []*Guardrail
+	failFast        bool
 	stopOnFirstFail bool
 }
 
 // NewGuardrailChain creates a new guardrail chain
 func NewGuardrailChain(guardrails ...*Guardrail) *GuardrailChain {
 	return &GuardrailChain{
-		guardrails:     guardrails,
-		failFast:       true,  // Stop on first failure by default
+		guardrails:      guardrails,
+		failFast:        true, // Stop on first failure by default
 		stopOnFirstFail: false,
 	}
 }

@@ -28,12 +28,12 @@ func (f *TrackedFactory) CreateLLMProvider(ctx context.Context, config interface
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Wrap with tracking if usage service is available
 	if f.usageService != nil {
 		provider = NewTrackedLLMProvider(provider, f.usageService)
 	}
-	
+
 	return provider, nil
 }
 
@@ -44,12 +44,12 @@ func (f *TrackedFactory) CreateLLMProviderFromMap(ctx context.Context, configMap
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Wrap with tracking if usage service is available
 	if f.usageService != nil {
 		provider = NewTrackedLLMProvider(provider, f.usageService)
 	}
-	
+
 	return provider, nil
 }
 
@@ -60,12 +60,12 @@ func (f *TrackedFactory) CreateEmbedderProvider(ctx context.Context, config inte
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Wrap with tracking if usage service is available
 	if f.usageService != nil {
 		provider = NewTrackedEmbedderProvider(provider, f.usageService)
 	}
-	
+
 	return provider, nil
 }
 
@@ -76,12 +76,12 @@ func (f *TrackedFactory) CreateEmbedderProviderFromMap(ctx context.Context, conf
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Wrap with tracking if usage service is available
 	if f.usageService != nil {
 		provider = NewTrackedEmbedderProvider(provider, f.usageService)
 	}
-	
+
 	return provider, nil
 }
 
@@ -102,7 +102,7 @@ func WithUsageTracking(factory domain.ProviderFactory, usageService *usage.Servi
 		tf.SetUsageService(usageService)
 		return tf
 	}
-	
+
 	// Otherwise, create a wrapper
 	return &trackedFactoryWrapper{
 		ProviderFactory: factory,
@@ -122,11 +122,11 @@ func (w *trackedFactoryWrapper) CreateLLMProvider(ctx context.Context, config in
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if w.usageService != nil {
 		provider = NewTrackedLLMProvider(provider, w.usageService)
 	}
-	
+
 	return provider, nil
 }
 
@@ -136,10 +136,10 @@ func (w *trackedFactoryWrapper) CreateEmbedderProvider(ctx context.Context, conf
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if w.usageService != nil {
 		provider = NewTrackedEmbedderProvider(provider, w.usageService)
 	}
-	
+
 	return provider, nil
 }

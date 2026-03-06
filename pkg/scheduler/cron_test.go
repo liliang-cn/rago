@@ -151,19 +151,19 @@ func TestCronParserWeekdaySchedules(t *testing.T) {
 	}{
 		{
 			name:     "Next Monday",
-			schedule: "0 9 * * 1", // Monday at 9am
+			schedule: "0 9 * * 1",                                   // Monday at 9am
 			baseTime: time.Date(2025, 9, 12, 10, 0, 0, 0, time.UTC), // Friday
 			expected: time.Date(2025, 9, 15, 9, 0, 0, 0, time.UTC),  // Next Monday
 		},
 		{
 			name:     "Weekdays only",
-			schedule: "0 9 * * 1-5", // Weekdays at 9am
+			schedule: "0 9 * * 1-5",                                 // Weekdays at 9am
 			baseTime: time.Date(2025, 9, 13, 10, 0, 0, 0, time.UTC), // Saturday
 			expected: time.Date(2025, 9, 15, 9, 0, 0, 0, time.UTC),  // Monday
 		},
 		{
 			name:     "Weekend only",
-			schedule: "0 10 * * 0,6", // Weekend at 10am
+			schedule: "0 10 * * 0,6",                                // Weekend at 10am
 			baseTime: time.Date(2025, 9, 12, 10, 0, 0, 0, time.UTC), // Friday
 			expected: time.Date(2025, 9, 13, 10, 0, 0, 0, time.UTC), // Saturday
 		},

@@ -26,9 +26,9 @@ func main() {
 	// 2. Create embedder (using Ollama)
 	provConfig := &domain.OpenAIProviderConfig{
 		BaseProviderConfig: domain.BaseProviderConfig{Timeout: 30},
-		BaseURL:        "http://localhost:11434/v1",
-		APIKey:         "ollama",
-		EmbeddingModel: "qwen3-embedding:8b",
+		BaseURL:            "http://localhost:11434/v1",
+		APIKey:             "ollama",
+		EmbeddingModel:     "qwen3-embedding:8b",
 	}
 	factory := providers.NewFactory()
 	embedder, err := factory.CreateEmbedderProvider(ctx, provConfig)
@@ -44,7 +44,7 @@ func main() {
 
 	// User preferences
 	preferences := []struct {
-		content string
+		content    string
 		importance float64
 	}{
 		{"我喜欢吃火锅，特别喜欢麻辣锅底", 0.9},
@@ -71,7 +71,7 @@ func main() {
 
 	// Facts
 	facts := []struct {
-		content string
+		content    string
 		importance float64
 	}{
 		{"我住在上海浦东", 0.8},
@@ -98,7 +98,7 @@ func main() {
 
 	// Skills
 	skills := []struct {
-		content string
+		content    string
 		importance float64
 	}{
 		{"我擅长 Python 编程", 0.8},
@@ -124,7 +124,7 @@ func main() {
 
 	// Context
 	contexts := []struct {
-		content string
+		content    string
 		importance float64
 	}{
 		{"目前在做 AI 助手项目", 0.8},

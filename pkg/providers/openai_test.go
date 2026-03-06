@@ -65,7 +65,7 @@ func TestNewOpenAILLMProvider(t *testing.T) {
 func TestOpenAILLMProvider_Generate(t *testing.T) {
 	// Note: These tests require mocking the OpenAI client
 	// For now, we'll test the validation logic
-	
+
 	provider := &OpenAILLMProvider{
 		config: &domain.OpenAIProviderConfig{
 			APIKey:   "test-key",
@@ -334,7 +334,7 @@ func TestOpenAILLMProvider_StreamWithTools(t *testing.T) {
 		{
 			name:        "Empty messages",
 			messages:    []domain.Message{},
-				callback:    func(delta *domain.GenerationResult) error { return nil },
+			callback:    func(delta *domain.GenerationResult) error { return nil },
 			shouldError: true,
 			errorType:   domain.ErrInvalidInput,
 		},
@@ -572,7 +572,7 @@ func TestOpenAIProvider_Health(t *testing.T) {
 
 		ctx := context.Background()
 		err := provider.Health(ctx)
-		
+
 		// Will fail without valid API key
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, domain.ErrServiceUnavailable))
@@ -588,7 +588,7 @@ func TestOpenAIProvider_Health(t *testing.T) {
 
 		ctx := context.Background()
 		err := provider.Health(ctx)
-		
+
 		// Will fail without valid API key
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, domain.ErrServiceUnavailable))
@@ -613,7 +613,7 @@ func TestOpenAIProvider_EdgeCases(t *testing.T) {
 
 		ctx := context.Background()
 		_, err := provider.Generate(ctx, "test", opts)
-		
+
 		// Should handle zero temperature
 		assert.Error(t, err) // Will fail due to missing client
 		assert.True(t, errors.Is(err, domain.ErrGenerationFailed))
@@ -633,7 +633,7 @@ func TestOpenAIProvider_EdgeCases(t *testing.T) {
 
 		ctx := context.Background()
 		_, err := provider.Generate(ctx, "test", opts)
-		
+
 		assert.Error(t, err) // Will fail due to missing client
 	})
 
@@ -651,7 +651,7 @@ func TestOpenAIProvider_EdgeCases(t *testing.T) {
 
 		ctx := context.Background()
 		_, err := provider.GenerateWithTools(ctx, messages, []domain.ToolDefinition{}, nil)
-		
+
 		assert.Error(t, err) // Will fail due to missing client
 	})
 }
@@ -672,7 +672,7 @@ func TestMessageConversion(t *testing.T) {
 							Name: "complex_function",
 							Arguments: map[string]interface{}{
 								"nested": map[string]interface{}{
-									"key": "value",
+									"key":   "value",
 									"array": []string{"a", "b", "c"},
 								},
 								"number": 42,

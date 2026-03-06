@@ -117,7 +117,7 @@ func TestValidator_ValidateToolAccess(t *testing.T) {
 
 func TestValidator_AddPattern(t *testing.T) {
 	config := &ptc.SecurityConfig{
-		ValidateCode: true,
+		ValidateCode:      true,
 		ForbiddenPatterns: []string{},
 	}
 

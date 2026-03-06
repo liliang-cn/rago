@@ -13,28 +13,28 @@ import (
 
 // ConverterConfig configures the MCP to Skill converter
 type ConverterConfig struct {
-	OutputDir    string // Directory to write converted skills
-	UseLLM       bool   // Use LLM for enhanced conversion
-	LLMAPIKey    string // API key for LLM
-	LLMBaseURL   string // Base URL for LLM API
-	LLMModel     string // Model to use (default: gpt-4o)
+	OutputDir  string // Directory to write converted skills
+	UseLLM     bool   // Use LLM for enhanced conversion
+	LLMAPIKey  string // API key for LLM
+	LLMBaseURL string // Base URL for LLM API
+	LLMModel   string // Model to use (default: gpt-4o)
 }
 
 // DefaultConverterConfig returns default converter config
 func DefaultConverterConfig() *ConverterConfig {
 	homeDir, _ := os.UserHomeDir()
 	return &ConverterConfig{
-		OutputDir:  filepath.Join(homeDir, ".agentgo", "skills"),
-		UseLLM:     false,
-		LLMModel:   "gpt-4o",
+		OutputDir: filepath.Join(homeDir, ".agentgo", "skills"),
+		UseLLM:    false,
+		LLMModel:  "gpt-4o",
 	}
 }
 
 // Converter converts MCP servers to Skills
 type Converter struct {
-	config  *ConverterConfig
-	mcpSvc  *Service
-	conv    *mcp.Converter
+	config *ConverterConfig
+	mcpSvc *Service
+	conv   *mcp.Converter
 }
 
 // NewConverter creates a new MCP to Skill converter

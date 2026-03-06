@@ -2,19 +2,19 @@ package prompt
 
 // Keys for core prompts
 const (
-	PlannerIntentRecognition = "planner.intent_recognition"
-	PlannerSystemPrompt      = "planner.system_prompt"
-	PlannerUserPrompt        = "planner.user_prompt"
-	AgentVerification        = "agent.verification"
-	AgentSystemPrompt        = "agent.system_prompt"
-	AgentRevisePlan          = "agent.revise_plan"
-	MemoryExtraction         = "memory.extraction"
-	MemoryReflection         = "memory.reflection"
-	LLMCompact               = "llm.compact"
-	MetadataExtraction       = "metadata.extraction"
-	RouterIntentAnalysis     = "router.intent_analysis"
-	RAGGraphExtraction       = "rag.graph_extraction"
-	RAGSystemPrompt          = "rag.system_prompt"
+	PlannerIntentRecognition  = "planner.intent_recognition"
+	PlannerSystemPrompt       = "planner.system_prompt"
+	PlannerUserPrompt         = "planner.user_prompt"
+	AgentVerification         = "agent.verification"
+	AgentSystemPrompt         = "agent.system_prompt"
+	AgentRevisePlan           = "agent.revise_plan"
+	MemoryExtraction          = "memory.extraction"
+	MemoryReflection          = "memory.reflection"
+	LLMCompact                = "llm.compact"
+	MetadataExtraction        = "metadata.extraction"
+	RouterIntentAnalysis      = "router.intent_analysis"
+	RAGGraphExtraction        = "rag.graph_extraction"
+	RAGSystemPrompt           = "rag.system_prompt"
 	AgentDynamicToolSelection = "agent.dynamic_tool_selection"
 )
 

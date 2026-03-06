@@ -91,9 +91,9 @@ func loadMultiServerConfig() *mcp.Config {
 	}
 
 	return &mcp.Config{
-		Enabled:       true,
+		Enabled:        true,
 		DefaultTimeout: 30 * time.Second,
-		LoadedServers: servers,
+		LoadedServers:  servers,
 	}
 }
 

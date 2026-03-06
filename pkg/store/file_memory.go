@@ -32,8 +32,8 @@ func (s *FileMemoryStore) WithLLM(llm domain.Generator) {
 
 // MemoryIndex is the parsed representation of _index.md
 type MemoryIndex struct {
-	Total     int                  `yaml:"total"`
-	UpdatedAt time.Time            `yaml:"updated_at"`
+	Total     int       `yaml:"total"`
+	UpdatedAt time.Time `yaml:"updated_at"`
 	Entries   []MemoryIndexEntry
 }
 
@@ -60,14 +60,14 @@ type MemoryFrontmatter struct {
 	Metadata     map[string]interface{} `yaml:"metadata,omitempty"`
 
 	// Hindsight: temporal, evidence, and provenance fields
-	EvidenceIDs     []string                  `yaml:"evidence_ids,omitempty"`
-	Confidence      float64                   `yaml:"confidence,omitempty"`
-	ValidFrom       time.Time                 `yaml:"valid_from,omitempty"`
-	ValidTo         *time.Time                `yaml:"valid_to,omitempty"`
-	SupersededBy    string                    `yaml:"superseded_by,omitempty"`
-	SourceType      domain.MemorySourceType   `yaml:"source_type,omitempty"`
-	Conflicting     bool                      `yaml:"conflicting,omitempty"`
-	RevisionHistory []domain.MemoryRevision   `yaml:"revision_history,omitempty"`
+	EvidenceIDs     []string                `yaml:"evidence_ids,omitempty"`
+	Confidence      float64                 `yaml:"confidence,omitempty"`
+	ValidFrom       time.Time               `yaml:"valid_from,omitempty"`
+	ValidTo         *time.Time              `yaml:"valid_to,omitempty"`
+	SupersededBy    string                  `yaml:"superseded_by,omitempty"`
+	SourceType      domain.MemorySourceType `yaml:"source_type,omitempty"`
+	Conflicting     bool                    `yaml:"conflicting,omitempty"`
+	RevisionHistory []domain.MemoryRevision `yaml:"revision_history,omitempty"`
 }
 
 // NewFileMemoryStore creates a new markdown-based memory store
@@ -466,11 +466,11 @@ Output valid JSON only:
 
 	// 5. Parse and store observations
 	type obsItem struct {
-		Content      string   `json:"content"`
-		Confidence   float64  `json:"confidence"`
-		EvidenceIDs  []string `json:"evidence_ids"`
-		Conflicting  bool     `json:"conflicting"`
-		UpdateObsID  string   `json:"update_obs_id"`
+		Content     string   `json:"content"`
+		Confidence  float64  `json:"confidence"`
+		EvidenceIDs []string `json:"evidence_ids"`
+		Conflicting bool     `json:"conflicting"`
+		UpdateObsID string   `json:"update_obs_id"`
 	}
 	type reflectResult struct {
 		Observations []obsItem `json:"observations"`
@@ -838,7 +838,7 @@ func truncate(s string, n int) string {
 
 // newUUID generates a new UUID string.
 func newUUID() string {
-return uuid.New().String()
+	return uuid.New().String()
 }
 
 // parseJSON unmarshals raw JSON into v, stripping markdown code fences if present.

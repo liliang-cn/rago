@@ -40,7 +40,7 @@ func (r *Registry) ListAgents() []*Agent {
 	defer r.mu.RUnlock()
 	agents := make([]*Agent, 0, len(r.agents))
 	seen := make(map[string]bool)
-	
+
 	for _, agent := range r.agents {
 		if !seen[agent.ID()] {
 			agents = append(agents, agent)

@@ -18,9 +18,9 @@ func TestMemoryStore_SaveAndGet(t *testing.T) {
 			Language: ptc.LanguageJavaScript,
 		},
 		Result: &ptc.ExecutionResult{
-			ID:        "test-1",
-			Success:   true,
-			Duration:  time.Millisecond,
+			ID:       "test-1",
+			Success:  true,
+			Duration: time.Millisecond,
 		},
 		ExecutedAt: time.Now(),
 	}
@@ -57,9 +57,9 @@ func TestMemoryStore_List(t *testing.T) {
 				Language: ptc.LanguageJavaScript,
 			},
 			Result: &ptc.ExecutionResult{
-				ID:        string(rune('a' + i)),
-				Success:   true,
-				Duration:  time.Millisecond,
+				ID:       string(rune('a' + i)),
+				Success:  true,
+				Duration: time.Millisecond,
 			},
 			ExecutedAt: time.Now(),
 		}
@@ -102,9 +102,9 @@ func TestMemoryStore_MaxSize(t *testing.T) {
 				Language: ptc.LanguageJavaScript,
 			},
 			Result: &ptc.ExecutionResult{
-				ID:        string(rune('0' + i)),
-				Success:   true,
-				Duration:  time.Millisecond,
+				ID:       string(rune('0' + i)),
+				Success:  true,
+				Duration: time.Millisecond,
 			},
 			ExecutedAt: time.Now(),
 		}

@@ -32,13 +32,13 @@ type Cache interface {
 
 // CacheStats provides cache statistics
 type CacheStats struct {
-	Hits       int64     `json:"hits"`
-	Misses     int64     `json:"misses"`
-	Evictions  int64     `json:"evictions"`
-	Size       int       `json:"size"`
-	MaxSize    int       `json:"max_size"`
-	CreatedAt  time.Time `json:"created_at"`
-	LastClear  time.Time `json:"last_clear"`
+	Hits      int64     `json:"hits"`
+	Misses    int64     `json:"misses"`
+	Evictions int64     `json:"evictions"`
+	Size      int       `json:"size"`
+	MaxSize   int       `json:"max_size"`
+	CreatedAt time.Time `json:"created_at"`
+	LastClear time.Time `json:"last_clear"`
 }
 
 // MemoryCache implements an in-memory cache with LRU eviction
@@ -69,28 +69,28 @@ func NewMemoryCache(maxSize int, defaultTTL time.Duration) *MemoryCache {
 func (mc *MemoryCache) Get(ctx context.Context, key string) (interface{}, bool) {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	
+
 	entry, exists := mc.entries[key]
 	if !exists {
 		mc.stats.Misses++
 		return nil, false
 	}
-	
+
 	// Check expiration
 	if time.Now().After(entry.ExpiresAt) {
 		mc.removeEntry(key)
 		mc.stats.Misses++
 		return nil, false
 	}
-	
+
 	// Update access info
 	entry.AccessedAt = time.Now()
 	entry.HitCount++
 	mc.stats.Hits++
-	
+
 	// Move to front in LRU
 	mc.lru.moveToFront(key)
-	
+
 	return entry.Value, true
 }
 
@@ -98,11 +98,11 @@ func (mc *MemoryCache) Get(ctx context.Context, key string) (interface{}, bool) 
 func (mc *MemoryCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	
+
 	if ttl <= 0 {
 		ttl = mc.defaultTTL
 	}
-	
+
 	now := time.Now()
 	entry := &CacheEntry{
 		Key:        key,
@@ -112,7 +112,7 @@ func (mc *MemoryCache) Set(ctx context.Context, key string, value interface{}, t
 		AccessedAt: now,
 		HitCount:   0,
 	}
-	
+
 	// Check if we need to evict
 	if len(mc.entries) >= mc.maxSize && mc.entries[key] == nil {
 		// Evict least recently used
@@ -122,11 +122,11 @@ func (mc *MemoryCache) Set(ctx context.Context, key string, value interface{}, t
 			mc.stats.Evictions++
 		}
 	}
-	
+
 	mc.entries[key] = entry
 	mc.lru.addToFront(key)
 	mc.stats.Size = len(mc.entries)
-	
+
 	return nil
 }
 
@@ -134,7 +134,7 @@ func (mc *MemoryCache) Set(ctx context.Context, key string, value interface{}, t
 func (mc *MemoryCache) Delete(ctx context.Context, key string) error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	
+
 	mc.removeEntry(key)
 	return nil
 }
@@ -143,12 +143,12 @@ func (mc *MemoryCache) Delete(ctx context.Context, key string) error {
 func (mc *MemoryCache) Clear(ctx context.Context) error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	
+
 	mc.entries = make(map[string]*CacheEntry)
 	mc.lru = newLRUList()
 	mc.stats.Size = 0
 	mc.stats.LastClear = time.Now()
-	
+
 	return nil
 }
 
@@ -206,7 +206,7 @@ func (qc *QueryCache) generateQueryKey(query string, filters map[string]interfac
 		"query":   query,
 		"filters": filters,
 	}
-	
+
 	jsonData, _ := json.Marshal(data)
 	hash := sha256.Sum256(jsonData)
 	return "query:" + hex.EncodeToString(hash[:])
@@ -231,12 +231,12 @@ func (vc *VectorCache) GetVector(ctx context.Context, text string) ([]float64, b
 	if !exists {
 		return nil, false
 	}
-	
+
 	vector, ok := value.([]float64)
 	if !ok {
 		return nil, false
 	}
-	
+
 	return vector, true
 }
 
@@ -271,12 +271,12 @@ func (lc *LLMCache) GetResponse(ctx context.Context, prompt string, model string
 	if !exists {
 		return "", false
 	}
-	
+
 	response, ok := value.(string)
 	if !ok {
 		return "", false
 	}
-	
+
 	return response, true
 }
 
@@ -312,12 +312,12 @@ func (cc *ChunkCache) GetChunks(ctx context.Context, documentID string) ([]strin
 	if !exists {
 		return nil, false
 	}
-	
+
 	chunks, ok := value.([]string)
 	if !ok {
 		return nil, false
 	}
-	
+
 	return chunks, true
 }
 
@@ -371,23 +371,23 @@ func NewCacheManager(config CacheConfig) *CacheManager {
 	cm := &CacheManager{
 		config: config,
 	}
-	
+
 	if config.EnableQueryCache {
 		cm.queryCache = NewQueryCache(config.MaxSize, config.QueryCacheTTL)
 	}
-	
+
 	if config.EnableVectorCache {
 		cm.vectorCache = NewVectorCache(config.MaxSize, config.VectorCacheTTL)
 	}
-	
+
 	if config.EnableLLMCache {
 		cm.llmCache = NewLLMCache(config.MaxSize, config.LLMCacheTTL)
 	}
-	
+
 	if config.EnableChunkCache {
 		cm.chunkCache = NewChunkCache(config.MaxSize, config.ChunkCacheTTL)
 	}
-	
+
 	return cm
 }
 
@@ -431,7 +431,7 @@ func (cm *CacheManager) ClearAll(ctx context.Context) error {
 // GetStats returns statistics for all caches
 func (cm *CacheManager) GetStats() map[string]CacheStats {
 	stats := make(map[string]CacheStats)
-	
+
 	if cm.queryCache != nil {
 		stats["query"] = cm.queryCache.cache.Stats()
 	}
@@ -444,6 +444,6 @@ func (cm *CacheManager) GetStats() map[string]CacheStats {
 	if cm.chunkCache != nil {
 		stats["chunk"] = cm.chunkCache.cache.Stats()
 	}
-	
+
 	return stats
 }

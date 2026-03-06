@@ -71,14 +71,14 @@ func New(
 	// Initialize GraphRAG service if enabled in config
 	if config.GraphRAG.Enabled && generator != nil && embedder != nil {
 		graphragConfig := &graphrag.Config{
-			EnableGraphRAG:             config.GraphRAG.Enabled,
-			EntityTypes:                config.GraphRAG.EntityTypes,
-			MaxConcurrentExtractions:   config.GraphRAG.MaxConcurrentExtractions,
-			MinEntityLength:            config.GraphRAG.MinEntityLength,
-			CommunityDetectionEnabled:  config.GraphRAG.CommunityDetection,
-			CommunityAlgorithm:         config.GraphRAG.CommunityAlgorithm,
-			GraphQueryTopK:             config.GraphRAG.GraphQueryTopK,
-			VectorWeight:               config.GraphRAG.VectorWeight,
+			EnableGraphRAG:            config.GraphRAG.Enabled,
+			EntityTypes:               config.GraphRAG.EntityTypes,
+			MaxConcurrentExtractions:  config.GraphRAG.MaxConcurrentExtractions,
+			MinEntityLength:           config.GraphRAG.MinEntityLength,
+			CommunityDetectionEnabled: config.GraphRAG.CommunityDetection,
+			CommunityAlgorithm:        config.GraphRAG.CommunityAlgorithm,
+			GraphQueryTopK:            config.GraphRAG.GraphQueryTopK,
+			VectorWeight:              config.GraphRAG.VectorWeight,
 			GraphWeight:               config.GraphRAG.GraphWeight,
 		}
 		s.graphRAG = graphrag.NewService(graphragConfig, generator, embedder, s.graphStore)
@@ -195,7 +195,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 	// This runs asynchronously to not block ingestion
 	if s.graphRAG != nil && s.config.GraphRAG.Enabled {
 		log.Println("[GraphRAG] Starting knowledge graph extraction (async)...")
-		
+
 		go func() {
 			if err := s.graphRAG.ProcessDocument(context.Background(), chunks, doc.ID); err != nil {
 				log.Printf("[GraphRAG] Error processing document: %v", err)

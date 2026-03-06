@@ -518,14 +518,14 @@ func toInternalMemory(hm *hindsight.Memory) *Memory {
 	for i, v := range hm.Vector {
 		vec[i] = float64(v)
 	}
-	
+
 	memType := string(hm.Type)
 	if hm.Metadata != nil {
 		if mt, ok := hm.Metadata["memory_type"].(string); ok {
 			memType = mt
 		}
 	}
-	
+
 	return &Memory{
 		ID:         hm.ID,
 		SessionID:  hm.BankID,

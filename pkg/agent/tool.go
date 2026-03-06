@@ -17,10 +17,10 @@ import (
 // Tool is a self-contained tool definition: schema + handler.
 // Created via NewTool[T] (typed, struct-based) or ToolBuilder (fluent).
 type Tool struct {
-	name        string
-	description string
-	parameters  map[string]interface{} // JSON Schema object
-	handler     func(context.Context, map[string]interface{}) (interface{}, error)
+	name         string
+	description  string
+	parameters   map[string]interface{} // JSON Schema object
+	handler      func(context.Context, map[string]interface{}) (interface{}, error)
 	deferLoading bool
 }
 

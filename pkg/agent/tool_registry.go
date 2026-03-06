@@ -15,11 +15,11 @@ type ToolHandler func(ctx context.Context, args map[string]interface{}) (interfa
 
 // Tool categories used by ToolRegistry.
 const (
-	CategoryCustom   = "custom"   // user-registered via AddTool()
-	CategoryRAG      = "rag"      // rag_query, rag_ingest
-	CategoryMemory   = "memory"   // memory_save/recall/update/delete
-	CategorySkill    = "skill"    // skill tools (currently managed via ptcRouter)
-	CategoryMCP      = "mcp"      // MCP tools (dynamically managed via ptcRouter)
+	CategoryCustom = "custom" // user-registered via AddTool()
+	CategoryRAG    = "rag"    // rag_query, rag_ingest
+	CategoryMemory = "memory" // memory_save/recall/update/delete
+	CategorySkill  = "skill"  // skill tools (currently managed via ptcRouter)
+	CategoryMCP    = "mcp"    // MCP tools (dynamically managed via ptcRouter)
 )
 
 type registeredTool struct {
@@ -64,16 +64,16 @@ func (r *ToolRegistry) ActivateForSession(sessionID, toolName string) {
 func (r *ToolRegistry) SearchDeferredTools(query string) []domain.ToolDefinition {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	query = strings.ToLower(query)
 	keywords := strings.Fields(query)
 	var matches []domain.ToolDefinition
-	
+
 	for _, t := range r.tools {
 		if t.def.DeferLoading {
 			name := strings.ToLower(t.def.Function.Name)
 			desc := strings.ToLower(t.def.Function.Description)
-			
+
 			matched := false
 			for _, kw := range keywords {
 				if strings.Contains(name, kw) || strings.Contains(desc, kw) {
@@ -81,7 +81,7 @@ func (r *ToolRegistry) SearchDeferredTools(query string) []domain.ToolDefinition
 					break
 				}
 			}
-			
+
 			if matched {
 				matches = append(matches, t.def)
 			}
@@ -93,6 +93,7 @@ func (r *ToolRegistry) SearchDeferredTools(query string) []domain.ToolDefinition
 // Register adds (or replaces) a tool. Tools registered here are:
 //   - Visible to the LLM in non-PTC mode
 //   - Accessible via callTool() inside the PTC JavaScript sandbox
+//
 // Register adds (or replaces) a tool. The tool will be:
 //   - returned by ListForLLM(false) for native function calling
 //   - accessible via callTool() in the PTC JavaScript sandbox after SyncToPTCRouter
@@ -140,9 +141,9 @@ func (r *ToolRegistry) ListForLLM(ptcEnabled bool, sessionID string) []domain.To
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	activeMap := r.sessionActivated[sessionID]
-	
+
 	out := make([]domain.ToolDefinition, 0, len(r.tools))
 	for _, t := range r.tools {
 		// Include if not deferred, or if explicitly activated for this session

@@ -8,7 +8,7 @@ import (
 	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
-// RegisterAutoMemoryHook registers a hook that automatically saves important 
+// RegisterAutoMemoryHook registers a hook that automatically saves important
 // information to long-term memory after an agent execution.
 func (s *Service) RegisterAutoMemoryHook() string {
 	return s.hooks.Register(
@@ -21,7 +21,7 @@ func (s *Service) RegisterAutoMemoryHook() string {
 			// 1. Analyze the goal and result for "memorability"
 			// We look for facts, preferences, or specific user intents
 			goalLower := strings.ToLower(data.Goal)
-			
+
 			isImportant := false
 			memType := domain.MemoryTypeFact
 			content := ""

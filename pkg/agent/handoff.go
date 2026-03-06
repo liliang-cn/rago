@@ -51,18 +51,18 @@ type HandoffToolCall struct {
 // Handoff represents a delegation from one agent to another
 // Inspired by OpenAI Agents SDK handoff pattern
 type Handoff struct {
-	id                       string
-	kind                     HandoffKind
-	targetAgent              *Agent
-	toolName                 string
-	toolDescription          string
-	onHandoff                HandoffCallback
-	inputFilter              HandoffInputFilter
-	inputTypeSchema          interface{}
-	isEnabled                bool
-	isEnabledFunc            func(ctx context.Context) bool
-	nestHandoffHistory       bool
-	metadata                 map[string]interface{}
+	id                 string
+	kind               HandoffKind
+	targetAgent        *Agent
+	toolName           string
+	toolDescription    string
+	onHandoff          HandoffCallback
+	inputFilter        HandoffInputFilter
+	inputTypeSchema    interface{}
+	isEnabled          bool
+	isEnabledFunc      func(ctx context.Context) bool
+	nestHandoffHistory bool
+	metadata           map[string]interface{}
 }
 
 // HandoffOption configures a Handoff
@@ -255,8 +255,8 @@ func (h *Handoff) ToToolDefinition() ToolDef {
 
 // ToolDef represents a tool definition (matching domain.ToolDefinition structure)
 type ToolDef struct {
-	Type     string   `json:"type"`
-	Function FuncDef  `json:"function"`
+	Type     string  `json:"type"`
+	Function FuncDef `json:"function"`
 }
 
 // FuncDef represents a function definition

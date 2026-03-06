@@ -14,19 +14,19 @@ type RAGRepository interface {
 	GetRAGQuery(ctx context.Context, id string) (*RAGQueryRecord, error)
 	UpdateRAGQuery(ctx context.Context, query *RAGQueryRecord) error
 	ListRAGQueries(ctx context.Context, filter *RAGSearchFilter) ([]*RAGQueryRecord, error)
-	
+
 	// Chunk Hit operations
 	CreateChunkHit(ctx context.Context, hit *RAGChunkHit) error
 	ListChunkHits(ctx context.Context, ragQueryID string) ([]*RAGChunkHit, error)
-	
+
 	// Tool Call operations
 	CreateToolCall(ctx context.Context, toolCall *RAGToolCall) error
 	ListToolCalls(ctx context.Context, ragQueryID string) ([]*RAGToolCall, error)
-	
+
 	// Visualization operations
 	GetRAGVisualization(ctx context.Context, ragQueryID string) (*RAGQueryVisualization, error)
 	ListRAGVisualizations(ctx context.Context, filter *RAGSearchFilter) ([]*RAGQueryVisualization, error)
-	
+
 	// Analytics operations
 	GetRAGAnalytics(ctx context.Context, filter *RAGSearchFilter) (*RAGAnalytics, error)
 }
@@ -63,7 +63,7 @@ func (r *SQLiteRepository) InitializeRAGTables(ctx context.Context) error {
 			FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
 			FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
 		)`,
-		
+
 		// Chunk hits table
 		`CREATE TABLE IF NOT EXISTS rag_chunk_hits (
 			id TEXT PRIMARY KEY,
@@ -81,7 +81,7 @@ func (r *SQLiteRepository) InitializeRAGTables(ctx context.Context) error {
 			created_at TIMESTAMP NOT NULL,
 			FOREIGN KEY (rag_query_id) REFERENCES rag_queries(id) ON DELETE CASCADE
 		)`,
-		
+
 		// Tool calls table
 		`CREATE TABLE IF NOT EXISTS rag_tool_calls (
 			id TEXT PRIMARY KEY,
@@ -95,8 +95,7 @@ func (r *SQLiteRepository) InitializeRAGTables(ctx context.Context) error {
 			created_at TIMESTAMP NOT NULL,
 			FOREIGN KEY (rag_query_id) REFERENCES rag_queries(id) ON DELETE CASCADE
 		)`,
-		
-		
+
 		// Indexes for better performance
 		`CREATE INDEX IF NOT EXISTS idx_rag_queries_conversation_id ON rag_queries(conversation_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_rag_queries_created_at ON rag_queries(created_at)`,
@@ -114,7 +113,7 @@ func (r *SQLiteRepository) InitializeRAGTables(ctx context.Context) error {
 			return fmt.Errorf("failed to execute RAG table creation query: %w", err)
 		}
 	}
-	
+
 	// Migration: Add token tracking columns if they don't exist
 	migrationQueries := []string{
 		`ALTER TABLE rag_queries ADD COLUMN input_tokens INTEGER DEFAULT 0`,
@@ -123,7 +122,7 @@ func (r *SQLiteRepository) InitializeRAGTables(ctx context.Context) error {
 		`ALTER TABLE rag_queries ADD COLUMN estimated_cost REAL DEFAULT 0.0`,
 		`ALTER TABLE rag_queries ADD COLUMN model TEXT DEFAULT ''`,
 	}
-	
+
 	// Execute migration queries (ignore errors for existing columns)
 	for _, query := range migrationQueries {
 		if _, err := r.db.ExecContext(ctx, query); err != nil {
@@ -145,7 +144,7 @@ func (r *SQLiteRepository) CreateRAGQuery(ctx context.Context, query *RAGQueryRe
 		generation_time, chunks_found, tool_calls_count, success, error_message,
 		input_tokens, output_tokens, total_tokens, estimated_cost, model, created_at
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	
+
 	_, err := r.db.ExecContext(ctx, sql,
 		query.ID, query.ConversationID, query.MessageID, query.Query, query.Answer,
 		query.TopK, query.Temperature, query.MaxTokens, query.ShowSources, query.ShowThinking,
@@ -165,7 +164,7 @@ func (r *SQLiteRepository) GetRAGQuery(ctx context.Context, id string) (*RAGQuer
 		COALESCE(input_tokens, 0), COALESCE(output_tokens, 0), COALESCE(total_tokens, 0), 
 		COALESCE(estimated_cost, 0.0), COALESCE(model, ''), created_at
 		FROM rag_queries WHERE id = ?`
-	
+
 	var query RAGQueryRecord
 	err := r.db.QueryRowContext(ctx, sqlQuery, id).Scan(
 		&query.ID, &query.ConversationID, &query.MessageID, &query.Query, &query.Answer,
@@ -187,7 +186,7 @@ func (r *SQLiteRepository) UpdateRAGQuery(ctx context.Context, query *RAGQueryRe
 		answer = ?, total_latency = ?, retrieval_time = ?, generation_time = ?,
 		chunks_found = ?, tool_calls_count = ?, success = ?, error_message = ?
 		WHERE id = ?`
-	
+
 	_, err := r.db.ExecContext(ctx, sql,
 		query.Answer, query.TotalLatency, query.RetrievalTime, query.GenerationTime,
 		query.ChunksFound, query.ToolCallsCount, query.Success, query.ErrorMessage, query.ID,
@@ -201,9 +200,9 @@ func (r *SQLiteRepository) ListRAGQueries(ctx context.Context, filter *RAGSearch
 		show_sources, show_thinking, tools_enabled, total_latency, retrieval_time,
 		generation_time, chunks_found, tool_calls_count, success, error_message, created_at
 		FROM rag_queries WHERE 1=1`
-	
+
 	args := []interface{}{}
-	
+
 	if filter.ConversationID != "" {
 		sql += " AND conversation_id = ?"
 		args = append(args, filter.ConversationID)
@@ -220,9 +219,9 @@ func (r *SQLiteRepository) ListRAGQueries(ctx context.Context, filter *RAGSearch
 		sql += " AND created_at <= ?"
 		args = append(args, filter.EndTime)
 	}
-	
+
 	sql += " ORDER BY created_at DESC"
-	
+
 	if filter.Limit > 0 {
 		sql += " LIMIT ?"
 		args = append(args, filter.Limit)
@@ -231,7 +230,7 @@ func (r *SQLiteRepository) ListRAGQueries(ctx context.Context, filter *RAGSearch
 		sql += " OFFSET ?"
 		args = append(args, filter.Offset)
 	}
-	
+
 	rows, err := r.db.QueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -262,7 +261,7 @@ func (r *SQLiteRepository) CreateChunkHit(ctx context.Context, hit *RAGChunkHit)
 		id, rag_query_id, chunk_id, document_id, content, score, rank_position,
 		used_in_generation, source_file, chunk_index, char_start, char_end, created_at
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	
+
 	_, err := r.db.ExecContext(ctx, sql,
 		hit.ID, hit.RAGQueryID, hit.ChunkID, hit.DocumentID, hit.Content, hit.Score, hit.Rank,
 		hit.UsedInGeneration, hit.SourceFile, hit.ChunkIndex, hit.CharStart, hit.CharEnd, hit.CreatedAt,
@@ -275,7 +274,7 @@ func (r *SQLiteRepository) ListChunkHits(ctx context.Context, ragQueryID string)
 	sql := `SELECT id, rag_query_id, chunk_id, document_id, content, score, rank_position,
 		used_in_generation, source_file, chunk_index, char_start, char_end, created_at
 		FROM rag_chunk_hits WHERE rag_query_id = ? ORDER BY rank_position ASC`
-	
+
 	rows, err := r.db.QueryContext(ctx, sql, ragQueryID)
 	if err != nil {
 		return nil, err
@@ -303,7 +302,7 @@ func (r *SQLiteRepository) CreateToolCall(ctx context.Context, toolCall *RAGTool
 	sql := `INSERT INTO rag_tool_calls (
 		id, rag_query_id, tool_name, arguments, result, success, error_message, duration, created_at
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	
+
 	_, err := r.db.ExecContext(ctx, sql,
 		toolCall.ID, toolCall.RAGQueryID, toolCall.ToolName, toolCall.Arguments, toolCall.Result,
 		toolCall.Success, toolCall.ErrorMessage, toolCall.Duration, toolCall.CreatedAt,
@@ -315,7 +314,7 @@ func (r *SQLiteRepository) CreateToolCall(ctx context.Context, toolCall *RAGTool
 func (r *SQLiteRepository) ListToolCalls(ctx context.Context, ragQueryID string) ([]*RAGToolCall, error) {
 	sql := `SELECT id, rag_query_id, tool_name, arguments, result, success, error_message, duration, created_at
 		FROM rag_tool_calls WHERE rag_query_id = ? ORDER BY created_at ASC`
-	
+
 	rows, err := r.db.QueryContext(ctx, sql, ragQueryID)
 	if err != nil {
 		return nil, err
@@ -344,9 +343,9 @@ func (r *SQLiteRepository) ListToolCalls(ctx context.Context, ragQueryID string)
 func (r *SQLiteRepository) ListAllToolCalls(ctx context.Context, filter *RAGSearchFilter) ([]*RAGToolCall, error) {
 	sql := `SELECT id, rag_query_id, tool_name, arguments, result, success, error_message, duration, created_at
 		FROM rag_tool_calls WHERE 1=1`
-	
+
 	args := []interface{}{}
-	
+
 	if filter.Query != "" {
 		sql += " AND tool_name LIKE ?"
 		args = append(args, "%"+filter.Query+"%")
@@ -359,9 +358,9 @@ func (r *SQLiteRepository) ListAllToolCalls(ctx context.Context, filter *RAGSear
 		sql += " AND created_at <= ?"
 		args = append(args, filter.EndTime)
 	}
-	
+
 	sql += " ORDER BY created_at DESC"
-	
+
 	if filter.Limit > 0 {
 		sql += " LIMIT ?"
 		args = append(args, filter.Limit)
@@ -370,7 +369,7 @@ func (r *SQLiteRepository) ListAllToolCalls(ctx context.Context, filter *RAGSear
 		sql += " OFFSET ?"
 		args = append(args, filter.Offset)
 	}
-	
+
 	rows, err := r.db.QueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -402,35 +401,35 @@ func (r *SQLiteRepository) GetRAGVisualization(ctx context.Context, ragQueryID s
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Get chunk hits
 	hits, err := r.ListChunkHits(ctx, ragQueryID)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Get tool calls
 	toolCalls, err := r.ListToolCalls(ctx, ragQueryID)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert to the format needed for metrics calculation
 	hitRecords := make([]RAGChunkHit, len(hits))
 	for i, hit := range hits {
 		hitRecords[i] = *hit
 	}
-	
+
 	// Calculate metrics
 	retrievalMetrics := CalculateRetrievalMetrics(hitRecords)
 	qualityMetrics := CalculateQualityMetrics(*query, hitRecords)
-	
+
 	// Convert tool calls
 	toolCallRecords := make([]RAGToolCall, len(toolCalls))
 	for i, call := range toolCalls {
 		toolCallRecords[i] = *call
 	}
-	
+
 	return &RAGQueryVisualization{
 		Query:            *query,
 		ChunkHits:        hitRecords,
@@ -446,7 +445,7 @@ func (r *SQLiteRepository) ListRAGVisualizations(ctx context.Context, filter *RA
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var visualizations []*RAGQueryVisualization
 	for _, query := range queries {
 		viz, err := r.GetRAGVisualization(ctx, query.ID)
@@ -455,7 +454,7 @@ func (r *SQLiteRepository) ListRAGVisualizations(ctx context.Context, filter *RA
 		}
 		visualizations = append(visualizations, viz)
 	}
-	
+
 	return visualizations, nil
 }
 
@@ -464,7 +463,7 @@ func (r *SQLiteRepository) GetRAGAnalytics(ctx context.Context, filter *RAGSearc
 	// Build the base query with filters
 	whereClause := "WHERE 1=1"
 	args := []interface{}{}
-	
+
 	if filter.ConversationID != "" {
 		whereClause += " AND conversation_id = ?"
 		args = append(args, filter.ConversationID)
@@ -477,7 +476,7 @@ func (r *SQLiteRepository) GetRAGAnalytics(ctx context.Context, filter *RAGSearc
 		whereClause += " AND created_at <= ?"
 		args = append(args, filter.EndTime)
 	}
-	
+
 	// Get basic analytics with more comprehensive data
 	analyticsSQL := fmt.Sprintf(`
 		SELECT 
@@ -489,7 +488,7 @@ func (r *SQLiteRepository) GetRAGAnalytics(ctx context.Context, filter *RAGSearc
 			COALESCE(SUM(CASE WHEN total_latency >= 1000 AND total_latency <= 5000 THEN 1 ELSE 0 END), 0) as medium_queries,
 			COALESCE(SUM(CASE WHEN total_latency > 5000 THEN 1 ELSE 0 END), 0) as slow_queries
 		FROM rag_queries %s`, whereClause)
-	
+
 	var analytics RAGAnalytics
 	err := r.db.QueryRowContext(ctx, analyticsSQL, args...).Scan(
 		&analytics.TotalQueries,
@@ -503,17 +502,17 @@ func (r *SQLiteRepository) GetRAGAnalytics(ctx context.Context, filter *RAGSearc
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Set default values for missing fields
 	analytics.AvgScore = 0.0
 	analytics.HighQualityQueries = 0
 	analytics.MediumQualityQueries = 0
 	analytics.LowQualityQueries = 0
-	
+
 	// Set time range from filter
 	analytics.StartTime = filter.StartTime
 	analytics.EndTime = filter.EndTime
-	
+
 	// Get top queries
 	topQueriesSQL := fmt.Sprintf(`
 		SELECT query, COUNT(*) as count 
@@ -521,13 +520,13 @@ func (r *SQLiteRepository) GetRAGAnalytics(ctx context.Context, filter *RAGSearc
 		GROUP BY query 
 		ORDER BY count DESC 
 		LIMIT 10`, whereClause)
-	
+
 	rows, err := r.db.QueryContext(ctx, topQueriesSQL, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	for rows.Next() {
 		var query string
 		var count int
@@ -537,7 +536,7 @@ func (r *SQLiteRepository) GetRAGAnalytics(ctx context.Context, filter *RAGSearc
 		// TopQueries field doesn't exist in current RAGAnalytics struct
 		// Would need to be added if this functionality is required
 	}
-	
+
 	// Get popular sources - need to qualify column names for JOIN
 	sourcesWhereClause := whereClause
 	if sourcesWhereClause != "" {
@@ -552,13 +551,13 @@ func (r *SQLiteRepository) GetRAGAnalytics(ctx context.Context, filter *RAGSearc
 		GROUP BY h.source_file
 		ORDER BY count DESC
 		LIMIT 10`, strings.Replace(sourcesWhereClause, "WHERE", "WHERE h.source_file IS NOT NULL AND", 1))
-	
+
 	rows, err = r.db.QueryContext(ctx, sourcesSQL, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	for rows.Next() {
 		var source string
 		var count int
@@ -568,6 +567,6 @@ func (r *SQLiteRepository) GetRAGAnalytics(ctx context.Context, filter *RAGSearc
 		// PopularSources field doesn't exist in current RAGAnalytics struct
 		// Would need to be added if this functionality is required
 	}
-	
+
 	return &analytics, nil
 }

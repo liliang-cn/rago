@@ -88,7 +88,7 @@ func TestStoreWithCollections(t *testing.T) {
 					DocumentID: "doc-default-1",
 					Content:    "General content without collection",
 					Vector:     generateTestVector(768),
-					Metadata:   map[string]interface{}{
+					Metadata: map[string]interface{}{
 						"type": "general",
 					},
 				},
@@ -245,10 +245,10 @@ func TestCollectionMetadataPropagation(t *testing.T) {
 		Content:    "Document with rich metadata",
 		Vector:     generateTestVector(768),
 		Metadata: map[string]interface{}{
-			"collection":     "research_papers",
-			"document_type":  "Article",
-			"keywords":       []string{"AI", "machine learning"},
-			"creation_date":  "2025-09-12",
+			"collection":    "research_papers",
+			"document_type": "Article",
+			"keywords":      []string{"AI", "machine learning"},
+			"creation_date": "2025-09-12",
 			"temporal_refs": map[string]string{
 				"today":     "2025-09-12",
 				"yesterday": "2025-09-11",
@@ -280,7 +280,7 @@ func TestCollectionMetadataPropagation(t *testing.T) {
 	resultMetadata := results[0].Metadata
 	assert.Equal(t, "research_papers", resultMetadata["collection"])
 	assert.Equal(t, "Article", resultMetadata["document_type"])
-	
+
 	// Keywords might be stored as JSON string
 	if keywords, ok := resultMetadata["keywords"].(string); ok {
 		assert.Contains(t, keywords, "AI")
@@ -324,11 +324,11 @@ func isValidCollectionName(name string) bool {
 	if name == "" {
 		return false
 	}
-	
+
 	for i, ch := range name {
-		if !((ch >= 'a' && ch <= 'z') || 
-			 (ch >= '0' && ch <= '9') || 
-			 ch == '_') {
+		if !((ch >= 'a' && ch <= 'z') ||
+			(ch >= '0' && ch <= '9') ||
+			ch == '_') {
 			return false
 		}
 		// Don't start or end with underscore

@@ -63,15 +63,15 @@ func main() {
 
 	fmt.Println("\n=== Starting Query ===")
 	query := "Write a PTC script that uses `searchAndCallTool` to calculate the expenses for employee 'EMP123', then uses it again to check the climate in 'Hokkaido'. Return the combined results object."
-	
+
 	fmt.Printf("User: %s\n\n", query)
-	
+
 	agentSvc.SetSessionID("ptc-test-session")
 	resp, err := agentSvc.ChatWithPTC(ctx, query)
 	if err != nil {
 		log.Fatalf("Chat failed: %v", err)
 	}
-	
+
 	fmt.Printf("\n=== Final Response ===\n")
 	if resp.PTCUsed && resp.PTCResult.ExecutionResult != nil {
 		fmt.Println("Code Executed:")
