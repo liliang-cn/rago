@@ -44,18 +44,19 @@ ui-dev:
 ui-deps:
 	@cd ui && npm install
 
-test:
+test: fix-embed
 	@go test ./...
 
-check:
-	@echo "Ensuring embed directories exist..."
-	@mkdir -p cmd/agentgo-ui/dist && touch cmd/agentgo-ui/dist/index.html
+check: fix-embed
 	@echo "Running format check..."
 	@go fmt ./...
 	@echo "Running vet..."
 	@go vet ./...
 	@echo "Running tests..."
 	@go test ./...
+
+fix-embed:
+	@mkdir -p cmd/agentgo-ui/dist && touch cmd/agentgo-ui/dist/index.html
 
 clean:
 	@rm -rf bin/ cmd/agentgo-ui/dist .agentgo/data/*.db
