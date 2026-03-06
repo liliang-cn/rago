@@ -32,6 +32,21 @@ func NewService(mcpConfig *Config, llm domain.Generator) (*Service, error) {
 		return nil, fmt.Errorf("failed to load MCP servers: %w", err)
 	}
 
+	// Inject builtin servers if not already present
+	loadedServers := mcpConfig.GetLoadedServers()
+	for _, builtin := range GetBuiltInServers() {
+		found := false
+		for _, loaded := range loadedServers {
+			if loaded.Name == builtin.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			mcpConfig.AddServer(&builtin)
+		}
+	}
+
 	// Inject builtin filesystem server if not overridden by user
 	hasFilesystem := false
 	for _, srv := range mcpConfig.GetLoadedServers() {
