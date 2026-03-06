@@ -101,12 +101,40 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		for _, sk := range skillsList {
 			if allowedAll || containsStr(currentAgent.skills, sk.ID) {
 				if !deferAllSkills || (activeMap != nil && activeMap[sk.ID]) {
+					// Build variable schema from skill definition
+					properties := make(map[string]interface{})
+					required := make([]string, 0)
+					for _, v := range sk.Variables {
+						prop := map[string]interface{}{
+							"type":        getSkillVarTypeString(v.Type),
+							"description": v.Description,
+						}
+						if v.Default != nil {
+							prop["default"] = v.Default
+						}
+						properties[v.Name] = prop
+						if v.Required {
+							required = append(required, v.Name)
+						}
+					}
+
+					desc := sk.Description
+					if desc == "" {
+						desc = sk.Name
+					}
+					// Clarify that calling this skill returns its workflow instructions.
+					desc = "Skill workflow: " + desc + ". Call this tool to receive step-by-step instructions for this task; you MUST then follow those instructions to complete the work."
+
 					toolsMap[sk.ID] = domain.ToolDefinition{
 						Type: "function",
 						Function: domain.ToolFunction{
 							Name:        sk.ID,
-							Description: sk.Description,
-							Parameters:  map[string]interface{}{},
+							Description: desc,
+							Parameters: map[string]interface{}{
+								"type":       "object",
+								"properties": properties,
+								"required":   required,
+							},
 						},
 					}
 				}
@@ -155,6 +183,26 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 				},
 			},
 		}
+	}
+
+	// task_complete — always available. The agent calls this tool when the task
+	// is finished to explicitly signal completion and provide the final result.
+	toolsMap["task_complete"] = domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "task_complete",
+			Description: "Mark the current task as complete and provide the final result to the user. Call this when you have fully answered the question or finished all required steps.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"result": map[string]interface{}{
+						"type":        "string",
+						"description": "The final answer or summary of what was accomplished",
+					},
+				},
+				"required": []string{"result"},
+			},
+		},
 	}
 
 	// PTC: expose execute_javascript as a direct LLM tool. Embed the dynamic
@@ -327,4 +375,15 @@ func truncateGoal(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+func getSkillVarTypeString(typ string) string {
+	switch typ {
+	case "number", "integer":
+		return "number"
+	case "boolean":
+		return "boolean"
+	default:
+		return "string"
+	}
 }
