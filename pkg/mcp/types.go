@@ -80,7 +80,21 @@ func DefaultConfig() Config {
 		HealthCheckInterval:   60 * time.Second,
 		Servers:               []string{}, // Empty by default, resolved by resolveMCPServerPaths()
 		ServersConfigPath:     "",         // Deprecated
-		LoadedServers:         []ServerConfig{},
+		LoadedServers:         GetBuiltInServers(),
+	}
+}
+
+// GetBuiltInServers returns the list of built-in MCP servers
+func GetBuiltInServers() []ServerConfig {
+	return []ServerConfig{
+		{
+			Name:        "websearch",
+			Description: "Web search MCP server",
+			Type:        ServerTypeStdio,
+			Command:     []string{"mcp-websearch-server"},
+			Args:        []string{},
+			AutoStart:   true,
+		},
 	}
 }
 
