@@ -29,7 +29,6 @@ func main() {
 	fmt.Println("=== Building Agent with Tool Search ===")
 	builder := agent.New("ToolSearcher").
 		WithDebug(true).
-		WithSystemPrompt("You are an intelligent assistant. You MUST search for available tools if you don't know how to fulfill the user's request. If you need multiple tools (e.g. weather and flight booking), search for them first. Once you have the tools, you MUST call them.").
 		WithConfig(cfg)
 
 	// 3. Register Deferred Tools (Simulating a large catalog of tools)

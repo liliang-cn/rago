@@ -104,9 +104,9 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 
 		var finalResults []string
 		for _, r := range execResults {
-			finalResults = append(finalResults, fmt.Sprintf("Tool '%s' executed. Result: %v", r.ToolName, r.Result))
+			finalResults = append(finalResults, fmt.Sprintf("Tool '%s' executed successfully. Result: %v", r.ToolName, r.Result))
 		}
-		return strings.Join(finalResults, "\n"), nil
+		return strings.Join(finalResults, "\n") + "\n\nPlease provide a final summary of these results to the user.", nil
 	}
 
 	// Just return found tools metadata

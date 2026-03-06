@@ -29,7 +29,6 @@ func main() {
 	builder := agent.New("PTCSearchAgent").
 		WithDebug(true).
 		WithPTC(). // Enable Programmatic Tool Calling
-		WithSystemPrompt("You are an advanced agent. Use the `execute_javascript` tool to fulfill requests. In your javascript, you can use `searchAndCallTool(query, instruction)` to find and execute tools you don't have loaded natively. It returns the result of the tool execution directly.").
 		WithConfig(cfg)
 
 	// Tool 1: Weather (Deferred)

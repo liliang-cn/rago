@@ -386,7 +386,8 @@ func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) strin
 	sb.WriteString("## PTC Mode (JavaScript Sandbox)\n")
 	sb.WriteString("Respond ONLY with `<code>...</code>` containing synchronous ES5 JavaScript.\n")
 	sb.WriteString("- Use `callTool(name, args)` to invoke any tool. No direct tool calls.\n")
-	sb.WriteString("- Use `searchAndCallTool(query, instruction)` to find and execute a tool by natural language instruction.\n")
+	sb.WriteString("- Use `searchAndCallTool(query, instruction)` to find AND execute a tool in one step using natural language.\n")
+	sb.WriteString("- Use `searchAndCallTool(query)` without an instruction to just discover tool definitions.\n")
 	sb.WriteString("- No async/await, no promises, no require/import.\n")
 	sb.WriteString("- End with a top-level `return` statement.\n")
 	sb.WriteString("Example: `<code>const r = callTool('tool_name', {arg: 'val'}); return r;</code>`\n")
@@ -404,10 +405,13 @@ func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) strin
 // prefix (e.g. mcp_filesystem_*) into a single grouped entry to save tokens.
 func formatToolList(sb *strings.Builder, tools []ptc.ToolInfo) {
 	// Group tools by their detected prefix (e.g. "mcp_filesystem_")
+	type toolWithSig struct {
+		originalName string
+		sigName      string
+	}
 	type group struct {
-		prefix      string
-		description string // description of first tool in group as context
-		members     []string
+		prefix  string
+		members []toolWithSig
 	}
 
 	grouped := map[string]*group{}
@@ -427,10 +431,14 @@ func formatToolList(sb *strings.Builder, tools []ptc.ToolInfo) {
 		// Strip the prefix to get the short sub-name with param signature
 		subName := strings.TrimPrefix(t.Name, prefix)
 		sig := formatParamsSig(t.Parameters)
+		sigName := subName
 		if sig != "" {
-			subName = subName + "(" + sig + ")"
+			sigName = subName + "(" + sig + ")"
 		}
-		grouped[prefix].members = append(grouped[prefix].members, subName)
+		grouped[prefix].members = append(grouped[prefix].members, toolWithSig{
+			originalName: t.Name,
+			sigName:      sigName,
+		})
 	}
 
 	// Emit grouped entries
@@ -438,24 +446,33 @@ func formatToolList(sb *strings.Builder, tools []ptc.ToolInfo) {
 		g := grouped[prefix]
 		if len(g.members) == 1 {
 			// Only one tool with this prefix — emit normally
+			m := g.members[0]
+			idx := toolIndex(tools, m.originalName)
 			standalone = append(standalone, ptc.ToolInfo{
-				Name:        prefix + g.members[0],
-				Description: tools[toolIndex(tools, prefix+g.members[0])].Description,
-				Parameters:  tools[toolIndex(tools, prefix+g.members[0])].Parameters,
+				Name:        m.sigName,
+				Description: tools[idx].Description,
+				Parameters:  tools[idx].Parameters,
 			})
 			continue
 		}
-		fmt.Fprintf(sb, "- %s{%s}\n", prefix, strings.Join(g.members, ","))
+		var memberNames []string
+		for _, m := range g.members {
+			memberNames = append(memberNames, m.sigName)
+		}
+		fmt.Fprintf(sb, "- %s{%s}\n", prefix, strings.Join(memberNames, ","))
 	}
 
 	// Emit standalone (non-grouped) tools
 	for _, t := range standalone {
-		required := extractRequiredArgs(t.Parameters)
-		if required != "" {
-			fmt.Fprintf(sb, "- %s(%s): %s\n", t.Name, required, t.Description)
-		} else {
-			fmt.Fprintf(sb, "- %s: %s\n", t.Name, t.Description)
+		// Use original name if it doesn't already contain signature parentheses
+		name := t.Name
+		if !strings.Contains(name, "(") {
+			required := extractRequiredArgs(t.Parameters)
+			if required != "" {
+				name = fmt.Sprintf("%s(%s)", name, required)
+			}
 		}
+		fmt.Fprintf(sb, "- %s: %s\n", name, t.Description)
 	}
 }
 
@@ -463,6 +480,9 @@ func formatToolList(sb *strings.Builder, tools []ptc.ToolInfo) {
 // tool (e.g. "mcp_filesystem_" from "mcp_filesystem_read_file"), otherwise "".
 // A prefix must contain at least two underscore-separated segments.
 func toolPrefix(name string) string {
+	if !strings.HasPrefix(name, "mcp_") {
+		return ""
+	}
 	parts := strings.SplitN(name, "_", -1)
 	if len(parts) < 3 {
 		return ""

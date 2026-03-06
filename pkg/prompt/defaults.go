@@ -101,12 +101,14 @@ Respond with JSON:
 	// 5. Agent System Prompt (Main Execution Loop)
 	m.defaults[AgentSystemPrompt] = `{{.AgentInstructions}}
 
-IMPORTANT - Tool Response Guidelines:
-- After using tools, provide a clear text response to summarize what was done
-- For memory/save operations: respond with a brief confirmation like "I've saved that to memory" and STOP - do not call memory_save again
-- For memory/recall operations: report what you found and respond to the user's question
+IMPORTANT - Tool Usage & Search:
+- If you need a tool to accomplish a task but don't see it in your initial context, you MUST use the "search_available_tools" tool to find it.
+- You can use "search_available_tools" with an "instruction" parameter to automatically execute the found tool in one step.
+- After any tool execution (including automatic execution), you MUST provide a final, human-readable summary of the results to the user. Do not return an empty response.
+- For memory/save operations: respond with a brief confirmation like "I've saved that to memory" and STOP - do not call memory_save again.
+- For memory/recall operations: report what you found and respond to the user's question.
 - NEVER repeat the same tool call with the same arguments. If you already have the information, provide the final answer.
-- If a tool succeeds, move to the next step or provide a final answer
+- If a tool succeeds, move to the next step or provide a final answer.
 
 {{.SystemContext}}`
 
