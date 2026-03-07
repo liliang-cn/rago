@@ -10,9 +10,11 @@ import (
 )
 
 // SearchAndExecute searches for tools matching the query and optionally executes them.
-func (s *Service) SearchAndExecute(ctx context.Context, query string, instruction string) (interface{}, error) {
+// scope limits the search to a specific MCP server prefix or skill ID (empty = search all).
+func (s *Service) SearchAndExecute(ctx context.Context, query string, instruction string, scope string) (interface{}, error) {
 	query = strings.ToLower(query)
 	keywords := strings.Fields(query)
+	scope = strings.ToLower(scope)
 
 	matches := s.toolRegistry.SearchDeferredTools(query)
 
@@ -20,8 +22,11 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 	if s.mcpService != nil {
 		for _, t := range s.mcpService.ListTools() {
 			name := strings.ToLower(t.Function.Name)
+			// Apply scope filter: skip tools that don't match the scope prefix
+			if scope != "" && !strings.HasPrefix(name, scope) {
+				continue
+			}
 			desc := strings.ToLower(t.Function.Description)
-
 			matched := false
 			for _, kw := range keywords {
 				if strings.Contains(name, kw) || strings.Contains(desc, kw) {
@@ -40,26 +45,24 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 	if s.skillsService != nil {
 		if skillsList, err := s.skillsService.ListSkills(ctx, skills.SkillFilter{}); err == nil {
 			for _, sk := range skillsList {
-				name := strings.ToLower(sk.ID)
+				skillID := strings.ToLower(sk.ID)
+				// Apply scope filter: only include if scope matches this skill's ID
+				if scope != "" && !strings.HasPrefix(skillID, scope) && skillID != scope {
+					continue
+				}
 				desc := strings.ToLower(sk.Description)
-
-				matched := false
-				for _, kw := range keywords {
-					if strings.Contains(name, kw) || strings.Contains(desc, kw) {
-						matched = true
-						break
+				matched := scope == skillID // exact skill scope match always included
+				if !matched {
+					for _, kw := range keywords {
+						if strings.Contains(skillID, kw) || strings.Contains(desc, kw) {
+							matched = true
+							break
+						}
 					}
 				}
 				if matched {
-					def := domain.ToolDefinition{
-						Type: "function",
-						Function: domain.ToolFunction{
-							Name:        sk.ID,
-							Description: sk.Description,
-							Parameters:  map[string]interface{}{},
-						},
-						DeferLoading: true,
-					}
+					def := buildSkillToolDef(*sk)
+					def.DeferLoading = true
 					matches = append(matches, def)
 				}
 			}
@@ -131,4 +134,39 @@ func getToolNames(defs []domain.ToolDefinition) []string {
 		names[i] = d.Function.Name
 	}
 	return names
+}
+
+// buildSkillToolDef builds a ToolDefinition for a skill with proper parameter schema.
+func buildSkillToolDef(sk skills.Skill) domain.ToolDefinition {
+	properties := make(map[string]interface{})
+	required := make([]string, 0)
+	for _, v := range sk.Variables {
+		prop := map[string]interface{}{
+			"type":        getSkillVarTypeString(v.Type),
+			"description": v.Description,
+		}
+		if v.Default != nil {
+			prop["default"] = v.Default
+		}
+		properties[v.Name] = prop
+		if v.Required {
+			required = append(required, v.Name)
+		}
+	}
+	desc := sk.Description
+	if desc == "" {
+		desc = sk.Name
+	}
+	return domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        sk.ID,
+			Description: "Skill workflow: " + desc,
+			Parameters: map[string]interface{}{
+				"type":       "object",
+				"properties": properties,
+				"required":   required,
+			},
+		},
+	}
 }

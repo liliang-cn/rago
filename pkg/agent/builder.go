@@ -498,17 +498,21 @@ func (b *Builder) build() (*Service, error) {
 		Type: "function",
 		Function: domain.ToolFunction{
 			Name:        "search_available_tools",
-			Description: "Search the catalog for available tools. If 'instruction' is provided, the tool will automatically execute the found tool to fulfill your instruction.",
+			Description: "Search the catalog for available tools. If 'instruction' is provided, the tool will automatically execute the found tool. Use 'scope' to narrow the search to a specific MCP server (e.g. 'mcp_filesystem') or skill name.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"query": map[string]interface{}{
 						"type":        "string",
-						"description": "Keywords to search for in tool name or description (e.g., 'github', 'expense', 'weather').",
+						"description": "Keywords to search for in tool name or description.",
 					},
 					"instruction": map[string]interface{}{
 						"type":        "string",
-						"description": "(Optional) A clear instruction of what action to perform with the tool and what parameters to use. If provided, the system will execute the tool for you.",
+						"description": "(Optional) A clear instruction of what action to perform. If provided, the system will select and execute the best matching tool.",
+					},
+					"scope": map[string]interface{}{
+						"type":        "string",
+						"description": "(Optional) Limit search to a specific MCP server prefix (e.g. 'mcp_filesystem', 'mcp_websearch') or skill ID.",
 					},
 				},
 				"required": []string{"query"},
@@ -518,7 +522,8 @@ func (b *Builder) build() (*Service, error) {
 	svc.toolRegistry.Register(searchToolDef, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 		queryStr, _ := args["query"].(string)
 		instruction, _ := args["instruction"].(string)
-		return svc.SearchAndExecute(ctx, queryStr, instruction)
+		scope, _ := args["scope"].(string)
+		return svc.SearchAndExecute(ctx, queryStr, instruction, scope)
 	}, CategoryCustom)
 
 	// Register tools added inline via WithTool/WithTools. This runs after built-in

@@ -108,6 +108,8 @@ func runServer(cmd *cobra.Command, args []string) error {
 		Enabled:           cfg.MCP.Enabled,
 		Servers:           cfg.MCP.Servers,
 		ServersConfigPath: cfg.MCP.ServersConfigPath,
+		FilesystemDirs:    cfg.MCP.FilesystemDirs,
+		LoadedServers:     mcp.GetBuiltInServers(cfg.MCP.FilesystemDirs),
 	}
 	var mcpService *mcp.Service
 	if cfg.MCP.Enabled {

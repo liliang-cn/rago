@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -12,6 +13,10 @@ import (
 	"github.com/liliang-cn/agent-go/pkg/skills"
 	"golang.org/x/sync/errgroup"
 )
+
+// errTaskComplete is a sentinel returned from the StreamWithTools callback to
+// stop streaming as soon as task_complete is detected. It is NOT a real error.
+var errTaskComplete = errors.New("task_complete signalled")
 
 // Runtime orchestrates the event loop for agent execution
 type Runtime struct {
@@ -57,9 +62,12 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 	r.emit(EventTypeStart, fmt.Sprintf("Starting task: %s", goal))
 
-	// 1. Prepare context (Memory & RAG)
+	// 1. Prepare context (Memory & RAG) — with a timeout so a slow embedding
+	// model or unreachable LLM doesn't block the entire run forever.
 	fmt.Printf("[AGENT] Preparing context...\n")
-	memoryContext, ragContext := r.prepareContext(ctx, goal)
+	prepCtx, prepCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer prepCancel()
+	memoryContext, ragContext := r.prepareContext(prepCtx, goal)
 	fmt.Printf("[AGENT] Context prepared, memory=%d chars, rag=%d chars\n", len(memoryContext), len(ragContext))
 
 	// 2. Build initial messages
@@ -90,9 +98,15 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		systemMsg := r.svc.buildSystemPrompt(ctx, r.currentAgent)
 		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
 
-		// --- DEBUG: LOG FULL PROMPT ---
+		// --- DEBUG: LOG FULL PROMPT + TOOLS ---
 		if r.svc.debug {
 			var promptBuilder strings.Builder
+			// Tools list
+			fmt.Fprintf(&promptBuilder, "=== TOOLS (%d) ===\n", len(tools))
+			for _, t := range tools {
+				fmt.Fprintf(&promptBuilder, "  • %s: %s\n", t.Function.Name, t.Function.Description)
+			}
+			fmt.Fprintf(&promptBuilder, "\n=== MESSAGES ===\n")
 			for _, m := range genMessages {
 				fmt.Fprintf(&promptBuilder, "[%s]:\n%s\n\n", strings.ToUpper(m.Role), m.Content)
 			}
@@ -103,12 +117,32 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		var fullContent strings.Builder
 		var toolCalls []domain.ToolCall
 		toolCallDetected := false
+		// taskCompleteTriggered signals task_complete was detected mid-stream.
+		// We break out of StreamWithTools early by returning an error from the
+		// callback; the runtime then checks this flag to avoid treating it as a
+		// real error.
+		var taskCompleteResult string
+		taskCompleteTriggered := false
 
 		fmt.Printf("[AGENT] Round %d: Calling LLM with %d tools...\n", round, len(tools))
 		err := r.svc.llmService.StreamWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
 			Temperature: 0.3,
 			MaxTokens:   2000,
 		}, func(delta *domain.GenerationResult) error {
+			// 0. Hardwired: intercept task_complete at stream level regardless of
+			//    PTC mode, system prompt overrides, or tool search configuration.
+			//    When the model emits a task_complete tool call, capture the result
+			//    and signal early termination by returning a sentinel error.
+			for _, tc := range delta.ToolCalls {
+				if tc.Function.Name == "task_complete" {
+					if r, ok := tc.Function.Arguments["result"].(string); ok && r != "" {
+						taskCompleteResult = r
+					}
+					taskCompleteTriggered = true
+					return errTaskComplete
+				}
+			}
+
 			// 1. Handle Reasoning (The "Thinking" Stream)
 			if delta.ReasoningContent != "" {
 				r.emit(EventTypeThinking, delta.ReasoningContent)
@@ -131,6 +165,32 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			return nil
 		})
 
+		// task_complete detected in stream — terminate immediately.
+		if taskCompleteTriggered {
+			result := taskCompleteResult
+			if result == "" {
+				result = fullContent.String()
+			}
+			allSources := r.sources
+			r.svc.ragSourcesMu.RLock()
+			allSources = append(allSources, r.svc.ragSources...)
+			r.svc.ragSourcesMu.RUnlock()
+			r.svc.ragSourcesMu.Lock()
+			r.svc.ragSources = nil
+			r.svc.ragSourcesMu.Unlock()
+			r.eventChan <- &Event{
+				ID:        uuid.New().String(),
+				Type:      EventTypeComplete,
+				AgentName: r.currentAgent.Name(),
+				AgentID:   r.currentAgent.ID(),
+				Content:   result,
+				Sources:   allSources,
+				Timestamp: time.Now(),
+			}
+			go r.saveToMemory(context.Background(), goal, result)
+			return
+		}
+
 		if err != nil {
 			r.emit(EventTypeError, fmt.Sprintf("LLM error: %v", err))
 			return
@@ -151,35 +211,8 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 		// 6. Handle Result
 		if len(toolCalls) > 0 {
-			// Check for task_complete signal before anything else.
-			// If the agent called task_complete (possibly alongside other calls),
-			// extract the result and terminate the loop immediately.
-			for _, tc := range toolCalls {
-				if tc.Function.Name == "task_complete" {
-					result, _ := tc.Function.Arguments["result"].(string)
-					if result == "" {
-						result = fullContent.String()
-					}
-					allSources := r.sources
-					r.svc.ragSourcesMu.RLock()
-					allSources = append(allSources, r.svc.ragSources...)
-					r.svc.ragSourcesMu.RUnlock()
-					r.svc.ragSourcesMu.Lock()
-					r.svc.ragSources = nil
-					r.svc.ragSourcesMu.Unlock()
-					r.eventChan <- &Event{
-						ID:        uuid.New().String(),
-						Type:      EventTypeComplete,
-						AgentName: r.currentAgent.Name(),
-						AgentID:   r.currentAgent.ID(),
-						Content:   result,
-						Sources:   allSources,
-						Timestamp: time.Now(),
-					}
-					go r.saveToMemory(context.Background(), goal, result)
-					return
-				}
-			}
+			// Note: task_complete is intercepted at stream level above and never
+			// reaches this point. All remaining tool calls are real work items.
 
 			// PTC fix: some models (e.g. gpt-5.2) emit valid JS as text content
 			// and then issue a broken execute_javascript tool call with garbage code.
@@ -326,6 +359,14 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			if handoffOccurred {
 				continue
 			}
+
+			// After collecting tool results, nudge the model to call task_complete
+			// concisely rather than re-analyzing the full tool output. This prevents
+			// slow LLM rounds when tool results are large (e.g. full file reads).
+			messages = append(messages, domain.Message{
+				Role:    "user",
+				Content: "You have the results above. Call task_complete now with a concise summary of the answer.",
+			})
 
 		} else {
 			// PTC fallback: when PTC is active and the LLM wrote JS code as a

@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/liliang-cn/agent-go/pkg/agent"
@@ -508,6 +509,7 @@ func runStream(ctx context.Context, goal string) error {
 
 	// Consume events
 	var currentRound int
+	var hasPartialOutput bool
 	for evt := range events {
 		switch evt.Type {
 		case agent.EventTypeStart:
@@ -515,19 +517,27 @@ func runStream(ctx context.Context, goal string) error {
 		case agent.EventTypeThinking:
 			currentRound++
 			fmt.Printf("\n🔄 [Round %d] Thinking...\n", currentRound)
-			if evt.Content != "" && evt.Content != "Thinking..." {
+			if evt.ToolResult != nil && evt.Content != "Thinking..." {
 				fmt.Printf("💭 %s\n", evt.Content)
 			}
 		case agent.EventTypeToolCall:
 			fmt.Printf("🛠️  Using Tool: %s (args: %v)\n", evt.ToolName, evt.ToolArgs)
 		case agent.EventTypeToolResult:
 			fmt.Printf("✅ Tool Success: %s\n", evt.ToolName)
+			if evt.ToolResult != nil {
+				fmt.Printf("📝 Result: %v\n", evt.ToolResult)
+			}
 		case agent.EventTypeHandoff:
 			fmt.Printf("🔀 Handoff: %s\n", evt.Content)
 		case agent.EventTypePartial:
 			// Print text as it comes (Typewriter effect)
 			fmt.Print(evt.Content)
+			hasPartialOutput = true
 		case agent.EventTypeComplete:
+			// Only print content if it wasn't already streamed via EventTypePartial
+			if !hasPartialOutput && evt.Content != "" {
+				fmt.Printf("\n%s", evt.Content)
+			}
 			fmt.Printf("\n\n🏁 Task Completed!\n")
 			// Show RAG sources if available
 			if len(evt.Sources) > 0 {
@@ -540,6 +550,12 @@ func runStream(ctx context.Context, goal string) error {
 					fmt.Printf("  %d. %s\n", i+1, preview)
 				}
 			}
+		case agent.EventTypeDebug:
+			// Render debug output with a clear visual separator so it's easy to scan
+			label := strings.ToUpper(evt.DebugType)
+			sep := strings.Repeat("─", 60)
+			fmt.Printf("\n\033[2m%s\n🐛 DEBUG [Round %d] %s\n%s\n%s\n%s\033[0m\n",
+				sep, evt.Round, label, sep, evt.Content, sep)
 		case agent.EventTypeError:
 			fmt.Printf("\n❌ Error: %s\n", evt.Content)
 		}

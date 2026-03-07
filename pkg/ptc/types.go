@@ -83,7 +83,7 @@ type ToolHandler func(ctx context.Context, args map[string]interface{}) (interfa
 
 // SearchProvider provides on-demand tool discovery and execution
 type SearchProvider interface {
-	SearchAndExecute(ctx context.Context, query string, instruction string) (interface{}, error)
+	SearchAndExecute(ctx context.Context, query string, instruction string, scope string) (interface{}, error)
 }
 
 // SandboxRuntime defines the interface for sandbox runtimes

@@ -118,34 +118,13 @@ func NewService(
 	// Collect available tools
 	tools := collectAvailableTools(mcpService, ragProcessor, nil)
 
-	// Build default agent instructions based on enabled features
-	var instructions strings.Builder
-	instructions.WriteString("You are AgentGo, a helpful AI assistant")
-	instructions.WriteString(" with access to")
-
-	var features []string
-	if ragProcessor != nil {
-		features = append(features, " RAG (Retrieval Augmented Generation)")
-	}
-	features = append(features, " MCP tools, Skills, and various processing capabilities")
-	instructions.WriteString(strings.Join(features, ","))
-	instructions.WriteString(".\n\nWhen given a goal:\n1. Break it down into clear steps\n2. Choose appropriate tools for each step\n3. Execute steps in logical order\n4. Provide clear results\n\nAvailable tools include:")
-
-	var toolList []string
-	if ragProcessor != nil {
-		toolList = append(toolList, "\n- RAG queries (rag_query, rag_ingest)")
-	}
-	toolList = append(toolList,
-		"\n- MCP tools (external integrations)",
-		"\n- Skills (SKILL.md-based workflows: each skill tool returns its step-by-step instructions which you must follow to complete the task; pass variables to customise behaviour)",
-		"\n- General LLM reasoning",
-	)
-	instructions.WriteString(strings.Join(toolList, ""))
+	// Concise agent instructions — key behaviors only
+	instructions := "You are AgentGo, a helpful AI assistant. Use available tools to complete tasks efficiently. Call task_complete when done."
 
 	// Create default agent
 	agent := NewAgentWithConfig(
 		"AgentGo Agent",
-		instructions.String(),
+		instructions,
 		tools,
 	)
 

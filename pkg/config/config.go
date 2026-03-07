@@ -232,6 +232,9 @@ func Load(configPath string) (*Config, error) {
 		config.MCP.HealthCheckInterval = defaultMCP.HealthCheckInterval
 		config.MCP.Enabled = defaultMCP.Enabled
 	}
+	// Always seed LoadedServers with the built-in in-process servers,
+	// respecting any filesystem_dirs override from agentgo.toml.
+	config.MCP.LoadedServers = mcp.GetBuiltInServers(config.MCP.FilesystemDirs)
 
 	// Unify all paths under Home
 	config.resolveDatabasePath()

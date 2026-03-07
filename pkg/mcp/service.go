@@ -32,9 +32,11 @@ func NewService(mcpConfig *Config, llm domain.Generator) (*Service, error) {
 		return nil, fmt.Errorf("failed to load MCP servers: %w", err)
 	}
 
-	// Inject builtin servers if not already present
+	// Ensure built-in servers (filesystem, websearch) are always present.
+	// They are in-process — no external binary needed.
+	// FilesystemDirs from config overrides the default (user home dir).
 	loadedServers := mcpConfig.GetLoadedServers()
-	for _, builtin := range GetBuiltInServers() {
+	for _, builtin := range GetBuiltInServers(mcpConfig.FilesystemDirs) {
 		found := false
 		for _, loaded := range loadedServers {
 			if loaded.Name == builtin.Name {
@@ -45,24 +47,6 @@ func NewService(mcpConfig *Config, llm domain.Generator) (*Service, error) {
 		if !found {
 			mcpConfig.AddServer(&builtin)
 		}
-	}
-
-	// Inject builtin filesystem server if not overridden by user
-	hasFilesystem := false
-	for _, srv := range mcpConfig.GetLoadedServers() {
-		if srv.Name == "filesystem" {
-			hasFilesystem = true
-			break
-		}
-	}
-	if !hasFilesystem {
-		// Use current directory as root by default to allow workspace access
-		mcpConfig.AddServer(&ServerConfig{
-			Name:      "filesystem",
-			Type:      ServerTypeInProcess,
-			Args:      []string{"."},
-			AutoStart: true,
-		})
 	}
 
 	// Create MCP manager
