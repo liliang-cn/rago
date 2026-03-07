@@ -258,7 +258,7 @@ func (e *Executor) executeTool(ctx context.Context, toolName string, args map[st
 		args = make(map[string]interface{})
 	}
 
-	// Check if it's a skill tool (starts with "skill_")
+	// Check if it's a skill tool (starts with "skill_" or matches a skill ID directly)
 	if strings.HasPrefix(toolName, "skill_") {
 		result, err := e.trySkillTool(ctx, toolName, args)
 		if err == nil {
@@ -296,6 +296,13 @@ func (e *Executor) executeTool(ctx context.Context, toolName string, args map[st
 	// Fall back to LLM for general reasoning
 	if toolName == "llm" || toolName == "generate" {
 		return e.executeLLM(ctx, args, plan, session)
+	}
+
+	// Last resort: try as a skill (plain skill ID without prefix)
+	if e.skillsService != nil {
+		if result, err := e.trySkillTool(ctx, toolName, args); err == nil {
+			return result, nil
+		}
 	}
 
 	return nil, fmt.Errorf("unknown tool: %s", toolName)
