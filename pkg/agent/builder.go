@@ -684,7 +684,7 @@ func (b *Builder) buildSkillsService(agentgoCfg *config.Config) (*skills.Service
 	skillsCfg := skills.DefaultConfig()
 	paths := b.skillsPaths
 	if len(paths) == 0 {
-		paths = []string{agentgoCfg.SkillsDir()}
+		paths = agentgoCfg.SkillsPaths()
 	}
 	skillsCfg.Paths = paths
 	skillsCfg.DBPath = agentgoCfg.Cortexdb.DBPath
