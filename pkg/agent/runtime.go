@@ -360,13 +360,16 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 				continue
 			}
 
-			// After collecting tool results, nudge the model to call task_complete
-			// concisely rather than re-analyzing the full tool output. This prevents
-			// slow LLM rounds when tool results are large (e.g. full file reads).
-			messages = append(messages, domain.Message{
-				Role:    "user",
-				Content: "You have the results above. Call task_complete now with a concise summary of the answer.",
-			})
+			// In PTC mode, after execute_javascript returns its result, let the LLM
+			// continue naturally to synthesise a final answer — no nudge needed.
+			// In non-PTC mode, nudge the model to call task_complete concisely.
+			isPTCToolRound := r.svc.isPTCEnabled() && len(toolCalls) == 1 && toolCalls[0].Function.Name == "execute_javascript"
+			if !isPTCToolRound {
+				messages = append(messages, domain.Message{
+					Role:    "user",
+					Content: "You have the results above. Call task_complete now with a concise summary of the answer.",
+				})
+			}
 
 		} else {
 			// PTC fallback: when PTC is active and the LLM wrote JS code as a
@@ -394,7 +397,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 						}
 						messages = append(messages, domain.Message{
 							Role:    "user",
-							Content: fmt.Sprintf("execute_javascript result:\n%s\n\nBased on these results, please provide the final answer.", resultMsg),
+							Content: fmt.Sprintf("execute_javascript result:\n%s\n\nAnalyze the above results and call task_complete with your complete answer.", resultMsg),
 						})
 						continue // next round → LLM synthesises answer
 					}
