@@ -206,7 +206,14 @@ func (s *Service) RetrieveAndInjectWithLogic(ctx context.Context, query string, 
 	case len(navResults) > 0:
 		allMemories = append(allMemories, navResults...)
 	default:
-		// Final fallback: plain list
+		// Final fallback: keyword search first, then plain list
+		if query != "" {
+			textMems, err := s.store.SearchByText(ctx, query, s.maxMemories)
+			if err == nil && len(textMems) > 0 {
+				allMemories = append(allMemories, textMems...)
+				break
+			}
+		}
 		mems, _, _ := s.store.List(ctx, s.maxMemories, 0)
 		for _, m := range mems {
 			allMemories = append(allMemories, &domain.MemoryWithScore{Memory: m, Score: 0.5})

@@ -328,6 +328,11 @@ func (p *PTCIntegration) GetAvailableCallTools(ctx context.Context) []ptc.ToolIn
 	// Otherwise return all except blocked
 	var filtered []ptc.ToolInfo
 	for _, t := range all {
+		// task_complete is a hardwired runtime signal — never callable via callTool().
+		// The LLM must call it as a direct function call, not through the JS sandbox.
+		if t.Name == "task_complete" {
+			continue
+		}
 		if !blocked[t.Name] {
 			filtered = append(filtered, t)
 		}
@@ -337,32 +342,35 @@ func (p *PTCIntegration) GetAvailableCallTools(ctx context.Context) []ptc.ToolIn
 
 // GetPTCTools returns PTC-specific tool definitions for LLM.
 // availableTools is the list of tools the LLM can call via callTool() inside the sandbox;
-// it is embedded in the description so the model knows what is callable.
+// only MCP server names are listed — use searchAndCallTool() to discover specific tools.
 func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.ToolDefinition {
 	if !p.config.Enabled {
 		return nil
 	}
 
-	var toolsDesc string
-	if len(availableTools) > 0 {
-		var sb strings.Builder
-		sb.WriteString("\n\nTools via callTool(name, args):\n")
-		formatToolList(&sb, availableTools)
-		toolsDesc = sb.String()
+	// Collect unique MCP server prefixes (e.g. "mcp_filesystem", "mcp_websearch")
+	serverNames := collectMCPServerNames(availableTools)
+	var serverHint string
+	if len(serverNames) > 0 {
+		serverHint = "\n\nAvailable MCP servers: " + strings.Join(serverNames, ", ") +
+			"\nUse searchAndCallTool(query, instruction) to discover and execute specific tools."
 	}
 
 	return []domain.ToolDefinition{
 		{
 			Type: "function",
 			Function: domain.ToolFunction{
-				Name:        "execute_javascript",
-				Description: "Execute JavaScript code in a secure sandbox. Use this to call multiple tools in one shot, process large results before they reach your context, or orchestrate complex multi-step logic." + toolsDesc,
+				Name: "execute_javascript",
+				Description: "Execute JavaScript code in a secure sandbox. Call multiple tools, process results, or orchestrate complex logic. " +
+					"Use callTool(name, args) to invoke a tool by exact name. " +
+					"Use searchAndCallTool(query, instruction) to find + execute a tool by natural language. " +
+					"NOTE: task_complete is NOT callable inside the sandbox — call it directly." + serverHint,
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
 						"code": map[string]interface{}{
 							"type":        "string",
-							"description": "Valid JavaScript code. Use callTool(name, args) to invoke tools. Return a value with the 'return' statement.",
+							"description": "Synchronous ES5 JavaScript. Use callTool(name, args) or searchAndCallTool(query, instruction). End with return statement.",
 						},
 						"context": map[string]interface{}{
 							"type":        "object",
@@ -376,7 +384,30 @@ func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.Too
 	}
 }
 
+// collectMCPServerNames extracts unique MCP server names from tool list.
+// e.g. "mcp_filesystem_read_file" → "mcp_filesystem"
+func collectMCPServerNames(tools []ptc.ToolInfo) []string {
+	seen := map[string]bool{}
+	var names []string
+	for _, t := range tools {
+		if !strings.HasPrefix(t.Name, "mcp_") {
+			continue
+		}
+		parts := strings.SplitN(t.Name, "_", 3)
+		if len(parts) < 3 {
+			continue
+		}
+		server := parts[0] + "_" + parts[1]
+		if !seen[server] {
+			seen[server] = true
+			names = append(names, server)
+		}
+	}
+	return names
+}
+
 // GetPTCSystemPrompt returns system prompt additions for PTC mode.
+// Tool list is NOT repeated here — it's already embedded in the execute_javascript tool description.
 func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) string {
 	if !p.config.Enabled {
 		return ""
@@ -387,200 +418,11 @@ func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) strin
 	sb.WriteString("Respond ONLY with `<code>...</code>` containing synchronous ES5 JavaScript.\n")
 	sb.WriteString("- Use `callTool(name, args)` to invoke any tool. No direct tool calls.\n")
 	sb.WriteString("- Use `searchAndCallTool(query, instruction)` to find AND execute a tool in one step using natural language.\n")
-	sb.WriteString("- Use `searchAndCallTool(query)` without an instruction to just discover tool definitions.\n")
 	sb.WriteString("- No async/await, no promises, no require/import.\n")
 	sb.WriteString("- End with a top-level `return` statement.\n")
-	sb.WriteString("Example: `<code>const r = callTool('tool_name', {arg: 'val'}); return r;</code>`\n")
-	sb.WriteString("Example: `<code>const r = searchAndCallTool('expense', 'Calculate expenses for EMP123'); return r;</code>`\n")
-
-	if len(availableTools) > 0 {
-		sb.WriteString("\nAvailable callTool() names:\n")
-		formatToolList(&sb, availableTools)
-	}
+	sb.WriteString("Example: `<code>const r = callTool('mcp_filesystem_read_file', {path: '/tmp/f'}); return r;</code>`\n")
 
 	return sb.String()
-}
-
-// formatToolList writes the tool list to sb, collapsing tools that share a common
-// prefix (e.g. mcp_filesystem_*) into a single grouped entry to save tokens.
-func formatToolList(sb *strings.Builder, tools []ptc.ToolInfo) {
-	// Group tools by their detected prefix (e.g. "mcp_filesystem_")
-	type toolWithSig struct {
-		originalName string
-		sigName      string
-	}
-	type group struct {
-		prefix  string
-		members []toolWithSig
-	}
-
-	grouped := map[string]*group{}
-	order := []string{} // preserve insertion order
-	standalone := []ptc.ToolInfo{}
-
-	for _, t := range tools {
-		prefix := toolPrefix(t.Name)
-		if prefix == "" {
-			standalone = append(standalone, t)
-			continue
-		}
-		if _, ok := grouped[prefix]; !ok {
-			grouped[prefix] = &group{prefix: prefix}
-			order = append(order, prefix)
-		}
-		// Strip the prefix to get the short sub-name with param signature
-		subName := strings.TrimPrefix(t.Name, prefix)
-		sig := formatParamsSig(t.Parameters)
-		sigName := subName
-		if sig != "" {
-			sigName = subName + "(" + sig + ")"
-		}
-		grouped[prefix].members = append(grouped[prefix].members, toolWithSig{
-			originalName: t.Name,
-			sigName:      sigName,
-		})
-	}
-
-	// Emit grouped entries
-	for _, prefix := range order {
-		g := grouped[prefix]
-		if len(g.members) == 1 {
-			// Only one tool with this prefix — emit normally
-			m := g.members[0]
-			idx := toolIndex(tools, m.originalName)
-			standalone = append(standalone, ptc.ToolInfo{
-				Name:        m.sigName,
-				Description: tools[idx].Description,
-				Parameters:  tools[idx].Parameters,
-			})
-			continue
-		}
-		var memberNames []string
-		for _, m := range g.members {
-			memberNames = append(memberNames, m.sigName)
-		}
-		fmt.Fprintf(sb, "- %s{%s}\n", prefix, strings.Join(memberNames, ","))
-	}
-
-	// Emit standalone (non-grouped) tools
-	for _, t := range standalone {
-		// Use original name if it doesn't already contain signature parentheses
-		name := t.Name
-		if !strings.Contains(name, "(") {
-			required := extractRequiredArgs(t.Parameters)
-			if required != "" {
-				name = fmt.Sprintf("%s(%s)", name, required)
-			}
-		}
-		fmt.Fprintf(sb, "- %s: %s\n", name, t.Description)
-	}
-}
-
-// toolPrefix returns the shared prefix of a tool name if it looks like a namespaced
-// tool (e.g. "mcp_filesystem_" from "mcp_filesystem_read_file"), otherwise "".
-// A prefix must contain at least two underscore-separated segments.
-func toolPrefix(name string) string {
-	if !strings.HasPrefix(name, "mcp_") {
-		return ""
-	}
-	parts := strings.SplitN(name, "_", -1)
-	if len(parts) < 3 {
-		return ""
-	}
-	// Use first two segments as prefix: "mcp_filesystem_"
-	return parts[0] + "_" + parts[1] + "_"
-}
-
-// toolIndex finds the index of a tool by name in a slice.
-func toolIndex(tools []ptc.ToolInfo, name string) int {
-	for i, t := range tools {
-		if t.Name == name {
-			return i
-		}
-	}
-	return 0
-}
-
-// extractRequiredArgs returns a compact comma-separated list of required parameter names.
-func extractRequiredArgs(params map[string]interface{}) string {
-	req, ok := params["required"]
-	if !ok {
-		return ""
-	}
-	switch v := req.(type) {
-	case []string:
-		return strings.Join(v, ", ")
-	case []interface{}:
-		names := make([]string, 0, len(v))
-		for _, item := range v {
-			if s, ok := item.(string); ok {
-				names = append(names, s)
-			}
-		}
-		return strings.Join(names, ", ")
-	}
-	return ""
-}
-
-// formatParamsSig returns a compact parameter signature string like
-// "path: string, content: string, recursive?: boolean" from a JSON schema.
-func formatParamsSig(params map[string]interface{}) string {
-	if len(params) == 0 {
-		return ""
-	}
-
-	// Collect required set
-	required := map[string]bool{}
-	if req, ok := params["required"]; ok {
-		switch v := req.(type) {
-		case []string:
-			for _, s := range v {
-				required[s] = true
-			}
-		case []interface{}:
-			for _, item := range v {
-				if s, ok := item.(string); ok {
-					required[s] = true
-				}
-			}
-		}
-	}
-
-	props, ok := params["properties"].(map[string]interface{})
-	if !ok || len(props) == 0 {
-		return ""
-	}
-
-	// Required params first, then optional
-	var reqParts, optParts []string
-	for name, def := range props {
-		typeName := "any"
-		if defMap, ok := def.(map[string]interface{}); ok {
-			if t, ok := defMap["type"].(string); ok {
-				typeName = t
-			}
-		}
-		if required[name] {
-			reqParts = append(reqParts, name+": "+typeName)
-		} else {
-			optParts = append(optParts, name+"?: "+typeName)
-		}
-	}
-
-	// Sort for determinism
-	sortStrings(reqParts)
-	sortStrings(optParts)
-
-	all := append(reqParts, optParts...)
-	return strings.Join(all, ", ")
-}
-
-func sortStrings(s []string) {
-	for i := 1; i < len(s); i++ {
-		for j := i; j > 0 && s[j] < s[j-1]; j-- {
-			s[j], s[j-1] = s[j-1], s[j]
-		}
-	}
 }
 
 // ProcessLLMResponse processes an LLM response and executes any code found

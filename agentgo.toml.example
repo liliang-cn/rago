@@ -49,4 +49,12 @@ log_level = "info"
 default_timeout = "5m"
 max_concurrent_requests = 10
 health_check_interval = "60s"
-# Note: System automatically looks for mcpServers.json in your AgentGo home directory
+
+# Built-in servers (filesystem + websearch) are always available — no external
+# binaries or mcpServers.json entries needed. They run in-process inside the binary.
+#
+# filesystem_dirs controls which directories the built-in filesystem server can access.
+# Defaults to the user's home directory if not set.
+# filesystem_dirs = ["/Users/yourname", "/tmp"]
+
+# Note: Additional servers can be configured in mcpServers.json (auto-discovered in AgentGo home dir)

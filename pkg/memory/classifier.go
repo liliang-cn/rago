@@ -3,6 +3,7 @@ package memory
 import (
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 // QueryType represents the classified type of a query
@@ -164,8 +165,8 @@ func (c *QueryClassifier) Classify(query string) QueryType {
 		}
 	}
 
-	// Default to information for longer queries
-	if len(query) > 20 {
+	// Default to information for longer queries or non-ASCII (CJK etc.)
+	if len(query) > 20 || isNonASCII(query) {
 		return QueryTypeInformation
 	}
 
@@ -209,4 +210,14 @@ func (c *QueryClassifier) IsCasual(query string) bool {
 func (c *QueryClassifier) IsInformation(query string) bool {
 	qt := c.Classify(query)
 	return qt == QueryTypeInformation || qt == QueryTypeComplex
+}
+
+// isNonASCII returns true if the string contains any non-ASCII (e.g. CJK) characters.
+func isNonASCII(s string) bool {
+	for _, r := range s {
+		if r > unicode.MaxASCII {
+			return true
+		}
+	}
+	return false
 }
