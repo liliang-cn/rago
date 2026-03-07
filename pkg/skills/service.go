@@ -9,6 +9,7 @@ import (
 
 	"github.com/liliang-cn/agent-go/pkg/domain"
 	skillgo "github.com/liliang-cn/skills-go/skill"
+	"golang.org/x/sync/errgroup"
 )
 
 // Service orchestrates all skill functionality using skills-go as the backend
@@ -297,6 +298,39 @@ func (s *Service) RunSkill(ctx context.Context, id string, vars map[string]inter
 		return "", err
 	}
 	return res.Output, nil
+}
+
+// ExecuteMultiple executes multiple skills in parallel using goroutines
+func (s *Service) ExecuteMultiple(ctx context.Context, requests []*ExecutionRequest) ([]*ExecutionResult, error) {
+	if len(requests) == 0 {
+		return nil, nil
+	}
+
+	results := make([]*ExecutionResult, len(requests))
+
+	// Use errgroup for parallel execution
+	g, groupCtx := errgroup.WithContext(ctx)
+
+	for i, req := range requests {
+		// Capture index and request for the goroutine
+		idx, request := i, req
+
+		g.Go(func() error {
+			result, err := s.Execute(groupCtx, request)
+			if err != nil {
+				return err
+			}
+			results[idx] = result
+			return nil
+		})
+	}
+
+	// Wait for all skills to finish
+	if err := g.Wait(); err != nil {
+		return results, err
+	}
+
+	return results, nil
 }
 
 // executeRAGQuery executes a RAG query

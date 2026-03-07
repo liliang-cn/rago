@@ -52,6 +52,34 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 	// This includes built-in tools like delegate_to_subagent and task_complete
 	addTools(s.toolRegistry.ListForLLM(ptcEnabled, sessionID))
 
+	// Check if there are deferred tools - if so, add tool search tools
+	hasDeferredTools := false
+	for _, t := range s.toolRegistry.ListForLLM(ptcEnabled, sessionID) {
+		if t.DeferLoading {
+			hasDeferredTools = true
+			break
+		}
+	}
+	// Also check MCP and skills for deferred tools
+	if !hasDeferredTools && s.mcpService != nil {
+		// If MCP has many tools, consider them deferred
+		if len(s.mcpService.ListTools()) > 5 {
+			hasDeferredTools = true
+		}
+	}
+	if !hasDeferredTools && s.skillsService != nil {
+		skillsList, _ := s.skillsService.ListSkills(ctx, skills.SkillFilter{})
+		if len(skillsList) > 5 {
+			hasDeferredTools = true
+		}
+	}
+	// Add tool search tools if there are deferred tools
+	if hasDeferredTools && !ptcEnabled {
+		for _, ts := range GetToolSearchTools() {
+			toolsMap[ts.Function.Name] = ts
+		}
+	}
+
 	// Agent Handoffs — always visible so the LLM can route between agents.
 	if currentAgent != nil {
 		for _, handoff := range currentAgent.Handoffs() {
@@ -79,14 +107,24 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		if currentAgent == nil || isAllAllowed(currentAgent.mcpTools) {
 			for _, tool := range allMCP {
 				if !deferAllMCP || (activeMap != nil && activeMap[tool.Function.Name]) {
-					addTools([]domain.ToolDefinition{tool})
+					// Set DeferLoading based on whether we're deferring
+					t := tool
+					if deferAllMCP {
+						t.DeferLoading = true
+					}
+					addTools([]domain.ToolDefinition{t})
 				}
 			}
 		} else {
 			for _, tool := range allMCP {
 				if containsStr(currentAgent.mcpTools, tool.Function.Name) {
 					if !deferAllMCP || (activeMap != nil && activeMap[tool.Function.Name]) {
-						addTools([]domain.ToolDefinition{tool})
+						// Set DeferLoading based on whether we're deferring
+						t := tool
+						if deferAllMCP {
+							t.DeferLoading = true
+						}
+						addTools([]domain.ToolDefinition{t})
 					}
 				}
 			}
@@ -134,8 +172,11 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 
 					// Use "skill_" prefix to match RegisterAsMCPTools and isSkill check
 					toolName := "skill_" + sk.ID
+					// Set DeferLoading based on whether we're deferring skills
+					deferLoading := deferAllSkills
 					toolsMap[toolName] = domain.ToolDefinition{
-						Type: "function",
+						Type:         "function",
+						DeferLoading: deferLoading,
 						Function: domain.ToolFunction{
 							Name:        toolName,
 							Description: desc,

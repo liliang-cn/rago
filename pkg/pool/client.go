@@ -47,7 +47,17 @@ func (c *Client) SetPromptManager(m *prompt.Manager) {
 	c.promptManager = m
 }
 
-// Generate 生成文本
+// GetModelName returns the model name
+func (c *Client) GetModelName() string {
+	return c.modelName
+}
+
+// GetBaseURL returns the base URL
+func (c *Client) GetBaseURL() string {
+	return c.baseURL
+}
+
+// Generate generates text
 func (c *Client) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
 	if opts == nil {
 		opts = &domain.GenerationOptions{}
