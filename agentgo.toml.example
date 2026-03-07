@@ -1,27 +1,43 @@
-# AgentGo (Retrieval-Augmented Generation Offline) Configuration Example
+# AgentGo Configuration Example
 # Place this file in your project root or ~/.agentgo/agentgo.toml
 
 # AgentGo Home directory - unified path for all data, skills, and intents
 # Defaults to the directory containing this file if not set
 # home = "~/.agentgo"
 
-[llm_pool]
+[llm]
 enabled = true
 strategy = "round_robin" # round_robin, random, least_load, capability, failover
 
-[[llm_pool.providers]]
-name = "qwen3"
-base_url = "http://localhost:11434/v1"  # Default Ollama URL
-key = ""                                # API Key if required
-model_name = "qwen3:8b"                 # LLM model name
-max_concurrency = 5                     # Maximum concurrent requests
-capability = 4                          # Capability level (1-5)
+# LLM Providers - supports OpenAI-compatible APIs (OpenAI, Claude, MiniMax, Ollama, etc.)
+[[llm.providers]]
+name = "minimax"                    # Provider name (for identification)
+base_url = "https://api.minimax.chat/v1"  # API endpoint
+key = "your-api-key-here"           # API Key
+model_name = "MiniMax-M2.5"         # Model name
+max_concurrency = 5                 # Maximum concurrent requests
+capability = 4                      # Capability level (1-5)
 
-[embedding_pool]
+# Example: Ollama
+# [[llm.providers]]
+# name = "ollama"
+# base_url = "http://localhost:11434/v1"
+# key = ""
+# model_name = "qwen3.5:8b"
+
+# Example: OpenAI
+# [[llm.providers]]
+# name = "openai"
+# base_url = "https://api.openai.com/v1"
+# key = "sk-..."
+# model_name = "gpt-4o"
+
+[embedding]
 enabled = true
 strategy = "round_robin"
 
-[[embedding_pool.providers]]
+# Embedding Providers
+[[embedding.providers]]
 name = "qwen3-embedding"
 base_url = "http://localhost:11434/v1"
 key = ""
@@ -29,7 +45,7 @@ model_name = "qwen3-embedding:8b"
 max_concurrency = 10
 capability = 4
 
-[cortexdb]
+[rag]
 top_k = 5                       # Number of relevant chunks to retrieve
 threshold = 0.5                 # Similarity threshold (0.0 to 1.0)
 index_type = "flat"             # Vector index type: hnsw, ivf, or flat
@@ -38,10 +54,6 @@ index_type = "flat"             # Vector index type: hnsw, ivf, or flat
 chunk_size = 500                # Number of characters per chunk
 overlap = 50                    # Overlap between chunks
 method = "sentence"             # Chunking method: sentence, paragraph, or token
-
-[ingest]
-[ingest.metadata_extraction]
-enable = false                  # Extract metadata during ingestion (requires LLM)
 
 [mcp]
 enabled = true                  # Enable Model Context Protocol (MCP) tools

@@ -93,6 +93,35 @@ func (r *ToolRegistry) SearchDeferredTools(query string) []domain.ToolDefinition
 // Register adds (or replaces) a tool. Tools registered here are:
 //   - Visible to the LLM in non-PTC mode
 //   - Accessible via callTool() inside the PTC JavaScript sandbox
+
+// SearchAllTools searches ALL registered tools (not just deferred ones)
+func (r *ToolRegistry) SearchAllTools(query string) []domain.ToolDefinition {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	query = strings.ToLower(query)
+	keywords := strings.Fields(query)
+	var matches []domain.ToolDefinition
+
+	for _, t := range r.tools {
+		name := strings.ToLower(t.def.Function.Name)
+		desc := strings.ToLower(t.def.Function.Description)
+
+		matched := false
+		for _, kw := range keywords {
+			if strings.Contains(name, kw) || strings.Contains(desc, kw) {
+				matched = true
+				break
+			}
+		}
+
+		if matched {
+			matches = append(matches, t.def)
+		}
+	}
+	return matches
+}
+
 //
 // Register adds (or replaces) a tool. The tool will be:
 //   - returned by ListForLLM(false) for native function calling
