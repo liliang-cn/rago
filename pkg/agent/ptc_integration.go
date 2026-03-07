@@ -21,6 +21,7 @@ type PTCIntegration struct {
 	service *ptc.Service
 	config  *PTCConfig
 	router  *ptc.AgentGoRouter // used to enumerate callTool()-accessible tools for prompts
+	searchProvider ptc.SearchProvider // stored for direct tool call fallback
 }
 
 // PTCConfig configures PTC integration
@@ -99,6 +100,7 @@ func (p *PTCIntegration) SetSearchProvider(provider ptc.SearchProvider) {
 	if p.service != nil {
 		p.service.SetSearchProvider(provider)
 	}
+	p.searchProvider = provider
 }
 
 // IsCodeResponse checks if the LLM response contains executable code
@@ -237,6 +239,29 @@ func (p *PTCIntegration) ExecuteJavascriptTool(ctx context.Context, args map[str
 	}
 
 	return result.FormatForLLM(), nil
+}
+
+// ExecuteSearchAndCallTool is the handler for direct "searchAndCallTool" tool calls.
+// This is a fallback when LLM doesn't put searchAndCallTool inside JS code.
+func (p *PTCIntegration) ExecuteSearchAndCallTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	if p.router == nil || p.searchProvider == nil {
+		return "", fmt.Errorf("searchAndCallTool is not available: no search provider configured")
+	}
+
+	query, _ := args["query"].(string)
+	if query == "" {
+		return "", fmt.Errorf("searchAndCallTool: 'query' argument is required")
+	}
+
+	instruction, _ := args["instruction"].(string)
+	scope, _ := args["scope"].(string)
+
+	result, err := p.searchProvider.SearchAndExecute(ctx, query, instruction, scope)
+	if err != nil {
+		return fmt.Sprintf("searchAndCallTool failed: %v", err), nil //nolint:nilerr
+	}
+
+	return fmt.Sprintf("%v", result), nil
 }
 
 // ExecuteCode executes JavaScript code in the sandbox.
@@ -381,6 +406,32 @@ func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.Too
 				},
 			},
 		},
+		// Fallback: allow direct tool call to searchAndCallTool (in case LLM doesn't put it inside JS code)
+		{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        "searchAndCallTool",
+				Description: "Search for tools by natural language query and optionally execute them. Use this when you need to discover tools dynamically. Returns found tools or execution results.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"query": map[string]interface{}{
+							"type":        "string",
+							"description": "Natural language query to search for relevant tools",
+						},
+						"instruction": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional instruction for what to do with found tools. If empty, returns tool list only.",
+						},
+						"scope": map[string]interface{}{
+							"type":        "string",
+							"description": "Optional scope to limit search (e.g., 'mcp_filesystem', 'skill_name')",
+						},
+					},
+					"required": []string{"query"},
+				},
+			},
+		},
 	}
 }
 
@@ -417,7 +468,7 @@ func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) strin
 	sb.WriteString("## PTC Mode (JavaScript Sandbox)\n")
 	sb.WriteString("Respond ONLY with `<code>...</code>` containing synchronous ES5 JavaScript.\n")
 	sb.WriteString("- Use `callTool(name, args)` to invoke any tool. No direct tool calls.\n")
-	sb.WriteString("- Use `searchAndCallTool(query, instruction)` to find AND execute a tool in one step using natural language.\n")
+	sb.WriteString("- Use `searchAndCallTool(query, instruction)` INSIDE your JavaScript code to find AND execute a tool. Do NOT call it as a separate tool — it must be inside <code>...</code> blocks.\n")
 	sb.WriteString("- No async/await, no promises, no require/import.\n")
 	sb.WriteString("- End with a top-level `return` statement.\n")
 	sb.WriteString("Example: `<code>const r = callTool('mcp_filesystem_read_file', {path: '/tmp/f'}); return r;</code>`\n")

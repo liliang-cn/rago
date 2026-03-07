@@ -16,7 +16,8 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 	keywords := strings.Fields(query)
 	scope = strings.ToLower(scope)
 
-	matches := s.toolRegistry.SearchDeferredTools(query)
+	// Search all registered tools (not just deferred)
+	matches := s.toolRegistry.SearchAllTools(query)
 
 	// Search MCP tools if available
 	if s.mcpService != nil {

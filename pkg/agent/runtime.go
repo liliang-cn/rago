@@ -583,6 +583,12 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 		} else {
 			result = res.Output
 		}
+	} else if toolName == "searchAndCallTool" && r.svc.ptcIntegration != nil {
+		// 6. Fallback: searchAndCallTool direct tool call (PTC integration)
+		result, execErr = r.svc.ptcIntegration.ExecuteSearchAndCallTool(ctx, tc.Function.Arguments)
+		if resultStr, ok := result.(string); ok {
+			result = resultStr
+		}
 	} else {
 		execErr = fmt.Errorf("unknown tool: %s", toolName)
 	}
