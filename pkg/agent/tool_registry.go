@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -234,4 +235,129 @@ func (r *ToolRegistry) SyncToPTCRouter(router *ptc.AgentGoRouter) {
 			return handler(ctx, args)
 		})
 	}
+}
+
+// ToolSearchConfig configures tool search functionality
+type ToolSearchConfig struct {
+	Enabled       bool
+	SearchType    string // "regex" or "bm25"
+	MaxResults    int    // Maximum tools to return per search
+	AutoActivate  bool   // Automatically activate tools after search
+}
+
+// DefaultToolSearchConfig returns default configuration
+func DefaultToolSearchConfig() *ToolSearchConfig {
+	return &ToolSearchConfig{
+		Enabled:      true,
+		SearchType:   "regex",
+		MaxResults:   5,
+		AutoActivate: true,
+	}
+}
+
+// GetToolSearchTools returns the tool search tool definitions
+func GetToolSearchTools() []domain.ToolDefinition {
+	return []domain.ToolDefinition{
+		{
+			Type: "tool_search_tool_regex_20251119",
+			Function: domain.ToolFunction{
+				Name:        "tool_search_tool_regex",
+				Description: "Search for tools by regex pattern. Use when you need to find specific tools among many available tools. Query should be a regex pattern like 'weather' or 'get_.*_data'",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"query": map[string]interface{}{
+							"type":        "string",
+							"description": "Regex pattern to search tool names and descriptions",
+						},
+					},
+					"required": []string{"query"},
+				},
+			},
+		},
+		{
+			Type: "tool_search_tool_bm25_20251119",
+			Function: domain.ToolFunction{
+				Name:        "tool_search_tool_bm25",
+				Description: "Search for tools using natural language. Use when you need to find relevant tools based on semantic meaning. Describe what you want to do in plain language.",
+				Parameters: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"query": map[string]interface{}{
+							"type":        "string",
+							"description": "Natural language query to search tools",
+						},
+					},
+					"required": []string{"query"},
+				},
+			},
+		},
+	}
+}
+
+// ExecuteToolSearch executes a tool search and returns the results
+func (r *ToolRegistry) ExecuteToolSearch(query, searchType string) ([]domain.ToolDefinition, error) {
+	var results []domain.ToolDefinition
+
+	if searchType == "bm25" {
+		// For BM25, we use the same keyword matching but with natural language query
+		// In a production system, this would use a proper BM25 implementation
+		results = r.SearchDeferredTools(query)
+	} else {
+		// Regex search - treat the query as a regex pattern
+		results = r.SearchDeferredToolsRegex(query)
+	}
+
+	// Limit results
+	maxResults := 5
+	if len(results) > maxResults {
+		results = results[:maxResults]
+	}
+
+	return results, nil
+}
+
+// SearchDeferredToolsRegex searches deferred tools using regex pattern matching
+func (r *ToolRegistry) SearchDeferredToolsRegex(pattern string) []domain.ToolDefinition {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var matches []domain.ToolDefinition
+
+	// Try to compile as regex first
+	_, err := regexp.Compile("(?i)" + pattern)
+	isRegex := err == nil
+
+	for _, t := range r.tools {
+		if !t.def.DeferLoading {
+			continue
+		}
+
+		name := t.def.Function.Name
+		desc := t.def.Function.Description
+
+		var matched bool
+		if isRegex {
+			// Use regex matching
+			if regexp.MustCompile("(?i)"+pattern).MatchString(name) ||
+				regexp.MustCompile("(?i)"+pattern).MatchString(desc) {
+				matched = true
+			}
+		} else {
+			// Fall back to keyword matching
+			patternLower := strings.ToLower(pattern)
+			nameLower := strings.ToLower(name)
+			descLower := strings.ToLower(desc)
+			if strings.Contains(nameLower, patternLower) ||
+				strings.Contains(descLower, patternLower) {
+				matched = true
+			}
+		}
+
+		if matched {
+			matches = append(matches, t.def)
+		}
+	}
+
+	return matches
 }

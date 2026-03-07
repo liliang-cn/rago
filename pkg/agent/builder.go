@@ -10,6 +10,7 @@ import (
 	"github.com/liliang-cn/agent-go/pkg/config"
 	"github.com/liliang-cn/agent-go/pkg/domain"
 	"github.com/liliang-cn/agent-go/pkg/mcp"
+	"github.com/liliang-cn/agent-go/pkg/pool"
 	"github.com/liliang-cn/agent-go/pkg/memory"
 	"github.com/liliang-cn/agent-go/pkg/ptc"
 	"github.com/liliang-cn/agent-go/pkg/rag/chunker"
@@ -539,7 +540,12 @@ func (b *Builder) build() (*Service, error) {
 	}
 
 	// Store model metadata for Info()
-	if len(agentgoCfg.LLM.Providers) > 0 {
+	// If custom LLM is provided (pool.Client), use its model info
+	if b.llmService != nil {
+		if pc, ok := b.llmService.(*pool.Client); ok {
+			svc.SetModelInfo(pc.GetModelName(), pc.GetBaseURL())
+		}
+	} else if len(agentgoCfg.LLM.Providers) > 0 {
 		p := agentgoCfg.LLM.Providers[0]
 		svc.SetModelInfo(p.ModelName, p.BaseURL)
 	}
@@ -559,6 +565,37 @@ func (b *Builder) build() (*Service, error) {
 		ptcRouter := ptc.NewAgentGoRouter(routerOpts...)
 		// Sync registry tools into the ptcRouter so callTool() can reach them.
 		svc.toolRegistry.SyncToPTCRouter(ptcRouter)
+		
+		// Register tool search tools in PTC router for deferred tool discovery
+		for _, ts := range GetToolSearchTools() {
+			ptcRouter.RegisterTool(ts.Function.Name, &ptc.ToolInfo{
+				Name:        ts.Function.Name,
+				Description: ts.Function.Description,
+				Parameters:  ts.Function.Parameters,
+			}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+				query, _ := args["query"].(string)
+				if query == "" {
+					return nil, fmt.Errorf("tool search requires a 'query' argument")
+				}
+				searchType := "regex"
+				if ts.Function.Name == "tool_search_tool_bm25" {
+					searchType = "bm25"
+				}
+				results, err := svc.toolRegistry.ExecuteToolSearch(query, searchType)
+				if err != nil {
+					return nil, err
+				}
+				// Build tool_references result
+				var refs []domain.ToolReference
+				for _, t := range results {
+					refs = append(refs, domain.ToolReference{ToolName: t.Function.Name})
+					// Auto-activate the tool for this session (using empty session ID for PTC)
+					svc.toolRegistry.ActivateForSession("", t.Function.Name)
+				}
+				return domain.ToolSearchResult{ToolReferences: refs}, nil
+			})
+		}
+		
 		ptcInteg, ptcErr := NewPTCIntegration(*b.ptcCfg, ptcRouter)
 		if ptcErr != nil {
 			return nil, fmt.Errorf("failed to create PTC integration: %w", ptcErr)

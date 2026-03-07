@@ -14,6 +14,88 @@ import (
 // SetMCPService sets the MCP service for full public access
 func (s *Service) SetMCPService(mcpSvc *mcp.Service) {
 	s.MCP = mcpSvc
+	// Register MCP tools in registry for tool search
+	if mcpSvc != nil && s.toolRegistry != nil {
+		go s.registerMCPToolsInRegistry(mcpSvc)
+	}
+}
+
+// registerMCPToolsInRegistry registers MCP tools in the registry for tool search
+func (s *Service) registerMCPToolsInRegistry(mcpSvc *mcp.Service) {
+	tools := mcpSvc.GetAvailableTools(context.Background())
+	for _, t := range tools {
+		params := t.InputSchema
+		if params == nil {
+			params = map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"args": map[string]interface{}{
+						"description": "arguments",
+						"type":        "object",
+					},
+				},
+			}
+		}
+		// Register as deferred tool for search
+		s.toolRegistry.Register(domain.ToolDefinition{
+			Type:         "function",
+			DeferLoading: true, // MCP tools are always deferred for search
+			Function: domain.ToolFunction{
+				Name:        t.Name,
+				Description: t.Description,
+				Parameters:  params,
+			},
+		}, nil, CategoryMCP)
+	}
+}
+
+// registerSkillsInRegistry registers skills in the registry for tool search
+func (s *Service) registerSkillsInRegistry(skillsService *skills.Service) {
+	skillsList, err := skillsService.ListSkills(context.Background(), skills.SkillFilter{})
+	if err != nil {
+		return
+	}
+	for _, sk := range skillsList {
+		if !sk.Enabled || sk.DisableModelInvocation {
+			continue
+		}
+		// Build variable schema from skill definition
+		properties := make(map[string]interface{})
+		required := make([]string, 0)
+		for _, v := range sk.Variables {
+			prop := map[string]interface{}{
+				"type":        getSkillVarTypeString(v.Type),
+				"description": v.Description,
+			}
+			if v.Default != nil {
+				prop["default"] = v.Default
+			}
+			properties[v.Name] = prop
+			if v.Required {
+				required = append(required, v.Name)
+			}
+		}
+		desc := sk.Description
+		if desc == "" {
+			desc = sk.Name
+		}
+		desc = "Skill workflow: " + desc + ". Call this tool to receive step-by-step instructions for this task; you MUST then follow those instructions to complete the work."
+		toolName := "skill_" + sk.ID
+		// Register as deferred tool for search
+		s.toolRegistry.Register(domain.ToolDefinition{
+			Type:         "function",
+			DeferLoading: true, // Skills are always deferred for search
+			Function: domain.ToolFunction{
+				Name:        toolName,
+				Description: desc,
+				Parameters: map[string]interface{}{
+					"type":       "object",
+					"properties": properties,
+					"required":   required,
+				},
+			},
+		}, nil, CategorySkill)
+	}
 }
 
 // SetRouter sets the semantic router for improved intent recognition
@@ -136,6 +218,12 @@ func (s *Service) Register(tool *Tool) {
 func (s *Service) SetSkillsService(skillsService *skills.Service) {
 	s.skillsService = skillsService
 	s.Skills = skillsService
+	
+	// Register skills in registry for tool search
+	if skillsService != nil && s.toolRegistry != nil {
+		go s.registerSkillsInRegistry(skillsService)
+	}
+	
 	// Re-create agent with updated tools
 	if skillsService != nil {
 		tools := collectAvailableTools(s.mcpService, s.ragProcessor, skillsService)

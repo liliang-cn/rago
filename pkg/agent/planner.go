@@ -277,60 +277,31 @@ func (p *Planner) buildSystemPrompt() string {
 	return rendered
 }
 
-// describeAvailableTools creates a description of available tools
+// describeAvailableTools creates a compact description of available tools (name + parameters only)
 func (p *Planner) describeAvailableTools() string {
 	if len(p.tools) == 0 {
 		return "No specific tools available. Use 'llm' for general reasoning."
 	}
 
-	// Categorize tools for better understanding
-	categories := map[string][]string{
-		"Information Retrieval": {},
-		"File Operations":       {},
-		"Database":              {},
-		"Web Search":            {},
-		"LLM & Generation":      {},
-	}
-
-	// Always include llm
-	categories["LLM & Generation"] = append(categories["LLM & Generation"], "llm: General text generation, reasoning, and analysis")
+	var desc strings.Builder
+	desc.WriteString("Available tools:\n")
 
 	for _, tool := range p.tools {
 		name := tool.Function.Name
-		desc := tool.Function.Description
-
-		// Categorize based on tool name patterns
-		if strings.Contains(name, "filesystem") || strings.Contains(name, "file_") {
-			if strings.Contains(name, "write") || strings.Contains(name, "create") {
-				desc = fmt.Sprintf("%s (USE THIS when goal asks to create/save/write file)", desc)
-			} else if strings.Contains(name, "read") {
-				desc = fmt.Sprintf("%s (USE THIS when goal asks to read/open file)", desc)
+		// Only show name and parameters, no description to save context
+		if params, ok := tool.Function.Parameters["properties"].(map[string]interface{}); ok {
+			var paramsList []string
+			for pName := range params {
+				paramsList = append(paramsList, pName)
 			}
-			categories["File Operations"] = append(categories["File Operations"], fmt.Sprintf("%s: %s", name, desc))
-		} else if strings.Contains(name, "sqlite") {
-			categories["Database"] = append(categories["Database"], fmt.Sprintf("%s: %s", name, desc))
-		} else if strings.Contains(name, "search") || strings.Contains(name, "web") {
-			categories["Web Search"] = append(categories["Web Search"], fmt.Sprintf("%s: %s", name, desc))
-		} else if strings.Contains(name, "rag") || strings.Contains(name, "query") {
-			categories["Information Retrieval"] = append(categories["Information Retrieval"], fmt.Sprintf("%s: %s", name, desc))
+			if len(paramsList) > 0 {
+				desc.WriteString(fmt.Sprintf("- %s(%s)\n", name, strings.Join(paramsList, ", ")))
+			} else {
+				desc.WriteString(fmt.Sprintf("- %s()\n", name))
+			}
 		} else {
-			categories["LLM & Generation"] = append(categories["LLM & Generation"], fmt.Sprintf("%s: %s", name, desc))
+			desc.WriteString(fmt.Sprintf("- %s\n", name))
 		}
-	}
-
-	// Build categorized description
-	var desc strings.Builder
-	desc.WriteString("Available tools (categorized):\n\n")
-
-	for category, tools := range categories {
-		if len(tools) == 0 {
-			continue
-		}
-		desc.WriteString(fmt.Sprintf("**%s**:\n", category))
-		for _, tool := range tools {
-			desc.WriteString(fmt.Sprintf("  - %s\n", tool))
-		}
-		desc.WriteString("\n")
 	}
 
 	return desc.String()

@@ -583,11 +583,51 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 		} else {
 			result = res.Output
 		}
+	} else if toolName == "execute_javascript" && r.svc.ptcIntegration != nil {
+		// 6. PTC: execute_javascript tool (JavaScript sandbox)
+		code, _ := tc.Function.Arguments["code"].(string)
+		contextVars, _ := tc.Function.Arguments["context"].(map[string]interface{})
+		if code == "" {
+			execErr = fmt.Errorf("execute_javascript: 'code' argument is required")
+		} else {
+			res, err := r.svc.ptcIntegration.ExecuteCode(ctx, code, contextVars)
+			if err != nil {
+				execErr = err
+			} else {
+				result = res.Output
+			}
+		}
 	} else if toolName == "searchAndCallTool" && r.svc.ptcIntegration != nil {
-		// 6. Fallback: searchAndCallTool direct tool call (PTC integration)
+		// 7. Fallback: searchAndCallTool direct tool call (PTC integration)
 		result, execErr = r.svc.ptcIntegration.ExecuteSearchAndCallTool(ctx, tc.Function.Arguments)
 		if resultStr, ok := result.(string); ok {
 			result = resultStr
+		}
+	} else if domain.IsToolSearchTool(toolName) {
+		// 8. Tool Search: search for deferred tools
+		query, _ := tc.Function.Arguments["query"].(string)
+		if query == "" {
+			execErr = fmt.Errorf("tool search requires a 'query' argument")
+		} else {
+			// Determine search type
+			searchType := "regex"
+			if toolName == "tool_search_tool_bm25" {
+				searchType = "bm25"
+			}
+			// Execute search
+			matchedTools, err := r.svc.toolRegistry.ExecuteToolSearch(query, searchType)
+			if err != nil {
+				execErr = err
+			} else {
+				// Build tool_references result
+				var refs []domain.ToolReference
+				for _, t := range matchedTools {
+					refs = append(refs, domain.ToolReference{ToolName: t.Function.Name})
+					// Auto-activate the tool for this session
+					r.svc.toolRegistry.ActivateForSession(r.session.GetID(), t.Function.Name)
+				}
+				result = domain.ToolSearchResult{ToolReferences: refs}
+			}
 		}
 	} else {
 		execErr = fmt.Errorf("unknown tool: %s", toolName)

@@ -478,6 +478,10 @@ func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig
 		if err != nil {
 			return nil, err
 		}
+		// Use execution result if available
+		if ptcRes != nil && ptcRes.ExecutionResult != nil && ptcRes.ExecutionResult.Output != "" {
+			finalResult = ptcRes.ExecutionResult.Output
+		}
 	} else {
 		var err error
 		finalResult, err = s.executeWithLLM(runCtx, goal, intent, session, memoryContext, ragContext, cfg)
@@ -606,6 +610,16 @@ func (s *Service) SetAgentDirective(ctx context.Context, sessionID string, missi
 }
 
 // Info returns structured information about the agent's status and configuration.
+// GetToolRegistry returns the tool registry for direct access
+func (s *Service) GetToolRegistry() *ToolRegistry {
+	return s.toolRegistry
+}
+
+// RegisterTool registers a custom tool in the tool registry
+func (s *Service) RegisterTool(def domain.ToolDefinition, handler ToolHandler) {
+	s.toolRegistry.Register(def, handler, CategoryCustom)
+}
+
 func (s *Service) Info() AgentInfo {
 	info := AgentInfo{
 		ID:            s.agent.ID(),

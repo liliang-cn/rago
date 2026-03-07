@@ -169,6 +169,32 @@ type ToolDefinition struct {
 	DeferLoading bool         `json:"defer_loading,omitempty"`
 }
 
+// ToolSearchType defines the type of tool search (regex or BM25)
+type ToolSearchType string
+
+const (
+	// ToolSearchRegex uses regex patterns to search tools
+	ToolSearchRegex ToolSearchType = "tool_search_tool_regex_20251119"
+	// ToolSearchBM25 uses natural language to search tools
+	ToolSearchBM25 ToolSearchType = "tool_search_tool_bm25_20251119"
+)
+
+// ToolSearchResult represents the result of a tool search
+type ToolSearchResult struct {
+	ToolReferences []ToolReference `json:"tool_references"`
+}
+
+// ToolReference represents a reference to a deferred tool
+type ToolReference struct {
+	ToolName string `json:"tool_name"`
+}
+
+// IsToolSearchTool checks if the tool name is a tool search tool
+func IsToolSearchTool(name string) bool {
+	return name == "tool_search_tool_regex" || name == "tool_search_tool_bm25"
+}
+
+
 // ToolFunction defines a function that can be called
 type ToolFunction struct {
 	Name        string                 `json:"name"`

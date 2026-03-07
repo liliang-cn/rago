@@ -389,6 +389,7 @@ func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.Too
 				Description: "Execute JavaScript code in a secure sandbox. Call multiple tools, process results, or orchestrate complex logic. " +
 					"Use callTool(name, args) to invoke a tool by exact name. " +
 					"Use searchAndCallTool(query, instruction) to find + execute a tool by natural language. " +
+					"Format: searchAndCallTool('search_keywords', 'what_to_do'). " +
 					"NOTE: task_complete is NOT callable inside the sandbox — call it directly." + serverHint,
 				Parameters: map[string]interface{}{
 					"type": "object",
@@ -417,7 +418,7 @@ func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.Too
 					"properties": map[string]interface{}{
 						"query": map[string]interface{}{
 							"type":        "string",
-							"description": "Natural language query to search for relevant tools",
+							"description": "Search keywords (e.g., 'weather', 'file read', 'database'). This finds matching tools.",
 						},
 						"instruction": map[string]interface{}{
 							"type":        "string",
@@ -468,7 +469,14 @@ func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) strin
 	sb.WriteString("## PTC Mode (JavaScript Sandbox)\n")
 	sb.WriteString("Respond ONLY with `<code>...</code>` containing synchronous ES5 JavaScript.\n")
 	sb.WriteString("- Use `callTool(name, args)` to invoke any tool. No direct tool calls.\n")
-	sb.WriteString("- Use `searchAndCallTool(query, instruction)` INSIDE your JavaScript code to find AND execute a tool. Do NOT call it as a separate tool — it must be inside <code>...</code> blocks.\n")
+	sb.WriteString("- Use `searchAndCallTool(query, instruction)` to BOTH find AND execute a tool in ONE step!\n")
+	sb.WriteString("  - query: simple keyword (e.g., 'weather', 'file', 'database')\n")
+	sb.WriteString("  - instruction: EXACTLY what to do - include all parameters! (e.g., '查询北京天气' should include '北京' as location)\n")
+	sb.WriteString("  - WRONG: `searchAndCallTool('weather', '查询天气')` → just finds tool, does NOT execute\n")
+	sb.WriteString("  - RIGHT: `searchAndCallTool('weather', '查询北京的天气')` → finds and executes get_weather with location=北京\n")
+	sb.WriteString("  - After searchAndCallTool returns, the tool has ALREADY been executed - do NOT call callTool again!\n")
+	sb.WriteString("- Do NOT call callTool after searchAndCallTool - the tool is already executed!\n")
+	sb.WriteString("- Do NOT call it as a separate tool — it must be inside <code>...</code> blocks.\n")
 	sb.WriteString("- No async/await, no promises, no require/import.\n")
 	sb.WriteString("- End with a top-level `return` statement.\n")
 	sb.WriteString("Example: `<code>const r = callTool('mcp_filesystem_read_file', {path: '/tmp/f'}); return r;</code>`\n")
