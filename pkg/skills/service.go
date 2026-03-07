@@ -238,8 +238,8 @@ func (s *Service) Execute(ctx context.Context, req *ExecutionRequest) (*Executio
 	case "rag-query", "rag":
 		output, execErr = s.executeRAGQuery(ctx, req)
 	default:
-		// For file-based skills, return the rendered content
-		output = sk.Content
+		// For file-based skills, render the content with variable substitution
+		output = renderSkillContent(sk.Content, req.Variables)
 	}
 
 	result := &ExecutionResult{
@@ -480,7 +480,28 @@ func getTypeString(typ string) string {
 	}
 }
 
-// convertFromSkillGo converts a skills-go Skill to agentgo Skill
+// renderSkillContent substitutes variables into skill template content.
+// Supports two substitution formats:
+// 1. {{varname}} - simple placeholder
+// 2. ```input:varname\n``` - code block placeholder (replaced with variable value)
+func renderSkillContent(content string, variables map[string]interface{}) string {
+	if len(variables) == 0 {
+		return content
+	}
+	result := content
+	for k, v := range variables {
+		val := fmt.Sprintf("%v", v)
+		// Replace ```input:varname\n``` blocks
+		result = strings.ReplaceAll(result, "```input:"+k+"\n```", val)
+		// Replace {{varname}} placeholders
+		result = strings.ReplaceAll(result, "{{"+k+"}}", val)
+		// Replace {varname} placeholders
+		result = strings.ReplaceAll(result, "{"+k+"}", val)
+	}
+	return result
+}
+
+
 func convertFromSkillGo(sk *skillgo.Skill) *Skill {
 	skill := &Skill{
 		ID:                     sk.Name,

@@ -96,11 +96,16 @@ func runServer(cmd *cobra.Command, args []string) error {
 
 	// Create Skills service
 	skillsService, err := skills.NewService(&skills.Config{
-		Paths:   []string{".skills"},
+		Paths:   cfg.SkillsPaths(),
 		Enabled: true,
 	})
 	if err != nil {
 		agentgolog.Warn("Failed to create skills service: %v", err)
+	}
+	if skillsService != nil {
+		if loadErr := skillsService.LoadAll(context.Background()); loadErr != nil {
+			agentgolog.Warn("Failed to load skills: %v", loadErr)
+		}
 	}
 
 	// Create MCP service
