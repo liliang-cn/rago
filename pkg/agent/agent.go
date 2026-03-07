@@ -115,6 +115,9 @@ func NewAgentWithConfig(name, instructions string, tools []domain.ToolDefinition
 		instructions: instructions,
 		tools:        tools,
 		handoffs:     []*Handoff{},
+		mcpTools:     []string{"*"}, // Default to all
+		skills:       []string{"*"}, // Default to all
+		handlers:     make(map[string]func(context.Context, map[string]interface{}) (interface{}, error)),
 		model:        "",
 		temperature:  0.7,
 	}

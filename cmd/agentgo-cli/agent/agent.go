@@ -468,8 +468,11 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 		WithMCP().
 		WithMemory().
 		WithRouter().
-		WithSkills().
-		WithPTC()
+		WithSkills()
+
+	if EnablePTC {
+		b = b.WithPTC()
+	}
 
 	if Debug {
 		b = b.WithDebug()

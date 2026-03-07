@@ -95,7 +95,11 @@ func (s *Service) buildSystemContext() *SystemContext {
 	if s.skillsService != nil {
 		skillsList, _ := s.skillsService.ListSkills(bgCtx, skills.SkillFilter{})
 		for _, sk := range skillsList {
-			ctx.SkillNames = append(ctx.SkillNames, sk.ID)
+			// Skip if disabled or explicitly hidden from model invocation
+			if !sk.Enabled || sk.DisableModelInvocation {
+				continue
+			}
+			ctx.SkillNames = append(ctx.SkillNames, "skill_"+sk.ID)
 		}
 	}
 

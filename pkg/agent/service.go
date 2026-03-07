@@ -132,44 +132,105 @@ func NewService(
 	registry := NewRegistry()
 	registry.Register(agent)
 
-	// Create planner (without router initially)
-	planner := NewPlanner(llmService, tools)
-	planner.SetPromptManager(promptMgr)
-
-	// Inject prompt manager into memory service if it supports it
-	if memoryService != nil {
-		if s, ok := memoryService.(interface{ SetPromptManager(*prompt.Manager) }); ok {
-			s.SetPromptManager(promptMgr)
-		}
-	}
-
-	// Create executor
-	executor := NewExecutor(llmService, nil, mcpService, ragProcessor, memoryService)
-
 	// Initialize logger
 	logger := agentgolog.WithModule("agent.service")
 
-	return &Service{
+	// Create service first (so we can pass it to planner/executor)
+	s := &Service{
 		llmService:    llmService,
 		mcpService:    mcpService,
 		ragProcessor:  ragProcessor,
 		memoryService: memoryService,
 		promptManager: promptMgr,
-		planner:       planner,
-		executor:      executor,
 		store:         store,
 		agent:         agent,
 		registry:      registry,
 		logger:        logger,
 		hooks:         NewHookRegistry(),
 		toolRegistry:  NewToolRegistry(),
-		// Public fields - MCP is set separately via SetMCPService
+		// Public fields
 		LLM:     llmService,
-		MCP:     nil, // Set via SetMCPService for full access
 		RAG:     ragProcessor,
 		Memory:  memoryService,
 		Prompts: promptMgr,
-	}, nil
+	}
+
+	// Inject prompt manager into memory service if it supports it
+	if memoryService != nil {
+		if m, ok := memoryService.(interface{ SetPromptManager(*prompt.Manager) }); ok {
+			m.SetPromptManager(promptMgr)
+		}
+	}
+
+	// Create planner with service reference
+	s.planner = NewPlanner(s, llmService, tools)
+	s.planner.SetPromptManager(promptMgr)
+
+	// Create executor with service reference
+	s.executor = NewExecutor(s, llmService, nil, mcpService, ragProcessor, memoryService)
+
+	// Register built-in tools in registry
+	s.registerBuiltInTools()
+
+	return s, nil
+}
+
+// registerBuiltInTools registers core tools that are always available
+func (s *Service) registerBuiltInTools() {
+	// 1. delegate_to_subagent
+	delegateDef := domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "delegate_to_subagent",
+			Description: "Delegate a specific task to a sub-agent. The sub-agent will execute the task with a subset of available tools and return the result. Use this for focused, isolated tasks.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"goal": map[string]interface{}{
+						"type":        "string",
+						"description": "The specific task/goal for the sub-agent to accomplish",
+					},
+					"tools_allowlist": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"description": "Optional list of tool names the sub-agent is allowed to use.",
+					},
+					"tools_denylist": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"description": "Optional list of tool names the sub-agent is NOT allowed to use.",
+					},
+				},
+				"required": []string{"goal"},
+			},
+		},
+	}
+	s.toolRegistry.Register(delegateDef, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		return s.executeSubAgentDelegation(ctx, s.agent, args)
+	}, CategoryCustom)
+
+	// 2. task_complete (optional registration if needed by some paths)
+	completeDef := domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "task_complete",
+			Description: "Mark the current task as complete and provide the final result to the user. Call this when you have fully answered the question or finished all required steps.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"result": map[string]interface{}{
+						"type":        "string",
+						"description": "The final summary/result of the task",
+					},
+				},
+				"required": []string{"result"},
+			},
+		},
+	}
+	s.toolRegistry.Register(completeDef, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		res, _ := args["result"].(string)
+		return res, nil
+	}, CategoryCustom)
 }
 
 // Plan generates an execution plan for the given goal

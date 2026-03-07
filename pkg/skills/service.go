@@ -400,7 +400,8 @@ func (s *Service) RegisterAsMCPTools() ([]domain.ToolDefinition, error) {
 	var tools []domain.ToolDefinition
 
 	for _, skill := range skills {
-		if !skill.UserInvocable || !skill.Enabled {
+		// Only include skills that are enabled and allowed for model invocation
+		if !skill.Enabled || skill.DisableModelInvocation {
 			continue
 		}
 
@@ -423,11 +424,18 @@ func (s *Service) RegisterAsMCPTools() ([]domain.ToolDefinition, error) {
 			}
 		}
 
+		desc := skill.Description
+		if desc == "" {
+			desc = skill.Name
+		}
+		// Clarify that calling this skill returns its workflow instructions.
+		desc = "Skill workflow: " + desc + ". Call this tool to receive step-by-step instructions for this task; you MUST then follow those instructions to complete the work."
+
 		tool := domain.ToolDefinition{
 			Type: "function",
 			Function: domain.ToolFunction{
 				Name:        fmt.Sprintf("skill_%s", skill.ID),
-				Description: skill.Description,
+				Description: desc,
 				Parameters: map[string]interface{}{
 					"type":       "object",
 					"properties": properties,

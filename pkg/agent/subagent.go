@@ -66,6 +66,7 @@ type SubAgentConfig struct {
 	ProgressCb      SubAgentProgressCallback // Progress callback
 	RetryOnFailure  int                      // Number of retries on failure (default: 0)
 	CancelOnTimeout bool                     // Cancel execution on timeout (default: true)
+	ToolCall        *domain.ToolCall         // (Optional) Specific tool call to execute
 }
 
 // SubAgent represents a wrapped agent execution with independent context
@@ -98,6 +99,11 @@ type SubAgent struct {
 
 // SubAgentOption configures a SubAgent
 type SubAgentOption func(*SubAgentConfig)
+
+// WithSubAgentToolCall sets a specific tool call to execute
+func WithSubAgentToolCall(tc *domain.ToolCall) SubAgentOption {
+	return func(c *SubAgentConfig) { c.ToolCall = tc }
+}
 
 // NewSubAgent creates a new sub-agent wrapper
 func NewSubAgent(cfg SubAgentConfig, opts ...SubAgentOption) *SubAgent {
@@ -274,7 +280,16 @@ func (sa *SubAgent) Run(parentCtx context.Context) (interface{}, error) {
 	var result interface{}
 	var err error
 	for attempt := 0; attempt <= sa.config.RetryOnFailure; attempt++ {
-		result, err = sa.execute(sa.ctx)
+		if sa.config.ToolCall != nil {
+			// Specific tool execution mode
+			sa.emitProgress(fmt.Sprintf("Executing specific tool: %s", sa.config.ToolCall.Function.Name))
+			res, terr, _ := sa.executeTool(sa.ctx, *sa.config.ToolCall)
+			result, err = res, terr
+		} else {
+			// Normal agent execution mode
+			result, err = sa.execute(sa.ctx)
+		}
+
 		if err == nil {
 			sa.result = result
 			sa.err = nil

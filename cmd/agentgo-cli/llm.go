@@ -84,7 +84,7 @@ var llmListCmd = &cobra.Command{
 		fmt.Println("==========================")
 
 		// List LLM pool providers
-		for _, p := range cfg.LLMPool.Providers {
+		for _, p := range cfg.LLM.Providers {
 			fmt.Printf("\n📦 %s\n", p.Name)
 			fmt.Printf("   URL: %s\n", p.BaseURL)
 			fmt.Printf("   Model: %s\n", p.ModelName)
@@ -92,7 +92,7 @@ var llmListCmd = &cobra.Command{
 			fmt.Printf("   Max Concurrency: %d\n", p.MaxConcurrency)
 		}
 
-		fmt.Printf("\n⚙️  Strategy: %s\n", cfg.LLMPool.Strategy)
+		fmt.Printf("\n⚙️  Strategy: %s\n", cfg.LLM.Strategy)
 
 		return nil
 	},

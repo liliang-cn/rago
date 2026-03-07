@@ -15,19 +15,34 @@ import (
 )
 
 type Config struct {
-	Home          string             `mapstructure:"home"`
-	Debug         bool               `mapstructure:"debug"`
-	Server        ServerConfig       `mapstructure:"server"`
-	LLMPool       pool.PoolConfig    `mapstructure:"llm_pool"`
-	EmbeddingPool pool.PoolConfig    `mapstructure:"embedding_pool"`
-	Cortexdb      CortexdbConfig     `mapstructure:"cortexdb"`
-	Chunker       ChunkerConfig      `mapstructure:"chunker"`
-	Ingest        IngestConfig       `mapstructure:"ingest"`
-	MCP           mcp.Config         `mapstructure:"mcp"`
-	VectorStore   *VectorStoreConfig `mapstructure:"vector_store"`
-	Skills        SkillsConfig       `mapstructure:"skills"`
-	Memory        MemoryConfig       `mapstructure:"memory"`
-	GraphRAG      GraphRAGConfig     `mapstructure:"graphrag"`
+	Home   string       `mapstructure:"home"`
+	Debug  bool         `mapstructure:"debug"`
+	Server ServerConfig `mapstructure:"server"`
+	LLM    LLMConfig    `mapstructure:"llm"`
+	RAG    RAGConfig    `mapstructure:"rag"`
+	MCP    mcp.Config   `mapstructure:"mcp"`
+	Skills SkillsConfig `mapstructure:"skills"`
+	Memory MemoryConfig `mapstructure:"memory"`
+}
+
+type LLMConfig struct {
+	Enabled   bool                  `mapstructure:"enabled"`
+	Strategy  pool.SelectionStrategy `mapstructure:"strategy"`
+	Providers []pool.Provider        `mapstructure:"providers"`
+}
+
+type RAGConfig struct {
+	Enabled   bool                `mapstructure:"enabled"`
+	Embedding EmbeddingPoolConfig `mapstructure:"embedding"`
+	Storage   CortexdbConfig      `mapstructure:"storage"`
+	Chunker   ChunkerConfig       `mapstructure:"chunker"`
+	Graph     GraphRAGConfig      `mapstructure:"graph"`
+}
+
+type EmbeddingPoolConfig struct {
+	Enabled   bool                  `mapstructure:"enabled"`
+	Strategy  pool.SelectionStrategy `mapstructure:"strategy"`
+	Providers []pool.Provider        `mapstructure:"providers"`
 }
 
 // SkillsConfig configures skills paths and behavior
@@ -156,10 +171,6 @@ func Load(configPath string) (*Config, error) {
 		// If user provides a config file, its directory becomes the Home
 		home = filepath.Dir(absPath)
 	} else {
-		// Check order:
-		// 1. ./agentgo.toml
-		// 2. ~/.agentgo/agentgo.toml
-		// 3. ~/.agentgo/config/agentgo.toml
 		if _, err := os.Stat("agentgo.toml"); err == nil {
 			abs, _ := filepath.Abs("agentgo.toml")
 			viper.SetConfigFile(abs)
@@ -186,7 +197,6 @@ func Load(configPath string) (*Config, error) {
 		if configPath != "" {
 			return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
 		}
-		// If default config doesn't exist, we continue with defaults
 	}
 
 	if err := viper.Unmarshal(config); err != nil {
@@ -199,28 +209,29 @@ func Load(configPath string) (*Config, error) {
 	}
 	config.Home = expandHomePath(config.Home)
 
-	// 手动处理provider数组
-	if viper.IsSet("llm_pool.providers") {
-		var llmPool struct {
+	// Manual handle provider arrays
+	if viper.IsSet("llm.providers") {
+		var llm struct {
 			Enabled   bool
 			Strategy  string
 			Providers []interface{}
 		}
-		viper.UnmarshalKey("llm_pool", &llmPool)
-		config.LLMPool.Enabled = llmPool.Enabled
-		config.LLMPool.Strategy = pool.SelectionStrategy(llmPool.Strategy)
-		unmarshalProviders(llmPool.Providers, &config.LLMPool.Providers)
+		viper.UnmarshalKey("llm", &llm)
+		config.LLM.Enabled = llm.Enabled
+		config.LLM.Strategy = pool.SelectionStrategy(llm.Strategy)
+		unmarshalProviders(llm.Providers, &config.LLM.Providers)
+		fmt.Printf("[DEBUG] Loaded %d LLM providers\n", len(config.LLM.Providers))
 	}
-	if viper.IsSet("embedding_pool.providers") {
-		var embeddingPool struct {
+	if viper.IsSet("rag.embedding.providers") {
+		var embedding struct {
 			Enabled   bool
 			Strategy  string
 			Providers []interface{}
 		}
-		viper.UnmarshalKey("embedding_pool", &embeddingPool)
-		config.EmbeddingPool.Enabled = embeddingPool.Enabled
-		config.EmbeddingPool.Strategy = pool.SelectionStrategy(embeddingPool.Strategy)
-		unmarshalProviders(embeddingPool.Providers, &config.EmbeddingPool.Providers)
+		viper.UnmarshalKey("rag.embedding", &embedding)
+		config.RAG.Embedding.Enabled = embedding.Enabled
+		config.RAG.Embedding.Strategy = pool.SelectionStrategy(embedding.Strategy)
+		unmarshalProviders(embedding.Providers, &config.RAG.Embedding.Providers)
 	}
 
 	// Initialize MCP
@@ -232,8 +243,6 @@ func Load(configPath string) (*Config, error) {
 		config.MCP.HealthCheckInterval = defaultMCP.HealthCheckInterval
 		config.MCP.Enabled = defaultMCP.Enabled
 	}
-	// Always seed LoadedServers with the built-in in-process servers,
-	// respecting any filesystem_dirs override from agentgo.toml.
 	config.MCP.LoadedServers = mcp.GetBuiltInServers(config.MCP.FilesystemDirs)
 
 	// Unify all paths under Home
@@ -287,22 +296,21 @@ func setDefaults() {
 	viper.SetDefault("server.enable_ui", false)
 	viper.SetDefault("server.cors_origins", []string{"*"})
 
-	viper.SetDefault("llm_pool.enabled", true)
-	viper.SetDefault("llm_pool.strategy", "round_robin")
-	viper.SetDefault("embedding_pool.enabled", false) // embedding is optional - only enable when providers are configured
-	viper.SetDefault("embedding_pool.strategy", "round_robin")
+	viper.SetDefault("llm.enabled", true)
+	viper.SetDefault("llm.strategy", "round_robin")
+	viper.SetDefault("rag.enabled", true)
+	viper.SetDefault("rag.embedding.enabled", false)
+	viper.SetDefault("rag.embedding.strategy", "round_robin")
 
-	viper.SetDefault("cortexdb.max_conns", 10)
-	viper.SetDefault("cortexdb.batch_size", 100)
-	viper.SetDefault("cortexdb.top_k", 5)
-	viper.SetDefault("cortexdb.threshold", 0.0)
-	viper.SetDefault("cortexdb.index_type", "hnsw")
+	viper.SetDefault("rag.storage.max_conns", 10)
+	viper.SetDefault("rag.storage.batch_size", 100)
+	viper.SetDefault("rag.storage.top_k", 5)
+	viper.SetDefault("rag.storage.threshold", 0.0)
+	viper.SetDefault("rag.storage.index_type", "hnsw")
 
-	viper.SetDefault("chunker.chunk_size", 500)
-	viper.SetDefault("chunker.overlap", 50)
-	viper.SetDefault("chunker.method", "sentence")
-
-	viper.SetDefault("ingest.metadata_extraction.enable", false)
+	viper.SetDefault("rag.chunker.chunk_size", 500)
+	viper.SetDefault("rag.chunker.overlap", 50)
+	viper.SetDefault("rag.chunker.method", "sentence")
 
 	mcpConfig := mcp.DefaultConfig()
 	viper.SetDefault("mcp.enabled", mcpConfig.Enabled)
@@ -312,7 +320,6 @@ func setDefaults() {
 	viper.SetDefault("mcp.health_check_interval", mcpConfig.HealthCheckInterval)
 	viper.SetDefault("mcp.servers", []string{})
 
-	// Skills defaults - multi-path support
 	viper.SetDefault("skills.enabled", true)
 	viper.SetDefault("skills.paths", []string{})
 	viper.SetDefault("skills.auto_load", true)
@@ -356,92 +363,46 @@ func setDefaults() {
 	viper.SetDefault("memory.hybrid.bm25_weight", 0.3)
 
 	// GraphRAG defaults
-	viper.SetDefault("graphrag.enabled", false)
-	viper.SetDefault("graphrag.entity_types", []string{"person", "organization", "location", "concept", "event", "product"})
-	viper.SetDefault("graphrag.max_concurrent_extractions", 3)
-	viper.SetDefault("graphrag.min_entity_length", 2)
-	viper.SetDefault("graphrag.community_detection", true)
-	viper.SetDefault("graphrag.community_algorithm", "louvain")
-	viper.SetDefault("graphrag.graph_query_topk", 10)
-	viper.SetDefault("graphrag.vector_weight", 0.7)
-	viper.SetDefault("graphrag.graph_weight", 0.3)
+	viper.SetDefault("rag.graph.enabled", false)
+	viper.SetDefault("rag.graph.entity_types", []string{"person", "organization", "location", "concept", "event", "product"})
+	viper.SetDefault("rag.graph.max_concurrent_extractions", 3)
+	viper.SetDefault("rag.graph.min_entity_length", 2)
+	viper.SetDefault("rag.graph.community_detection", true)
+	viper.SetDefault("rag.graph.community_algorithm", "louvain")
+	viper.SetDefault("rag.graph.graph_query_topk", 10)
+	viper.SetDefault("rag.graph.vector_weight", 0.7)
+	viper.SetDefault("rag.graph.graph_weight", 0.3)
 }
 
 func bindEnvVars() {
 	viper.SetEnvPrefix("AgentGo")
 	viper.AutomaticEnv()
 
-	if err := viper.BindEnv("home", "AgentGo_HOME"); err != nil {
-		log.Printf("Warning: failed to bind home env var: %v", err)
-	}
-	if err := viper.BindEnv("server.port", "AgentGo_SERVER_PORT"); err != nil {
-		log.Printf("Warning: failed to bind server.port env var: %v", err)
-	}
-	if err := viper.BindEnv("server.host", "AgentGo_SERVER_HOST"); err != nil {
-		log.Printf("Warning: failed to bind server.host env var: %v", err)
-	}
-	if err := viper.BindEnv("cortexdb.db_path", "AgentGo_CORTEXDB_DB_PATH"); err != nil {
-		log.Printf("Warning: failed to bind cortexdb.db_path env var: %v", err)
-	}
-	if err := viper.BindEnv("chunker.chunk_size", "AgentGo_CHUNKER_CHUNK_SIZE"); err != nil {
-		log.Printf("Warning: failed to bind chunker.chunk_size env var: %v", err)
-	}
-	if err := viper.BindEnv("chunker.overlap", "AgentGo_CHUNKER_OVERLAP"); err != nil {
-		log.Printf("Warning: failed to bind chunker.overlap env var: %v", err)
-	}
-	if err := viper.BindEnv("chunker.method", "AgentGo_CHUNKER_METHOD"); err != nil {
-		log.Printf("Warning: failed to bind chunker.method env var: %v", err)
-	}
-	if err := viper.BindEnv("ingest.metadata_extraction.enable", "AgentGo_INGEST_METADATA_EXTRACTION_ENABLE"); err != nil {
-		log.Printf("Warning: failed to bind ingest.metadata_extraction.enable env var: %v", err)
-	}
-	if err := viper.BindEnv("mcp.enabled", "AgentGo_MCP_ENABLED"); err != nil {
-		log.Printf("Warning: failed to bind mcp.enabled env var: %v", err)
-	}
-	if err := viper.BindEnv("mcp.log_level", "AgentGo_MCP_LOG_LEVEL"); err != nil {
-		log.Printf("Warning: failed to bind mcp.log_level env var: %v", err)
-	}
-	if err := viper.BindEnv("mcp.default_timeout", "AgentGo_MCP_DEFAULT_TIMEOUT"); err != nil {
-		log.Printf("Warning: failed to bind mcp.default_timeout env var: %v", err)
-	}
-	if err := viper.BindEnv("mcp.max_concurrent_requests", "AgentGo_MCP_MAX_CONCURRENT_REQUESTS"); err != nil {
-		log.Printf("Warning: failed to bind mcp.max_concurrent_requests env var: %v", err)
-	}
-	if err := viper.BindEnv("mcp.health_check_interval", "AgentGo_MCP_HEALTH_CHECK_INTERVAL"); err != nil {
-		log.Printf("Warning: failed to bind mcp.health_check_interval env var: %v", err)
-	}
-	// Skills environment variables
-	if err := viper.BindEnv("skills.enabled", "AgentGo_SKILLS_ENABLED"); err != nil {
-		log.Printf("Warning: failed to bind skills.enabled env var: %v", err)
-	}
-	if err := viper.BindEnv("skills.auto_load", "AgentGo_SKILLS_AUTO_LOAD"); err != nil {
-		log.Printf("Warning: failed to bind skills.auto_load env var: %v", err)
-	}
-	if err := viper.BindEnv("skills.allow_command_injection", "AgentGo_SKILLS_ALLOW_COMMAND_INJECTION"); err != nil {
-		log.Printf("Warning: failed to bind skills.allow_command_injection env var: %v", err)
-	}
-	if err := viper.BindEnv("skills.require_confirmation", "AgentGo_SKILLS_REQUIRE_CONFIRMATION"); err != nil {
-		log.Printf("Warning: failed to bind skills.require_confirmation env var: %v", err)
-	}
-	// Memory environment variables
-	if err := viper.BindEnv("memory.min_score", "AgentGo_MEMORY_MIN_SCORE"); err != nil {
-		log.Printf("Warning: failed to bind memory.min_score env var: %v", err)
-	}
-	if err := viper.BindEnv("memory.max_memories", "AgentGo_MEMORY_MAX_MEMORIES"); err != nil {
-		log.Printf("Warning: failed to bind memory.max_memories env var: %v", err)
-	}
-	if err := viper.BindEnv("memory.scoring.enabled", "AgentGo_MEMORY_SCORING_ENABLED"); err != nil {
-		log.Printf("Warning: failed to bind memory.scoring.enabled env var: %v", err)
-	}
-	if err := viper.BindEnv("memory.noise_filter.enabled", "AgentGo_MEMORY_NOISE_FILTER_ENABLED"); err != nil {
-		log.Printf("Warning: failed to bind memory.noise_filter.enabled env var: %v", err)
-	}
-	if err := viper.BindEnv("memory.adaptive.enabled", "AgentGo_MEMORY_ADAPTIVE_ENABLED"); err != nil {
-		log.Printf("Warning: failed to bind memory.adaptive.enabled env var: %v", err)
-	}
-	if err := viper.BindEnv("memory.hybrid.enabled", "AgentGo_MEMORY_HYBRID_ENABLED"); err != nil {
-		log.Printf("Warning: failed to bind memory.hybrid.enabled env var: %v", err)
-	}
+	// Direct binding for common DEBUG env var
+	viper.BindEnv("debug", "DEBUG")
+
+	viper.BindEnv("home", "AgentGo_HOME")
+	viper.BindEnv("server.port", "AgentGo_SERVER_PORT")
+	viper.BindEnv("server.host", "AgentGo_SERVER_HOST")
+	viper.BindEnv("rag.storage.db_path", "AgentGo_RAG_STORAGE_DB_PATH")
+	viper.BindEnv("rag.chunker.chunk_size", "AgentGo_RAG_CHUNKER_CHUNK_SIZE")
+	viper.BindEnv("rag.chunker.overlap", "AgentGo_RAG_CHUNKER_OVERLAP")
+	viper.BindEnv("rag.chunker.method", "AgentGo_RAG_CHUNKER_METHOD")
+	viper.BindEnv("mcp.enabled", "AgentGo_MCP_ENABLED")
+	viper.BindEnv("mcp.log_level", "AgentGo_MCP_LOG_LEVEL")
+	viper.BindEnv("mcp.default_timeout", "AgentGo_MCP_DEFAULT_TIMEOUT")
+	viper.BindEnv("mcp.max_concurrent_requests", "AgentGo_MCP_MAX_CONCURRENT_REQUESTS")
+	viper.BindEnv("mcp.health_check_interval", "AgentGo_MCP_HEALTH_CHECK_INTERVAL")
+	viper.BindEnv("skills.enabled", "AgentGo_SKILLS_ENABLED")
+	viper.BindEnv("skills.auto_load", "AgentGo_SKILLS_AUTO_LOAD")
+	viper.BindEnv("skills.allow_command_injection", "AgentGo_SKILLS_ALLOW_COMMAND_INJECTION")
+	viper.BindEnv("skills.require_confirmation", "AgentGo_SKILLS_REQUIRE_CONFIRMATION")
+	viper.BindEnv("memory.min_score", "AgentGo_MEMORY_MIN_SCORE")
+	viper.BindEnv("memory.max_memories", "AgentGo_MEMORY_MAX_MEMORIES")
+	viper.BindEnv("memory.scoring.enabled", "AgentGo_MEMORY_SCORING_ENABLED")
+	viper.BindEnv("memory.noise_filter.enabled", "AgentGo_MEMORY_NOISE_FILTER_ENABLED")
+	viper.BindEnv("memory.adaptive.enabled", "AgentGo_MEMORY_ADAPTIVE_ENABLED")
+	viper.BindEnv("memory.hybrid.enabled", "AgentGo_MEMORY_HYBRID_ENABLED")
 }
 
 // DataDir returns the path to the data directory
@@ -516,34 +477,34 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("server host cannot be empty")
 	}
 
-	if c.Cortexdb.DBPath == "" {
+	if c.RAG.Storage.DBPath == "" {
 		return fmt.Errorf("database path cannot be empty")
 	}
 
-	if c.Cortexdb.TopK <= 0 {
-		return fmt.Errorf("topK must be positive: %d", c.Cortexdb.TopK)
+	if c.RAG.Storage.TopK <= 0 {
+		return fmt.Errorf("topK must be positive: %d", c.RAG.Storage.TopK)
 	}
 
-	if c.Cortexdb.Threshold < 0 {
-		return fmt.Errorf("threshold must be non-negative: %f", c.Cortexdb.Threshold)
+	if c.RAG.Storage.Threshold < 0 {
+		return fmt.Errorf("threshold must be non-negative: %f", c.RAG.Storage.Threshold)
 	}
 
 	validIndexTypes := map[string]bool{"hnsw": true, "ivf": true, "flat": true, "": true}
-	if !validIndexTypes[strings.ToLower(c.Cortexdb.IndexType)] {
-		return fmt.Errorf("invalid index_type: %s (supported: hnsw, ivf, flat)", c.Cortexdb.IndexType)
+	if !validIndexTypes[strings.ToLower(c.RAG.Storage.IndexType)] {
+		return fmt.Errorf("invalid index_type: %s (supported: hnsw, ivf, flat)", c.RAG.Storage.IndexType)
 	}
 
-	if c.Chunker.ChunkSize <= 0 {
-		return fmt.Errorf("chunk size must be positive: %d", c.Chunker.ChunkSize)
+	if c.RAG.Chunker.ChunkSize <= 0 {
+		return fmt.Errorf("chunk size must be positive: %d", c.RAG.Chunker.ChunkSize)
 	}
 
-	if c.Chunker.Overlap < 0 || c.Chunker.Overlap >= c.Chunker.ChunkSize {
-		return fmt.Errorf("overlap must be between 0 and chunk size: %d", c.Chunker.Overlap)
+	if c.RAG.Chunker.Overlap < 0 || c.RAG.Chunker.Overlap >= c.RAG.Chunker.ChunkSize {
+		return fmt.Errorf("overlap must be between 0 and chunk size: %d", c.RAG.Chunker.Overlap)
 	}
 
 	validMethods := map[string]bool{"sentence": true, "paragraph": true, "token": true}
-	if !validMethods[c.Chunker.Method] {
-		return fmt.Errorf("invalid chunker method: %s", c.Chunker.Method)
+	if !validMethods[c.RAG.Chunker.Method] {
+		return fmt.Errorf("invalid chunker method: %s", c.RAG.Chunker.Method)
 	}
 
 	// Validate MCP configuration
@@ -616,13 +577,13 @@ func (c *Config) validateMCPConfig() error {
 }
 
 func (c *Config) resolveDatabasePath() {
-	if c.Cortexdb.DBPath == "" {
-		c.Cortexdb.DBPath = filepath.Join(c.DataDir(), "agentgo.db")
+	if c.RAG.Storage.DBPath == "" {
+		c.RAG.Storage.DBPath = filepath.Join(c.DataDir(), "agentgo.db")
 	}
 
 	if c.Memory.MemoryPath == "" {
 		if c.Memory.StoreType == "vector" {
-			c.Memory.MemoryPath = c.Cortexdb.DBPath
+			c.Memory.MemoryPath = c.RAG.Storage.DBPath
 		} else {
 			c.Memory.MemoryPath = filepath.Join(c.DataDir(), "memories")
 		}
@@ -631,9 +592,9 @@ func (c *Config) resolveDatabasePath() {
 
 func (c *Config) expandPaths() {
 	c.Home = expandHomePath(c.Home)
-	c.Cortexdb.DBPath = expandHomePath(c.Cortexdb.DBPath)
+	c.RAG.Storage.DBPath = expandHomePath(c.RAG.Storage.DBPath)
 	c.Memory.MemoryPath = expandHomePath(c.Memory.MemoryPath)
-	ensureParentDir(c.Cortexdb.DBPath)
+	ensureParentDir(c.RAG.Storage.DBPath)
 	if c.Memory.StoreType != "vector" {
 		os.MkdirAll(c.Memory.MemoryPath, 0755)
 	} else {

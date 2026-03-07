@@ -21,6 +21,7 @@ type RouterService interface {
 
 // Planner generates execution plans from goals using semantic router + LLM
 type Planner struct {
+	service       *Service
 	llmService    domain.Generator
 	tools         []domain.ToolDefinition
 	router        RouterService   // Optional: semantic router for fast intent recognition
@@ -28,8 +29,9 @@ type Planner struct {
 }
 
 // NewPlanner creates a new planner without semantic router
-func NewPlanner(llmService domain.Generator, tools []domain.ToolDefinition) *Planner {
+func NewPlanner(service *Service, llmService domain.Generator, tools []domain.ToolDefinition) *Planner {
 	return &Planner{
+		service:       service,
 		llmService:    llmService,
 		tools:         tools,
 		promptManager: prompt.NewManager(),
@@ -37,8 +39,9 @@ func NewPlanner(llmService domain.Generator, tools []domain.ToolDefinition) *Pla
 }
 
 // NewPlannerWithRouter creates a new planner with semantic router support
-func NewPlannerWithRouter(llmService domain.Generator, tools []domain.ToolDefinition, routerService RouterService) *Planner {
+func NewPlannerWithRouter(service *Service, llmService domain.Generator, tools []domain.ToolDefinition, routerService RouterService) *Planner {
 	return &Planner{
+		service:       service,
 		llmService:    llmService,
 		tools:         tools,
 		router:        routerService,
@@ -99,6 +102,15 @@ func (p *Planner) Plan(ctx context.Context, goal string, session *Session) (*Pla
 	// Combine system prompt with user prompt for the LLM
 	fullPrompt := systemPrompt + "\n\n" + userPrompt
 
+	// --- DEBUG: LOG PLANNING PROMPT ---
+	if p.service != nil && p.service.debug {
+		var sb strings.Builder
+		info := p.service.Info()
+		fmt.Fprintf(&sb, "MODEL: %s (%s)\n", info.Model, info.BaseURL)
+		fmt.Fprintf(&sb, "=== PLANNING PROMPT ===\n%s\n", fullPrompt)
+		p.service.EmitDebugPrint(0, "planner_prompt", sb.String())
+	}
+
 	// Define the expected response schema
 	schema := map[string]interface{}{
 		"type": "object",
@@ -142,6 +154,11 @@ func (p *Planner) Plan(ctx context.Context, goal string, session *Session) (*Pla
 	result, err := p.llmService.GenerateStructured(ctx, fullPrompt, schema, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate plan: %w", err)
+	}
+
+	// --- DEBUG: LOG PLANNING RESPONSE ---
+	if p.service != nil && p.service.debug {
+		p.service.EmitDebugPrint(0, "planner_response", result.Raw)
 	}
 
 	// Parse the structured response

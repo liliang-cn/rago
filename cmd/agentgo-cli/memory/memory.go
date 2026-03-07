@@ -315,9 +315,9 @@ func createMemoryService(opts *CommandOptions) (*memory.Service, error) {
 	// Try to get embedder from config for vector search
 	var embedder domain.Embedder
 	var llm domain.Generator
-	if Cfg != nil && Cfg.EmbeddingPool.Enabled && len(Cfg.EmbeddingPool.Providers) > 0 {
+	if Cfg != nil && Cfg.RAG.Embedding.Enabled && len(Cfg.RAG.Embedding.Providers) > 0 {
 		// Create embedder from first provider
-		prov := Cfg.EmbeddingPool.Providers[0]
+		prov := Cfg.RAG.Embedding.Providers[0]
 		provConfig := &domain.OpenAIProviderConfig{
 			BaseProviderConfig: domain.BaseProviderConfig{Timeout: 30},
 			BaseURL:            prov.BaseURL,
@@ -328,8 +328,8 @@ func createMemoryService(opts *CommandOptions) (*memory.Service, error) {
 		embedder, _ = factory.CreateEmbedderProvider(context.Background(), provConfig)
 
 		// Also try to get LLM for indexing
-		if Cfg.LLMPool.Enabled && len(Cfg.LLMPool.Providers) > 0 {
-			llmProv := Cfg.LLMPool.Providers[0]
+		if Cfg.LLM.Enabled && len(Cfg.LLM.Providers) > 0 {
+			llmProv := Cfg.LLM.Providers[0]
 			llmConfig := &domain.OpenAIProviderConfig{
 				BaseProviderConfig: domain.BaseProviderConfig{Timeout: 60},
 				BaseURL:            llmProv.BaseURL,

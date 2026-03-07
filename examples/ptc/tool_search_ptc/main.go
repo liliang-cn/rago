@@ -14,20 +14,14 @@ import (
 func main() {
 	ctx := context.Background()
 
-	cfg := &config.Config{}
-	provider := pool.Provider{
-		Name:           "openai",
-		BaseURL:        "http://localhost:11434/v1", // Ollama local API
-		Key:            "ollama",
-		ModelName:      "qwen3.5:latest",
-		MaxConcurrency: 10,
+	// 1. Load configuration (from agentgo.toml or environment)
+	cfg, err := config.Load("")
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
 	}
-	cfg.LLMPool.Providers = []pool.Provider{provider}
-	cfg.LLMPool.Enabled = true
 
 	fmt.Println("=== Building Agent with PTC and Tool Search ===")
 	builder := agent.New("PTCSearchAgent").
-		WithDebug(true).
 		WithPTC(). // Enable Programmatic Tool Calling
 		WithConfig(cfg)
 

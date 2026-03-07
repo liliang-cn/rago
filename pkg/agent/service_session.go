@@ -3,10 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -257,25 +254,6 @@ func (s *Service) RunRealtime(ctx context.Context, opts *domain.GenerationOption
 
 	s.logger.Info("Realtime session started", slog.Int("tools_count", len(tools)))
 	return session, nil
-}
-
-// SaveToFile saves content to a file
-func (s *Service) SaveToFile(content, filePath string) error {
-	// Create directory if needed
-	dir := filepath.Dir(filePath)
-	if dir != "." && dir != "" {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create directory: %w", err)
-		}
-	}
-
-	// Write to file
-	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
-	}
-
-	log.Printf("[Agent] ✅ Saved to %s\n", filePath)
-	return nil
 }
 
 // Close closes the service and releases resources

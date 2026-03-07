@@ -69,17 +69,17 @@ func New(
 	}
 
 	// Initialize GraphRAG service if enabled in config
-	if config.GraphRAG.Enabled && generator != nil && embedder != nil {
+	if config.RAG.Graph.Enabled && generator != nil && embedder != nil {
 		graphragConfig := &graphrag.Config{
-			EnableGraphRAG:            config.GraphRAG.Enabled,
-			EntityTypes:               config.GraphRAG.EntityTypes,
-			MaxConcurrentExtractions:  config.GraphRAG.MaxConcurrentExtractions,
-			MinEntityLength:           config.GraphRAG.MinEntityLength,
-			CommunityDetectionEnabled: config.GraphRAG.CommunityDetection,
-			CommunityAlgorithm:        config.GraphRAG.CommunityAlgorithm,
-			GraphQueryTopK:            config.GraphRAG.GraphQueryTopK,
-			VectorWeight:              config.GraphRAG.VectorWeight,
-			GraphWeight:               config.GraphRAG.GraphWeight,
+			EnableGraphRAG:            config.RAG.Graph.Enabled,
+			EntityTypes:               config.RAG.Graph.EntityTypes,
+			MaxConcurrentExtractions:  config.RAG.Graph.MaxConcurrentExtractions,
+			MinEntityLength:           config.RAG.Graph.MinEntityLength,
+			CommunityDetectionEnabled: config.RAG.Graph.CommunityDetection,
+			CommunityAlgorithm:        config.RAG.Graph.CommunityAlgorithm,
+			GraphQueryTopK:            config.RAG.Graph.GraphQueryTopK,
+			VectorWeight:              config.RAG.Graph.VectorWeight,
+			GraphWeight:               config.RAG.Graph.GraphWeight,
 		}
 		s.graphRAG = graphrag.NewService(graphragConfig, generator, embedder, s.graphStore)
 		log.Println("[GraphRAG] Service initialized")
@@ -121,6 +121,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 	}
 
 	// Automatic metadata extraction
+	/*
 	if s.config.Ingest.MetadataExtraction.Enable && s.llmService != nil {
 		log.Println("Enhanced metadata extraction enabled, calling LLM...")
 		// Use default model from pool
@@ -132,6 +133,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 			s.mergeMetadata(req.Metadata, extracted)
 		}
 	}
+	*/
 
 	// Fallback for creation_date
 	if _, ok := req.Metadata["creation_date"]; !ok || req.Metadata["creation_date"] == nil || req.Metadata["creation_date"] == "" {
@@ -154,10 +156,10 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 	}
 
 	if req.ChunkSize <= 0 {
-		chunkOptions.Size = s.config.Chunker.ChunkSize
+		chunkOptions.Size = s.config.RAG.Chunker.ChunkSize
 	}
 	if req.Overlap < 0 {
-		chunkOptions.Overlap = s.config.Chunker.Overlap
+		chunkOptions.Overlap = s.config.RAG.Chunker.Overlap
 	}
 
 	textChunks, err := s.chunker.Split(content, chunkOptions)
@@ -193,7 +195,7 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 
 	// GraphRAG Extraction using new graphRAG service
 	// This runs asynchronously to not block ingestion
-	if s.graphRAG != nil && s.config.GraphRAG.Enabled {
+	if s.graphRAG != nil && s.config.RAG.Graph.Enabled {
 		log.Println("[GraphRAG] Starting knowledge graph extraction (async)...")
 
 		go func() {

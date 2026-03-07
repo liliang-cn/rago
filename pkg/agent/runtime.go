@@ -62,6 +62,18 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 	r.emit(EventTypeStart, fmt.Sprintf("Starting task: %s", goal))
 
+	// --- DEBUG: LOG AGENT CONFIGURATION ---
+	if r.svc.debug {
+		var sb strings.Builder
+		info := r.svc.Info()
+		fmt.Fprintf(&sb, "AGENT:    %s (%s)\n", info.Name, info.ID)
+		fmt.Fprintf(&sb, "MODEL:    %s\n", info.Model)
+		fmt.Fprintf(&sb, "BASEURL:  %s\n", info.BaseURL)
+		fmt.Fprintf(&sb, "FEATURES: RAG:%v, MCP:%v, Skills:%v, PTC:%v, Memory:%v\n",
+			info.RAGEnabled, info.MCPEnabled, info.SkillsEnabled, info.PTCEnabled, info.MemoryEnabled)
+		r.svc.EmitDebugPrint(0, "config", sb.String())
+	}
+
 	// 1. Prepare context (Memory & RAG) — with a timeout so a slow embedding
 	// model or unreachable LLM doesn't block the entire run forever.
 	fmt.Printf("[AGENT] Preparing context...\n")
@@ -73,6 +85,9 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 	// 2. Build initial messages
 	messages := []domain.Message{
 		{Role: "user", Content: goal},
+	}
+	if r.session != nil && r.session.Summary != "" {
+		messages[0].Content = "--- Conversation Summary ---\n" + r.session.Summary + "\n--- End Summary ---\n\n" + messages[0].Content
 	}
 	if ragContext != "" {
 		messages[len(messages)-1].Content += "\n\n--- Knowledge Base ---\n" + ragContext
@@ -101,6 +116,8 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		// --- DEBUG: LOG FULL PROMPT + TOOLS ---
 		if r.svc.debug {
 			var promptBuilder strings.Builder
+			info := r.svc.Info()
+			fmt.Fprintf(&promptBuilder, "MODEL: %s (%s)\n", info.Model, info.BaseURL)
 			// Tools list
 			fmt.Fprintf(&promptBuilder, "=== TOOLS (%d) ===\n", len(tools))
 			for _, t := range tools {
@@ -108,10 +125,11 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			}
 			fmt.Fprintf(&promptBuilder, "\n=== MESSAGES ===\n")
 			for _, m := range genMessages {
-				fmt.Fprintf(&promptBuilder, "[%s]:\n%s\n\n", strings.ToUpper(m.Role), m.Content)
+				fmt.Fprintf(&promptBuilder, "[%s]:\n%s\n", strings.ToUpper(m.Role), m.Content)
 			}
-			r.emitDebug(round+1, "prompt", promptBuilder.String())
+			r.svc.EmitDebugPrint(round+1, "prompt", promptBuilder.String())
 		}
+
 
 		// 5. LLM Call (Streaming)
 		var fullContent strings.Builder
@@ -124,11 +142,15 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		var taskCompleteResult string
 		taskCompleteTriggered := false
 
+		var lastResponseID string
 		fmt.Printf("[AGENT] Round %d: Calling LLM with %d tools...\n", round, len(tools))
 		err := r.svc.llmService.StreamWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
 			Temperature: 0.3,
 			MaxTokens:   2000,
 		}, func(delta *domain.GenerationResult) error {
+			if delta.ID != "" {
+				lastResponseID = delta.ID
+			}
 			// 0. Hardwired: intercept task_complete at stream level regardless of
 			//    PTC mode, system prompt overrides, or tool search configuration.
 			//    When the model emits a task_complete tool call, capture the result
@@ -206,11 +228,43 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 					fmt.Fprintf(&respBuilder, "  - %s(%v)\n", tc.Function.Name, tc.Function.Arguments)
 				}
 			}
-			r.emitDebug(round+1, "response", respBuilder.String())
+			fmt.Fprintf(&respBuilder, "\n=== MESSAGES IN HISTORY (%d) ===\n", len(messages))
+			for i, m := range messages {
+				fmt.Fprintf(&respBuilder, " [%d] %s: %s\n", i, strings.ToUpper(m.Role), m.Content)
+			}
+			r.svc.EmitDebugPrint(round+1, "response", respBuilder.String())
 		}
 
 		// 6. Handle Result
 		if len(toolCalls) > 0 {
+			// Double check for task_complete in case it was not intercepted during stream
+			for _, tc := range toolCalls {
+				if tc.Function.Name == "task_complete" {
+					result := fullContent.String()
+					if res, ok := tc.Function.Arguments["result"].(string); ok && res != "" {
+						result = res
+					}
+					allSources := r.sources
+					r.svc.ragSourcesMu.RLock()
+					allSources = append(allSources, r.svc.ragSources...)
+					r.svc.ragSourcesMu.RUnlock()
+					r.svc.ragSourcesMu.Lock()
+					r.svc.ragSources = nil
+					r.svc.ragSourcesMu.Unlock()
+					r.eventChan <- &Event{
+						ID:        uuid.New().String(),
+						Type:      EventTypeComplete,
+						AgentName: r.currentAgent.Name(),
+						AgentID:   r.currentAgent.ID(),
+						Content:   result,
+						Sources:   allSources,
+						Timestamp: time.Now(),
+					}
+					go r.saveToMemory(context.Background(), goal, result)
+					return
+				}
+			}
+
 			// Note: task_complete is intercepted at stream level above and never
 			// reaches this point. All remaining tool calls are real work items.
 
@@ -268,9 +322,10 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 			// Add assistant's tool call message to history
 			messages = append(messages, domain.Message{
-				Role:      "assistant",
-				Content:   fullContent.String(),
-				ToolCalls: toolCalls,
+				Role:       "assistant",
+				Content:    fullContent.String(),
+				ToolCalls:  toolCalls,
+				ResponseID: lastResponseID,
 			})
 
 			// 7. Process Tool Calls (Parallel Execution)
@@ -292,7 +347,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 				// Handle Handoff immediately (sequential) as it changes state
 				if strings.HasPrefix(toolCall.Function.Name, "transfer_to_") {
-					res, err, isHandoff := r.executeToolOrHandoff(ctx, toolCall)
+					res, err, isHandoff := r.executeToolViaSubAgent(ctx, toolCall)
 					toolResults[idx].Content = toolResultToString(res)
 					if err != nil {
 						toolResults[idx].Content = fmt.Sprintf("Error: %v", err)
@@ -311,7 +366,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 				// Parallel execute independent tools
 				g.Go(func() error {
 					r.emitToolCall(toolCall.Function.Name, toolCall.Function.Arguments)
-					res, err, isHandoff := r.executeToolOrHandoff(groupCtx, toolCall)
+					res, err, isHandoff := r.executeToolViaSubAgent(groupCtx, toolCall)
 
 					content := ""
 					if err != nil {
@@ -360,14 +415,12 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 				continue
 			}
 
-			// In PTC mode, after execute_javascript returns its result, let the LLM
-			// continue naturally to synthesise a final answer — no nudge needed.
-			// In non-PTC mode, nudge the model to call task_complete concisely.
+			// In non-PTC mode, encourage the model to process results and move towards completion
 			isPTCToolRound := r.svc.isPTCEnabled() && len(toolCalls) == 1 && toolCalls[0].Function.Name == "execute_javascript"
 			if !isPTCToolRound {
 				messages = append(messages, domain.Message{
 					Role:    "user",
-					Content: "You have the results above. Call task_complete now with a concise summary of the answer.",
+					Content: "Analyze the tool results above. If you have fulfilled the user's request, provide your final answer and call task_complete. Otherwise, continue with the necessary next steps.",
 				})
 			}
 
@@ -381,23 +434,33 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 				if r.svc.ptcIntegration.IsCodeResponse(content) {
 					code := r.svc.ptcIntegration.ExtractCode(content)
 					if code != "" {
-						r.emitToolCall("execute_javascript", map[string]interface{}{"code": code})
-						execResult, execErr := r.svc.ptcIntegration.ExecuteJavascriptTool(ctx, map[string]interface{}{"code": code})
+						tc := domain.ToolCall{
+							ID:   "ptc_fallback_" + uuid.New().String()[:8],
+							Type: "function",
+							Function: domain.FunctionCall{
+								Name:      "execute_javascript",
+								Arguments: map[string]interface{}{"code": code},
+							},
+						}
+						r.emitToolCall("execute_javascript", tc.Function.Arguments)
+						execResult, execErr, _ := r.executeToolViaSubAgent(ctx, tc)
 						r.emitToolResult("execute_javascript", execResult, execErr)
 
 						// Append assistant's code message + execution result so
 						// the LLM can synthesise a final answer in the next round.
 						messages = append(messages, domain.Message{
-							Role:    "assistant",
-							Content: content,
+							Role:      "assistant",
+							Content:   content,
+							ToolCalls: []domain.ToolCall{tc},
 						})
-						resultMsg := execResult
+						resultMsg := toolResultToString(execResult)
 						if execErr != nil {
 							resultMsg = fmt.Sprintf("execute_javascript error: %v", execErr)
 						}
 						messages = append(messages, domain.Message{
-							Role:    "user",
-							Content: fmt.Sprintf("execute_javascript result:\n%s\n\nAnalyze the above results and call task_complete with your complete answer.", resultMsg),
+							Role:       "tool",
+							ToolCallID: tc.ID,
+							Content:    resultMsg,
 						})
 						continue // next round → LLM synthesises answer
 					}
@@ -432,6 +495,14 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			return
 		}
 	}
+}
+
+// executeToolViaSubAgent runs a tool or skill call using a separate SubAgent goroutine
+func (r *Runtime) executeToolViaSubAgent(ctx context.Context, tc domain.ToolCall) (interface{}, error, bool) {
+	subagentID := uuid.New().String()
+	r.emit(EventTypeThinking, fmt.Sprintf("Delegating %s to SubAgent %s...", tc.Function.Name, subagentID[:8]))
+
+	return r.svc.executeToolViaSubAgent(ctx, r.currentAgent, r.session, tc)
 }
 
 // executeToolOrHandoff executes a tool call and handles agent switching
@@ -484,14 +555,24 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 	var result interface{}
 	var execErr error
 
-	// 1. Agent-Local Tools
-	if handler, ok := r.currentAgent.GetHandler(tc.Function.Name); ok {
+	// 1. Special Case: task_complete
+	if toolName == "task_complete" {
+		res, _ := tc.Function.Arguments["result"].(string)
+		result = res
+		if result == "" {
+			result = "Task complete"
+		}
+	} else if handler, ok := r.currentAgent.GetHandler(tc.Function.Name); ok {
+		// 2. Agent-Local Tools
 		result, execErr = handler(ctx, tc.Function.Arguments)
+	} else if r.svc.toolRegistry.Has(toolName) {
+		// 3. Unified ToolRegistry — custom tools, RAG, Memory, SubAgent, search_available_tools.
+		result, execErr = r.svc.toolRegistry.Call(ctx, toolName, tc.Function.Arguments)
 	} else if r.svc.isMCPTool(tc.Function.Name) {
-		// 2. MCP Tools
+		// 4. MCP Tools
 		result, execErr = r.svc.mcpService.CallTool(ctx, tc.Function.Name, tc.Function.Arguments)
 	} else if r.svc.isSkill(ctx, tc.Function.Name) && r.svc.skillsService != nil {
-		// 3. Skills
+		// 5. Skills
 		skillID := strings.TrimPrefix(tc.Function.Name, "skill_")
 		res, err := r.svc.skillsService.Execute(ctx, &skills.ExecutionRequest{
 			SkillID:   skillID,
@@ -502,75 +583,6 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 		} else {
 			result = res.Output
 		}
-	} else if toolName == "rag_query" && r.svc.ragProcessor != nil {
-		// 4. RAG Query
-		q, _ := tc.Function.Arguments["query"].(string)
-		resp, err := r.svc.ragProcessor.Query(ctx, domain.QueryRequest{Query: q})
-		if err != nil {
-			execErr = err
-		} else {
-			result = resp.Answer
-			// Collect sources for final result
-			if len(resp.Sources) > 0 {
-				r.sources = append(r.sources, resp.Sources...)
-			}
-		}
-	} else if toolName == "rag_ingest" && r.svc.ragProcessor != nil {
-		// 4.1 RAG Ingest
-		content, _ := tc.Function.Arguments["content"].(string)
-		filePath, _ := tc.Function.Arguments["file_path"].(string)
-		_, execErr = r.svc.ragProcessor.Ingest(ctx, domain.IngestRequest{
-			Content:  content,
-			FilePath: filePath,
-		})
-		if execErr == nil {
-			result = "Successfully ingested document"
-		}
-	} else if toolName == "rag_delete" && r.svc.ragProcessor != nil {
-		// 4.2 RAG Delete
-		docID, _ := tc.Function.Arguments["document_id"].(string)
-		execErr = r.svc.ragProcessor.DeleteDocument(ctx, docID)
-		if execErr == nil {
-			result = fmt.Sprintf("Successfully deleted document %s", docID)
-		}
-	} else if strings.HasPrefix(toolName, "memory_") && r.svc.memoryService != nil {
-		// 5. Memory Tools
-		if toolName == "memory_save" {
-			content, _ := tc.Function.Arguments["content"].(string)
-			memType, _ := tc.Function.Arguments["type"].(string)
-			if memType == "" {
-				memType = string(domain.MemoryTypeFact)
-			}
-			execErr = r.svc.memoryService.Add(ctx, &domain.Memory{
-				Type:       domain.MemoryType(memType),
-				Content:    content,
-				Importance: 0.8,
-			})
-			if execErr == nil {
-				result = "Saved"
-			}
-		} else if toolName == "memory_update" {
-			id, _ := tc.Function.Arguments["id"].(string)
-			content, _ := tc.Function.Arguments["content"].(string)
-			execErr = r.svc.memoryService.Update(ctx, id, content)
-			if execErr == nil {
-				result = "Updated"
-			}
-		} else if toolName == "memory_delete" {
-			id, _ := tc.Function.Arguments["id"].(string)
-			execErr = r.svc.memoryService.Delete(ctx, id)
-			if execErr == nil {
-				result = "Deleted"
-			}
-		} else if toolName == "memory_recall" {
-			query, _ := tc.Function.Arguments["query"].(string)
-			mContext, _, err := r.svc.memoryService.RetrieveAndInject(ctx, query, "")
-			result = mContext
-			execErr = err
-		}
-	} else if toolName == "execute_javascript" && r.svc.ptcIntegration != nil {
-		// 6. PTC: Execute JavaScript in sandbox
-		result, execErr = r.svc.ptcIntegration.ExecuteJavascriptTool(ctx, tc.Function.Arguments)
 	} else {
 		execErr = fmt.Errorf("unknown tool: %s", toolName)
 	}

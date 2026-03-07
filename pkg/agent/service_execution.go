@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/liliang-cn/agent-go/pkg/domain"
 	"github.com/liliang-cn/agent-go/pkg/prompt"
-	"github.com/liliang-cn/agent-go/pkg/skills"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -32,13 +31,31 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 	}
 
 	prevToolCalls := make(map[string]int)
-	messages := s.buildConversationMessages(goal, ragContext, memoryContext)
+	summary := ""
+	if session != nil {
+		summary = session.Summary
+	}
+	messages := s.buildConversationMessages(goal, ragContext, memoryContext, summary)
 
 	if cfg.StoreHistory && s.historyStore != nil {
 		s.historyStore.RecordMessage(ctx, session.GetID(), currentAgent.ID(), goal, messages[0], 0)
 	}
 
 	toolCallCount := 0
+
+	fmt.Printf("[DEBUG] Entering executeWithLLM, debug=%v\n", s.debug)
+
+	// --- DEBUG: LOG AGENT CONFIGURATION ---
+	if s.debug {
+		var sb strings.Builder
+		info := s.Info()
+		fmt.Fprintf(&sb, "AGENT:    %s (%s)\n", info.Name, info.ID)
+		fmt.Fprintf(&sb, "MODEL:    %s\n", info.Model)
+		fmt.Fprintf(&sb, "BASEURL:  %s\n", info.BaseURL)
+		fmt.Fprintf(&sb, "FEATURES: RAG:%v, MCP:%v, Skills:%v, PTC:%v, Memory:%v\n",
+			info.RAGEnabled, info.MCPEnabled, info.SkillsEnabled, info.PTCEnabled, info.MemoryEnabled)
+		s.EmitDebugPrint(0, "config", sb.String())
+	}
 
 	for round := 0; round < maxRounds; round++ {
 		select {
@@ -68,7 +85,7 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 
 			// Execute tool calls and append results to messages
 			s.emitProgress("tool_call", fmt.Sprintf("Calling %d tool(s)", len(result.ToolCalls)), round+1, "")
-			toolResults, err := s.executeToolCalls(ctx, currentAgent, result.ToolCalls)
+			toolResults, err := s.executeToolCalls(ctx, currentAgent, session, result.ToolCalls)
 			if err != nil {
 				messages = append(messages, domain.Message{
 					Role:    "assistant",
@@ -93,9 +110,12 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 	return s.handleMaxTurnsExceeded(ctx, session, currentAgent, goal, maxRounds, toolCallCount, messages, cfg)
 }
 
-// buildConversationMessages constructs the initial user message, enriched with RAG and memory context.
-func (s *Service) buildConversationMessages(goal, ragContext, memoryContext string) []domain.Message {
+// buildConversationMessages constructs the initial user message, enriched with RAG, memory context and session summary.
+func (s *Service) buildConversationMessages(goal, ragContext, memoryContext, summary string) []domain.Message {
 	content := goal
+	if summary != "" {
+		content = "--- Conversation Summary ---\n" + summary + "\n--- End Summary ---\n\n" + content
+	}
 	if ragContext != "" {
 		content += "\n\n--- Relevant documents from knowledge base ---\n" + ragContext + "\n--- End of documents ---"
 	}
@@ -112,7 +132,18 @@ func (s *Service) runOneLLMTurn(ctx context.Context, currentAgent *Agent, messag
 	genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
 
 	if s.debug || cfg.Debug {
-		s.logDebugPrompt(genMessages, round)
+		var promptBuilder strings.Builder
+		info := s.Info()
+		fmt.Fprintf(&promptBuilder, "MODEL: %s (%s)\n", info.Model, info.BaseURL)
+		fmt.Fprintf(&promptBuilder, "=== TOOLS (%d) ===\n", len(tools))
+		for _, t := range tools {
+			fmt.Fprintf(&promptBuilder, "  • %s: %s\n", t.Function.Name, t.Function.Description)
+		}
+		fmt.Fprintf(&promptBuilder, "\n=== MESSAGES ===\n")
+		for _, m := range genMessages {
+			fmt.Fprintf(&promptBuilder, "[%s]:\n%s\n", strings.ToUpper(m.Role), m.Content)
+		}
+		s.EmitDebugPrint(round+1, "prompt", promptBuilder.String())
 	}
 
 	temperature := cfg.Temperature
@@ -215,6 +246,7 @@ func (s *Service) appendToolRoundToMessages(messages []domain.Message, result *d
 		Content:          result.Content,
 		ReasoningContent: result.ReasoningContent,
 		ToolCalls:        result.ToolCalls,
+		ResponseID:       result.ID,
 	})
 	for _, tr := range toolResults {
 		resStr := toolResultToString(tr.Result)
@@ -384,8 +416,7 @@ func extractJSON(resp string, target interface{}) error {
 }
 
 // executeToolCalls executes the tool calls decided by LLM and returns all results
-// executeToolCalls executes the tool calls decided by LLM and returns all results
-func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, toolCalls []domain.ToolCall) ([]ToolExecutionResult, error) {
+func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, session *Session, toolCalls []domain.ToolCall) ([]ToolExecutionResult, error) {
 	results := make([]ToolExecutionResult, len(toolCalls))
 
 	// Create an errgroup to run tools in parallel
@@ -415,55 +446,8 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 				slog.String("tool", toolName),
 				slog.Any("arguments", toolCall.Function.Arguments))
 
-			var result interface{}
-			var err error
-			var toolType string
-
-			// 0. Priority: Agent-local handler (multi-agent override scenarios).
-			if handler, ok := currentAgent.GetHandler(toolName); ok {
-				if s.debug {
-					fmt.Println("   Type: Local Handler")
-				}
-				result, err = handler(groupCtx, toolCall.Function.Arguments)
-				toolType = "local"
-			} else if s.isMCPTool(toolName) {
-				// 1. MCP tools — dynamic (managed externally via mcpService).
-				if s.debug {
-					fmt.Printf("   Type: MCP Tool\n")
-				}
-				result, err = s.mcpService.CallTool(groupCtx, toolName, toolCall.Function.Arguments)
-				toolType = "mcp"
-			} else if s.isSkill(groupCtx, toolName) && s.skillsService != nil {
-				// 2. Skills — dynamic (managed via skillsService).
-				if s.debug {
-					fmt.Printf("   Type: Skill (%s)\n", toolName)
-				}
-				skillID := strings.TrimPrefix(toolName, "skill_")
-				skillResult, skillErr := s.skillsService.Execute(groupCtx, &skills.ExecutionRequest{
-					SkillID:     skillID,
-					Variables:   toolCall.Function.Arguments,
-					Interactive: false,
-				})
-				if skillErr == nil {
-					result = skillResult.Output
-				}
-				err = skillErr
-				toolType = "skill"
-			} else if toolName == "execute_javascript" && s.ptcIntegration != nil {
-				// 3. PTC: execute JavaScript in the goja sandbox.
-				result, err = s.ptcIntegration.ExecuteJavascriptTool(groupCtx, toolCall.Function.Arguments)
-				toolType = "ptc"
-			} else if toolName == "delegate_to_subagent" {
-				// 4. SubAgent delegation (needs reference to currentAgent).
-				result, err = s.executeSubAgentDelegation(groupCtx, currentAgent, toolCall.Function.Arguments)
-				toolType = "subagent"
-			} else if s.toolRegistry.Has(toolName) {
-				// 5. Unified ToolRegistry — custom tools, RAG, Memory.
-				result, err = s.toolRegistry.Call(groupCtx, toolName, toolCall.Function.Arguments)
-				toolType = s.toolRegistry.CategoryOf(toolName)
-			} else {
-				err = fmt.Errorf("unknown tool: %s", toolCall.Function.Name)
-			}
+			// Delegate to SubAgent
+			result, err, _ := s.executeToolViaSubAgent(groupCtx, currentAgent, session, toolCall)
 
 			if err != nil {
 				s.logger.Error("Tool execution failed",
@@ -475,7 +459,7 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 					fmt.Println(strings.Repeat("-", 20))
 				}
 
-				return fmt.Errorf("Tool %s (%s) failed: %w", toolCall.Function.Name, toolType, err)
+				return fmt.Errorf("Tool %s failed: %w", toolCall.Function.Name, err)
 			}
 
 			s.logger.Info("Tool Result",
@@ -494,7 +478,6 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, too
 			results[idx] = ToolExecutionResult{
 				ToolCallID: toolCall.ID,
 				ToolName:   toolCall.Function.Name,
-				ToolType:   toolType,
 				Result:     result,
 			}
 			return nil

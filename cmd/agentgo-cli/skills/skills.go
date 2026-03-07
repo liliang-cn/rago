@@ -65,7 +65,7 @@ func initializeSkills(cmd *cobra.Command) error {
 
 		if ragCfg != nil {
 			// Initialize vector store
-			vectorStore, err := ragstore.NewSQLiteStore(ragCfg.Cortexdb.DBPath, ragCfg.Cortexdb.IndexType)
+			vectorStore, err := ragstore.NewSQLiteStore(ragCfg.RAG.Storage.DBPath, ragCfg.RAG.Storage.IndexType)
 			if err != nil {
 				initErr = fmt.Errorf("failed to create vector store: %w", err)
 				return

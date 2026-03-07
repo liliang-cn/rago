@@ -35,7 +35,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("🔍 Checking LLM Pool status...")
-	llmStatus := poolService.GetLLMPoolStatus()
+	llmStatus := poolService.GetLLMStatus()
 	if len(llmStatus) == 0 {
 		fmt.Println("⚠️  No LLM providers configured")
 	} else {
@@ -53,7 +53,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("\n🔍 Checking Embedding Pool status...")
-	embedStatus := poolService.GetEmbeddingPoolStatus()
+	embedStatus := poolService.GetEmbeddingStatus()
 	if len(embedStatus) == 0 {
 		fmt.Println("⚠️  No Embedding providers configured")
 	} else {

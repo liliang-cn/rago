@@ -150,8 +150,8 @@ func runServer(cmd *cobra.Command, args []string) error {
 		WithSkills().
 		WithConfig(cfg)
 
-	// Only enable RAG if cortexdb is configured (has a db_path)
-	if cfg.Cortexdb.DBPath != "" {
+	// Only enable RAG if storage is configured (has a db_path)
+	if cfg.RAG.Storage.DBPath != "" {
 		b = b.WithRAG()
 	}
 

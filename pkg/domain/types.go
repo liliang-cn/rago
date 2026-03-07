@@ -125,6 +125,7 @@ type Message struct {
 	ReasoningContent string     `json:"reasoning_content,omitempty"`
 	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID       string     `json:"tool_call_id,omitempty"`
+	ResponseID       string     `json:"response_id,omitempty"` // For stateful Response API
 }
 
 type Generator interface {
@@ -190,6 +191,7 @@ type FunctionCall struct {
 
 // GenerationResult represents the result of LLM generation with potential tool calls
 type GenerationResult struct {
+	ID               string     `json:"id,omitempty"` // Response ID for stateful APIs
 	Content          string     `json:"content"`
 	ReasoningContent string     `json:"reasoning_content,omitempty"`
 	ToolCalls        []ToolCall `json:"tool_calls,omitempty"`

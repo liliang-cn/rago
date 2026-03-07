@@ -7,31 +7,24 @@ import (
 
 	"github.com/liliang-cn/agent-go/pkg/agent"
 	"github.com/liliang-cn/agent-go/pkg/config"
-	"github.com/liliang-cn/agent-go/pkg/pool"
 )
 
 func main() {
 	ctx := context.Background()
 
-	// 1. Configure Provider (using local Ollama for the example)
-	cfg := &config.Config{}
-	provider := pool.Provider{
-		Name:           "openai",
-		BaseURL:        "http://localhost:11434/v1", // Ollama local API
-		Key:            "ollama",
-		ModelName:      "qwen3.5:latest",
-		MaxConcurrency: 10,
+	// 1. Load configuration (from agentgo.toml or environment)
+	cfg, err := config.Load("")
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
 	}
-	cfg.LLMPool.Providers = []pool.Provider{provider}
-	cfg.LLMPool.Enabled = true
 
 	// 2. Build the Agent
 	fmt.Println("=== Building Agent with Tool Search ===")
 	builder := agent.New("ToolSearcher").
-		WithDebug(true).
 		WithConfig(cfg)
 
 	// 3. Register Deferred Tools (Simulating a large catalog of tools)
+
 	// We will register a few normal tools and several deferred tools.
 
 	// Tool 1: Weather (Deferred)
