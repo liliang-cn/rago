@@ -195,9 +195,6 @@ func (p *OpenAILLMProvider) Generate(ctx context.Context, prompt string, opts *d
 		if opts.MaxTokens > 0 {
 			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
 		}
-		// Disable thinking/reasoning for models that support it (e.g., Qwen, DeepSeek)
-		// Set reasoning_effort to "none" to disable thinking
-		params.ReasoningEffort = openai.ReasoningEffort("none")
 	}
 
 	completion, err := p.client.Chat.Completions.New(ctx, params)
@@ -209,22 +206,7 @@ func (p *OpenAILLMProvider) Generate(ctx context.Context, prompt string, opts *d
 		return "", fmt.Errorf("%w: no choices returned", domain.ErrGenerationFailed)
 	}
 
-	// Get content, or reasoning_content if content is empty (for models like Qwen with thinking mode)
-	msg := completion.Choices[0].Message
-	result := msg.Content
-
-	// If content is empty, try ExtraFields for reasoning_content (LMStudio) or reasoning (Ollama)
-	if result == "" {
-		// Try reasoning_content first (LMStudio)
-		if reasoning, ok := msg.JSON.ExtraFields["reasoning_content"]; ok {
-			result = strings.Trim(reasoning.Raw(), "\"")
-		} else if reasoning, ok := msg.JSON.ExtraFields["reasoning"]; ok {
-			// Try reasoning (Ollama)
-			result = strings.Trim(reasoning.Raw(), "\"")
-		}
-	}
-
-	return result, nil
+	return completion.Choices[0].Message.Content, nil
 }
 
 // Stream generates text with streaming using OpenAI API
@@ -252,9 +234,6 @@ func (p *OpenAILLMProvider) Stream(ctx context.Context, prompt string, opts *dom
 		if opts.MaxTokens > 0 {
 			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
 		}
-		// Disable thinking/reasoning for models that support it (e.g., Qwen, DeepSeek)
-		// Set reasoning_effort to "none" to disable thinking
-		params.ReasoningEffort = openai.ReasoningEffort("none")
 	}
 
 	stream := p.client.Chat.Completions.NewStreaming(ctx, params)
@@ -327,9 +306,6 @@ func (p *OpenAILLMProvider) GenerateWithTools(ctx context.Context, messages []do
 		if opts.MaxTokens > 0 {
 			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
 		}
-		// Disable thinking/reasoning for models that support it (e.g., Qwen, DeepSeek)
-		// Set reasoning_effort to "none" to disable thinking
-		params.ReasoningEffort = openai.ReasoningEffort("none")
 	}
 
 	completion, err := p.client.Chat.Completions.New(ctx, params)
@@ -425,9 +401,6 @@ func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []doma
 		if opts.MaxTokens > 0 {
 			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
 		}
-		// Disable thinking/reasoning for models that support it (e.g., Qwen, DeepSeek)
-		// Set reasoning_effort to "none" to disable thinking
-		params.ReasoningEffort = openai.ReasoningEffort("none")
 	}
 
 	stream := p.client.Chat.Completions.NewStreaming(ctx, params)
@@ -443,10 +416,9 @@ func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []doma
 			Content: choice.Delta.Content,
 		}
 
-		// Support reasoning_content (LMStudio) and reasoning (Ollama) from DeepSeek/Ollama via ExtraFields
+		// Support reasoning_content from DeepSeek/Ollama via ExtraFields
 		if reasoning, ok := choice.Delta.JSON.ExtraFields["reasoning_content"]; ok {
-			delta.ReasoningContent = strings.Trim(reasoning.Raw(), "\"")
-		} else if reasoning, ok := choice.Delta.JSON.ExtraFields["reasoning"]; ok {
+			// Field value can be extracted using its raw representation or a simple string check
 			delta.ReasoningContent = strings.Trim(reasoning.Raw(), "\"")
 		}
 
@@ -456,7 +428,7 @@ func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []doma
 				var args map[string]interface{}
 				// In streaming, arguments arrive in fragments
 				_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
-
+				
 				delta.ToolCalls[i] = domain.ToolCall{
 					ID:   tc.ID,
 					Type: "function",
@@ -533,20 +505,7 @@ func (p *OpenAILLMProvider) GenerateStructured(ctx context.Context, prompt strin
 		return nil, fmt.Errorf("no response choices returned")
 	}
 
-	msg := resp.Choices[0].Message
-	rawJSON := msg.Content
-
-	// If content is empty, try ExtraFields for reasoning_content (LMStudio) or reasoning (Ollama)
-	if rawJSON == "" {
-		if reasoning, ok := msg.JSON.ExtraFields["reasoning_content"]; ok {
-			rawJSON = strings.Trim(reasoning.Raw(), "\"")
-		} else if reasoning, ok := msg.JSON.ExtraFields["reasoning"]; ok {
-			rawJSON = strings.Trim(reasoning.Raw(), "\"")
-		}
-	}
-
-	// Strip possible markdown or thinking tags
-	rawJSON = extractJSON(rawJSON)
+	rawJSON := resp.Choices[0].Message.Content
 
 	// Try to parse the JSON into the provided schema
 	var isValid bool
@@ -586,9 +545,6 @@ func (p *OpenAILLMProvider) generateStructuredFallback(ctx context.Context, prom
 		if opts.MaxTokens > 0 {
 			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
 		}
-		// Disable thinking/reasoning for models that support it (e.g., Qwen, DeepSeek)
-		// Set reasoning_effort to "none" to disable thinking
-		params.ReasoningEffort = openai.ReasoningEffort("none")
 	}
 
 	resp, err := p.client.Chat.Completions.New(ctx, params)
@@ -599,19 +555,8 @@ func (p *OpenAILLMProvider) generateStructuredFallback(ctx context.Context, prom
 		return nil, fmt.Errorf("no response choices returned")
 	}
 
-	msg := resp.Choices[0].Message
-	rawText := msg.Content
-
-	// If content is empty, try ExtraFields for reasoning_content (LMStudio) or reasoning (Ollama)
-	if rawText == "" {
-		if reasoning, ok := msg.JSON.ExtraFields["reasoning_content"]; ok {
-			rawText = strings.Trim(reasoning.Raw(), "\"")
-		} else if reasoning, ok := msg.JSON.ExtraFields["reasoning"]; ok {
-			rawText = strings.Trim(reasoning.Raw(), "\"")
-		}
-	}
-
-	// Strip possible markdown code fences and thinking tags
+	rawText := resp.Choices[0].Message.Content
+	// Strip possible markdown code fences
 	rawJSON := extractJSON(rawText)
 
 	var isValid bool
@@ -627,7 +572,7 @@ func (p *OpenAILLMProvider) generateStructuredFallback(ctx context.Context, prom
 }
 
 // extractJSON pulls the first JSON object or array from a string,
-// stripping markdown code fences and other non-JSON prefixes if present.
+// stripping markdown code fences if present.
 func extractJSON(s string) string {
 	// Strip ```json ... ``` or ``` ... ```
 	for _, fence := range []string{"```json", "```"} {
@@ -638,12 +583,6 @@ func extractJSON(s string) string {
 			}
 		}
 	}
-
-	// Strip <think>...</think> tags if they surround the whole response
-	if idx := strings.Index(s, "</think>"); idx != -1 {
-		s = s[idx+len("</think>"):]
-	}
-
 	s = strings.TrimSpace(s)
 	// Find first { or [
 	for i, ch := range s {
@@ -651,10 +590,7 @@ func extractJSON(s string) string {
 			return s[i:]
 		}
 	}
-
-	// If no JSON start found, return empty string to avoid unmarshaling errors
-	// starting with < or other non-JSON characters.
-	return ""
+	return s
 }
 
 // Health checks the health of the OpenAI service
