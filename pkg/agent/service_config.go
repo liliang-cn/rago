@@ -144,7 +144,7 @@ func (s *Service) SetSkillsService(skillsService *skills.Service) {
 			s.agent.Instructions(),
 			tools,
 		)
-		s.planner = NewPlanner(s.llmService, tools)
+		s.planner = NewPlanner(s, s.llmService, tools)
 		// Restore router if it was set
 		if s.routerService != nil {
 			s.planner.SetRouter(s.routerService)
@@ -162,6 +162,9 @@ func (s *Service) SetProgressCallback(cb ProgressCallback) {
 // SetDebug sets debug mode
 func (s *Service) SetDebug(debug bool) {
 	s.debug = debug
+	if debug {
+		fmt.Printf("[INFO] Debug mode enabled for agent service\n")
+	}
 }
 
 // SetAgentInstructions sets the instructions for the default agent

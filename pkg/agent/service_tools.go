@@ -100,7 +100,7 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 			return "Found tools: " + fmt.Sprintf("%v", getToolNames(matches)) + ". But could not map instruction to any of them.", nil
 		}
 
-		execResults, err := s.executeToolCalls(ctx, s.agent, result.ToolCalls)
+		execResults, err := s.executeToolCalls(ctx, s.agent, nil, result.ToolCalls)
 		if err != nil {
 			return nil, fmt.Errorf("tool execution failed: %w", err)
 		}
@@ -157,10 +157,14 @@ func buildSkillToolDef(sk skills.Skill) domain.ToolDefinition {
 	if desc == "" {
 		desc = sk.Name
 	}
+
+	// Use "skill_" prefix for consistency with other parts of the system
+	toolName := "skill_" + sk.ID
+
 	return domain.ToolDefinition{
 		Type: "function",
 		Function: domain.ToolFunction{
-			Name:        sk.ID,
+			Name:        toolName,
 			Description: "Skill workflow: " + desc,
 			Parameters: map[string]interface{}{
 				"type":       "object",

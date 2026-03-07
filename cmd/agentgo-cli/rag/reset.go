@@ -35,27 +35,16 @@ var resetCmd = &cobra.Command{
 			}
 		}
 
-		// Initialize vector store based on configuration
+		// Initialize stores based on configuration
 		var vectorStore domain.VectorStore
 		var err error
 
-		if Cfg.VectorStore != nil && Cfg.VectorStore.Type != "" {
-			// Use configured vector store
-			storeConfig := store.StoreConfig{
-				Type:       Cfg.VectorStore.Type,
-				Parameters: Cfg.VectorStore.Parameters,
-			}
-			vectorStore, err = store.NewVectorStore(storeConfig)
-			if err != nil {
-				return fmt.Errorf("failed to create vector store: %w", err)
-			}
-		} else {
-			// Default to SQLite
-			vectorStore, err = store.NewSQLiteStore(Cfg.Cortexdb.DBPath, Cfg.Cortexdb.IndexType)
-			if err != nil {
-				return fmt.Errorf("failed to create vector store: %w", err)
-			}
+		// Default to SQLite
+		vectorStore, err = store.NewSQLiteStore(Cfg.RAG.Storage.DBPath, Cfg.RAG.Storage.IndexType)
+		if err != nil {
+			return fmt.Errorf("failed to create vector store: %w", err)
 		}
+
 
 		// Close the store when done
 		defer func() {

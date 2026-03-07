@@ -471,6 +471,12 @@ func (b *Builder) build() (*Service, error) {
 		return nil, fmt.Errorf("failed to create service: %w", err)
 	}
 
+	// Apply debug config: either from WithDebug() builder call or global agentgoCfg.Debug (e.g. from DEBUG=1 env var)
+	if agentgoCfg.Debug {
+		b.debug = true
+	}
+	svc.SetDebug(b.debug)
+
 	// Register module tools into the unified ToolRegistry.
 	// Built-in modules (RAG, Memory) are registered first, then any extra
 	// modules added via WithModule(). All registered tools are available to
@@ -533,13 +539,11 @@ func (b *Builder) build() (*Service, error) {
 	}
 
 	// Store model metadata for Info()
-	if len(agentgoCfg.LLMPool.Providers) > 0 {
-		p := agentgoCfg.LLMPool.Providers[0]
+	if len(agentgoCfg.LLM.Providers) > 0 {
+		p := agentgoCfg.LLM.Providers[0]
 		svc.SetModelInfo(p.ModelName, p.BaseURL)
 	}
 
-	// Apply config
-	svc.SetDebug(b.debug)
 	if b.systemPrompt != "" {
 		svc.SetAgentInstructions(b.systemPrompt)
 	}
@@ -671,7 +675,7 @@ func (b *Builder) buildMemoryService(agentgoCfg *config.Config, embedSvc domain.
 func (b *Builder) buildRAGProcessor(agentgoCfg *config.Config, embedSvc domain.Embedder, llmSvc domain.Generator, memSvc domain.MemoryService) (domain.Processor, error) {
 	vectorStore, err := ragstore.NewVectorStore(ragstore.StoreConfig{
 		Type:       "sqlite",
-		Parameters: map[string]interface{}{"db_path": agentgoCfg.Cortexdb.DBPath},
+		Parameters: map[string]interface{}{"db_path": agentgoCfg.RAG.Storage.DBPath},
 	})
 	if err != nil {
 		return nil, err
@@ -687,7 +691,7 @@ func (b *Builder) buildSkillsService(agentgoCfg *config.Config) (*skills.Service
 		paths = agentgoCfg.SkillsPaths()
 	}
 	skillsCfg.Paths = paths
-	skillsCfg.DBPath = agentgoCfg.Cortexdb.DBPath
+	skillsCfg.DBPath = agentgoCfg.RAG.Storage.DBPath
 	svc, err := skills.NewService(skillsCfg)
 	if err != nil {
 		return nil, err
@@ -740,7 +744,7 @@ func WithMemoryReflect(threshold int) MemoryOption {
 	return func(c *MemoryConfig) { c.ReflectThreshold = threshold }
 }
 
-// WithMemoryHybrid enables hybrid store mode (FileMemoryStore as truth + cortexdb as shadow).
+// WithMemoryHybrid enables hybrid store mode (FileMemoryStore as truth + RAG storage as shadow).
 // This activates vector search acceleration alongside IndexNavigator logical retrieval.
 func WithMemoryHybrid() MemoryOption {
 	return func(c *MemoryConfig) { c.StoreType = "hybrid" }

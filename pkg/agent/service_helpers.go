@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/liliang-cn/agent-go/pkg/domain"
@@ -48,6 +49,7 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 	}
 
 	// 1. Add static tools and active deferred tools from Registry
+	// This includes built-in tools like delegate_to_subagent and task_complete
 	addTools(s.toolRegistry.ListForLLM(ptcEnabled, sessionID))
 
 	// Agent Handoffs — always visible so the LLM can route between agents.
@@ -99,6 +101,11 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 
 		allowedAll := currentAgent == nil || isAllAllowed(currentAgent.skills)
 		for _, sk := range skillsList {
+			// Skip if disabled or explicitly hidden from model invocation
+			if !sk.Enabled || sk.DisableModelInvocation {
+				continue
+			}
+
 			if allowedAll || containsStr(currentAgent.skills, sk.ID) {
 				if !deferAllSkills || (activeMap != nil && activeMap[sk.ID]) {
 					// Build variable schema from skill definition
@@ -125,10 +132,12 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 					// Clarify that calling this skill returns its workflow instructions.
 					desc = "Skill workflow: " + desc + ". Call this tool to receive step-by-step instructions for this task; you MUST then follow those instructions to complete the work."
 
-					toolsMap[sk.ID] = domain.ToolDefinition{
+					// Use "skill_" prefix to match RegisterAsMCPTools and isSkill check
+					toolName := "skill_" + sk.ID
+					toolsMap[toolName] = domain.ToolDefinition{
 						Type: "function",
 						Function: domain.ToolFunction{
-							Name:        sk.ID,
+							Name:        toolName,
 							Description: desc,
 							Parameters: map[string]interface{}{
 								"type":       "object",
@@ -142,69 +151,6 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		}
 	}
 
-	// SubAgent delegation — hidden in PTC mode.
-	if !ptcEnabled {
-		toolsMap["delegate_to_subagent"] = domain.ToolDefinition{
-			Type: "function",
-			Function: domain.ToolFunction{
-				Name:        "delegate_to_subagent",
-				Description: "Delegate a specific task to a sub-agent. The sub-agent will execute the task with a subset of available tools and return the result. Use this for focused, isolated tasks.",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"goal": map[string]interface{}{
-							"type":        "string",
-							"description": "The specific task/goal for the sub-agent to accomplish",
-						},
-						"tools_allowlist": map[string]interface{}{
-							"type":        "array",
-							"items":       map[string]interface{}{"type": "string"},
-							"description": "Optional list of tool names the sub-agent is allowed to use. If not specified, all tools are available.",
-						},
-						"tools_denylist": map[string]interface{}{
-							"type":        "array",
-							"items":       map[string]interface{}{"type": "string"},
-							"description": "Optional list of tool names the sub-agent is NOT allowed to use",
-						},
-						"max_turns": map[string]interface{}{
-							"type":        "integer",
-							"description": "Maximum number of turns for the sub-agent (default: 5)",
-						},
-						"timeout_seconds": map[string]interface{}{
-							"type":        "integer",
-							"description": "Timeout in seconds for the sub-agent execution (default: 60)",
-						},
-						"context": map[string]interface{}{
-							"type":        "object",
-							"description": "Optional additional context to pass to the sub-agent",
-						},
-					},
-					"required": []string{"goal"},
-				},
-			},
-		}
-	}
-
-	// task_complete — always available. The agent calls this tool when the task
-	// is finished to explicitly signal completion and provide the final result.
-	toolsMap["task_complete"] = domain.ToolDefinition{
-		Type: "function",
-		Function: domain.ToolFunction{
-			Name:        "task_complete",
-			Description: "Mark the current task as complete and provide the final result to the user. Call this when you have fully answered the question or finished all required steps.",
-			Parameters: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"result": map[string]interface{}{
-						"type":        "string",
-						"description": "The final answer or summary of what was accomplished",
-					},
-				},
-				"required": []string{"result"},
-			},
-		},
-	}
-
 	// PTC: expose execute_javascript as a direct LLM tool. Embed the dynamic
 	// callTool() list so the model knows exactly what it can call.
 	if s.ptcIntegration != nil {
@@ -212,8 +158,8 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		addTools(s.ptcIntegration.GetPTCTools(availableCallTools))
 	}
 
-	// Convert map to slice
-	var tools []domain.ToolDefinition
+	// 4. Convert map back to slice
+	tools := make([]domain.ToolDefinition, 0, len(toolsMap))
 	for _, tool := range toolsMap {
 		tools = append(tools, tool)
 	}
@@ -368,6 +314,42 @@ func collectAvailableTools(mcpService MCPToolExecutor, ragProcessor domain.Proce
 	})
 
 	return tools
+}
+
+// executeToolViaSubAgent runs a tool or skill call using a separate SubAgent goroutine
+func (s *Service) executeToolViaSubAgent(ctx context.Context, currentAgent *Agent, session *Session, tc domain.ToolCall) (interface{}, error, bool) {
+	// Create subagent config
+	subCfg := SubAgentConfig{
+		Agent:         currentAgent,
+		ParentSession: session,
+		Goal:          fmt.Sprintf("Execute tool: %s", tc.Function.Name),
+		Service:       s,
+		ToolCall:      &tc,
+	}
+
+	sa := NewSubAgent(subCfg)
+
+	// Run subagent
+	result, err := sa.Run(ctx)
+
+	// Check if this was a handoff
+	isHandoff := strings.HasPrefix(tc.Function.Name, "transfer_to_") && err == nil
+
+	return result, err, isHandoff
+}
+
+// EmitDebugPrint prints formatted debug information to console if debug mode is enabled.
+// This ensures consistent look across different execution paths (Execute, Run, RunStream).
+func (s *Service) EmitDebugPrint(round int, debugType string, content string) {
+	if !s.debug {
+		return
+	}
+
+	sep := strings.Repeat("─", 60)
+	label := strings.ToUpper(debugType)
+
+	fmt.Printf("\n\033[2m%s\n🐛 DEBUG [Round %d] %s\n%s\n%s\n%s\033[0m\n",
+		sep, round, label, sep, content, sep)
 }
 
 func truncateGoal(s string, maxLen int) string {

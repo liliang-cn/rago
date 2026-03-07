@@ -21,6 +21,7 @@ type ToolExecutor interface {
 
 // Executor executes agent plans step by step
 type Executor struct {
+	service       *Service
 	llmService    domain.Generator
 	toolExecutor  ToolExecutor
 	mcpService    MCPToolExecutor
@@ -38,6 +39,7 @@ type MCPToolExecutor interface {
 
 // NewExecutor creates a new executor
 func NewExecutor(
+	service *Service,
 	llmService domain.Generator,
 	toolExecutor ToolExecutor,
 	mcpService MCPToolExecutor,
@@ -45,6 +47,7 @@ func NewExecutor(
 	memoryService domain.MemoryService,
 ) *Executor {
 	return &Executor{
+		service:       service,
 		llmService:    llmService,
 		toolExecutor:  toolExecutor,
 		mcpService:    mcpService,
@@ -258,54 +261,26 @@ func (e *Executor) executeTool(ctx context.Context, toolName string, args map[st
 		args = make(map[string]interface{})
 	}
 
-	// Check if it's a skill tool (starts with "skill_" or matches a skill ID directly)
-	if strings.HasPrefix(toolName, "skill_") {
-		result, err := e.trySkillTool(ctx, toolName, args)
-		if err == nil {
-			return result, nil
-		}
-		return nil, err
+	// Use SubAgent for tool execution to ensure it runs in a separate goroutine
+	tc := domain.ToolCall{
+		ID: fmt.Sprintf("exec_%d", time.Now().UnixNano()),
+		Type: "function",
+		Function: domain.FunctionCall{
+			Name: toolName,
+			Arguments: args,
+		},
 	}
 
-	// Try RAG processor first (for rag_query, rag_ingest, etc.)
-	if e.ragProcessor != nil {
-		result, err := e.tryRAGTool(ctx, toolName, args)
-		if err == nil {
-			return result, nil
-		}
-		// If error is NOT "not a RAG tool", it means we found the tool but it failed
-		if !strings.Contains(err.Error(), "not a RAG tool") {
-			return nil, err
+	// Determine agent: use the one associated with the session if possible
+	targetAgent := e.service.agent
+	if session != nil && session.AgentID != "" && e.service.registry != nil {
+		if a, ok := e.service.registry.GetAgent(session.AgentID); ok {
+			targetAgent = a
 		}
 	}
 
-	// Try MCP tools
-	if e.mcpService != nil {
-		if result, err := e.tryMCPTool(ctx, toolName, args); err == nil {
-			return result, nil
-		}
-	}
-
-	// Try custom tool executor
-	if e.toolExecutor != nil {
-		if result, err := e.toolExecutor.ExecuteTool(ctx, toolName, args); err == nil {
-			return result, nil
-		}
-	}
-
-	// Fall back to LLM for general reasoning
-	if toolName == "llm" || toolName == "generate" {
-		return e.executeLLM(ctx, args, plan, session)
-	}
-
-	// Last resort: try as a skill (plain skill ID without prefix)
-	if e.skillsService != nil {
-		if result, err := e.trySkillTool(ctx, toolName, args); err == nil {
-			return result, nil
-		}
-	}
-
-	return nil, fmt.Errorf("unknown tool: %s", toolName)
+	result, err, _ := e.service.executeToolViaSubAgent(ctx, targetAgent, session, tc)
+	return result, err
 }
 
 // tryRAGTool attempts to execute a RAG-related tool

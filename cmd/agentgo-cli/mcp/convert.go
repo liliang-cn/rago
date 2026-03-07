@@ -110,8 +110,8 @@ func runMCPConvert(cmd *cobra.Command, args []string) error {
 	// Get LLM API key from pool config if using LLM
 	if convertUseLLM {
 		// Get the first provider from pool for credentials
-		if len(Cfg.LLMPool.Providers) > 0 {
-			provider := Cfg.LLMPool.Providers[0]
+		if len(Cfg.LLM.Providers) > 0 {
+			provider := Cfg.LLM.Providers[0]
 			convCfg.LLMAPIKey = provider.Key
 			convCfg.LLMBaseURL = provider.BaseURL
 		}

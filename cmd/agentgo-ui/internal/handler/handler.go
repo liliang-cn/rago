@@ -117,13 +117,13 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// RAG info
-	ragEnabled := h.cfg.Cortexdb.DBPath != ""
+	ragEnabled := h.cfg.RAG.Storage.DBPath != ""
 	var ragInfo map[string]interface{}
 	if ragEnabled && h.ragClient != nil {
 		stats, _ := h.ragClient.GetStats(r.Context())
 		ragInfo = map[string]interface{}{
 			"enabled":   true,
-			"db_path":   h.cfg.Cortexdb.DBPath,
+			"db_path":   h.cfg.RAG.Storage.DBPath,
 			"documents": stats.TotalDocuments,
 			"chunks":    stats.TotalChunks,
 		}
@@ -199,7 +199,7 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	providers := []map[string]interface{}{}
 
 	// Get LLM pool status
-	llmStatus := poolService.GetLLMPoolStatus()
+	llmStatus := poolService.GetLLMStatus()
 	for name, st := range llmStatus {
 		status := "disabled"
 		if st.Healthy {
@@ -215,7 +215,7 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get Embedding pool status
-	embedStatus := poolService.GetEmbeddingPoolStatus()
+	embedStatus := poolService.GetEmbeddingStatus()
 	for name, st := range embedStatus {
 		status := "disabled"
 		if st.Healthy {

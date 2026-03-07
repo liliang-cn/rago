@@ -55,19 +55,28 @@ func (s *GlobalPoolService) Initialize(ctx context.Context, cfg *config.Config) 
 
 	s.config = cfg
 
-	// 初始化LLM Pool
-	llmPool, err := pool.NewPool(cfg.LLMPool)
+	// 2. LLM Pool
+	llmPool, err := pool.NewPool(pool.PoolConfig{
+		Enabled:   cfg.LLM.Enabled,
+		Strategy:  cfg.LLM.Strategy,
+		Providers: cfg.LLM.Providers,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create LLM pool: %w", err)
 	}
 	s.llmPool = llmPool
 
-	// 初始化Embedding Pool
-	embeddingPool, err := pool.NewPool(cfg.EmbeddingPool)
+	// 3. Embedding Pool
+	embeddingPool, err := pool.NewPool(pool.PoolConfig{
+		Enabled:   cfg.RAG.Embedding.Enabled,
+		Strategy:  cfg.RAG.Embedding.Strategy,
+		Providers: cfg.RAG.Embedding.Providers,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create embedding pool: %w", err)
 	}
 	s.embeddingPool = embeddingPool
+
 
 	s.initialized = true
 	return nil
@@ -266,8 +275,8 @@ func (s *GlobalPoolService) EmbedBatch(ctx context.Context, texts []string) ([][
 	return s.EmbedMultiple(ctx, texts)
 }
 
-// GetLLMPoolStatus 获取LLM pool状态
-func (s *GlobalPoolService) GetLLMPoolStatus() map[string]pool.ClientStatus {
+// GetLLMStatus 获取LLM pool状态
+func (s *GlobalPoolService) GetLLMStatus() map[string]pool.ClientStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -278,8 +287,8 @@ func (s *GlobalPoolService) GetLLMPoolStatus() map[string]pool.ClientStatus {
 	return s.llmPool.GetStatus()
 }
 
-// GetEmbeddingPoolStatus 获取Embedding pool状态
-func (s *GlobalPoolService) GetEmbeddingPoolStatus() map[string]pool.ClientStatus {
+// GetEmbeddingStatus 获取Embedding pool状态
+func (s *GlobalPoolService) GetEmbeddingStatus() map[string]pool.ClientStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

@@ -56,44 +56,18 @@ MCP tools provide enhanced functionality for file operations, database queries, 
 		var docStore domain.DocumentStore
 		var err error
 
-		if Cfg.VectorStore != nil && Cfg.VectorStore.Type != "" {
-			// Use configured vector store
-			storeConfig := store.StoreConfig{
-				Type:       Cfg.VectorStore.Type,
-				Parameters: Cfg.VectorStore.Parameters,
-			}
-			vectorStore, err = store.NewVectorStore(storeConfig)
-			if err != nil {
-				return fmt.Errorf("failed to create vector store: %w", err)
-			}
-
-			// For Qdrant, we need a separate document store
-			if Cfg.VectorStore.Type == "qdrant" {
-				sqliteStore, err := store.NewSQLiteStore(Cfg.Cortexdb.DBPath, Cfg.Cortexdb.IndexType)
-				if err != nil {
-					return fmt.Errorf("failed to create document store: %w", err)
-				}
-				docStore = store.NewDocumentStore(sqliteStore.GetCortexdbStore())
-				defer func() {
-					if err := sqliteStore.Close(); err != nil {
-						fmt.Printf("failed to close document store: %v\n", err)
-					}
-				}()
-			}
-		} else {
-			// Default to SQLite
-			sqliteStore, err := store.NewSQLiteStore(Cfg.Cortexdb.DBPath, Cfg.Cortexdb.IndexType)
-			if err != nil {
-				return fmt.Errorf("failed to create vector store: %w", err)
-			}
-			vectorStore = sqliteStore
-			docStore = store.NewDocumentStore(sqliteStore.GetCortexdbStore())
-			defer func() {
-				if err := sqliteStore.Close(); err != nil {
-					fmt.Printf("failed to close vector store: %v\n", err)
-				}
-			}()
+		// Default to SQLite
+		sqliteStore, err := store.NewSQLiteStore(Cfg.RAG.Storage.DBPath, Cfg.RAG.Storage.IndexType)
+		if err != nil {
+			return fmt.Errorf("failed to create vector store: %w", err)
 		}
+		vectorStore = sqliteStore
+		docStore = store.NewDocumentStore(sqliteStore.GetCortexdbStore())
+		defer func() {
+			if err := sqliteStore.Close(); err != nil {
+				fmt.Printf("failed to close vector store: %v\n", err)
+			}
+		}()
 
 		// Close Qdrant connection if applicable
 		if qdrantStore, ok := vectorStore.(*store.QdrantStore); ok {
@@ -459,7 +433,7 @@ func processMCPQuery(cmd *cobra.Command, args []string) error {
 	}
 
 	// Initialize processors for LLM functionality
-	vectorStore, err := store.NewSQLiteStore(Cfg.Cortexdb.DBPath, Cfg.Cortexdb.IndexType)
+	vectorStore, err := store.NewSQLiteStore(Cfg.RAG.Storage.DBPath, Cfg.RAG.Storage.IndexType)
 	if err != nil {
 		return fmt.Errorf("failed to create vector store: %w", err)
 	}

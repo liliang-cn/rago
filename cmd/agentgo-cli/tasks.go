@@ -69,7 +69,7 @@ func isStdoutTTY() bool {
 // listTasksSimple outputs tasks in simple text or JSON format
 func listTasksSimple(textOutput, jsonOutput bool) error {
 	// Determine DB path
-	dbPath := cfg.Cortexdb.DBPath
+	dbPath := cfg.RAG.Storage.DBPath
 	if len(dbPath) > 10 {
 		lastSlash := -1
 		for i := len(dbPath) - 1; i >= 0; i-- {
@@ -187,7 +187,7 @@ func fetchTasks(url string) tea.Cmd {
 
 		// 2. Fallback: Direct DB Access
 		// Use the global cfg variable from root.go
-		dbPath := cfg.Cortexdb.DBPath
+		dbPath := cfg.RAG.Storage.DBPath
 		if len(dbPath) > 10 {
 			// Adjust path logic same as scheduler.NewScheduler
 			lastSlash := -1

@@ -38,8 +38,8 @@ func NewScheduler(cfg *config.Config) *TaskScheduler {
 	schedulerConfig := DefaultSchedulerConfig()
 
 	// Use the unified database path if available
-	if cfg != nil && cfg.Cortexdb.DBPath != "" {
-		schedulerConfig.DatabasePath = cfg.Cortexdb.DBPath
+	if cfg != nil && cfg.RAG.Storage.DBPath != "" {
+		schedulerConfig.DatabasePath = cfg.RAG.Storage.DBPath
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
