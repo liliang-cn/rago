@@ -6,8 +6,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
+)
+
+const (
+	StoreTypeMemory = "memory"
+	StoreTypeFile   = "file"
 )
 
 // CacheEntry represents a cached item
@@ -181,11 +188,14 @@ type QueryCache struct {
 	cache Cache
 }
 
+// NewQueryCacheWithBackend creates a query cache using the provided backend.
+func NewQueryCacheWithBackend(cache Cache) *QueryCache {
+	return &QueryCache{cache: cache}
+}
+
 // NewQueryCache creates a new query cache
 func NewQueryCache(maxSize int, ttl time.Duration) *QueryCache {
-	return &QueryCache{
-		cache: NewMemoryCache(maxSize, ttl),
-	}
+	return NewQueryCacheWithBackend(NewMemoryCache(maxSize, ttl))
 }
 
 // GetQueryResult retrieves a cached query result
@@ -217,11 +227,14 @@ type VectorCache struct {
 	cache Cache
 }
 
+// NewVectorCacheWithBackend creates a vector cache using the provided backend.
+func NewVectorCacheWithBackend(cache Cache) *VectorCache {
+	return &VectorCache{cache: cache}
+}
+
 // NewVectorCache creates a new vector cache
 func NewVectorCache(maxSize int, ttl time.Duration) *VectorCache {
-	return &VectorCache{
-		cache: NewMemoryCache(maxSize, ttl),
-	}
+	return NewVectorCacheWithBackend(NewMemoryCache(maxSize, ttl))
 }
 
 // GetVector retrieves a cached vector
@@ -257,11 +270,14 @@ type LLMCache struct {
 	cache Cache
 }
 
+// NewLLMCacheWithBackend creates an LLM cache using the provided backend.
+func NewLLMCacheWithBackend(cache Cache) *LLMCache {
+	return &LLMCache{cache: cache}
+}
+
 // NewLLMCache creates a new LLM response cache
 func NewLLMCache(maxSize int, ttl time.Duration) *LLMCache {
-	return &LLMCache{
-		cache: NewMemoryCache(maxSize, ttl),
-	}
+	return NewLLMCacheWithBackend(NewMemoryCache(maxSize, ttl))
 }
 
 // GetResponse retrieves a cached LLM response
@@ -298,11 +314,14 @@ type ChunkCache struct {
 	cache Cache
 }
 
+// NewChunkCacheWithBackend creates a chunk cache using the provided backend.
+func NewChunkCacheWithBackend(cache Cache) *ChunkCache {
+	return &ChunkCache{cache: cache}
+}
+
 // NewChunkCache creates a new chunk cache
 func NewChunkCache(maxSize int, ttl time.Duration) *ChunkCache {
-	return &ChunkCache{
-		cache: NewMemoryCache(maxSize, ttl),
-	}
+	return NewChunkCacheWithBackend(NewMemoryCache(maxSize, ttl))
 }
 
 // GetChunks retrieves cached chunks for a document
@@ -391,6 +410,59 @@ func NewCacheManager(config CacheConfig) *CacheManager {
 	return cm
 }
 
+// NewFileCacheManager creates a cache manager backed by files on disk.
+func NewFileCacheManager(baseDir string, config CacheConfig) (*CacheManager, error) {
+	cm := &CacheManager{
+		config: config,
+	}
+
+	if config.EnableQueryCache {
+		backend, err := NewFileCache(filepath.Join(baseDir, "query"), config.MaxSize, config.QueryCacheTTL)
+		if err != nil {
+			return nil, err
+		}
+		cm.queryCache = NewQueryCacheWithBackend(backend)
+	}
+
+	if config.EnableVectorCache {
+		backend, err := NewFileCache(filepath.Join(baseDir, "vector"), config.MaxSize, config.VectorCacheTTL)
+		if err != nil {
+			return nil, err
+		}
+		cm.vectorCache = NewVectorCacheWithBackend(backend)
+	}
+
+	if config.EnableLLMCache {
+		backend, err := NewFileCache(filepath.Join(baseDir, "llm"), config.MaxSize, config.LLMCacheTTL)
+		if err != nil {
+			return nil, err
+		}
+		cm.llmCache = NewLLMCacheWithBackend(backend)
+	}
+
+	if config.EnableChunkCache {
+		backend, err := NewFileCache(filepath.Join(baseDir, "chunk"), config.MaxSize, config.ChunkCacheTTL)
+		if err != nil {
+			return nil, err
+		}
+		cm.chunkCache = NewChunkCacheWithBackend(backend)
+	}
+
+	return cm, nil
+}
+
+// NewCacheManagerWithStore creates a cache manager using the requested backend.
+func NewCacheManagerWithStore(storeType, baseDir string, config CacheConfig) (*CacheManager, error) {
+	switch strings.ToLower(storeType) {
+	case "", StoreTypeMemory:
+		return NewCacheManager(config), nil
+	case StoreTypeFile:
+		return NewFileCacheManager(baseDir, config)
+	default:
+		return nil, fmt.Errorf("unsupported cache store type: %s", storeType)
+	}
+}
+
 // QueryCache returns the query cache
 func (cm *CacheManager) QueryCache() *QueryCache {
 	return cm.queryCache
@@ -409,6 +481,34 @@ func (cm *CacheManager) LLMCache() *LLMCache {
 // ChunkCache returns the chunk cache
 func (cm *CacheManager) ChunkCache() *ChunkCache {
 	return cm.chunkCache
+}
+
+// NamespaceCache returns the raw cache backend for a namespace.
+func (cm *CacheManager) NamespaceCache(name string) Cache {
+	switch strings.ToLower(name) {
+	case "query":
+		if cm.queryCache == nil {
+			return nil
+		}
+		return cm.queryCache.cache
+	case "vector":
+		if cm.vectorCache == nil {
+			return nil
+		}
+		return cm.vectorCache.cache
+	case "llm":
+		if cm.llmCache == nil {
+			return nil
+		}
+		return cm.llmCache.cache
+	case "chunk":
+		if cm.chunkCache == nil {
+			return nil
+		}
+		return cm.chunkCache.cache
+	default:
+		return nil
+	}
 }
 
 // ClearAll clears all caches

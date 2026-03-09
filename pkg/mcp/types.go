@@ -81,7 +81,7 @@ func DefaultConfig() Config {
 		HealthCheckInterval:   60 * time.Second,
 		Servers:               []string{}, // Empty by default, resolved by resolveMCPServerPaths()
 		ServersConfigPath:     "",         // Deprecated
-		LoadedServers:         GetBuiltInServers(nil),
+		LoadedServers:         []ServerConfig{},
 	}
 }
 
@@ -136,8 +136,9 @@ func (c *Config) LoadServersFromJSON() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Preserve built-in servers when loading
-	builtinServers := c.LoadedServers
+	// Preserve only built-in servers when reloading; clear any previously loaded
+	// external servers so repeated loads are idempotent.
+	builtinServers := filterBuiltInServers(c.LoadedServers)
 
 	// Clear loaded servers
 	c.LoadedServers = []ServerConfig{}
@@ -169,6 +170,16 @@ func (c *Config) LoadServersFromJSON() error {
 	}
 
 	return nil
+}
+
+func filterBuiltInServers(servers []ServerConfig) []ServerConfig {
+	filtered := make([]ServerConfig, 0, len(servers))
+	for _, server := range servers {
+		if server.Type == ServerTypeInProcess {
+			filtered = append(filtered, server)
+		}
+	}
+	return filtered
 }
 
 // GetLoadedServers returns a copy of loaded servers with thread-safe access

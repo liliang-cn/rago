@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/agent"
+	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/agents"
+	cachecmd "github.com/liliang-cn/agent-go/cmd/agentgo-cli/cache"
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/mcp"
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/memory"
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/ptc"
@@ -52,11 +55,12 @@ var RootCmd = &cobra.Command{
 			agentgolog.SetDebug(true)
 		}
 
-		// Initialize global pool service
-		globalPoolService := services.GetGlobalPoolService()
-		ctx := context.Background()
-		if err := globalPoolService.Initialize(ctx, cfg); err != nil {
-			return fmt.Errorf("failed to initialize global pool service: %w", err)
+		if commandNeedsGlobalPool(cmd) {
+			globalPoolService := services.GetGlobalPoolService()
+			ctx := context.Background()
+			if err := globalPoolService.Initialize(ctx, cfg); err != nil {
+				return fmt.Errorf("failed to initialize global pool service: %w", err)
+			}
 		}
 
 		// Pass shared variables to all packages
@@ -65,9 +69,15 @@ var RootCmd = &cobra.Command{
 		agent.SetSharedVariables(cfg, verbose)
 		memory.SetSharedVariables(cfg, verbose)
 		ptc.SetSharedVariables(cfg, verbose)
+		cachecmd.SetSharedVariables(cfg, verbose)
 
 		return nil
 	},
+}
+
+func commandNeedsGlobalPool(cmd *cobra.Command) bool {
+	path := cmd.CommandPath()
+	return !strings.HasPrefix(path, "agentgo cache")
 }
 
 func Execute() error {
@@ -110,11 +120,17 @@ func init() {
 	// Add Agent command
 	RootCmd.AddCommand(agent.AgentCmd)
 
+	// Add Dynamic Agents command
+	RootCmd.AddCommand(agents.AgentsCmd)
+
 	// Add Skills command
 	RootCmd.AddCommand(skills.Cmd)
 
 	// Add PTC command
 	RootCmd.AddCommand(ptc.Cmd)
+
+	// Add Cache command
+	RootCmd.AddCommand(cachecmd.Cmd)
 
 	RootCmd.AddCommand(llmCmd)
 	RootCmd.AddCommand(statusCmd)

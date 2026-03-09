@@ -407,7 +407,8 @@ func (c *Client) GenerateStructured(ctx context.Context, prompt string, schema i
 	}
 
 	return &domain.StructuredResult{
-		Raw: raw,
+		Raw:   raw,
+		Valid: true,
 	}, nil
 }
 
@@ -459,7 +460,10 @@ func (c *Client) generateStructuredFallback(ctx context.Context, prompt string, 
 		return nil, fmt.Errorf("empty JSON content in fallback response")
 	}
 
-	return &domain.StructuredResult{Raw: raw}, nil
+	return &domain.StructuredResult{
+		Raw:   raw,
+		Valid: true,
+	}, nil
 }
 
 // extractPoolJSON strips markdown code fences and finds the first JSON object/array.

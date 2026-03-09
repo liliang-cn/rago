@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/liliang-cn/agent-go/pkg/mcp"
 	"github.com/liliang-cn/agent-go/pkg/pool"
@@ -23,10 +24,11 @@ type Config struct {
 	MCP    mcp.Config   `mapstructure:"mcp"`
 	Skills SkillsConfig `mapstructure:"skills"`
 	Memory MemoryConfig `mapstructure:"memory"`
+	Cache  CacheConfig  `mapstructure:"cache"`
 }
 
 type LLMConfig struct {
-	Enabled   bool                  `mapstructure:"enabled"`
+	Enabled   bool                   `mapstructure:"enabled"`
 	Strategy  pool.SelectionStrategy `mapstructure:"strategy"`
 	Providers []pool.Provider        `mapstructure:"providers"`
 }
@@ -40,7 +42,7 @@ type RAGConfig struct {
 }
 
 type EmbeddingPoolConfig struct {
-	Enabled   bool                  `mapstructure:"enabled"`
+	Enabled   bool                   `mapstructure:"enabled"`
 	Strategy  pool.SelectionStrategy `mapstructure:"strategy"`
 	Providers []pool.Provider        `mapstructure:"providers"`
 }
@@ -141,6 +143,21 @@ type MemoryHybridConfig struct {
 	BM25Weight   float64 `mapstructure:"bm25_weight"`
 }
 
+// CacheConfig configures the transient cache subsystem.
+type CacheConfig struct {
+	StoreType         string        `mapstructure:"store_type"` // "memory" or "file"
+	Path              string        `mapstructure:"path"`
+	MaxSize           int           `mapstructure:"max_size"`
+	EnableQueryCache  bool          `mapstructure:"enable_query_cache"`
+	EnableVectorCache bool          `mapstructure:"enable_vector_cache"`
+	EnableLLMCache    bool          `mapstructure:"enable_llm_cache"`
+	EnableChunkCache  bool          `mapstructure:"enable_chunk_cache"`
+	QueryCacheTTL     time.Duration `mapstructure:"query_ttl"`
+	VectorCacheTTL    time.Duration `mapstructure:"vector_ttl"`
+	LLMCacheTTL       time.Duration `mapstructure:"llm_ttl"`
+	ChunkCacheTTL     time.Duration `mapstructure:"chunk_ttl"`
+}
+
 // GraphRAGConfig configures GraphRAG (Knowledge Graph + RAG)
 type GraphRAGConfig struct {
 	Enabled                  bool     `mapstructure:"enabled"`
@@ -220,7 +237,6 @@ func Load(configPath string) (*Config, error) {
 		config.LLM.Enabled = llm.Enabled
 		config.LLM.Strategy = pool.SelectionStrategy(llm.Strategy)
 		unmarshalProviders(llm.Providers, &config.LLM.Providers)
-		fmt.Printf("[DEBUG] Loaded %d LLM providers\n", len(config.LLM.Providers))
 	}
 	if viper.IsSet("rag.embedding.providers") {
 		var embedding struct {
@@ -331,6 +347,19 @@ func setDefaults() {
 	viper.SetDefault("memory.min_score", 0.01)
 	viper.SetDefault("memory.max_memories", 5)
 
+	// Cache defaults
+	viper.SetDefault("cache.store_type", "memory")
+	viper.SetDefault("cache.path", "")
+	viper.SetDefault("cache.max_size", 1000)
+	viper.SetDefault("cache.enable_query_cache", true)
+	viper.SetDefault("cache.enable_vector_cache", true)
+	viper.SetDefault("cache.enable_llm_cache", true)
+	viper.SetDefault("cache.enable_chunk_cache", true)
+	viper.SetDefault("cache.query_ttl", "15m")
+	viper.SetDefault("cache.vector_ttl", "24h")
+	viper.SetDefault("cache.llm_ttl", "1h")
+	viper.SetDefault("cache.chunk_ttl", "24h")
+
 	// Memory scoring defaults
 	viper.SetDefault("memory.scoring.enabled", true)
 	viper.SetDefault("memory.scoring.recency_weight", 0.3)
@@ -403,6 +432,17 @@ func bindEnvVars() {
 	viper.BindEnv("memory.noise_filter.enabled", "AgentGo_MEMORY_NOISE_FILTER_ENABLED")
 	viper.BindEnv("memory.adaptive.enabled", "AgentGo_MEMORY_ADAPTIVE_ENABLED")
 	viper.BindEnv("memory.hybrid.enabled", "AgentGo_MEMORY_HYBRID_ENABLED")
+	viper.BindEnv("cache.store_type", "AgentGo_CACHE_STORE_TYPE")
+	viper.BindEnv("cache.path", "AgentGo_CACHE_PATH")
+	viper.BindEnv("cache.max_size", "AgentGo_CACHE_MAX_SIZE")
+	viper.BindEnv("cache.enable_query_cache", "AgentGo_CACHE_ENABLE_QUERY_CACHE")
+	viper.BindEnv("cache.enable_vector_cache", "AgentGo_CACHE_ENABLE_VECTOR_CACHE")
+	viper.BindEnv("cache.enable_llm_cache", "AgentGo_CACHE_ENABLE_LLM_CACHE")
+	viper.BindEnv("cache.enable_chunk_cache", "AgentGo_CACHE_ENABLE_CHUNK_CACHE")
+	viper.BindEnv("cache.query_ttl", "AgentGo_CACHE_QUERY_TTL")
+	viper.BindEnv("cache.vector_ttl", "AgentGo_CACHE_VECTOR_TTL")
+	viper.BindEnv("cache.llm_ttl", "AgentGo_CACHE_LLM_TTL")
+	viper.BindEnv("cache.chunk_ttl", "AgentGo_CACHE_CHUNK_TTL")
 }
 
 // DataDir returns the path to the data directory
@@ -512,6 +552,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid MCP configuration: %w", err)
 	}
 
+	if err := c.validateCacheConfig(); err != nil {
+		return fmt.Errorf("invalid cache configuration: %w", err)
+	}
+
 	return nil
 }
 
@@ -588,18 +632,53 @@ func (c *Config) resolveDatabasePath() {
 			c.Memory.MemoryPath = filepath.Join(c.DataDir(), "memories")
 		}
 	}
+
+	if c.Cache.Path == "" {
+		c.Cache.Path = filepath.Join(c.DataDir(), "cache")
+	}
 }
 
 func (c *Config) expandPaths() {
 	c.Home = expandHomePath(c.Home)
 	c.RAG.Storage.DBPath = expandHomePath(c.RAG.Storage.DBPath)
 	c.Memory.MemoryPath = expandHomePath(c.Memory.MemoryPath)
+	c.Cache.Path = expandHomePath(c.Cache.Path)
 	ensureParentDir(c.RAG.Storage.DBPath)
 	if c.Memory.StoreType != "vector" {
 		os.MkdirAll(c.Memory.MemoryPath, 0755)
 	} else {
 		ensureParentDir(c.Memory.MemoryPath)
 	}
+	if c.Cache.StoreType == "file" {
+		if err := os.MkdirAll(c.Cache.Path, 0755); err != nil {
+			log.Printf("Warning: failed to create cache directory %s: %v", c.Cache.Path, err)
+		}
+	}
+}
+
+func (c *Config) validateCacheConfig() error {
+	validStoreTypes := map[string]bool{"memory": true, "file": true, "": true}
+	if !validStoreTypes[strings.ToLower(c.Cache.StoreType)] {
+		return fmt.Errorf("invalid store_type: %s (supported: memory, file)", c.Cache.StoreType)
+	}
+
+	if c.Cache.MaxSize <= 0 {
+		return fmt.Errorf("max_size must be positive: %d", c.Cache.MaxSize)
+	}
+
+	ttls := map[string]time.Duration{
+		"query_ttl":  c.Cache.QueryCacheTTL,
+		"vector_ttl": c.Cache.VectorCacheTTL,
+		"llm_ttl":    c.Cache.LLMCacheTTL,
+		"chunk_ttl":  c.Cache.ChunkCacheTTL,
+	}
+	for name, ttl := range ttls {
+		if ttl <= 0 {
+			return fmt.Errorf("%s must be positive: %v", name, ttl)
+		}
+	}
+
+	return nil
 }
 
 func expandHomePath(path string) string {

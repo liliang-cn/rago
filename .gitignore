@@ -9,6 +9,7 @@ delegation/
 *.db
 
 data/
+memories/
 
 # UI
 ui/node_modules/

@@ -242,22 +242,25 @@ func TestService_RetrieveAndInject(t *testing.T) {
 		embedder.AssertExpectations(t)
 		store.AssertExpectations(t)
 	})
-	t.Run("NilEmbedder falls back to List", func(t *testing.T) {
+	t.Run("NilEmbedder falls back to text search then list", func(t *testing.T) {
 		query := "what is the project status?"
 		isolatedStore := new(MockMemoryStore)
 		nilEmbedService := NewService(isolatedStore, llm, nil, config)
 
-		expectedMemories := []*domain.Memory{
-			{ID: "m1", Content: "Project is on track.", Type: domain.MemoryTypeFact},
+		expectedMemories := []*domain.MemoryWithScore{
+			{
+				Memory: &domain.Memory{ID: "m1", Content: "Project is on track.", Type: domain.MemoryTypeFact},
+				Score:  0.5,
+			},
 		}
-		// entity search also goes to List when embedder is nil
-		isolatedStore.On("List", ctx, mock.AnythingOfType("int"), 0).Return(expectedMemories, 1, nil).Maybe()
+		isolatedStore.On("SearchByText", ctx, query, mock.AnythingOfType("int")).Return(expectedMemories, nil)
 		isolatedStore.On("IncrementAccess", ctx, mock.Anything).Return(nil).Maybe()
 
-		_, memories, err := nilEmbedService.RetrieveAndInject(ctx, query, "session-no-embed")
+		formatted, memories, err := nilEmbedService.RetrieveAndInject(ctx, query, "session-no-embed")
 
 		assert.NoError(t, err)
 		assert.NotNil(t, memories)
+		assert.Contains(t, formatted, "Project is on track.")
 	})
 }
 
