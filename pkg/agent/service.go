@@ -19,6 +19,7 @@ import (
 	"github.com/liliang-cn/agent-go/pkg/ptc"
 	"github.com/liliang-cn/agent-go/pkg/router"
 	"github.com/liliang-cn/agent-go/pkg/skills"
+	"github.com/liliang-cn/agent-go/pkg/usage"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -89,6 +90,8 @@ type Service struct {
 	Skills  *skills.Service
 	Prompts *prompt.Manager
 	PTC     *PTCIntegration
+
+	tokenCounter *usage.TokenCounter
 }
 
 // Ensure Service implements ptc.SearchProvider
@@ -148,6 +151,7 @@ func NewService(
 		logger:        logger,
 		hooks:         NewHookRegistry(),
 		toolRegistry:  NewToolRegistry(),
+		tokenCounter:  usage.NewTokenCounter(),
 		// Public fields
 		LLM:     llmService,
 		RAG:     ragProcessor,
@@ -392,6 +396,7 @@ func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig
 	if cfg == nil {
 		cfg = DefaultRunConfig()
 	}
+	startTime := time.Now()
 	s.resetRunMemorySaved()
 	s.setRunning(true)
 	defer s.setRunning(false)
@@ -471,6 +476,7 @@ func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig
 	// Execute: PTC is just a transport mode — branch internally, same public API.
 	var finalResult interface{}
 	var ptcRes *PTCResult
+	var execMetrics *executionMetrics
 
 	if s.isPTCEnabled() {
 		var err error
@@ -484,7 +490,7 @@ func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig
 		}
 	} else {
 		var err error
-		finalResult, err = s.executeWithLLM(runCtx, goal, intent, session, memoryContext, ragContext, cfg)
+		finalResult, execMetrics, err = s.executeWithLLM(runCtx, goal, intent, session, memoryContext, ragContext, cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -532,8 +538,20 @@ func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig
 	if err != nil {
 		return nil, err
 	}
+	completedAt := time.Now()
+	result.StartedAt = &startTime
+	result.CompletedAt = &completedAt
+	result.EstimatedTokens = s.estimateRunTokens(goal, currentResult)
+	if execMetrics != nil {
+		result.ToolCalls = execMetrics.toolCalls
+		result.ToolsUsed = uniqueStrings(execMetrics.toolsUsed)
+		result.EstimatedTokens += execMetrics.estimatedTokens
+	}
 	if ptcRes != nil {
 		result.PTCResult = ptcRes
+		result.ToolCalls = len(ptcRes.ExecutionResult.ToolCalls)
+		result.ToolsUsed = uniqueStrings(toolNamesFromPTC(ptcRes))
+		result.EstimatedTokens = s.estimateRunTokens(goal, currentResult) + s.estimatePTCTokens(ptcRes)
 	}
 	return result, nil
 }
@@ -662,4 +680,108 @@ func (s *Service) setRunning(running bool) {
 	s.statusMu.Lock()
 	defer s.statusMu.Unlock()
 	s.isRunning = running
+}
+
+func (s *Service) estimateGenerationTokens(messages []domain.Message, result *domain.GenerationResult) int {
+	total := s.estimateDomainMessagesTokens(messages)
+	if result == nil {
+		return total
+	}
+	total += s.estimateTextTokens(result.Content)
+	total += s.estimateTextTokens(result.ReasoningContent)
+	for _, tc := range result.ToolCalls {
+		total += s.estimateTextTokens(tc.Function.Name)
+		if b, err := json.Marshal(tc.Function.Arguments); err == nil {
+			total += s.estimateTextTokens(string(b))
+		}
+	}
+	return total
+}
+
+func (s *Service) estimateRunTokens(goal string, finalResult interface{}) int {
+	return s.estimateTextTokens(goal) + s.estimateTextTokens(formatResultForContent(finalResult))
+}
+
+func (s *Service) estimatePTCTokens(res *PTCResult) int {
+	if res == nil || res.ExecutionResult == nil {
+		return 0
+	}
+
+	total := s.estimateTextTokens(formatResultForContent(res.ExecutionResult.Output))
+	total += s.estimateTextTokens(formatResultForContent(res.ExecutionResult.ReturnValue))
+	for _, logLine := range res.ExecutionResult.Logs {
+		total += s.estimateTextTokens(logLine)
+	}
+	for _, tc := range res.ExecutionResult.ToolCalls {
+		total += s.estimateTextTokens(tc.ToolName)
+		if b, err := json.Marshal(tc.Arguments); err == nil {
+			total += s.estimateTextTokens(string(b))
+		}
+		total += s.estimateTextTokens(formatResultForContent(tc.Result))
+		total += s.estimateTextTokens(tc.Error)
+	}
+	return total
+}
+
+func (s *Service) estimateDomainMessagesTokens(messages []domain.Message) int {
+	total := 0
+	for _, message := range messages {
+		total += 4
+		total += s.estimateTextTokens(message.Role)
+		total += s.estimateTextTokens(message.Content)
+		total += s.estimateTextTokens(message.ReasoningContent)
+		for _, tc := range message.ToolCalls {
+			total += s.estimateTextTokens(tc.Function.Name)
+			if b, err := json.Marshal(tc.Function.Arguments); err == nil {
+				total += s.estimateTextTokens(string(b))
+			}
+		}
+	}
+	return total
+}
+
+func (s *Service) estimateTextTokens(text string) int {
+	if text == "" {
+		return 0
+	}
+	if s.tokenCounter == nil {
+		s.tokenCounter = usage.NewTokenCounter()
+	}
+	model := s.modelName
+	if model == "" {
+		model = "default"
+	}
+	return s.tokenCounter.EstimateTokens(text, model)
+}
+
+func toolNamesFromPTC(res *PTCResult) []string {
+	if res == nil || res.ExecutionResult == nil {
+		return nil
+	}
+	names := make([]string, 0, len(res.ExecutionResult.ToolCalls))
+	for _, tc := range res.ExecutionResult.ToolCalls {
+		if tc.ToolName != "" {
+			names = append(names, tc.ToolName)
+		}
+	}
+	return names
+}
+
+func uniqueStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }

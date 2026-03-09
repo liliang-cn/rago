@@ -2,6 +2,7 @@ package usage
 
 import (
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	tiktoken "github.com/pkoukk/tiktoken-go"
@@ -13,6 +14,7 @@ type TokenCounter struct {
 	modelConfig map[string]float64 // tokens per character ratio (fallback)
 	// Tiktoken encoders cache
 	encoders map[string]*tiktoken.Tiktoken
+	mu       sync.RWMutex
 }
 
 // NewTokenCounter creates a new token counter
@@ -85,10 +87,13 @@ func (tc *TokenCounter) EstimateTokens(text string, model string) int {
 
 // getOrCreateEncoder gets or creates a tiktoken encoder for the model
 func (tc *TokenCounter) getOrCreateEncoder(model string) (*tiktoken.Tiktoken, error) {
+	tc.mu.RLock()
 	// Check if we already have an encoder for this model
 	if encoder, exists := tc.encoders[model]; exists {
+		tc.mu.RUnlock()
 		return encoder, nil
 	}
+	tc.mu.RUnlock()
 
 	// Map model names to tiktoken encoding names
 	var encodingName string
@@ -124,7 +129,9 @@ func (tc *TokenCounter) getOrCreateEncoder(model string) (*tiktoken.Tiktoken, er
 	}
 
 	// Cache the encoder
+	tc.mu.Lock()
 	tc.encoders[model] = encoder
+	tc.mu.Unlock()
 	return encoder, nil
 }
 

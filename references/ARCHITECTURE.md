@@ -87,6 +87,14 @@ AgentGo uses a **Shadow Index** architecture for memory:
 - **Truth Store (File-based)**: Human-editable Markdown/YAML files in `data/memories/`. This is the source of truth for all metadata and evidence.
 - **Shadow Index (Vector-based)**: A vector index in `data/agentgo.db` used for fast similarity recall.
 
+## Memory vs Cache
+
+- **Memory** stores durable knowledge. It carries semantics such as `Importance`, `EvidenceIDs`, `SupersededBy`, and revision history.
+- **Cache** stores disposable acceleration artifacts. It carries operational metadata such as `ExpiresAt`, `AccessedAt`, and `HitCount`.
+- Both may use the filesystem, but they should not be treated as the same subsystem:
+  - file memory is the source of truth for local-first cognition
+  - file cache is only a restart-friendly performance layer for query/vector/LLM/chunk reuse
+
 ### Hierarchy Tracking
 `MemoryService.GetEvolution(id)` allows tracing the life of a memory:
 `Raw Fact` $\rightarrow$ `Observation` $\rightarrow$ `Superseded Observation`.

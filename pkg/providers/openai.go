@@ -132,6 +132,11 @@ func (p *OpenAILLMProvider) ProviderType() domain.ProviderType {
 	return domain.ProviderOpenAI
 }
 
+// UsageModel returns the configured chat model for usage accounting.
+func (p *OpenAILLMProvider) UsageModel() string {
+	return p.config.LLMModel
+}
+
 // toOpenAIMessages converts domain messages to the OpenAI API format
 func toOpenAIMessages(messages []domain.Message) ([]openai.ChatCompletionMessageParamUnion, error) {
 	openAIMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
@@ -428,7 +433,7 @@ func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []doma
 				var args map[string]interface{}
 				// In streaming, arguments arrive in fragments
 				_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
-				
+
 				delta.ToolCalls[i] = domain.ToolCall{
 					ID:   tc.ID,
 					Type: "function",
@@ -789,6 +794,11 @@ func NewOpenAIEmbedderProvider(config *domain.OpenAIProviderConfig) (domain.Embe
 // ProviderType returns the provider type
 func (p *OpenAIEmbedderProvider) ProviderType() domain.ProviderType {
 	return domain.ProviderOpenAI
+}
+
+// UsageModel returns the configured embedding model for usage accounting.
+func (p *OpenAIEmbedderProvider) UsageModel() string {
+	return p.config.EmbeddingModel
 }
 
 // Embed generates embeddings using OpenAI API

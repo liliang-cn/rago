@@ -86,6 +86,18 @@ var executeCmd = &cobra.Command{
 		if result.FinalResult != nil {
 			fmt.Printf("\n--- Final Result ---\n%v\n", result.FinalResult)
 		}
+		if result.StartedAt != nil {
+			fmt.Printf("Started: %s\n", result.StartedAt.Format("2006-01-02 15:04:05"))
+		}
+		if result.CompletedAt != nil {
+			fmt.Printf("Completed: %s\n", result.CompletedAt.Format("2006-01-02 15:04:05"))
+		}
+		if result.EstimatedTokens > 0 {
+			fmt.Printf("Estimated tokens: %d\n", result.EstimatedTokens)
+		}
+		if result.ToolCalls > 0 {
+			fmt.Printf("Tool calls: %d\n", result.ToolCalls)
+		}
 		if result.Duration != "" {
 			fmt.Printf("Duration: %s\n", result.Duration)
 		}
@@ -463,7 +475,8 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 	var agentService *agent.Service
 	var buildErr error
 
-	b := agent.New("AgentGo Agent").
+	b := agent.New("AgentGo Frontdesk").
+		WithSystemPrompt("You are the system Frontdesk and Commander. You can interact with users, and delegate tasks to specialized agents using the tools provided.").
 		WithRAG().
 		WithMCP().
 		WithMemory().
@@ -483,10 +496,19 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 		return nil, nil, fmt.Errorf("failed to init agent: %w", buildErr)
 	}
 
+	// Initialize AgentManager
+	if Cfg != nil {
+		agentDBPath := Cfg.DataDir() + "/agent.db"
+		agentStore, storeErr := agent.NewStore(agentDBPath)
+		if storeErr == nil {
+			agentManager := agent.NewAgentManager(agentStore)
+			_ = agentManager.SeedDefaultAgents()
+			agentManager.RegisterCommanderTools(agentService)
+		}
+	}
+
 	// For backward compatibility with existing code that needs ragClient
 	var ragClient *rag.Client
-	// Note: ragClient initialization logic might still be needed if other
-	// parts of the system rely on it specifically.
 
 	return ragClient, agentService, nil
 }

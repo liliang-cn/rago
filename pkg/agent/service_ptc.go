@@ -58,6 +58,9 @@ func (s *Service) runPTCExecution(ctx context.Context, goal string, session *Ses
 IMPORTANT: Respond with JavaScript code in <code> tags.
 Your code will be executed in a secure sandbox.
 Use console.log() for output and return the final result with a top-level return statement.
+Use callTool(name, args) to invoke tools by exact name.
+Do not search for tools inside PTC. Tool discovery belongs to the agent/tool-calling layer, not the JavaScript sandbox.
+MCP tool results are usually shaped like { success, data, error }. Use toolOk(result) and toolData(result) to inspect them safely.
 DO NOT wrap code in function main(){...}main().
 Example format:
 ` + "<code>\nconst data = callTool('some_tool', { arg: 'value' });\nconsole.log(\"Processing:\", data);\nreturn { result: data };\n</code>"
@@ -148,15 +151,36 @@ Example format:
 		}
 	}
 
+	hasExecuteJavaScript := false
 	// Prefer code from execute_javascript tool call (structured) over content
 	// extraction (text-based), since tool calls are more reliable.
 	for _, tc := range toolCalls {
 		if tc.Function.Name == "execute_javascript" {
+			hasExecuteJavaScript = true
 			if code, ok := tc.Function.Arguments["code"].(string); ok {
 				content = "<code>" + code + "</code>"
 				break
 			}
 		}
+	}
+
+	// Some models ignore the PTC transport instruction and emit normal tool calls.
+	// Execute them directly instead of returning the model's internal reasoning text.
+	if len(toolCalls) > 0 && !hasExecuteJavaScript {
+		toolResults, err := s.executeToolCalls(ctx, currentAgent, session, toolCalls)
+		if err != nil {
+			return nil, nil, fmt.Errorf("PTC direct tool-call fallback failed: %w", err)
+		}
+
+		var final strings.Builder
+		final.WriteString("Direct tool-call fallback executed successfully.\n")
+		if len(toolResults) == 1 {
+			final.WriteString(toolResultToString(toolResults[0].Result))
+		} else {
+			final.WriteString(s.formatToolResults(toolResults))
+		}
+
+		return strings.TrimSpace(final.String()), nil, nil
 	}
 
 	ptcResult, err := s.ptcIntegration.ProcessLLMResponse(ctx, content, nil)

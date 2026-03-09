@@ -2,6 +2,7 @@ package goja
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -465,6 +466,136 @@ return { status: res.status, count: res.data.length };
 	}
 	if rv["status"] != "ok" {
 		t.Errorf("expected status=ok, got %v", rv["status"])
+	}
+}
+
+func TestRuntime_ToolDataReturnsJSArray(t *testing.T) {
+	runtime := NewRuntime()
+	defer runtime.Close()
+
+	err := runtime.RegisterTool("list_tool", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		return map[string]interface{}{
+			"success": true,
+			"data": []map[string]interface{}{
+				{"name": "hello.go", "type": "file"},
+				{"name": "pkg", "type": "directory"},
+			},
+		}, nil
+	})
+	if err != nil {
+		t.Fatalf("failed to register tool: %v", err)
+	}
+
+	ctx := context.Background()
+	req := &ptc.ExecutionRequest{
+		Code: `
+const res = callTool('list_tool', {});
+const files = toolData(res);
+const names = [];
+files.forEach(file => names.push(file.name));
+return {
+	isArray: Array.isArray(files),
+	count: files.length,
+	first: files[0].name,
+	joined: files.map(file => file.name).join(',')
+};
+`,
+		Language: ptc.LanguageJavaScript,
+		Timeout:  10 * time.Second,
+	}
+
+	result, err := runtime.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("execution failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Fatalf("expected success, got error: %s", result.Error)
+	}
+
+	rv, ok := result.ReturnValue.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map return value, got %T: %v", result.ReturnValue, result.ReturnValue)
+	}
+	if rv["isArray"] != true {
+		t.Fatalf("expected files to be a JS array, got %v", rv["isArray"])
+	}
+	if count, ok := rv["count"].(int64); !ok || count != 2 {
+		t.Fatalf("expected count=2, got %v (%T)", rv["count"], rv["count"])
+	}
+	if rv["first"] != "hello.go" {
+		t.Fatalf("expected first=hello.go, got %v", rv["first"])
+	}
+	if rv["joined"] != "hello.go,pkg" {
+		t.Fatalf("expected joined names, got %v", rv["joined"])
+	}
+}
+
+func TestRuntime_SearchAndCallToolIsUnavailable(t *testing.T) {
+	runtime := NewRuntime()
+	defer runtime.Close()
+
+	ctx := context.Background()
+	req := &ptc.ExecutionRequest{
+		Code:     `searchAndCallTool('filesystem', '列出当前目录')`,
+		Language: ptc.LanguageJavaScript,
+		Timeout:  10 * time.Second,
+	}
+
+	result, err := runtime.Execute(ctx, req)
+	if err == nil {
+		t.Fatal("expected execution error")
+	}
+	if result == nil {
+		t.Fatal("expected execution result")
+	}
+	if !strings.Contains(result.Error, "searchAndCallTool is not defined") {
+		t.Fatalf("expected searchAndCallTool undefined error, got %q", result.Error)
+	}
+}
+
+func TestRuntime_MCPToolResultIsWrappedForJS(t *testing.T) {
+	runtime := NewRuntime()
+	defer runtime.Close()
+
+	err := runtime.RegisterTool("mcp_filesystem_list_directory", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		return "Directory listing for: /tmp", nil
+	})
+	if err != nil {
+		t.Fatalf("failed to register tool: %v", err)
+	}
+
+	ctx := context.Background()
+	req := &ptc.ExecutionRequest{
+		Code: `
+const res = callTool('mcp_filesystem_list_directory', { path: '.' });
+return {
+	ok: res.success,
+	error: res.error,
+	data: toolData(res)
+};
+`,
+		Language: ptc.LanguageJavaScript,
+		Timeout:  10 * time.Second,
+	}
+
+	result, err := runtime.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("execution failed: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected success, got error: %s", result.Error)
+	}
+
+	rv, ok := result.ReturnValue.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map return value, got %T: %v", result.ReturnValue, result.ReturnValue)
+	}
+	if rv["ok"] != true {
+		t.Fatalf("expected wrapped MCP result to expose success=true, got %v", rv["ok"])
+	}
+	if rv["data"] != "Directory listing for: /tmp" {
+		t.Fatalf("expected wrapped MCP result data, got %v", rv["data"])
 	}
 }
 

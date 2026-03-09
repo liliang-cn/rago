@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, QueryRequest, ChatRequest, CreateSkillRequest, AddMCPServerRequest, CallToolRequest, AddMemoryRequest, UpdateConfigRequest } from '../lib/api'
+import { api, QueryRequest, ChatRequest, CreateSkillRequest, AddMCPServerRequest, CallToolRequest, AddMemoryRequest, UpdateConfigRequest, CreateAgentRequest } from '../lib/api'
 
 // RAG Hooks
 export function useQueryRAG() {
@@ -52,6 +52,70 @@ export function useStatus() {
 export function useChat() {
   return useMutation({
     mutationFn: (data: ChatRequest) => api.chat(data),
+  })
+}
+
+export function useAgents() {
+  return useQuery({
+    queryKey: ['agents'],
+    queryFn: api.getAgents,
+    select: (data) => data.agents,
+    refetchInterval: 15000,
+  })
+}
+
+export function useAgent(name: string) {
+  return useQuery({
+    queryKey: ['agents', name],
+    queryFn: () => api.getAgent(name),
+    enabled: !!name,
+  })
+}
+
+export function useCreateAgent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateAgentRequest) => api.createAgent(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      queryClient.invalidateQueries({ queryKey: ['status'] })
+    },
+  })
+}
+
+export function useStartAgent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => api.startAgent(name),
+    onSuccess: (_, name) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      queryClient.invalidateQueries({ queryKey: ['agents', name] })
+      queryClient.invalidateQueries({ queryKey: ['status'] })
+    },
+  })
+}
+
+export function useStopAgent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => api.stopAgent(name),
+    onSuccess: (_, name) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      queryClient.invalidateQueries({ queryKey: ['agents', name] })
+      queryClient.invalidateQueries({ queryKey: ['status'] })
+    },
+  })
+}
+
+export function useDispatchAgentTask() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, instruction }: { name: string; instruction: string }) =>
+      api.dispatchAgentTask(name, { instruction }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      queryClient.invalidateQueries({ queryKey: ['agents', variables.name] })
+    },
   })
 }
 

@@ -121,15 +121,19 @@ func (e *Executor) ExecutePlan(ctx context.Context, plan *Plan, session *Session
 	duration := time.Since(startTime)
 
 	result := &ExecutionResult{
-		PlanID:      plan.ID,
-		SessionID:   plan.SessionID,
-		Success:     stepsFailed == 0,
-		StepsTotal:  stepsTotal,
-		StepsDone:   stepsDone,
-		StepsFailed: stepsFailed,
-		FinalResult: finalResult,
-		Error:       firstError,
-		Duration:    duration.String(),
+		PlanID:          plan.ID,
+		SessionID:       plan.SessionID,
+		Success:         stepsFailed == 0,
+		StepsTotal:      stepsTotal,
+		StepsDone:       stepsDone,
+		StepsFailed:     stepsFailed,
+		StartedAt:       &startTime,
+		CompletedAt:     &[]time.Time{startTime.Add(duration)}[0],
+		ToolCalls:       stepsDone + stepsFailed,
+		EstimatedTokens: e.service.estimateTextTokens(plan.Goal) + e.service.estimateTextTokens(formatResultForContent(finalResult)),
+		FinalResult:     finalResult,
+		Error:           firstError,
+		Duration:        duration.String(),
 	}
 
 	// Store memories after successful task completion
@@ -263,10 +267,10 @@ func (e *Executor) executeTool(ctx context.Context, toolName string, args map[st
 
 	// Use SubAgent for tool execution to ensure it runs in a separate goroutine
 	tc := domain.ToolCall{
-		ID: fmt.Sprintf("exec_%d", time.Now().UnixNano()),
+		ID:   fmt.Sprintf("exec_%d", time.Now().UnixNano()),
 		Type: "function",
 		Function: domain.FunctionCall{
-			Name: toolName,
+			Name:      toolName,
 			Arguments: args,
 		},
 	}

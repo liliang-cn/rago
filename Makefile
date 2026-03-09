@@ -1,4 +1,6 @@
-.PHONY: help build agentgo-cli agentgo-ui ui-dev ui-deps test check clean deps
+.PHONY: help build agentgo-cli agentgo-ui ui-dev ui-deps test check clean deps coverage-core
+
+CORE_COVERAGE_PKGS := ./pkg/config ./pkg/cache ./cmd/agentgo-ui/internal/handler ./pkg/prompt ./pkg/ptc/runtime/goja ./pkg/ptc/store ./pkg/rag/embedder ./pkg/scheduler/executors
 
 GIT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
 LDFLAGS := -ldflags="-X 'main.version=$(GIT_TAG)'"
@@ -13,6 +15,7 @@ help:
 	@echo "  agentgo-ui     - Build agentgo-ui only"
 	@echo "  test        - Run tests"
 	@echo "  check       - Run format, vet and tests"
+	@echo "  coverage-core - Run core unit-test coverage report"
 	@echo "  clean       - Clean"
 	@echo "  deps        - Install deps"
 	@echo ""
@@ -54,6 +57,11 @@ check: fix-embed
 	@go vet ./...
 	@echo "Running tests..."
 	@go test ./...
+
+coverage-core: fix-embed
+	@echo "Running core unit-test coverage..."
+	@go test $(CORE_COVERAGE_PKGS) -coverprofile=/tmp/agentgo-core.cover.out
+	@go tool cover -func=/tmp/agentgo-core.cover.out | tail -n 1
 
 fix-embed:
 	@mkdir -p cmd/agentgo-ui/dist && touch cmd/agentgo-ui/dist/index.html

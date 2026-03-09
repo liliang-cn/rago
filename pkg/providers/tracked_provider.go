@@ -16,6 +16,10 @@ type TrackedLLMProvider struct {
 	providerName string
 }
 
+type usageModelProvider interface {
+	UsageModel() string
+}
+
 // NewTrackedLLMProvider creates a new tracked LLM provider
 func NewTrackedLLMProvider(provider domain.LLMProvider, usageService *usage.Service) domain.LLMProvider {
 	if usageService == nil {
@@ -33,10 +37,11 @@ func NewTrackedLLMProvider(provider domain.LLMProvider, usageService *usage.Serv
 // Generate generates text with usage tracking
 func (t *TrackedLLMProvider) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
 	startTime := time.Now()
+	model := t.usageModel()
 
 	// Get current conversation and add user message
 	if t.usageService != nil {
-		_, _ = t.usageService.AddMessage(ctx, "user", prompt)
+		_, _ = t.usageService.AddMessageWithModel(ctx, "user", prompt, model)
 	}
 
 	// Call the underlying provider
@@ -44,12 +49,6 @@ func (t *TrackedLLMProvider) Generate(ctx context.Context, prompt string, opts *
 
 	// Track the usage
 	if t.usageService != nil {
-		model := ""
-		// Use provider name as default model name since Model field doesn't exist
-		if false { // opts.Model doesn't exist
-			model = ""
-		}
-
 		if err != nil {
 			// Track error
 			_, _ = t.usageService.TrackError(ctx, usage.CallTypeLLM, t.providerName, model, err.Error(), startTime)
@@ -57,7 +56,7 @@ func (t *TrackedLLMProvider) Generate(ctx context.Context, prompt string, opts *
 			// Track successful call
 			_, _ = t.usageService.TrackLLMCall(ctx, t.providerName, model, prompt, result, startTime)
 			// Add assistant message
-			_, _ = t.usageService.AddMessage(ctx, "assistant", result)
+			_, _ = t.usageService.AddMessageWithModel(ctx, "assistant", result, model)
 		}
 	}
 
@@ -67,10 +66,11 @@ func (t *TrackedLLMProvider) Generate(ctx context.Context, prompt string, opts *
 // Stream generates text with streaming and usage tracking
 func (t *TrackedLLMProvider) Stream(ctx context.Context, prompt string, opts *domain.GenerationOptions, callback func(string)) error {
 	startTime := time.Now()
+	model := t.usageModel()
 
 	// Get current conversation and add user message
 	if t.usageService != nil {
-		_, _ = t.usageService.AddMessage(ctx, "user", prompt)
+		_, _ = t.usageService.AddMessageWithModel(ctx, "user", prompt, model)
 	}
 
 	// Collect the streamed response
@@ -85,12 +85,6 @@ func (t *TrackedLLMProvider) Stream(ctx context.Context, prompt string, opts *do
 
 	// Track the usage
 	if t.usageService != nil {
-		model := ""
-		// Use provider name as default model name since Model field doesn't exist
-		if false { // opts.Model doesn't exist
-			model = ""
-		}
-
 		if err != nil {
 			// Track error
 			_, _ = t.usageService.TrackError(ctx, usage.CallTypeLLM, t.providerName, model, err.Error(), startTime)
@@ -98,7 +92,7 @@ func (t *TrackedLLMProvider) Stream(ctx context.Context, prompt string, opts *do
 			// Track successful call
 			_, _ = t.usageService.TrackLLMCall(ctx, t.providerName, model, prompt, fullResponse, startTime)
 			// Add assistant message
-			_, _ = t.usageService.AddMessage(ctx, "assistant", fullResponse)
+			_, _ = t.usageService.AddMessageWithModel(ctx, "assistant", fullResponse, model)
 		}
 	}
 
@@ -108,11 +102,12 @@ func (t *TrackedLLMProvider) Stream(ctx context.Context, prompt string, opts *do
 // GenerateWithTools generates with tools and usage tracking
 func (t *TrackedLLMProvider) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
 	startTime := time.Now()
+	model := t.usageModel()
 
 	// Track input messages
 	if t.usageService != nil {
 		for _, msg := range messages {
-			_, _ = t.usageService.AddMessage(ctx, msg.Role, msg.Content)
+			_, _ = t.usageService.AddMessageWithModel(ctx, msg.Role, msg.Content, model)
 		}
 	}
 
@@ -121,12 +116,6 @@ func (t *TrackedLLMProvider) GenerateWithTools(ctx context.Context, messages []d
 
 	// Track the usage
 	if t.usageService != nil {
-		model := ""
-		// Use provider name as default model name since Model field doesn't exist
-		if false { // opts.Model doesn't exist
-			model = ""
-		}
-
 		if err != nil {
 			// Track error
 			_, _ = t.usageService.TrackError(ctx, usage.CallTypeLLM, t.providerName, model, err.Error(), startTime)
@@ -140,7 +129,7 @@ func (t *TrackedLLMProvider) GenerateWithTools(ctx context.Context, messages []d
 			// Track successful call
 			_, _ = t.usageService.TrackLLMCall(ctx, t.providerName, model, inputStr, result.Content, startTime)
 			// Add assistant message
-			_, _ = t.usageService.AddMessage(ctx, "assistant", result.Content)
+			_, _ = t.usageService.AddMessageWithModel(ctx, "assistant", result.Content, model)
 
 			// Track tool calls if any
 			for _, toolCall := range result.ToolCalls {
@@ -155,11 +144,12 @@ func (t *TrackedLLMProvider) GenerateWithTools(ctx context.Context, messages []d
 // StreamWithTools streams with tools and usage tracking
 func (t *TrackedLLMProvider) StreamWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
 	startTime := time.Now()
+	model := t.usageModel()
 
 	// Track input messages
 	if t.usageService != nil {
 		for _, msg := range messages {
-			_, _ = t.usageService.AddMessage(ctx, msg.Role, msg.Content)
+			_, _ = t.usageService.AddMessageWithModel(ctx, msg.Role, msg.Content, model)
 		}
 	}
 
@@ -181,12 +171,6 @@ func (t *TrackedLLMProvider) StreamWithTools(ctx context.Context, messages []dom
 
 	// Track the usage
 	if t.usageService != nil {
-		model := ""
-		// Use provider name as default model name since Model field doesn't exist
-		if false { // opts.Model doesn't exist
-			model = ""
-		}
-
 		if err != nil {
 			// Track error
 			_, _ = t.usageService.TrackError(ctx, usage.CallTypeLLM, t.providerName, model, err.Error(), startTime)
@@ -201,7 +185,7 @@ func (t *TrackedLLMProvider) StreamWithTools(ctx context.Context, messages []dom
 			_, _ = t.usageService.TrackLLMCall(ctx, t.providerName, model, inputStr, fullContent, startTime)
 			// Add assistant message
 			if fullContent != "" {
-				_, _ = t.usageService.AddMessage(ctx, "assistant", fullContent)
+				_, _ = t.usageService.AddMessageWithModel(ctx, "assistant", fullContent, model)
 			}
 
 			// Track tool calls if any
@@ -217,10 +201,11 @@ func (t *TrackedLLMProvider) StreamWithTools(ctx context.Context, messages []dom
 // GenerateStructured generates structured output with usage tracking
 func (t *TrackedLLMProvider) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
 	startTime := time.Now()
+	model := t.usageModel()
 
 	// Get current conversation and add user message
 	if t.usageService != nil {
-		_, _ = t.usageService.AddMessage(ctx, "user", prompt)
+		_, _ = t.usageService.AddMessageWithModel(ctx, "user", prompt, model)
 	}
 
 	// Call the underlying provider
@@ -228,12 +213,6 @@ func (t *TrackedLLMProvider) GenerateStructured(ctx context.Context, prompt stri
 
 	// Track the usage
 	if t.usageService != nil {
-		model := ""
-		// Use provider name as default model name since Model field doesn't exist
-		if false { // opts.Model doesn't exist
-			model = ""
-		}
-
 		if err != nil {
 			// Track error
 			_, _ = t.usageService.TrackError(ctx, usage.CallTypeLLM, t.providerName, model, err.Error(), startTime)
@@ -242,7 +221,7 @@ func (t *TrackedLLMProvider) GenerateStructured(ctx context.Context, prompt stri
 			outputStr := fmt.Sprintf("%v", result.Data)
 			_, _ = t.usageService.TrackLLMCall(ctx, t.providerName, model, prompt, outputStr, startTime)
 			// Add assistant message
-			_, _ = t.usageService.AddMessage(ctx, "assistant", outputStr)
+			_, _ = t.usageService.AddMessageWithModel(ctx, "assistant", outputStr, model)
 		}
 	}
 
@@ -306,7 +285,7 @@ func (t *TrackedEmbedderProvider) Embed(ctx context.Context, text string) ([]flo
 
 	// Track the usage
 	if t.usageService != nil {
-		model := t.providerName // Use provider name as model
+		model := t.usageModel()
 		if err != nil {
 			// Track error
 			_, _ = t.usageService.TrackError(ctx, usage.CallTypeLLM, t.providerName, model, err.Error(), startTime)
@@ -317,6 +296,20 @@ func (t *TrackedEmbedderProvider) Embed(ctx context.Context, text string) ([]flo
 	}
 
 	return result, err
+}
+
+func (t *TrackedLLMProvider) usageModel() string {
+	if provider, ok := t.LLMProvider.(usageModelProvider); ok && provider.UsageModel() != "" {
+		return provider.UsageModel()
+	}
+	return t.providerName
+}
+
+func (t *TrackedEmbedderProvider) usageModel() string {
+	if provider, ok := t.EmbedderProvider.(usageModelProvider); ok && provider.UsageModel() != "" {
+		return provider.UsageModel()
+	}
+	return t.providerName
 }
 
 // EmbedBatch generates embeddings for multiple texts, delegating to the underlying provider.

@@ -211,7 +211,7 @@ func (c *Client) Connect(ctx context.Context) error {
 	// Load resources (optional, may not be supported by all servers)
 	if err := c.loadResources(ctx); err != nil {
 		// Method not found is expected for servers that don't support resources
-		if !strings.Contains(err.Error(), "Method not found") {
+		if !isOptionalCapabilityError(err) {
 			log.Printf("[DEBUG] Failed to load resources from %s: %v", c.config.Name, err)
 		}
 	}
@@ -219,12 +219,20 @@ func (c *Client) Connect(ctx context.Context) error {
 	// Load prompts (optional, may not be supported by all servers)
 	if err := c.loadPrompts(ctx); err != nil {
 		// Method not found is expected for servers that don't support prompts
-		if !strings.Contains(err.Error(), "Method not found") {
+		if !isOptionalCapabilityError(err) {
 			log.Printf("[DEBUG] Failed to load prompts from %s: %v", c.config.Name, err)
 		}
 	}
 
 	return nil
+}
+
+func isOptionalCapabilityError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "Method not found") || strings.Contains(msg, "not supported")
 }
 
 // createStdioTransport creates a command transport for stdio-based servers

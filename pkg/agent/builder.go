@@ -10,8 +10,8 @@ import (
 	"github.com/liliang-cn/agent-go/pkg/config"
 	"github.com/liliang-cn/agent-go/pkg/domain"
 	"github.com/liliang-cn/agent-go/pkg/mcp"
-	"github.com/liliang-cn/agent-go/pkg/pool"
 	"github.com/liliang-cn/agent-go/pkg/memory"
+	"github.com/liliang-cn/agent-go/pkg/pool"
 	"github.com/liliang-cn/agent-go/pkg/ptc"
 	"github.com/liliang-cn/agent-go/pkg/rag/chunker"
 	ragprocessor "github.com/liliang-cn/agent-go/pkg/rag/processor"
@@ -409,8 +409,6 @@ func (b *Builder) build() (*Service, error) {
 		} else {
 			if startErr := mcpSvc.StartServers(context.Background(), nil); startErr != nil {
 				log.Printf("[WARN] Failed to start MCP servers: %v", startErr)
-			} else {
-				log.Printf("[INFO] MCP servers started successfully")
 			}
 			mcpAdapter = &mcpToolAdapter{service: mcpSvc}
 		}
@@ -565,7 +563,7 @@ func (b *Builder) build() (*Service, error) {
 		ptcRouter := ptc.NewAgentGoRouter(routerOpts...)
 		// Sync registry tools into the ptcRouter so callTool() can reach them.
 		svc.toolRegistry.SyncToPTCRouter(ptcRouter)
-		
+
 		// Register tool search tools in PTC router for deferred tool discovery
 		for _, ts := range GetToolSearchTools() {
 			ptcRouter.RegisterTool(ts.Function.Name, &ptc.ToolInfo{
@@ -595,7 +593,7 @@ func (b *Builder) build() (*Service, error) {
 				return domain.ToolSearchResult{ToolReferences: refs}, nil
 			})
 		}
-		
+
 		ptcInteg, ptcErr := NewPTCIntegration(*b.ptcCfg, ptcRouter)
 		if ptcErr != nil {
 			return nil, fmt.Errorf("failed to create PTC integration: %w", ptcErr)

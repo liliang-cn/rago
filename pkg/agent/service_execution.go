@@ -15,12 +15,20 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+type executionMetrics struct {
+	toolCalls       int
+	toolsUsed       []string
+	estimatedTokens int
+}
+
 // executeWithLLM lets LLM decide which tool to use and executes with multi-round support
-func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *IntentRecognitionResult, session *Session, memoryContext string, ragContext string, cfg *RunConfig) (interface{}, error) {
+func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *IntentRecognitionResult, session *Session, memoryContext string, ragContext string, cfg *RunConfig) (interface{}, *executionMetrics, error) {
 	maxRounds := cfg.MaxTurns
 	if maxRounds <= 0 {
 		maxRounds = 20
 	}
+
+	metrics := &executionMetrics{}
 
 	// Determine starting agent
 	currentAgent := s.agent
@@ -60,16 +68,17 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 	for round := 0; round < maxRounds; round++ {
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("execution cancelled by user")
+			return nil, metrics, fmt.Errorf("execution cancelled by user")
 		default:
 		}
 
 		s.emitProgress("thinking", fmt.Sprintf("[%s] Thinking...", currentAgent.Name()), round+1, "")
 
-		result, err := s.runOneLLMTurn(ctx, currentAgent, messages, cfg, round)
+		result, turnTokens, err := s.runOneLLMTurn(ctx, currentAgent, messages, cfg, round)
 		if err != nil {
-			return nil, err
+			return nil, metrics, err
 		}
+		metrics.estimatedTokens += turnTokens
 
 		if len(result.ToolCalls) > 0 {
 			// Check for handoff first
@@ -78,14 +87,24 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 				continue
 			}
 
-			// Detect duplicate tool calls
-			if s.isDuplicateToolCall(result.ToolCalls, prevToolCalls) {
-				return "The task has been completed. The information has been saved to memory.", nil
+			filteredToolCalls, duplicateToolResults, fallback := s.handleDuplicateToolCalls(messages, result, prevToolCalls)
+			if fallback != "" {
+				return fallback, metrics, nil
+			}
+			if len(filteredToolCalls) == 0 {
+				if len(duplicateToolResults) > 0 {
+					messages = s.appendToolRoundToMessages(messages, result, duplicateToolResults)
+					s.recordToolResults(ctx, session, currentAgent, goal, duplicateToolResults, cfg, round)
+					toolCallCount += len(duplicateToolResults)
+					metrics.toolCalls += len(duplicateToolResults)
+					metrics.toolsUsed = appendToolNames(metrics.toolsUsed, duplicateToolResults)
+				}
+				continue
 			}
 
 			// Execute tool calls and append results to messages
-			s.emitProgress("tool_call", fmt.Sprintf("Calling %d tool(s)", len(result.ToolCalls)), round+1, "")
-			toolResults, err := s.executeToolCalls(ctx, currentAgent, session, result.ToolCalls)
+			s.emitProgress("tool_call", fmt.Sprintf("Calling %d tool(s)", len(filteredToolCalls)), round+1, "")
+			toolResults, err := s.executeToolCalls(ctx, currentAgent, session, filteredToolCalls)
 			if err != nil {
 				messages = append(messages, domain.Message{
 					Role:    "assistant",
@@ -94,9 +113,11 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 				continue
 			}
 
-			messages = s.appendToolRoundToMessages(messages, result, toolResults)
+			messages = s.appendToolRoundToMessages(messages, result, append(duplicateToolResults, toolResults...))
 			s.recordToolResults(ctx, session, currentAgent, goal, toolResults, cfg, round)
 			toolCallCount += len(toolResults)
+			metrics.toolCalls += len(toolResults)
+			metrics.toolsUsed = appendToolNames(metrics.toolsUsed, toolResults)
 			continue
 		}
 
@@ -104,10 +125,11 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 		if cfg.StoreHistory && s.historyStore != nil {
 			s.historyStore.CompleteSession(ctx, session.GetID(), currentAgent.ID(), goal, round+1, toolCallCount, true, 0)
 		}
-		return result.Content, nil
+		return result.Content, metrics, nil
 	}
 
-	return s.handleMaxTurnsExceeded(ctx, session, currentAgent, goal, maxRounds, toolCallCount, messages, cfg)
+	result, err := s.handleMaxTurnsExceeded(ctx, session, currentAgent, goal, maxRounds, toolCallCount, messages, cfg)
+	return result, metrics, err
 }
 
 // buildConversationMessages constructs the initial user message, enriched with RAG, memory context and session summary.
@@ -126,7 +148,7 @@ func (s *Service) buildConversationMessages(goal, ragContext, memoryContext, sum
 }
 
 // runOneLLMTurn builds the prompt for this round and calls the LLM once.
-func (s *Service) runOneLLMTurn(ctx context.Context, currentAgent *Agent, messages []domain.Message, cfg *RunConfig, round int) (*domain.GenerationResult, error) {
+func (s *Service) runOneLLMTurn(ctx context.Context, currentAgent *Agent, messages []domain.Message, cfg *RunConfig, round int) (*domain.GenerationResult, int, error) {
 	tools := s.collectAllAvailableTools(ctx, currentAgent)
 	systemMsg := s.buildSystemPrompt(ctx, currentAgent)
 	genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
@@ -160,16 +182,26 @@ func (s *Service) runOneLLMTurn(ctx context.Context, currentAgent *Agent, messag
 		MaxTokens:   maxTokens,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("LLM generation failed: %w", err)
+		return nil, 0, fmt.Errorf("LLM generation failed: %w", err)
 	}
 	if result == nil {
-		return nil, fmt.Errorf("LLM generation returned nil result")
+		return nil, 0, fmt.Errorf("LLM generation returned nil result")
 	}
 
 	if (s.debug || cfg.Debug) && err == nil {
 		s.logDebugResponse(result, round)
 	}
-	return result, nil
+	return result, s.estimateGenerationTokens(genMessages, result), nil
+}
+
+func appendToolNames(existing []string, results []ToolExecutionResult) []string {
+	for _, result := range results {
+		if result.ToolName == "" {
+			continue
+		}
+		existing = append(existing, result.ToolName)
+	}
+	return existing
 }
 
 // applyHandoff checks if any tool call is a handoff, applies it, and returns (newAgent, true) if so.
@@ -208,17 +240,83 @@ func (s *Service) applyHandoff(ctx context.Context, messages *[]domain.Message, 
 	return currentAgent, false
 }
 
-// isDuplicateToolCall returns true if any call in toolCalls has been seen before.
-func (s *Service) isDuplicateToolCall(toolCalls []domain.ToolCall, seen map[string]int) bool {
-	for _, tc := range toolCalls {
+func (s *Service) handleDuplicateToolCalls(messages []domain.Message, result *domain.GenerationResult, seen map[string]int) ([]domain.ToolCall, []ToolExecutionResult, string) {
+	filtered := make([]domain.ToolCall, 0, len(result.ToolCalls))
+	duplicates := make([]ToolExecutionResult, 0)
+
+	for _, tc := range result.ToolCalls {
 		key := fmt.Sprintf("%s:%v", tc.Function.Name, tc.Function.Arguments)
 		seen[key]++
-		if seen[key] > 1 {
-			log.Printf("[Agent] Duplicate tool call detected: %s, stopping", key)
-			return true
+		if seen[key] <= 1 {
+			filtered = append(filtered, tc)
+			continue
+		}
+
+		log.Printf("[Agent] Duplicate tool call detected: %s", key)
+		if isSearchToolName(tc.Function.Name) {
+			duplicates = append(duplicates, ToolExecutionResult{
+				ToolCallID: tc.ID,
+				ToolName:   tc.Function.Name,
+				ToolType:   "tool_search",
+				Result:     "This tool search was already executed. Use the previously returned tools or results directly instead of searching again.",
+			})
+			continue
+		}
+
+		return nil, nil, extractBestEffortAnswer(result.Content, messages)
+	}
+
+	return filtered, duplicates, ""
+}
+
+func isSearchToolName(name string) bool {
+	return name == "search_available_tools" || domain.IsToolSearchTool(name)
+}
+
+func extractBestEffortAnswer(currentContent string, messages []domain.Message) string {
+	if isMeaningfulAnswerText(currentContent) {
+		return strings.TrimSpace(currentContent)
+	}
+
+	for i := len(messages) - 1; i >= 0; i-- {
+		msg := messages[i]
+		if msg.Role != "assistant" && msg.Role != "tool" {
+			continue
+		}
+
+		content := strings.TrimSpace(msg.Content)
+		if !isMeaningfulAnswerText(content) {
+			continue
+		}
+		return content
+	}
+
+	if strings.TrimSpace(currentContent) != "" {
+		return strings.TrimSpace(currentContent)
+	}
+
+	return "Task stopped after repeating the same tool call before producing a substantive final answer."
+}
+
+func isMeaningfulAnswerText(text string) bool {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return false
+	}
+
+	normalized := strings.ToLower(text)
+	genericPrefixes := []string{
+		"the task has been completed",
+		"task complete",
+		"done",
+	}
+	for _, prefix := range genericPrefixes {
+		if normalized == prefix || strings.HasPrefix(normalized, prefix+".") {
+			return false
 		}
 	}
-	return false
+
+	return true
 }
 
 // toolResultToString converts a tool execution result to a string suitable for

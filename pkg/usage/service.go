@@ -95,6 +95,11 @@ func (s *Service) SetCurrentConversation(ctx context.Context, conversationID str
 
 // AddMessage adds a message to the current conversation
 func (s *Service) AddMessage(ctx context.Context, role, content string) (*Message, error) {
+	return s.AddMessageWithModel(ctx, role, content, "default")
+}
+
+// AddMessageWithModel adds a message and counts tokens using the provided model.
+func (s *Service) AddMessageWithModel(ctx context.Context, role, content, model string) (*Message, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -108,8 +113,11 @@ func (s *Service) AddMessage(ctx context.Context, role, content string) (*Messag
 		s.currentMessages = []Message{}
 	}
 
-	// Estimate token count
-	tokenCount := s.tokenCounter.EstimateTokens(content, "default")
+	if model == "" {
+		model = "default"
+	}
+
+	tokenCount := s.tokenCounter.EstimateTokens(content, model)
 
 	message := NewMessage(s.currentConversation.ID, role, content, tokenCount)
 	if err := s.repo.CreateMessage(ctx, message); err != nil {

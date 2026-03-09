@@ -24,49 +24,29 @@ type Handler struct {
 	mcpService    *mcp.Service
 	memoryService *memory.Service
 	agentService  *agent.Service
+	agentManager  *agent.AgentManager
 	llm           domain.Generator
 	embedder      domain.Embedder
-	ConfigHandler  *ConfigHandler
+	ConfigHandler *ConfigHandler
 }
 
 // New creates a new handler
 func New(cfg *config.Config, ragClient *rag.Client, skillsService *skills.Service,
 	mcpService *mcp.Service, memoryService *memory.Service,
-	agentService *agent.Service, llm domain.Generator, embedder domain.Embedder) *Handler {
+	agentService *agent.Service, agentManager *agent.AgentManager, llm domain.Generator, embedder domain.Embedder) *Handler {
 
-	configPath := filepath.Join(cfg.Home, "ui-config.json")
-
-	// Try to load existing UI config
-	initialConfig := &Config{
-		Home:           cfg.Home,
-		MCPAllowedDirs: getMCPAllowedDirs(cfg),
-	}
-	if data, err := os.ReadFile(configPath); err == nil {
-		var saved map[string]interface{}
-		if json.Unmarshal(data, &saved) == nil {
-			if home, ok := saved["home"].(string); ok && home != "" {
-				initialConfig.Home = home
-			}
-			if dirs, ok := saved["mcp_allowed_dirs"].([]interface{}); ok {
-				for _, d := range dirs {
-					if dir, ok := d.(string); ok {
-						initialConfig.MCPAllowedDirs = append(initialConfig.MCPAllowedDirs, dir)
-					}
-				}
-			}
-		}
-	}
-
-	configHandler := NewConfigHandler(initialConfig, configPath)
+	configPath := resolveConfigPath(cfg)
+	configHandler := NewConfigHandler(cfg, configPath)
 
 	return &Handler{
 		cfg:           cfg,
-		ConfigHandler:  configHandler,
+		ConfigHandler: configHandler,
 		ragClient:     ragClient,
 		skillsService: skillsService,
 		mcpService:    mcpService,
 		memoryService: memoryService,
 		agentService:  agentService,
+		agentManager:  agentManager,
 		llm:           llm,
 		embedder:      embedder,
 	}
@@ -281,9 +261,27 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func resolveConfigPath(cfg *config.Config) string {
+	candidates := []string{
+		filepath.Join(".", "agentgo.toml"),
+		filepath.Join(cfg.Home, "agentgo.toml"),
+		filepath.Join(cfg.Home, "config", "agentgo.toml"),
+	}
 
-func getMCPAllowedDirs(cfg *config.Config) []string {
-	// Read from mcpServers.json to find filesystem server allowed directories
-	// For now, return a default empty list
-	return []string{}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			abs, absErr := filepath.Abs(candidate)
+			if absErr == nil {
+				return abs
+			}
+			return candidate
+		}
+	}
+
+	fallback := filepath.Join(cfg.Home, "agentgo.toml")
+	abs, err := filepath.Abs(fallback)
+	if err == nil {
+		return abs
+	}
+	return fallback
 }

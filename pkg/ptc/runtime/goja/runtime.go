@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -146,13 +147,12 @@ func (r *Runtime) Execute(ctx context.Context, req *ptc.ExecutionRequest) (*ptc.
 	// Set up execution state
 	r.mu.RLock()
 	state := &executionState{
-		tools:          r.tools,
-		searchProvider: r.searchProvider,
-		toolCalls:      &result.ToolCalls,
-		logs:           &result.Logs,
-		callCount:      0,
-		maxCalls:       r.maxCalls,
-		ctx:            ctx,
+		tools:     r.tools,
+		toolCalls: &result.ToolCalls,
+		logs:      &result.Logs,
+		callCount: 0,
+		maxCalls:  r.maxCalls,
+		ctx:       ctx,
 	}
 	r.mu.RUnlock()
 
@@ -277,13 +277,12 @@ func (r *Runtime) Close() error {
 
 // executionState holds state during execution
 type executionState struct {
-	tools          map[string]ptc.ToolHandler
-	searchProvider ptc.SearchProvider
-	toolCalls      *[]ptc.ToolCallRecord
-	logs           *[]string
-	callCount      int
-	maxCalls       int
-	ctx            context.Context
+	tools     map[string]ptc.ToolHandler
+	toolCalls *[]ptc.ToolCallRecord
+	logs      *[]string
+	callCount int
+	maxCalls  int
+	ctx       context.Context
 }
 
 // registerBuiltins registers built-in functions
@@ -375,52 +374,31 @@ func (r *Runtime) registerBuiltins(vm *goja.Runtime, state *executionState) {
 		// - JSON strings (from MCP tools) are parsed into native objects
 		// - Go structs are JSON-roundtripped so field names use json tags (lowercase)
 		result = normalizeForJS(result)
+		if strings.HasPrefix(toolName, "mcp_") {
+			result = normalizeMCPToolResult(result)
+		}
 
-		return vm.ToValue(result)
+		return toJSValue(vm, result)
 	})
 
-	// searchAndCallTool function
-	_ = vm.Set("searchAndCallTool", func(call goja.FunctionCall) goja.Value {
-		if state.searchProvider == nil {
-			panic(vm.NewTypeError("searchAndCallTool is not available in this sandbox"))
-		}
-		if len(call.Arguments) < 1 {
-			panic(vm.NewTypeError("searchAndCallTool requires at least a query argument"))
+	_ = vm.Set("toolData", func(raw interface{}) interface{} {
+		if m, ok := raw.(map[string]interface{}); ok {
+			if data, exists := m["data"]; exists {
+				return toJSValue(vm, normalizeForJS(data))
+			}
 		}
 
-		query := call.Arguments[0].String()
-		instruction := ""
-		scope := ""
-		if len(call.Arguments) > 1 {
-			instruction = call.Arguments[1].String()
-		}
-		if len(call.Arguments) > 2 {
-			scope = call.Arguments[2].String()
-		}
+		return toJSValue(vm, normalizeForJS(raw))
+	})
 
-		// Execute search and execute
-		start := time.Now()
-		result, err := state.searchProvider.SearchAndExecute(state.ctx, query, instruction, scope)
-
-		// Log the search/execute call as a pseudo-tool call
-		*state.toolCalls = append(*state.toolCalls, ptc.ToolCallRecord{
-			ToolName:  "search_and_execute",
-			Arguments: map[string]interface{}{"query": query, "instruction": instruction, "scope": scope},
-			Result:    result,
-			Error: func() string {
-				if err != nil {
-					return err.Error()
-				}
-				return ""
-			}(),
-			Duration: time.Since(start),
-		})
-
-		if err != nil {
-			panic(vm.NewTypeError(fmt.Sprintf("searchAndCallTool failed: %v", err)))
+	_ = vm.Set("toolOk", func(raw interface{}) bool {
+		if m, ok := raw.(map[string]interface{}); ok {
+			if success, exists := m["success"].(bool); exists {
+				return success
+			}
 		}
 
-		return vm.ToValue(normalizeForJS(result))
+		return true
 	})
 
 	// sleep function (for convenience)
@@ -536,4 +514,54 @@ func jsonRoundTrip(value interface{}) interface{} {
 		return value
 	}
 	return normalized
+}
+
+func normalizeMCPToolResult(result interface{}) interface{} {
+	if isStandardToolEnvelope(result) {
+		return result
+	}
+	switch result.(type) {
+	case map[string]interface{}, []interface{}:
+		return result
+	}
+
+	return map[string]interface{}{
+		"success": true,
+		"data":    result,
+		"error":   nil,
+	}
+}
+
+func isStandardToolEnvelope(result interface{}) bool {
+	m, ok := result.(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	_, hasSuccess := m["success"]
+	_, hasData := m["data"]
+	_, hasError := m["error"]
+
+	return hasSuccess || hasData || hasError
+}
+
+func toJSValue(vm *goja.Runtime, value interface{}) goja.Value {
+	switch v := value.(type) {
+	case nil:
+		return goja.Null()
+	case map[string]interface{}:
+		obj := vm.NewObject()
+		for key, item := range v {
+			_ = obj.Set(key, toJSValue(vm, item))
+		}
+		return obj
+	case []interface{}:
+		arr := vm.NewArray()
+		for i, item := range v {
+			_ = arr.Set(strconv.Itoa(i), toJSValue(vm, item))
+		}
+		return arr
+	default:
+		return vm.ToValue(v)
+	}
 }

@@ -4,8 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/liliang-cn/agent-go/pkg/agent"
 	agentgolog "github.com/liliang-cn/agent-go/pkg/log"
 )
 
@@ -133,4 +137,140 @@ func (h *Handler) HandleAgentStream(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintf(w, "data: [DONE]\n\n")
 	flusher.Flush()
+}
+
+func (h *Handler) HandleAgents(w http.ResponseWriter, r *http.Request) {
+	if h.agentManager == nil {
+		JSONError(w, "Agent manager unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		agents, err := h.agentManager.DiscoverAgents()
+		if err != nil {
+			JSONError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		JSONResponse(w, map[string]interface{}{"agents": agents})
+	case http.MethodPost:
+		var req struct {
+			Name         string   `json:"name"`
+			Description  string   `json:"description"`
+			Instructions string   `json:"instructions"`
+			Model        string   `json:"model"`
+			MCPTools     []string `json:"mcp_tools"`
+			Skills       []string `json:"skills"`
+			EnableRAG    bool     `json:"enable_rag"`
+			EnableMemory bool     `json:"enable_memory"`
+			EnablePTC    bool     `json:"enable_ptc"`
+			EnableMCP    bool     `json:"enable_mcp"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			JSONError(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(req.Name) == "" {
+			JSONError(w, "Agent name required", http.StatusBadRequest)
+			return
+		}
+
+		agentModel, err := h.agentManager.CreateAgent(r.Context(), &agent.AgentModel{
+			ID:           uuid.New().String(),
+			Name:         strings.TrimSpace(req.Name),
+			Description:  strings.TrimSpace(req.Description),
+			Instructions: strings.TrimSpace(req.Instructions),
+			Model:        strings.TrimSpace(req.Model),
+			Status:       agent.AgentStatusStopped,
+			MCPTools:     req.MCPTools,
+			Skills:       req.Skills,
+			EnableRAG:    req.EnableRAG,
+			EnableMemory: req.EnableMemory,
+			EnablePTC:    req.EnablePTC,
+			EnableMCP:    req.EnableMCP,
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		})
+		if err != nil {
+			JSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		JSONResponse(w, agentModel)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *Handler) HandleAgentOperation(w http.ResponseWriter, r *http.Request) {
+	if h.agentManager == nil {
+		JSONError(w, "Agent manager unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/agents/")
+	path = strings.Trim(path, "/")
+	if path == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	parts := strings.Split(path, "/")
+	name, err := url.PathUnescape(parts[0])
+	if err != nil {
+		JSONError(w, "Invalid agent name", http.StatusBadRequest)
+		return
+	}
+
+	switch {
+	case len(parts) == 2 && parts[1] == "start" && r.Method == http.MethodPost:
+		if err := h.agentManager.StartAgent(r.Context(), name); err != nil {
+			JSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		agentModel, _ := h.agentManager.GetAgentByName(name)
+		JSONResponse(w, map[string]interface{}{"success": true, "agent": agentModel})
+	case len(parts) == 2 && parts[1] == "stop" && r.Method == http.MethodPost:
+		if err := h.agentManager.StopAgent(r.Context(), name); err != nil {
+			JSONError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		agentModel, _ := h.agentManager.GetAgentByName(name)
+		JSONResponse(w, map[string]interface{}{"success": true, "agent": agentModel})
+	case len(parts) == 2 && parts[1] == "dispatch" && r.Method == http.MethodPost:
+		var req struct {
+			Instruction string `json:"instruction"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			JSONError(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(req.Instruction) == "" {
+			JSONError(w, "Instruction required", http.StatusBadRequest)
+			return
+		}
+
+		start := time.Now()
+		result, err := h.agentManager.DispatchTask(r.Context(), name, req.Instruction)
+		if err != nil {
+			JSONError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		agentModel, _ := h.agentManager.GetAgentByName(name)
+		JSONResponse(w, map[string]interface{}{
+			"success":     true,
+			"agent":       agentModel,
+			"response":    result,
+			"duration_ms": time.Since(start).Milliseconds(),
+		})
+	case len(parts) == 1 && r.Method == http.MethodGet:
+		agentModel, err := h.agentManager.GetAgentByName(name)
+		if err != nil {
+			JSONError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		JSONResponse(w, agentModel)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }

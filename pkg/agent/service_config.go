@@ -37,15 +37,18 @@ func (s *Service) registerMCPToolsInRegistry(mcpSvc *mcp.Service) {
 			}
 		}
 		// Register as deferred tool for search
+		toolName := t.Name
 		s.toolRegistry.Register(domain.ToolDefinition{
 			Type:         "function",
 			DeferLoading: true, // MCP tools are always deferred for search
 			Function: domain.ToolFunction{
-				Name:        t.Name,
+				Name:        toolName,
 				Description: t.Description,
 				Parameters:  params,
 			},
-		}, nil, CategoryMCP)
+		}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			return mcpSvc.CallTool(ctx, toolName, args)
+		}, CategoryMCP)
 	}
 }
 
@@ -82,6 +85,7 @@ func (s *Service) registerSkillsInRegistry(skillsService *skills.Service) {
 		desc = "Skill workflow: " + desc + ". Call this tool to receive step-by-step instructions for this task; you MUST then follow those instructions to complete the work."
 		toolName := "skill_" + sk.ID
 		// Register as deferred tool for search
+		skillID := sk.ID
 		s.toolRegistry.Register(domain.ToolDefinition{
 			Type:         "function",
 			DeferLoading: true, // Skills are always deferred for search
@@ -94,7 +98,16 @@ func (s *Service) registerSkillsInRegistry(skillsService *skills.Service) {
 					"required":   required,
 				},
 			},
-		}, nil, CategorySkill)
+		}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+			res, err := skillsService.Execute(ctx, &skills.ExecutionRequest{
+				SkillID:   skillID,
+				Variables: args,
+			})
+			if err != nil {
+				return nil, err
+			}
+			return res.Output, nil
+		}, CategorySkill)
 	}
 }
 
@@ -218,12 +231,12 @@ func (s *Service) Register(tool *Tool) {
 func (s *Service) SetSkillsService(skillsService *skills.Service) {
 	s.skillsService = skillsService
 	s.Skills = skillsService
-	
+
 	// Register skills in registry for tool search
 	if skillsService != nil && s.toolRegistry != nil {
 		go s.registerSkillsInRegistry(skillsService)
 	}
-	
+
 	// Re-create agent with updated tools
 	if skillsService != nil {
 		tools := collectAvailableTools(s.mcpService, s.ragProcessor, skillsService)
@@ -250,9 +263,6 @@ func (s *Service) SetProgressCallback(cb ProgressCallback) {
 // SetDebug sets debug mode
 func (s *Service) SetDebug(debug bool) {
 	s.debug = debug
-	if debug {
-		fmt.Printf("[INFO] Debug mode enabled for agent service\n")
-	}
 }
 
 // SetAgentInstructions sets the instructions for the default agent

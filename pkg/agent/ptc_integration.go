@@ -21,7 +21,6 @@ type PTCIntegration struct {
 	service *ptc.Service
 	config  *PTCConfig
 	router  *ptc.AgentGoRouter // used to enumerate callTool()-accessible tools for prompts
-	searchProvider ptc.SearchProvider // stored for direct tool call fallback
 }
 
 // PTCConfig configures PTC integration
@@ -100,7 +99,6 @@ func (p *PTCIntegration) SetSearchProvider(provider ptc.SearchProvider) {
 	if p.service != nil {
 		p.service.SetSearchProvider(provider)
 	}
-	p.searchProvider = provider
 }
 
 // IsCodeResponse checks if the LLM response contains executable code
@@ -241,29 +239,6 @@ func (p *PTCIntegration) ExecuteJavascriptTool(ctx context.Context, args map[str
 	return result.FormatForLLM(), nil
 }
 
-// ExecuteSearchAndCallTool is the handler for direct "searchAndCallTool" tool calls.
-// This is a fallback when LLM doesn't put searchAndCallTool inside JS code.
-func (p *PTCIntegration) ExecuteSearchAndCallTool(ctx context.Context, args map[string]interface{}) (string, error) {
-	if p.router == nil || p.searchProvider == nil {
-		return "", fmt.Errorf("searchAndCallTool is not available: no search provider configured")
-	}
-
-	query, _ := args["query"].(string)
-	if query == "" {
-		return "", fmt.Errorf("searchAndCallTool: 'query' argument is required")
-	}
-
-	instruction, _ := args["instruction"].(string)
-	scope, _ := args["scope"].(string)
-
-	result, err := p.searchProvider.SearchAndExecute(ctx, query, instruction, scope)
-	if err != nil {
-		return fmt.Sprintf("searchAndCallTool failed: %v", err), nil //nolint:nilerr
-	}
-
-	return fmt.Sprintf("%v", result), nil
-}
-
 // ExecuteCode executes JavaScript code in the sandbox.
 func (p *PTCIntegration) ExecuteCode(ctx context.Context, code string, contextVars map[string]interface{}) (*ptc.ExecutionResult, error) {
 	if !p.config.Enabled || p.service == nil {
@@ -366,8 +341,7 @@ func (p *PTCIntegration) GetAvailableCallTools(ctx context.Context) []ptc.ToolIn
 }
 
 // GetPTCTools returns PTC-specific tool definitions for LLM.
-// availableTools is the list of tools the LLM can call via callTool() inside the sandbox;
-// only MCP server names are listed — use searchAndCallTool() to discover specific tools.
+// availableTools is the list of tools the LLM can call via callTool() inside the sandbox.
 func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.ToolDefinition {
 	if !p.config.Enabled {
 		return nil
@@ -377,8 +351,7 @@ func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.Too
 	serverNames := collectMCPServerNames(availableTools)
 	var serverHint string
 	if len(serverNames) > 0 {
-		serverHint = "\n\nAvailable MCP servers: " + strings.Join(serverNames, ", ") +
-			"\nUse searchAndCallTool(query, instruction) to discover and execute specific tools."
+		serverHint = "\n\nAvailable MCP servers: " + strings.Join(serverNames, ", ")
 	}
 
 	return []domain.ToolDefinition{
@@ -388,15 +361,14 @@ func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.Too
 				Name: "execute_javascript",
 				Description: "Execute JavaScript code in a secure sandbox. Call multiple tools, process results, or orchestrate complex logic. " +
 					"Use callTool(name, args) to invoke a tool by exact name. " +
-					"Use searchAndCallTool(query, instruction) to find + execute a tool by natural language. " +
-					"Format: searchAndCallTool('search_keywords', 'what_to_do'). " +
+					"MCP tools usually return an object like {success, data, error}; inspect data or use toolData(result) in JS. " +
 					"NOTE: task_complete is NOT callable inside the sandbox — call it directly." + serverHint,
 				Parameters: map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
 						"code": map[string]interface{}{
 							"type":        "string",
-							"description": "Synchronous ES5 JavaScript. Use callTool(name, args) or searchAndCallTool(query, instruction). End with return statement.",
+							"description": "Synchronous ES5 JavaScript. Use callTool(name, args). End with return statement.",
 						},
 						"context": map[string]interface{}{
 							"type":        "object",
@@ -404,32 +376,6 @@ func (p *PTCIntegration) GetPTCTools(availableTools []ptc.ToolInfo) []domain.Too
 						},
 					},
 					"required": []string{"code"},
-				},
-			},
-		},
-		// Fallback: allow direct tool call to searchAndCallTool (in case LLM doesn't put it inside JS code)
-		{
-			Type: "function",
-			Function: domain.ToolFunction{
-				Name:        "searchAndCallTool",
-				Description: "Search for tools by natural language query and optionally execute them. Use this when you need to discover tools dynamically. Returns found tools or execution results.",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"query": map[string]interface{}{
-							"type":        "string",
-							"description": "Search keywords (e.g., 'weather', 'file read', 'database'). This finds matching tools.",
-						},
-						"instruction": map[string]interface{}{
-							"type":        "string",
-							"description": "Optional instruction for what to do with found tools. If empty, returns tool list only.",
-						},
-						"scope": map[string]interface{}{
-							"type":        "string",
-							"description": "Optional scope to limit search (e.g., 'mcp_filesystem', 'skill_name')",
-						},
-					},
-					"required": []string{"query"},
 				},
 			},
 		},
@@ -469,17 +415,13 @@ func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) strin
 	sb.WriteString("## PTC Mode (JavaScript Sandbox)\n")
 	sb.WriteString("Respond ONLY with `<code>...</code>` containing synchronous ES5 JavaScript.\n")
 	sb.WriteString("- Use `callTool(name, args)` to invoke any tool. No direct tool calls.\n")
-	sb.WriteString("- Use `searchAndCallTool(query, instruction)` to BOTH find AND execute a tool in ONE step!\n")
-	sb.WriteString("  - query: simple keyword (e.g., 'weather', 'file', 'database')\n")
-	sb.WriteString("  - instruction: EXACTLY what to do - include all parameters! (e.g., '查询北京天气' should include '北京' as location)\n")
-	sb.WriteString("  - WRONG: `searchAndCallTool('weather', '查询天气')` → just finds tool, does NOT execute\n")
-	sb.WriteString("  - RIGHT: `searchAndCallTool('weather', '查询北京的天气')` → finds and executes get_weather with location=北京\n")
-	sb.WriteString("  - After searchAndCallTool returns, the tool has ALREADY been executed - do NOT call callTool again!\n")
-	sb.WriteString("- Do NOT call callTool after searchAndCallTool - the tool is already executed!\n")
-	sb.WriteString("- Do NOT call it as a separate tool — it must be inside <code>...</code> blocks.\n")
+	sb.WriteString("- Prefer `callTool(name, args)` whenever you already know the exact tool name.\n")
+	sb.WriteString("- MCP tool results are commonly wrapped as `{ success, data, error }`.\n")
+	sb.WriteString("- Use `toolOk(result)` to check success and `toolData(result)` to read the payload safely.\n")
+	sb.WriteString("- For filesystem tasks, if you know names such as `mcp_filesystem_write_file`, `mcp_filesystem_read_file`, or `mcp_filesystem_list_directory`, call them directly instead of searching.\n")
 	sb.WriteString("- No async/await, no promises, no require/import.\n")
 	sb.WriteString("- End with a top-level `return` statement.\n")
-	sb.WriteString("Example: `<code>const r = callTool('mcp_filesystem_read_file', {path: '/tmp/f'}); return r;</code>`\n")
+	sb.WriteString("Example: `<code>const r = callTool('mcp_filesystem_read_file', {path: '/tmp/f'}); if (!toolOk(r)) return r; return toolData(r);</code>`\n")
 
 	return sb.String()
 }

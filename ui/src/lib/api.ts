@@ -63,6 +63,51 @@ export interface StatusResponse {
   agent?: { enabled: boolean }
 }
 
+export interface AgentModel {
+  id: string
+  name: string
+  description: string
+  instructions: string
+  model?: string
+  status: 'running' | 'stopped' | 'error'
+  mcp_tools?: string[]
+  skills?: string[]
+  enable_rag: boolean
+  enable_memory: boolean
+  enable_ptc: boolean
+  enable_mcp: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface AgentsResponse {
+  agents: AgentModel[]
+}
+
+export interface CreateAgentRequest {
+  name: string
+  description: string
+  instructions: string
+  model?: string
+  mcp_tools?: string[]
+  skills?: string[]
+  enable_rag?: boolean
+  enable_memory?: boolean
+  enable_ptc?: boolean
+  enable_mcp?: boolean
+}
+
+export interface DispatchAgentTaskRequest {
+  instruction: string
+}
+
+export interface DispatchAgentTaskResponse {
+  success: boolean
+  agent: AgentModel
+  response: string
+  duration_ms: number
+}
+
 export interface ProviderStatus {
   name: string
   status: 'enabled' | 'disabled'
@@ -406,14 +451,61 @@ export const api = {
 
   searchMemories: (query: string) =>
     fetchAPI<Memory[]>(`/memories/search?q=${encodeURIComponent(query)}`),
+
+  // Agents API
+  getAgents: () => fetchAPI<AgentsResponse>('/agents'),
+
+  getAgent: (name: string) => fetchAPI<AgentModel>(`/agents/${encodeURIComponent(name)}`),
+
+  createAgent: (data: CreateAgentRequest) =>
+    fetchAPI<AgentModel>('/agents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  startAgent: (name: string) =>
+    fetchAPI<{ success: boolean; agent: AgentModel }>(`/agents/${encodeURIComponent(name)}/start`, {
+      method: 'POST',
+    }),
+
+  stopAgent: (name: string) =>
+    fetchAPI<{ success: boolean; agent: AgentModel }>(`/agents/${encodeURIComponent(name)}/stop`, {
+      method: 'POST',
+    }),
+
+  dispatchAgentTask: (name: string, data: DispatchAgentTaskRequest) =>
+    fetchAPI<DispatchAgentTaskResponse>(`/agents/${encodeURIComponent(name)}/dispatch`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 }
 
 export interface Config {
+  configPath: string
   home: string
+  debug: boolean
+  serverHost: string
+  serverPort: number
+  mcpEnabled: boolean
   mcpAllowedDirs: string[]
+  mcpServersPath: string
+  skillsPaths: string[]
+  ragDbPath: string
+  memoryStoreType: string
+  memoryPath: string
+  dataDir: string
+  workspaceDir: string
 }
 
 export interface UpdateConfigRequest {
   home?: string
+  debug?: boolean
+  serverHost?: string
+  serverPort?: number
+  mcpEnabled?: boolean
   mcpAllowedDirs?: string[]
+  skillsPaths?: string[]
+  ragDbPath?: string
+  memoryStoreType?: string
+  memoryPath?: string
 }

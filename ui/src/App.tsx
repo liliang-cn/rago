@@ -13,14 +13,14 @@ import { Settings } from './pages/Settings'
 function Nav() {
   const { t } = useTranslation()
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `px-4 py-2 rounded-lg transition-colors ${
+    `nav-pill ${
       isActive
-        ? 'bg-blue-600 text-white'
-        : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+        ? 'nav-pill-active'
+        : 'nav-pill-idle'
     }`
 
   return (
-    <nav className="max-w-7xl mx-auto px-4 flex gap-2 py-4 overflow-x-auto">
+    <nav className="flex flex-wrap gap-2">
       <NavLink to="/" className={linkClass} end>
         {t('agent')}
       </NavLink>
@@ -54,19 +54,25 @@ function Nav() {
 
 function App() {
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
-      <header className="border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            AgentGo UI
-          </h1>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            AI Agent SDK
-          </span>
+    <div className="min-h-screen app-shell">
+      <div className="app-backdrop" />
+      <header className="relative z-10 border-b border-white/8">
+        <div className="mx-auto flex max-w-[1440px] flex-col gap-5 px-5 py-6 lg:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.38em] text-[#8ea0b5]">AgentGo Control Surface</p>
+              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                Multi-agent orchestration with a real control plane
+              </h1>
+            </div>
+            <div className="max-w-md text-sm leading-7 text-[#a7b7c9]">
+              Observe provider health, govern specialists, delegate tasks, and inspect supporting services from one UI.
+            </div>
+          </div>
+          <Nav />
         </div>
-        <Nav />
       </header>
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="relative z-10 mx-auto max-w-[1440px] px-5 py-8 lg:px-8">
         <Routes>
           <Route path="/" element={<Agent />} />
           <Route path="/chat" element={<Chat />} />

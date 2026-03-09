@@ -130,7 +130,6 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			r.svc.EmitDebugPrint(round+1, "prompt", promptBuilder.String())
 		}
 
-
 		// 5. LLM Call (Streaming)
 		var fullContent strings.Builder
 		var toolCalls []domain.ToolCall
@@ -597,14 +596,8 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 				result = res.Output
 			}
 		}
-	} else if toolName == "searchAndCallTool" && r.svc.ptcIntegration != nil {
-		// 7. Fallback: searchAndCallTool direct tool call (PTC integration)
-		result, execErr = r.svc.ptcIntegration.ExecuteSearchAndCallTool(ctx, tc.Function.Arguments)
-		if resultStr, ok := result.(string); ok {
-			result = resultStr
-		}
 	} else if domain.IsToolSearchTool(toolName) {
-		// 8. Tool Search: search for deferred tools
+		// 7. Tool Search: search for deferred tools
 		query, _ := tc.Function.Arguments["query"].(string)
 		if query == "" {
 			execErr = fmt.Errorf("tool search requires a 'query' argument")

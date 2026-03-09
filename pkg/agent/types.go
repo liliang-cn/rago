@@ -67,19 +67,24 @@ type Plan struct {
 
 // ExecutionResult represents the result of an agent execution
 type ExecutionResult struct {
-	PlanID      string                    `json:"plan_id"`
-	SessionID   string                    `json:"session_id"`
-	Success     bool                      `json:"success"`
-	StepsTotal  int                       `json:"steps_total"`
-	StepsDone   int                       `json:"steps_done"`
-	StepsFailed int                       `json:"steps_failed"`
-	FinalResult interface{}               `json:"final_result,omitempty"`
-	Sources     []domain.Chunk            `json:"sources,omitempty"`      // RAG sources when EnableRAG is true
-	Memories    []*domain.MemoryWithScore `json:"memories,omitempty"`     // Retrieved long-term memories
-	MemoryLogic string                    `json:"memory_logic,omitempty"` // IndexNavigator's reasoning for memory selection
-	Error       string                    `json:"error,omitempty"`
-	Duration    string                    `json:"duration"`
-	Metadata    map[string]interface{}    `json:"metadata,omitempty"`
+	PlanID          string                    `json:"plan_id"`
+	SessionID       string                    `json:"session_id"`
+	Success         bool                      `json:"success"`
+	StepsTotal      int                       `json:"steps_total"`
+	StepsDone       int                       `json:"steps_done"`
+	StepsFailed     int                       `json:"steps_failed"`
+	StartedAt       *time.Time                `json:"started_at,omitempty"`
+	CompletedAt     *time.Time                `json:"completed_at,omitempty"`
+	ToolCalls       int                       `json:"tool_calls"`
+	ToolsUsed       []string                  `json:"tools_used,omitempty"`
+	EstimatedTokens int                       `json:"estimated_tokens"`
+	FinalResult     interface{}               `json:"final_result,omitempty"`
+	Sources         []domain.Chunk            `json:"sources,omitempty"`      // RAG sources when EnableRAG is true
+	Memories        []*domain.MemoryWithScore `json:"memories,omitempty"`     // Retrieved long-term memories
+	MemoryLogic     string                    `json:"memory_logic,omitempty"` // IndexNavigator's reasoning for memory selection
+	Error           string                    `json:"error,omitempty"`
+	Duration        string                    `json:"duration"`
+	Metadata        map[string]interface{}    `json:"metadata,omitempty"`
 	// PTCResult contains PTC execution details when PTC mode is active.
 	PTCResult *PTCResult `json:"ptc_result,omitempty"`
 }

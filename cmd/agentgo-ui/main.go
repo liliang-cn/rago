@@ -124,8 +124,6 @@ func runServer(cmd *cobra.Command, args []string) error {
 		} else {
 			if startErr := mcpService.StartServers(context.Background(), nil); startErr != nil {
 				agentgolog.Warn("Failed to start MCP servers: %v", startErr)
-			} else {
-				agentgolog.Infof("MCP servers started successfully")
 			}
 		}
 	}
@@ -140,9 +138,12 @@ func runServer(cmd *cobra.Command, args []string) error {
 		memoryService = memory.NewService(memoryStore, llm, embedder, memory.DefaultConfig())
 	}
 
+	var agentManager *agent.AgentManager
+
 	// Create Agent service using Builder
 	agentgolog.Infof("Creating agent service with Builder...")
-	b := agent.New("AgentGo Agent").
+	b := agent.New("AgentGo Frontdesk").
+		WithSystemPrompt("You are the system Frontdesk and Commander. You can interact with users, and delegate tasks to specialized agents using the tools provided.").
 		WithDebug().
 		WithPTC().
 		WithMCP().
@@ -160,10 +161,24 @@ func runServer(cmd *cobra.Command, args []string) error {
 		agentgolog.Warn("Failed to create agent service: %v", err)
 	} else {
 		agentgolog.Infof("Agent service created successfully")
+
+		// Initialize AgentManager
+		agentDBPath := cfg.DataDir() + "/agent.db"
+		agentStore, storeErr := agent.NewStore(agentDBPath)
+		if storeErr != nil {
+			agentgolog.Warn("Failed to create agent store: %v", storeErr)
+		} else {
+			agentManager = agent.NewAgentManager(agentStore)
+			if err := agentManager.SeedDefaultAgents(); err != nil {
+				agentgolog.Warn("Failed to seed default agents: %v", err)
+			}
+			agentManager.RegisterCommanderTools(agentService)
+			agentgolog.Infof("Agent Manager and Commander tools initialized")
+		}
 	}
 
 	// Create handler
-	h := handler.New(cfg, ragClient, skillsService, mcpService, memoryService, agentService, llm, embedder)
+	h := handler.New(cfg, ragClient, skillsService, mcpService, memoryService, agentService, agentManager, llm, embedder)
 
 	// Create API router
 	mux := http.NewServeMux()
@@ -197,6 +212,8 @@ func runServer(cmd *cobra.Command, args []string) error {
 	// Agent endpoints
 	mux.HandleFunc("/api/agent/run", h.HandleAgentRun)
 	mux.HandleFunc("/api/agent/stream", h.HandleAgentStream)
+	mux.HandleFunc("/api/agents", h.HandleAgents)
+	mux.HandleFunc("/api/agents/", h.HandleAgentOperation)
 
 	mux.HandleFunc("/api/config", h.ConfigHandler.HandleConfig)
 
