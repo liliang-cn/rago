@@ -171,25 +171,33 @@ svc, _ := agent.New("analyst").
 
 ## Memory
 
-Memory has two layers:
+Memory and cache are different subsystems:
 
-| Layer | Storage | What for |
+| Subsystem | Storage | What for |
 |---|---|---|
-| **DB Memory** | SQLite + vectors | Auto-learned facts, conversation history, semantic recall |
-| **File Memory** | Markdown files | Human-editable persona: `SOUL.md`, `AGENTS.md`, `HEARTBEAT.md` |
+| **Memory** | Markdown/YAML files or SQLite + vectors | Durable facts, observations, preferences, and reasoning context |
+| **Cache** | In-memory or file-backed JSON entries | Disposable acceleration artifacts for query/vector/LLM/chunk reuse |
 
 ```go
-// Enable DB memory (auto-learns from every conversation)
+// Enable cognitive memory
 svc, _ := agent.New("agent").WithMemory().Build()
 
-// LongRun agents share the same DB memory automatically
+// LongRun agents share the same memory automatically
 lr, _ := agent.NewLongRun(svc).
     WithInterval(5 * time.Minute).
     WithWorkDir("~/.agentgo/longrun").
     Build()
 ```
 
-Memory degrades gracefully: no embedder → falls back to recency-based list retrieval.
+Memory degrades gracefully:
+- no embedder -> file memory still works
+- file-backed memory uses Markdown + YAML frontmatter and PageIndex-style retrieval
+- `remember:` prompts can be written directly to memory
+- ordinary dialogue can also be extracted into memory via `StoreIfWorthwhile`
+
+Cache is separate from memory:
+- use `agentgo cache status|put|get|delete|clear`
+- configure `cache.store_type = "memory"` or `cache.store_type = "file"`
 
 ---
 
@@ -252,7 +260,7 @@ Config file: `agentgo.toml` (auto-discovered in `./` → `~/.agentgo/` → `~/.a
 ├── data/
 │   ├── agentgo.db            ← RAG vector store (sqlite-vec); also Memory vector store
 │   ├── agent.db           ← Agent sessions + execution plans
-│   └── memories/          ← Memory file store (one JSON per session)
+│   └── memories/          ← Memory file store (Markdown + YAML frontmatter)
 ├── skills/                ← SKILL.md files
 ├── intents/               ← Intent YAML files
 └── workspace/             ← Agent working directory
@@ -270,24 +278,39 @@ Config file: `agentgo.toml` (auto-discovered in `./` → `~/.agentgo/` → `~/.a
 
 | `store_type` | Storage | Requires embedder |
 |-------------|---------|-------------------|
-| `file` *(default)* | `data/memories/{session}.json` | No |
+| `file` *(default)* | `data/memories/entities/*.md` and `data/memories/streams/*.md` | No |
 | `vector` | `data/agentgo.db` (shared) | Yes |
 | `hybrid` | file primary + `agentgo.db` shadow index | Yes |
+
+### Cache store types
+
+| `store_type` | Storage | Purpose |
+|-------------|---------|---------|
+| `memory` *(default)* | in-process memory | Fast ephemeral cache |
+| `file` | `data/cache/<namespace>/*.json` | Restart-friendly cache persistence |
 
 ### Key config fields
 
 ```toml
 home = "~/.agentgo"             # base for all relative paths
 
-[cortexdb]
+[rag.storage]
 db_path   = ""               # RAG db; default: $home/data/agentgo.db
-env:        AgentGo_CORTEXDB_DB_PATH
 
 [memory]
 store_type  = "file"         # file | vector | hybrid
 memory_path = ""             # default: $home/data/memories
 
-[chunker]
+[cache]
+store_type = "memory"        # memory | file
+path       = ""              # default: $home/data/cache
+max_size   = 1000
+query_ttl  = "15m"
+vector_ttl = "24h"
+llm_ttl    = "1h"
+chunk_ttl  = "24h"
+
+[rag.chunker]
 chunk_size = 512
 overlap    = 64
 method     = "sentence"
@@ -298,6 +321,15 @@ auto_load = true
 
 [mcp]
 servers = ["~/.agentgo/mcpServers.json"]
+```
+
+### Cache CLI
+
+```bash
+agentgo cache status
+agentgo cache put query my-key my-value --ttl 5m
+agentgo cache get query my-key
+agentgo cache clear query
 ```
 
 See [`references/CONFIG.md`](references/CONFIG.md) for the full annotated config.
@@ -352,4 +384,3 @@ examples/
 ## License
 
 MIT — Copyright (c) 2024–2026 AgentGo Authors
-
