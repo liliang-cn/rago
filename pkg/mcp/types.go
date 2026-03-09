@@ -20,6 +20,7 @@ type ServerType string
 const (
 	ServerTypeStdio     ServerType = "stdio"
 	ServerTypeHTTP      ServerType = "http"
+	ServerTypeSSE       ServerType = "sse"
 	ServerTypeInProcess ServerType = "inprocess"
 )
 
@@ -27,7 +28,7 @@ const (
 type ServerConfig struct {
 	Name             string            `toml:"name" json:"name" mapstructure:"name"`
 	Description      string            `toml:"description" json:"description" mapstructure:"description"`
-	Type             ServerType        `toml:"type" json:"type" mapstructure:"type"`                      // "stdio" or "http"
+	Type             ServerType        `toml:"type" json:"type" mapstructure:"type"`                      // "stdio", "http", or "sse"
 	Command          []string          `toml:"command" json:"command" mapstructure:"command"`             // For stdio type
 	Args             []string          `toml:"args" json:"args" mapstructure:"args"`                      // For stdio type
 	URL              string            `toml:"url" json:"url" mapstructure:"url"`                         // For http type
@@ -117,7 +118,7 @@ func GetBuiltInServers(filesystemDirs []string) []ServerConfig {
 
 // SimpleServerConfig represents a simplified server configuration for JSON files
 type SimpleServerConfig struct {
-	Type       string            `json:"type,omitempty"`        // "stdio" or "http", defaults to "stdio"
+	Type       string            `json:"type,omitempty"`        // "stdio", "http", or "sse"; defaults to "stdio"
 	Command    string            `json:"command,omitempty"`     // For stdio type
 	Args       []string          `json:"args,omitempty"`        // For stdio type
 	URL        string            `json:"url,omitempty"`         // For http type

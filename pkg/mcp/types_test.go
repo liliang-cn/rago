@@ -566,6 +566,38 @@ func TestLoadServersFromJSON_EdgeCases(t *testing.T) {
 		assert.True(t, server.RestartOnFailure) // Should default to true
 	})
 
+	t.Run("sse server config", func(t *testing.T) {
+		tempDir := t.TempDir()
+		configFile := filepath.Join(tempDir, "sse.json")
+
+		testConfig := JSONServersConfig{
+			MCPServers: map[string]SimpleServerConfig{
+				"sse-server": {
+					Type: "sse",
+					URL:  "http://127.0.0.1:8080/sse",
+					Headers: map[string]string{
+						"Authorization": "Bearer test",
+					},
+				},
+			},
+		}
+
+		data, _ := json.Marshal(testConfig)
+		err := os.WriteFile(configFile, data, 0644)
+		require.NoError(t, err)
+
+		config := &Config{Servers: []string{configFile}}
+		err = config.LoadServersFromJSON()
+		require.NoError(t, err)
+
+		require.Len(t, config.LoadedServers, 1)
+		server := config.LoadedServers[0]
+		assert.Equal(t, "sse-server", server.Name)
+		assert.Equal(t, ServerTypeSSE, server.Type)
+		assert.Equal(t, "http://127.0.0.1:8080/sse", server.URL)
+		assert.Equal(t, "Bearer test", server.Headers["Authorization"])
+	})
+
 	t.Run("large number of servers", func(t *testing.T) {
 		tempDir := t.TempDir()
 		configFile := filepath.Join(tempDir, "many-servers.json")

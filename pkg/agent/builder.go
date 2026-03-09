@@ -89,12 +89,14 @@ type SkillsConfig struct {
 // Builder allows chainable agent configuration.
 // Assign to (*Service, error) to build - no explicit Build() needed!
 type Builder struct {
-	name         string
-	agentgoCfg   *config.Config
-	dbPath       string
-	systemPrompt string
-	debug        bool
-	progressCb   ProgressCallback
+	name              string
+	agentgoCfg        *config.Config
+	dbPath            string
+	systemPrompt      string
+	debug             bool
+	progressCb        ProgressCallback
+	permissionHandler PermissionHandler
+	permissionPolicy  PermissionPolicy
 
 	// Custom LLM service (optional - if not set, uses global pool)
 	llmService domain.Generator
@@ -257,6 +259,18 @@ func (b *Builder) WithProgressCallback(cb ProgressCallback) *Builder {
 // WithProgress is a concise alias for WithProgressCallback.
 func (b *Builder) WithProgress(cb ProgressCallback) *Builder {
 	b.progressCb = cb
+	return b
+}
+
+// WithPermissionHandler installs a runtime permission handler for tool execution.
+func (b *Builder) WithPermissionHandler(handler PermissionHandler) *Builder {
+	b.permissionHandler = handler
+	return b
+}
+
+// WithPermissionPolicy overrides the policy that decides which tools need approval.
+func (b *Builder) WithPermissionPolicy(policy PermissionPolicy) *Builder {
+	b.permissionPolicy = policy
 	return b
 }
 
@@ -553,6 +567,12 @@ func (b *Builder) build() (*Service, error) {
 	}
 	if b.progressCb != nil {
 		svc.SetProgressCallback(b.progressCb)
+	}
+	if b.permissionHandler != nil {
+		svc.SetPermissionHandler(b.permissionHandler)
+	}
+	if b.permissionPolicy != nil {
+		svc.SetPermissionPolicy(b.permissionPolicy)
 	}
 
 	// PTC

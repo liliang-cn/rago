@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,6 +33,12 @@ type Provider struct {
 	ModelName      string `mapstructure:"model_name" json:"model_name"`
 	MaxConcurrency int    `mapstructure:"max_concurrency" json:"max_concurrency"`
 	Capability     int    `mapstructure:"capability" json:"capability"` // 1-5 能力等级
+}
+
+type SelectionHint struct {
+	PreferredProvider string
+	PreferredModel    string
+	MinCapability     int
 }
 
 // PoolConfig Pool配置
@@ -190,6 +197,24 @@ func (p *Pool) GetByCapability(minCapability int) (*Client, error) {
 	return selected.client, nil
 }
 
+func (p *Pool) GetWithHint(hint SelectionHint) (*Client, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	healthy := p.healthyClients()
+	if len(healthy) == 0 {
+		return nil, fmt.Errorf("no healthy clients available")
+	}
+
+	selected := p.selectWithHint(healthy, hint)
+	if selected == nil {
+		return nil, fmt.Errorf("no client matched selection hint")
+	}
+
+	atomic.AddInt32(&selected.activeRequests, 1)
+	return selected.client, nil
+}
+
 // Release 释放client
 func (p *Pool) Release(client *Client) {
 	p.mu.RLock()
@@ -278,6 +303,52 @@ func (p *Pool) selectByCapability(healthy []*clientWrapper, minCapability int) *
 	}
 
 	return selected
+}
+
+func (p *Pool) selectWithHint(healthy []*clientWrapper, hint SelectionHint) *clientWrapper {
+	var preferred []*clientWrapper
+	for _, w := range healthy {
+		if hint.MinCapability > 0 && w.provider.Capability < hint.MinCapability {
+			continue
+		}
+
+		if hint.PreferredProvider != "" && strings.EqualFold(w.provider.Name, hint.PreferredProvider) {
+			preferred = append(preferred, w)
+			continue
+		}
+
+		if hint.PreferredModel != "" && strings.EqualFold(w.provider.ModelName, hint.PreferredModel) {
+			preferred = append(preferred, w)
+		}
+	}
+
+	if len(preferred) > 0 {
+		if hint.MinCapability > 0 {
+			if selected := p.selectByCapability(preferred, hint.MinCapability); selected != nil {
+				return selected
+			}
+		}
+		return p.selectLeastLoad(preferred)
+	}
+
+	if hint.MinCapability > 0 {
+		if selected := p.selectByCapability(healthy, hint.MinCapability); selected != nil {
+			return selected
+		}
+	}
+
+	switch p.strategy {
+	case StrategyCapability:
+		return p.selectByCapability(healthy, 0)
+	case StrategyLeastLoad:
+		return p.selectLeastLoad(healthy)
+	case StrategyRandom:
+		return p.selectRandom(healthy)
+	case StrategyFailover:
+		return healthy[0]
+	default:
+		return p.selectRoundRobin(healthy)
+	}
 }
 
 // healthCheckLoop 健康检查循环
@@ -453,7 +524,15 @@ func (p *Pool) EmbedMultiple(ctx context.Context, texts []string) ([][]float64, 
 
 // ExtractMetadata Pool级别的ExtractMetadata
 func (p *Pool) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
-	client, err := p.Get()
+	return p.extractMetadataWithClient(ctx, SelectionHint{}, content, model)
+}
+
+func (p *Pool) ExtractMetadataWithHint(ctx context.Context, hint SelectionHint, content string, model string) (*domain.ExtractedMetadata, error) {
+	return p.extractMetadataWithClient(ctx, hint, content, model)
+}
+
+func (p *Pool) extractMetadataWithClient(ctx context.Context, hint SelectionHint, content string, model string) (*domain.ExtractedMetadata, error) {
+	client, err := p.GetWithHint(hint)
 	if err != nil {
 		return nil, err
 	}

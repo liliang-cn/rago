@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/acp"
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/agent"
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/agents"
 	cachecmd "github.com/liliang-cn/agent-go/cmd/agentgo-cli/cache"
@@ -69,6 +70,7 @@ var RootCmd = &cobra.Command{
 		agent.SetSharedVariables(cfg, verbose)
 		memory.SetSharedVariables(cfg, verbose)
 		ptc.SetSharedVariables(cfg, verbose)
+		acp.SetSharedVariables(cfg, verbose)
 		cachecmd.SetSharedVariables(cfg, verbose)
 
 		return nil
@@ -122,6 +124,9 @@ func init() {
 
 	// Add Dynamic Agents command
 	RootCmd.AddCommand(agents.AgentsCmd)
+
+	// Add ACP command
+	RootCmd.AddCommand(acp.Cmd)
 
 	// Add Skills command
 	RootCmd.AddCommand(skills.Cmd)

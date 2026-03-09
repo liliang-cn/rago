@@ -37,31 +37,34 @@ type ProgressCallback func(ProgressEvent)
 // Service is the main agent service that handles planning and execution
 // This matches the interface expected by the CLI in cmd/agentgo-cli/agent/agent.go
 type Service struct {
-	debug            bool
-	llmService       domain.Generator
-	mcpService       MCPToolExecutor
-	ragProcessor     domain.Processor
-	memoryService    domain.MemoryService
-	skillsService    *skills.Service
-	routerService    *router.Service // Semantic Router for fast intent recognition
-	promptManager    *prompt.Manager // Central prompt management
-	planner          *Planner
-	executor         *Executor
-	store            *Store
-	agent            *Agent
-	registry         *Registry
-	logger           *slog.Logger
-	cancelMu         sync.RWMutex
-	cancelFunc       context.CancelFunc
-	progressCb       ProgressCallback
-	currentSessionID string // Auto-generated UUID for Chat() method
-	sessionMu        sync.RWMutex
-	memorySaveMu     sync.RWMutex
-	memorySavedInRun bool
-	ragSourcesMu     sync.RWMutex
-	ragSources       []domain.Chunk // Collect RAG sources during execution
-	isRunning        bool
-	statusMu         sync.RWMutex
+	debug             bool
+	llmService        domain.Generator
+	mcpService        MCPToolExecutor
+	ragProcessor      domain.Processor
+	memoryService     domain.MemoryService
+	skillsService     *skills.Service
+	routerService     *router.Service // Semantic Router for fast intent recognition
+	promptManager     *prompt.Manager // Central prompt management
+	planner           *Planner
+	executor          *Executor
+	store             *Store
+	agent             *Agent
+	registry          *Registry
+	logger            *slog.Logger
+	cancelMu          sync.RWMutex
+	cancelFunc        context.CancelFunc
+	progressCb        ProgressCallback
+	currentSessionID  string // Auto-generated UUID for Chat() method
+	sessionMu         sync.RWMutex
+	memorySaveMu      sync.RWMutex
+	memorySavedInRun  bool
+	ragSourcesMu      sync.RWMutex
+	ragSources        []domain.Chunk // Collect RAG sources during execution
+	isRunning         bool
+	statusMu          sync.RWMutex
+	permissionMu      sync.RWMutex
+	permissionHandler PermissionHandler
+	permissionPolicy  PermissionPolicy
 
 	// Model metadata for Info()
 	modelName string

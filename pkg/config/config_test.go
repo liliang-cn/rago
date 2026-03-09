@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/liliang-cn/agent-go/pkg/mcp"
+	"github.com/liliang-cn/agent-go/pkg/pool"
 )
 
 func validConfig(home string) *Config {
@@ -219,6 +221,41 @@ func TestExpandAndEnsurePaths(t *testing.T) {
 	}
 	if _, err := os.Stat(cfg.Cache.Path); err != nil {
 		t.Fatalf("expected cache dir to exist: %v", err)
+	}
+}
+
+func TestUnmarshalProvidersAliases(t *testing.T) {
+	raw := []interface{}{
+		map[string]interface{}{
+			"name":                    "primary",
+			"base_url":                "http://localhost:11434/v1",
+			"key":                     "test",
+			"model_name":              "gpt-test",
+			"max_concurrent_requests": 7,
+			"capability_rating":       5,
+		},
+	}
+
+	var providers []pool.Provider
+	if err := unmarshalProviders(raw, &providers); err != nil {
+		t.Fatalf("unmarshalProviders failed: %v", err)
+	}
+	if len(providers) != 1 {
+		t.Fatalf("expected 1 provider, got %d", len(providers))
+	}
+	if providers[0].MaxConcurrency != 7 {
+		t.Fatalf("expected max concurrency alias to map, got %d", providers[0].MaxConcurrency)
+	}
+	if providers[0].Capability != 5 {
+		t.Fatalf("expected capability alias to map, got %d", providers[0].Capability)
+	}
+
+	data, err := json.Marshal(providers[0])
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	if !strings.Contains(string(data), `"max_concurrency":7`) {
+		t.Fatalf("expected canonical json field, got %s", string(data))
 	}
 }
 

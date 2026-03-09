@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/liliang-cn/agent-go/pkg/agent"
 	"github.com/liliang-cn/agent-go/pkg/config"
@@ -259,9 +260,39 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 
 	var wg sync.WaitGroup
 	quitChan := make(chan struct{})
+	requests := make(chan string, 32)
+	var pendingFrontdesk int32
 
 	// Use scanner for multi-word input
 	scanner := bufio.NewScanner(os.Stdin)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-quitChan:
+				return
+			case input, ok := <-requests:
+				if !ok {
+					return
+				}
+				queued := atomic.AddInt32(&pendingFrontdesk, -1)
+				fmt.Printf("\n🤔 Thinking...\n")
+				result, err := svc.Chat(ctx, input)
+				if err != nil {
+					fmt.Printf("❌ Error: %v\n\n", err)
+				} else {
+					displayResult(result)
+					fmt.Println()
+				}
+				if queued > 0 {
+					fmt.Printf("⏳ %d message(s) still queued for Frontdesk.\n", queued)
+				}
+				fmt.Print("👤 You: ")
+			}
+		}
+	}()
 
 	// Input goroutine
 	wg.Add(1)
@@ -315,15 +346,11 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 			}
 
 			// Process message normally (Frontdesk handling)
-			fmt.Printf("\n🤔 Thinking...\n")
-			result, err := svc.Chat(ctx, input)
-			if err != nil {
-				fmt.Printf("❌ Error: %v\n\n", err)
-				continue
+			pending := atomic.AddInt32(&pendingFrontdesk, 1)
+			requests <- input
+			if pending > 1 {
+				fmt.Printf("⏳ Frontdesk busy, queued at position %d.\n", pending)
 			}
-
-			displayResult(result)
-			fmt.Println()
 		}
 	}()
 

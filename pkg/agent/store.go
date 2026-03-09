@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -68,6 +69,7 @@ func (s *Store) initSchema() error {
 			description TEXT NOT NULL,
 			instructions TEXT NOT NULL,
 			model TEXT,
+			required_llm_capability INTEGER DEFAULT 0,
 			status TEXT DEFAULT 'stopped',
 			mcp_tools TEXT,
 			skills TEXT,
@@ -81,6 +83,10 @@ func (s *Store) initSchema() error {
 	`)
 	if err != nil {
 		return fmt.Errorf("failed to create agents table: %w", err)
+	}
+
+	if _, err := s.db.Exec(`ALTER TABLE agents ADD COLUMN required_llm_capability INTEGER DEFAULT 0`); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return fmt.Errorf("failed to migrate agents.required_llm_capability: %w", err)
 	}
 
 	// Sessions table (renamed to agent_sessions to avoid collision with core library)
@@ -322,13 +328,14 @@ func (s *Store) SaveAgentModel(agent *AgentModel) error {
 	skillsJSON, _ := json.Marshal(agent.Skills)
 
 	_, err := s.db.Exec(`
-		INSERT INTO agents (id, name, description, instructions, model, status, mcp_tools, skills, enable_rag, enable_memory, enable_ptc, enable_mcp, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO agents (id, name, description, instructions, model, required_llm_capability, status, mcp_tools, skills, enable_rag, enable_memory, enable_ptc, enable_mcp, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			description = excluded.description,
 			instructions = excluded.instructions,
 			model = excluded.model,
+			required_llm_capability = excluded.required_llm_capability,
 			status = excluded.status,
 			mcp_tools = excluded.mcp_tools,
 			skills = excluded.skills,
@@ -337,7 +344,7 @@ func (s *Store) SaveAgentModel(agent *AgentModel) error {
 			enable_ptc = excluded.enable_ptc,
 			enable_mcp = excluded.enable_mcp,
 			updated_at = CURRENT_TIMESTAMP
-	`, agent.ID, agent.Name, agent.Description, agent.Instructions, agent.Model, string(agent.Status), string(mcpToolsJSON), string(skillsJSON), agent.EnableRAG, agent.EnableMemory, agent.EnablePTC, agent.EnableMCP, agent.CreatedAt, agent.UpdatedAt)
+	`, agent.ID, agent.Name, agent.Description, agent.Instructions, agent.Model, agent.RequiredLLMCapability, string(agent.Status), string(mcpToolsJSON), string(skillsJSON), agent.EnableRAG, agent.EnableMemory, agent.EnablePTC, agent.EnableMCP, agent.CreatedAt, agent.UpdatedAt)
 	return err
 }
 
@@ -351,9 +358,9 @@ func (s *Store) GetAgentModel(id string) (*AgentModel, error) {
 	var statusStr string
 
 	err := s.db.QueryRow(`
-		SELECT id, name, description, instructions, model, status, mcp_tools, skills, enable_rag, enable_memory, enable_ptc, enable_mcp, created_at, updated_at
+		SELECT id, name, description, instructions, model, required_llm_capability, status, mcp_tools, skills, enable_rag, enable_memory, enable_ptc, enable_mcp, created_at, updated_at
 		FROM agents WHERE id = ?
-	`, id).Scan(&agent.ID, &agent.Name, &agent.Description, &agent.Instructions, &agent.Model,
+	`, id).Scan(&agent.ID, &agent.Name, &agent.Description, &agent.Instructions, &agent.Model, &agent.RequiredLLMCapability,
 		&statusStr, &mcpToolsJSON, &skillsJSON, &agent.EnableRAG, &agent.EnableMemory, &agent.EnablePTC, &agent.EnableMCP, &agent.CreatedAt, &agent.UpdatedAt)
 
 	if err != nil {
@@ -380,9 +387,9 @@ func (s *Store) GetAgentModelByName(name string) (*AgentModel, error) {
 	var statusStr string
 
 	err := s.db.QueryRow(`
-		SELECT id, name, description, instructions, model, status, mcp_tools, skills, enable_rag, enable_memory, enable_ptc, enable_mcp, created_at, updated_at
+		SELECT id, name, description, instructions, model, required_llm_capability, status, mcp_tools, skills, enable_rag, enable_memory, enable_ptc, enable_mcp, created_at, updated_at
 		FROM agents WHERE name = ?
-	`, name).Scan(&agent.ID, &agent.Name, &agent.Description, &agent.Instructions, &agent.Model,
+	`, name).Scan(&agent.ID, &agent.Name, &agent.Description, &agent.Instructions, &agent.Model, &agent.RequiredLLMCapability,
 		&statusStr, &mcpToolsJSON, &skillsJSON, &agent.EnableRAG, &agent.EnableMemory, &agent.EnablePTC, &agent.EnableMCP, &agent.CreatedAt, &agent.UpdatedAt)
 
 	if err != nil {
@@ -405,7 +412,7 @@ func (s *Store) ListAgentModels() ([]*AgentModel, error) {
 	defer s.mu.RUnlock()
 
 	rows, err := s.db.Query(`
-		SELECT id, name, description, instructions, model, status, mcp_tools, skills, enable_rag, enable_memory, enable_ptc, enable_mcp, created_at, updated_at
+		SELECT id, name, description, instructions, model, required_llm_capability, status, mcp_tools, skills, enable_rag, enable_memory, enable_ptc, enable_mcp, created_at, updated_at
 		FROM agents ORDER BY name ASC
 	`)
 	if err != nil {
@@ -419,7 +426,7 @@ func (s *Store) ListAgentModels() ([]*AgentModel, error) {
 		var mcpToolsJSON, skillsJSON string
 		var statusStr string
 
-		err := rows.Scan(&agent.ID, &agent.Name, &agent.Description, &agent.Instructions, &agent.Model,
+		err := rows.Scan(&agent.ID, &agent.Name, &agent.Description, &agent.Instructions, &agent.Model, &agent.RequiredLLMCapability,
 			&statusStr, &mcpToolsJSON, &skillsJSON, &agent.EnableRAG, &agent.EnableMemory, &agent.EnablePTC, &agent.EnableMCP, &agent.CreatedAt, &agent.UpdatedAt)
 		if err != nil {
 			continue

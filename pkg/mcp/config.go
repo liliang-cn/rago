@@ -87,8 +87,8 @@ func AddServerFromJSON(name, jsonConfig string, opts *AddServerOptions) (*AddSer
 	}
 
 	// Validate
-	if serverType == ServerTypeHTTP && simpleCfg.URL == "" {
-		return nil, fmt.Errorf("HTTP server requires 'url' field")
+	if (serverType == ServerTypeHTTP || serverType == ServerTypeSSE) && simpleCfg.URL == "" {
+		return nil, fmt.Errorf("%s server requires 'url' field", serverType)
 	}
 	if serverType == ServerTypeStdio && simpleCfg.Command == "" {
 		return nil, fmt.Errorf("stdio server requires 'command' field")

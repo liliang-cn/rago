@@ -636,6 +636,17 @@ func TestClient_ErrorConditions(t *testing.T) {
 				config:  &ServerConfig{Name: "test", Command: []string{"echo"}},
 				wantErr: false,
 			},
+			{
+				name:    "valid sse config",
+				config:  &ServerConfig{Name: "test-sse", Type: ServerTypeSSE, URL: "http://127.0.0.1:8080/sse"},
+				wantErr: false,
+			},
+			{
+				name:    "sse config missing url",
+				config:  &ServerConfig{Name: "test-sse", Type: ServerTypeSSE},
+				wantErr: true,
+				errMsg:  "URL is required for SSE server",
+			},
 		}
 
 		for _, tc := range testCases {

@@ -69,6 +69,7 @@ export interface AgentModel {
   description: string
   instructions: string
   model?: string
+  required_llm_capability?: number
   status: 'running' | 'stopped' | 'error'
   mcp_tools?: string[]
   skills?: string[]
@@ -89,6 +90,7 @@ export interface CreateAgentRequest {
   description: string
   instructions: string
   model?: string
+  required_llm_capability?: number
   mcp_tools?: string[]
   skills?: string[]
   enable_rag?: boolean
@@ -114,6 +116,9 @@ export interface ProviderStatus {
   type: string
   model?: string
   healthy?: boolean
+  active_requests?: number
+  max_concurrency?: number
+  capability?: number
 }
 
 // Skills types

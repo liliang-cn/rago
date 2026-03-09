@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -54,11 +55,11 @@ func (r *Runtime) RunStream(ctx context.Context, goal string) <-chan *Event {
 // loop is the core event loop
 func (r *Runtime) loop(ctx context.Context, goal string) {
 	defer func() {
-		fmt.Printf("[AGENT] Runtime loop finished\n")
+		fmt.Fprintf(os.Stderr, "[AGENT] Runtime loop finished\n")
 		close(r.eventChan)
 	}()
 
-	fmt.Printf("[AGENT] Runtime loop started for goal: %s\n", goal)
+	fmt.Fprintf(os.Stderr, "[AGENT] Runtime loop started for goal: %s\n", goal)
 
 	r.emit(EventTypeStart, fmt.Sprintf("Starting task: %s", goal))
 
@@ -76,11 +77,11 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 
 	// 1. Prepare context (Memory & RAG) — with a timeout so a slow embedding
 	// model or unreachable LLM doesn't block the entire run forever.
-	fmt.Printf("[AGENT] Preparing context...\n")
+	fmt.Fprintf(os.Stderr, "[AGENT] Preparing context...\n")
 	prepCtx, prepCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer prepCancel()
 	memoryContext, ragContext := r.prepareContext(prepCtx, goal)
-	fmt.Printf("[AGENT] Context prepared, memory=%d chars, rag=%d chars\n", len(memoryContext), len(ragContext))
+	fmt.Fprintf(os.Stderr, "[AGENT] Context prepared, memory=%d chars, rag=%d chars\n", len(memoryContext), len(ragContext))
 
 	// 2. Build initial messages
 	messages := []domain.Message{
@@ -142,7 +143,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		taskCompleteTriggered := false
 
 		var lastResponseID string
-		fmt.Printf("[AGENT] Round %d: Calling LLM with %d tools...\n", round, len(tools))
+		fmt.Fprintf(os.Stderr, "[AGENT] Round %d: Calling LLM with %d tools...\n", round, len(tools))
 		err := r.svc.llmService.StreamWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
 			Temperature: 0.3,
 			MaxTokens:   2000,
@@ -275,23 +276,23 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 				content := fullContent.String()
 				isCode := r.svc.ptcIntegration.IsCodeResponse(content)
 				if r.svc.debug {
-					fmt.Printf("DEBUG [PTC Override] IsCodeResponse=%v contentLen=%d\n", isCode, len(content))
+					fmt.Fprintf(os.Stderr, "DEBUG [PTC Override] IsCodeResponse=%v contentLen=%d\n", isCode, len(content))
 				}
 				if isCode {
 					extracted := r.svc.ptcIntegration.ExtractCode(content)
 					if r.svc.debug {
 						if len(extracted) > 100 {
-							fmt.Printf("DEBUG [PTC Override] ExtractCode len=%d first100=%q\n", len(extracted), extracted[:100])
+							fmt.Fprintf(os.Stderr, "DEBUG [PTC Override] ExtractCode len=%d first100=%q\n", len(extracted), extracted[:100])
 						} else {
-							fmt.Printf("DEBUG [PTC Override] ExtractCode len=%d content=%q\n", len(extracted), extracted)
+							fmt.Fprintf(os.Stderr, "DEBUG [PTC Override] ExtractCode len=%d content=%q\n", len(extracted), extracted)
 						}
 					}
 					extracted = sanitiseJSCode(extracted)
 					if r.svc.debug {
 						if len(extracted) > 100 {
-							fmt.Printf("DEBUG [PTC Override] After sanitise len=%d first100=%q\n", len(extracted), extracted[:100])
+							fmt.Fprintf(os.Stderr, "DEBUG [PTC Override] After sanitise len=%d first100=%q\n", len(extracted), extracted[:100])
 						} else {
-							fmt.Printf("DEBUG [PTC Override] After sanitise len=%d content=%q\n", len(extracted), extracted)
+							fmt.Fprintf(os.Stderr, "DEBUG [PTC Override] After sanitise len=%d content=%q\n", len(extracted), extracted)
 						}
 					}
 					if extracted != "" {
@@ -302,7 +303,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 								}
 								toolCalls[i].Function.Arguments["code"] = extracted
 								if r.svc.debug {
-									fmt.Printf("DEBUG [PTC Override] Replaced code for tool call %d\n", i)
+									fmt.Fprintf(os.Stderr, "DEBUG [PTC Override] Replaced code for tool call %d\n", i)
 								}
 							}
 						}
@@ -510,8 +511,8 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 
 	// --- DEBUG: LOG TOOL START ---
 	if r.svc.debug {
-		fmt.Printf("\n🛠️  DEBUG RUNTIME TOOL CALL: %s\n", toolName)
-		fmt.Printf("   Arguments: %v\n", tc.Function.Arguments)
+		fmt.Fprintf(os.Stderr, "\n🛠️  DEBUG RUNTIME TOOL CALL: %s\n", toolName)
+		fmt.Fprintf(os.Stderr, "   Arguments: %v\n", tc.Function.Arguments)
 	}
 
 	// === PRE-TOOL HOOK ===
@@ -548,6 +549,15 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 				return nil, nil, true
 			}
 		}
+	}
+
+	if err := r.svc.authorizeTool(ctx, PermissionRequest{
+		ToolName:  toolName,
+		ToolArgs:  tc.Function.Arguments,
+		SessionID: r.session.GetID(),
+		AgentID:   r.currentAgent.ID(),
+	}); err != nil {
+		return nil, err, false
 	}
 
 	// Normal Tool Execution
@@ -636,11 +646,11 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 	// --- DEBUG: LOG TOOL RESULT ---
 	if r.svc.debug {
 		if execErr != nil {
-			fmt.Printf("   ❌ ERROR: %v\n", execErr)
+			fmt.Fprintf(os.Stderr, "   ❌ ERROR: %v\n", execErr)
 		} else {
-			fmt.Printf("   ✅ RESULT: %v\n", result)
+			fmt.Fprintf(os.Stderr, "   ✅ RESULT: %v\n", result)
 		}
-		fmt.Println(strings.Repeat("-", 20))
+		fmt.Fprintln(os.Stderr, strings.Repeat("-", 20))
 	}
 
 	return result, execErr, false

@@ -138,29 +138,29 @@ export function Chat() {
   return (
     <div className="flex flex-col h-[calc(100vh-200px)]">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('chat')}</h2>
+        <h2 className="text-xl font-semibold text-slate-900">{t('chat')}</h2>
         <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <label className="flex items-center gap-2 text-sm text-slate-600">
             <input
               type="checkbox"
               checked={useStream}
               onChange={(e) => setUseStream(e.target.checked)}
-              className="rounded border-gray-300 dark:border-gray-600"
+              className="rounded border-slate-300"
             />
             Stream
           </label>
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <label className="flex items-center gap-2 text-sm text-slate-600">
             <input
               type="checkbox"
               checked={debugMode}
               onChange={(e) => setDebugMode(e.target.checked)}
-              className="rounded border-gray-300 dark:border-gray-600"
+              className="rounded border-slate-300"
             />
             Debug
           </label>
           <button
             onClick={handleClear}
-            className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-800 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+            className="dashboard-secondary-button px-3 py-1 text-sm"
           >
             Clear
           </button>
@@ -168,14 +168,14 @@ export function Chat() {
       </div>
 
       {debugMode && (
-        <div className="mb-4 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs font-mono text-gray-600 dark:text-gray-400">
+        <div className="dashboard-muted-card mb-4 rounded-2xl p-3 text-xs font-mono text-slate-600">
           Session: {sessionId}
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">
+      <div className="glass-panel flex-1 overflow-y-auto rounded-[28px] p-4 mb-4">
         {messages.length === 0 && (
-          <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+          <div className="text-center text-slate-500 py-8">
             Start a conversation...
           </div>
         )}
@@ -190,17 +190,17 @@ export function Chat() {
               className={`inline-block max-w-[80%] px-4 py-2 rounded-lg ${
                 message.role === 'user'
                   ? 'bg-blue-600 text-white'
-                  : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
+                  : 'bg-slate-50 text-slate-900 border border-slate-200'
               }`}
             >
               <p className="whitespace-pre-wrap">
                 {message.content}
                 {message.streaming && (
-                  <span className="inline-block w-2 h-4 ml-1 bg-blue-600 dark:bg-blue-400 animate-pulse" />
+                  <span className="inline-block w-2 h-4 ml-1 bg-blue-600 animate-pulse" />
                 )}
               </p>
               {debugMode && message.debug && (
-                <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600 text-xs font-mono opacity-70">
+                <div className="mt-2 pt-2 border-t border-slate-200 text-xs font-mono opacity-70">
                   {message.debug.latency && <span>Latency: {message.debug.latency}ms</span>}
                 </div>
               )}
@@ -216,13 +216,13 @@ export function Chat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type a message..."
-          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+          className="dashboard-input flex-1"
           disabled={isStreaming}
         />
         <button
           type="submit"
           disabled={isStreaming || !input.trim()}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="dashboard-button px-6 py-2 disabled:cursor-not-allowed"
         >
           {isStreaming ? t('sending') : t('sendMessage')}
         </button>

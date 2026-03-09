@@ -77,7 +77,6 @@ func (s *GlobalPoolService) Initialize(ctx context.Context, cfg *config.Config) 
 	}
 	s.embeddingPool = embeddingPool
 
-
 	s.initialized = true
 	return nil
 }
@@ -344,34 +343,65 @@ func (s *GlobalPoolService) Shutdown() error {
 // llmServiceWrapper 包装Pool为domain.Generator
 type llmServiceWrapper struct {
 	pool *pool.Pool
+	hint pool.SelectionHint
 }
 
 func (w *llmServiceWrapper) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
-	return w.pool.Generate(ctx, prompt, opts)
+	client, err := w.pool.GetWithHint(w.hint)
+	if err != nil {
+		return "", err
+	}
+	defer w.pool.Release(client)
+	return client.Generate(ctx, prompt, opts)
 }
 
 func (w *llmServiceWrapper) Stream(ctx context.Context, prompt string, opts *domain.GenerationOptions, callback func(string)) error {
-	return w.pool.Stream(ctx, prompt, opts, callback)
+	client, err := w.pool.GetWithHint(w.hint)
+	if err != nil {
+		return err
+	}
+	defer w.pool.Release(client)
+	return client.Stream(ctx, prompt, opts, callback)
 }
 
 func (w *llmServiceWrapper) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
-	return w.pool.GenerateWithTools(ctx, messages, tools, opts)
+	client, err := w.pool.GetWithHint(w.hint)
+	if err != nil {
+		return nil, err
+	}
+	defer w.pool.Release(client)
+	return client.GenerateWithTools(ctx, messages, tools, opts)
 }
 
 func (w *llmServiceWrapper) StreamWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
-	return w.pool.StreamWithTools(ctx, messages, tools, opts, callback)
+	client, err := w.pool.GetWithHint(w.hint)
+	if err != nil {
+		return err
+	}
+	defer w.pool.Release(client)
+	return client.StreamWithTools(ctx, messages, tools, opts, callback)
 }
 
 func (w *llmServiceWrapper) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
-	return w.pool.GenerateStructured(ctx, prompt, schema, opts)
+	client, err := w.pool.GetWithHint(w.hint)
+	if err != nil {
+		return nil, err
+	}
+	defer w.pool.Release(client)
+	return client.GenerateStructured(ctx, prompt, schema, opts)
 }
 
 func (w *llmServiceWrapper) RecognizeIntent(ctx context.Context, request string) (*domain.IntentResult, error) {
-	return w.pool.RecognizeIntent(ctx, request)
+	client, err := w.pool.GetWithHint(w.hint)
+	if err != nil {
+		return nil, err
+	}
+	defer w.pool.Release(client)
+	return client.RecognizeIntent(ctx, request)
 }
 
 func (w *llmServiceWrapper) ExtractMetadata(ctx context.Context, content string, model string) (*domain.ExtractedMetadata, error) {
-	return w.pool.ExtractMetadata(ctx, content, model)
+	return w.pool.ExtractMetadataWithHint(ctx, w.hint, content, model)
 }
 
 // embeddingServiceWrapper 包装Pool为domain.Embedder
@@ -420,6 +450,16 @@ func (s *GlobalPoolService) GetLLMService() (domain.Generator, error) {
 		return nil, fmt.Errorf("pool service not initialized")
 	}
 	return &llmServiceWrapper{pool: s.llmPool}, nil
+}
+
+func (s *GlobalPoolService) GetLLMServiceWithHint(hint pool.SelectionHint) (domain.Generator, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if !s.initialized {
+		return nil, fmt.Errorf("pool service not initialized")
+	}
+	return &llmServiceWrapper{pool: s.llmPool, hint: hint}, nil
 }
 
 // GetEmbeddingService 获取Embedding服务（兼容旧代码）

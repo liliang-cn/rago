@@ -56,16 +56,16 @@ function App() {
   return (
     <div className="min-h-screen app-shell">
       <div className="app-backdrop" />
-      <header className="relative z-10 border-b border-white/8">
+      <header className="relative z-10 border-b border-slate-200/80">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-5 px-5 py-6 lg:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.38em] text-[#8ea0b5]">AgentGo Control Surface</p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                Multi-agent orchestration with a real control plane
+              <p className="text-xs uppercase tracking-[0.38em] text-sky-700">AgentGo Control Surface</p>
+              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
+                Multi-agent orchestration with a clean control plane
               </h1>
             </div>
-            <div className="max-w-md text-sm leading-7 text-[#a7b7c9]">
+            <div className="max-w-md text-sm leading-7 text-slate-600">
               Observe provider health, govern specialists, delegate tasks, and inspect supporting services from one UI.
             </div>
           </div>

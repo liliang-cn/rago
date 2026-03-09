@@ -186,11 +186,14 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 			status = "enabled"
 		}
 		providers = append(providers, map[string]interface{}{
-			"name":    name,
-			"status":  status,
-			"type":    "llm",
-			"model":   st.ModelName,
-			"healthy": st.Healthy,
+			"name":               name,
+			"status":             status,
+			"type":               "llm",
+			"model":              st.ModelName,
+			"healthy":            st.Healthy,
+			"active_requests":    st.ActiveRequests,
+			"max_concurrency":    st.MaxConcurrency,
+			"capability":         st.Capability,
 		})
 	}
 
@@ -202,11 +205,14 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 			status = "enabled"
 		}
 		providers = append(providers, map[string]interface{}{
-			"name":    name,
-			"status":  status,
-			"type":    "embedding",
-			"model":   st.ModelName,
-			"healthy": st.Healthy,
+			"name":               name,
+			"status":             status,
+			"type":               "embedding",
+			"model":              st.ModelName,
+			"healthy":            st.Healthy,
+			"active_requests":    st.ActiveRequests,
+			"max_concurrency":    st.MaxConcurrency,
+			"capability":         st.Capability,
 		})
 	}
 

@@ -158,7 +158,7 @@ func TestHandleAgentsAndOperations(t *testing.T) {
 	})
 
 	t.Run("create agent", func(t *testing.T) {
-		body := []byte(`{"name":"Writer","description":"Writes","instructions":"Write clearly","enable_mcp":true}`)
+		body := []byte(`{"name":"Writer","description":"Writes","instructions":"Write clearly","enable_mcp":true,"required_llm_capability":4}`)
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/api/agents", bytes.NewReader(body))
 		h.HandleAgents(rec, req)
@@ -171,6 +171,9 @@ func TestHandleAgentsAndOperations(t *testing.T) {
 		}
 		if !model.EnableMCP {
 			t.Fatal("expected enable_mcp to persist")
+		}
+		if model.RequiredLLMCapability != 4 {
+			t.Fatalf("expected required_llm_capability to persist, got %d", model.RequiredLLMCapability)
 		}
 	})
 
@@ -290,12 +293,15 @@ func TestHandleStatusMinimal(t *testing.T) {
 func TestAgentManagerOperationsPersist(t *testing.T) {
 	manager := newTestManager(t)
 
-	created, err := manager.CreateAgent(context.Background(), &agent.AgentModel{Name: "Reviewer", Description: "Reviews", Instructions: "Review"})
+	created, err := manager.CreateAgent(context.Background(), &agent.AgentModel{Name: "Reviewer", Description: "Reviews", Instructions: "Review", RequiredLLMCapability: 3})
 	if err != nil {
 		t.Fatalf("create agent failed: %v", err)
 	}
 	if created.Name != "Reviewer" {
 		t.Fatalf("unexpected created agent: %+v", created)
+	}
+	if created.RequiredLLMCapability != 3 {
+		t.Fatalf("unexpected required capability: %+v", created)
 	}
 
 	if err := manager.StartAgent(context.Background(), "Reviewer"); err != nil {

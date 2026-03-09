@@ -10,7 +10,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/liliang-cn/agent-go/pkg/config"
 	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/pool"
+	"github.com/liliang-cn/agent-go/pkg/services"
 )
 
 // AgentManager handles the lifecycle, discovery, and execution routing for dynamic agents.
@@ -152,6 +155,9 @@ func (m *AgentManager) CreateAgent(_ context.Context, model *AgentModel) (*Agent
 	if model.Status == "" {
 		model.Status = AgentStatusStopped
 	}
+	if model.RequiredLLMCapability < 0 {
+		model.RequiredLLMCapability = 0
+	}
 	if model.CreatedAt.IsZero() {
 		model.CreatedAt = now
 	}
@@ -191,6 +197,21 @@ func (m *AgentManager) getOrBuildService(name string) (*Service, error) {
 	builder := New(model.Name).
 		WithSystemPrompt(model.Instructions)
 
+	if agentgoCfg, cfgErr := config.Load(""); cfgErr == nil {
+		builder.WithConfig(agentgoCfg)
+
+		globalPool := services.GetGlobalPoolService()
+		if initErr := globalPool.Initialize(context.Background(), agentgoCfg); initErr == nil {
+			if llmSvc, llmErr := globalPool.GetLLMServiceWithHint(pool.SelectionHint{
+				PreferredProvider: model.Model,
+				PreferredModel:    model.Model,
+				MinCapability:     model.RequiredLLMCapability,
+			}); llmErr == nil {
+				builder.WithLLM(llmSvc)
+			}
+		}
+	}
+
 	if model.EnableRAG {
 		builder.WithRAG()
 	}
@@ -227,6 +248,10 @@ func (m *AgentManager) getOrBuildService(name string) (*Service, error) {
 		newSvc.agent.SetAllowedSkills(model.Skills)
 	} else {
 		newSvc.agent.SetAllowedSkills([]string{}) // none allowed if empty
+	}
+
+	if model.Model != "" {
+		newSvc.agent.SetModel(model.Model)
 	}
 
 	m.mu.Lock()

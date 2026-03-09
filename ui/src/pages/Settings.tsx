@@ -63,19 +63,19 @@ export function Settings() {
   }
 
   if (isLoading) {
-    return <div className="glass-panel rounded-[28px] p-6 text-[#d7e1ec]">{t('loading')}</div>
+    return <div className="glass-panel rounded-[28px] p-6 text-slate-600">{t('loading')}</div>
   }
 
   if (error) {
-    return <div className="glass-panel rounded-[28px] border border-rose-500/30 p-6 text-rose-200">{t('error')}: {error.message}</div>
+    return <div className="rounded-[28px] border border-rose-200 bg-rose-50 p-6 text-rose-700">{t('error')}: {error.message}</div>
   }
 
   return (
     <div className="space-y-6">
       <div className="glass-panel rounded-[32px] p-6">
-        <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">Project configuration</p>
-        <h2 className="mt-2 text-3xl font-semibold text-white">{t('settings')}</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-[#a7b7c9]">
+        <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Project configuration</p>
+        <h2 className="mt-2 text-3xl font-semibold text-slate-900">{t('settings')}</h2>
+        <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
           This page now reads and writes the actual project configuration file used by AgentGo, not a separate UI-only settings file.
         </p>
       </div>
@@ -83,15 +83,15 @@ export function Settings() {
       <form onSubmit={handleSave} className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_380px]">
         <div className="space-y-6">
           <section className="glass-panel rounded-[32px] p-6">
-            <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">Core</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Core</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-sm font-medium text-[#d7e1ec]">Home</span>
+                <span className="text-sm font-medium text-slate-700">Home</span>
                 <input value={homeDir} onChange={(e) => setHomeDir(e.target.value)} className="dashboard-input" />
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-[#d7e1ec]">Debug</span>
-                <div className="rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-white">
+                <span className="text-sm font-medium text-slate-700">Debug</span>
+                <div className="dashboard-muted-card rounded-[18px] px-4 py-3 text-slate-700">
                   <label className="flex items-center gap-3">
                     <input type="checkbox" checked={debug} onChange={(e) => setDebug(e.target.checked)} />
                     Enable verbose runtime logging
@@ -99,49 +99,49 @@ export function Settings() {
                 </div>
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-[#d7e1ec]">Server host</span>
+                <span className="text-sm font-medium text-slate-700">Server host</span>
                 <input value={serverHost} onChange={(e) => setServerHost(e.target.value)} className="dashboard-input" />
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-[#d7e1ec]">Server port</span>
+                <span className="text-sm font-medium text-slate-700">Server port</span>
                 <input value={serverPort} onChange={(e) => setServerPort(e.target.value)} className="dashboard-input" />
               </label>
             </div>
           </section>
 
           <section className="glass-panel rounded-[32px] p-6">
-            <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">MCP</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">MCP</p>
             <div className="mt-5 space-y-4">
-              <div className="rounded-[20px] border border-white/10 bg-white/5 px-4 py-3 text-white">
+              <div className="dashboard-muted-card rounded-[20px] px-4 py-3 text-slate-700">
                 <label className="flex items-center gap-3">
                   <input type="checkbox" checked={mcpEnabled} onChange={(e) => setMCPEnabled(e.target.checked)} />
                   Enable MCP subsystem
                 </label>
               </div>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-[#d7e1ec]">Filesystem allowlist</span>
+                <span className="text-sm font-medium text-slate-700">Filesystem allowlist</span>
                 <textarea value={allowedDirs} onChange={(e) => setAllowedDirs(e.target.value)} rows={5} className="dashboard-input resize-none" />
               </label>
             </div>
           </section>
 
           <section className="glass-panel rounded-[32px] p-6">
-            <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">Knowledge and memory</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Knowledge and memory</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="space-y-2 md:col-span-2">
-                <span className="text-sm font-medium text-[#d7e1ec]">Skills paths</span>
+                <span className="text-sm font-medium text-slate-700">Skills paths</span>
                 <textarea value={skillsPaths} onChange={(e) => setSkillsPaths(e.target.value)} rows={4} className="dashboard-input resize-none" />
               </label>
               <label className="space-y-2 md:col-span-2">
-                <span className="text-sm font-medium text-[#d7e1ec]">RAG database path</span>
+                <span className="text-sm font-medium text-slate-700">RAG database path</span>
                 <input value={ragDbPath} onChange={(e) => setRagDbPath(e.target.value)} className="dashboard-input" />
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-[#d7e1ec]">Memory store type</span>
+                <span className="text-sm font-medium text-slate-700">Memory store type</span>
                 <input value={memoryStoreType} onChange={(e) => setMemoryStoreType(e.target.value)} className="dashboard-input" />
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-[#d7e1ec]">Memory path</span>
+                <span className="text-sm font-medium text-slate-700">Memory path</span>
                 <input value={memoryPath} onChange={(e) => setMemoryPath(e.target.value)} className="dashboard-input" />
               </label>
             </div>
@@ -151,47 +151,47 @@ export function Settings() {
             <button type="submit" disabled={updateConfigMutation.isPending} className="dashboard-button">
               {updateConfigMutation.isPending ? t('loading') : t('saveSettings')}
             </button>
-            {saved && <span className="text-emerald-300">{t('settingsSaved')}</span>}
+            {saved && <span className="text-emerald-600">{t('settingsSaved')}</span>}
           </div>
         </div>
 
         <aside className="space-y-6">
           <section className="glass-panel rounded-[32px] p-6">
-            <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">Source of truth</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Source of truth</p>
             <dl className="mt-5 space-y-4 text-sm">
               <div>
-                <dt className="text-[#8ea0b5]">Config file</dt>
-                <dd className="mt-1 break-all text-white">{config?.configPath}</dd>
+                <dt className="text-slate-500">Config file</dt>
+                <dd className="mt-1 break-all text-slate-900">{config?.configPath}</dd>
               </div>
               <div>
-                <dt className="text-[#8ea0b5]">Data dir</dt>
-                <dd className="mt-1 break-all text-white">{config?.dataDir}</dd>
+                <dt className="text-slate-500">Data dir</dt>
+                <dd className="mt-1 break-all text-slate-900">{config?.dataDir}</dd>
               </div>
               <div>
-                <dt className="text-[#8ea0b5]">Workspace dir</dt>
-                <dd className="mt-1 break-all text-white">{config?.workspaceDir}</dd>
+                <dt className="text-slate-500">Workspace dir</dt>
+                <dd className="mt-1 break-all text-slate-900">{config?.workspaceDir}</dd>
               </div>
               <div>
-                <dt className="text-[#8ea0b5]">MCP servers file</dt>
-                <dd className="mt-1 break-all text-white">{config?.mcpServersPath}</dd>
+                <dt className="text-slate-500">MCP servers file</dt>
+                <dd className="mt-1 break-all text-slate-900">{config?.mcpServersPath}</dd>
               </div>
             </dl>
           </section>
 
           <section className="glass-panel rounded-[32px] p-6">
-            <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">Language</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Language</p>
             <div className="mt-5 flex gap-3">
               <button
                 type="button"
                 onClick={() => i18n.changeLanguage('zh')}
-                className={i18n.language === 'zh' ? 'dashboard-button' : 'rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm text-white'}
+                className={i18n.language === 'zh' ? 'dashboard-button' : 'dashboard-secondary-button px-4 py-3 text-sm'}
               >
                 中文
               </button>
               <button
                 type="button"
                 onClick={() => i18n.changeLanguage('en')}
-                className={i18n.language === 'en' ? 'dashboard-button' : 'rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm text-white'}
+                className={i18n.language === 'en' ? 'dashboard-button' : 'dashboard-secondary-button px-4 py-3 text-sm'}
               >
                 English
               </button>

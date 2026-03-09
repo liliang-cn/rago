@@ -17,15 +17,15 @@ export function QueryTest() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+      <div className="glass-panel rounded-[32px] p-6">
+        <h2 className="text-xl font-semibold text-slate-900 mb-4">
           RAG Query
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label
               htmlFor="query"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+              className="block text-sm font-medium text-slate-700 mb-2"
             >
               Query
             </label>
@@ -34,14 +34,14 @@ export function QueryTest() {
               rows={3}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:border-gray-600 dark:text-white"
+              className="dashboard-input resize-none"
               placeholder="Enter your query..."
             />
           </div>
           <div>
             <label
               htmlFor="topK"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+              className="block text-sm font-medium text-slate-700 mb-2"
             >
               Top K Results: {topK}
             </label>
@@ -58,7 +58,7 @@ export function QueryTest() {
           <button
             type="submit"
             disabled={mutation.isPending || !query.trim()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="dashboard-button px-6 py-2 disabled:cursor-not-allowed"
           >
             {mutation.isPending ? 'Querying...' : 'Query'}
           </button>
@@ -66,8 +66,8 @@ export function QueryTest() {
       </div>
 
       {mutation.isError && (
-        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-red-600 dark:text-red-400">
+        <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-4">
+          <p className="text-rose-700">
             Error: {mutation.error?.message}
           </p>
         </div>
@@ -75,32 +75,32 @@ export function QueryTest() {
 
       {mutation.isSuccess && (
         <div className="space-y-4">
-          <div className="p-6 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-3">
+          <div className="glass-panel rounded-[28px] p-6">
+            <h3 className="font-medium text-slate-900 mb-3">
               Answer
             </h3>
-            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+            <p className="text-slate-700 whitespace-pre-wrap">
               {mutation.data.answer}
             </p>
           </div>
 
           {mutation.data.sources && mutation.data.sources.length > 0 && (
             <div>
-              <h3 className="font-medium text-gray-900 dark:text-white mb-3">
+              <h3 className="font-medium text-slate-900 mb-3">
                 Sources
               </h3>
               <div className="space-y-3">
                 {mutation.data.sources.map((source, index) => (
                   <div
                     key={index}
-                    className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                    className="dashboard-muted-card rounded-[24px] p-4"
                   >
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                      <span className="text-sm font-medium text-blue-700">
                         Score: {source.score.toFixed(4)}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">
+                    <p className="text-sm text-slate-600 line-clamp-3">
                       {source.content}
                     </p>
                   </div>

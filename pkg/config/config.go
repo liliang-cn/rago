@@ -716,6 +716,29 @@ func unmarshalProviders(raw interface{}, target *[]pool.Provider) error {
 		return nil
 	}
 
+	if items, ok := raw.([]interface{}); ok {
+		normalized := make([]interface{}, 0, len(items))
+		for _, item := range items {
+			m, ok := item.(map[string]interface{})
+			if !ok {
+				normalized = append(normalized, item)
+				continue
+			}
+			if _, exists := m["max_concurrency"]; !exists {
+				if v, ok := m["max_concurrent_requests"]; ok {
+					m["max_concurrency"] = v
+				}
+			}
+			if _, exists := m["capability"]; !exists {
+				if v, ok := m["capability_rating"]; ok {
+					m["capability"] = v
+				}
+			}
+			normalized = append(normalized, m)
+		}
+		raw = normalized
+	}
+
 	// 转换为JSON再解析（绕过mapstructure的限制）
 	data, err := json.Marshal(raw)
 	if err != nil {

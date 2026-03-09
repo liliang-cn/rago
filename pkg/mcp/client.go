@@ -80,6 +80,10 @@ func NewClient(config *ServerConfig, opts *ClientOptions) (*Client, error) {
 		if config.URL == "" {
 			return nil, fmt.Errorf("URL is required for HTTP server")
 		}
+	case ServerTypeSSE:
+		if config.URL == "" {
+			return nil, fmt.Errorf("URL is required for SSE server")
+		}
 	case ServerTypeInProcess:
 		// No specific validation needed, handled in Connect
 	case ServerTypeStdio, "":
@@ -128,6 +132,14 @@ func (c *Client) Connect(ctx context.Context) error {
 		transport, err = c.createHTTPTransport()
 		if err != nil {
 			return fmt.Errorf("failed to create HTTP transport for %s: %w", c.config.Name, err)
+		}
+	case ServerTypeSSE:
+		if c.config.URL == "" {
+			return fmt.Errorf("URL is required for SSE MCP server %s", c.config.Name)
+		}
+		transport, err = c.createSSETransport()
+		if err != nil {
+			return fmt.Errorf("failed to create SSE transport for %s: %w", c.config.Name, err)
 		}
 
 	case ServerTypeInProcess:
@@ -314,6 +326,24 @@ func (c *Client) createHTTPTransport() (mcp.Transport, error) {
 		Endpoint:   c.config.URL,
 		HTTPClient: httpClient,
 		MaxRetries: 5,
+	}
+
+	return transport, nil
+}
+
+// createSSETransport creates an SSE transport for legacy SSE-based MCP servers.
+func (c *Client) createSSETransport() (mcp.Transport, error) {
+	httpClient := &http.Client{}
+	if len(c.config.Headers) > 0 {
+		httpClient.Transport = &headerTransport{
+			headers: c.config.Headers,
+			base:    http.DefaultTransport,
+		}
+	}
+
+	transport := &mcp.SSEClientTransport{
+		Endpoint:   c.config.URL,
+		HTTPClient: httpClient,
 	}
 
 	return transport, nil

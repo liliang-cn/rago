@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/liliang-cn/agent-go/pkg/domain"
@@ -389,7 +390,7 @@ func (s *Service) EmitDebugPrint(round int, debugType string, content string) {
 	sep := strings.Repeat("─", 60)
 	label := strings.ToUpper(debugType)
 
-	fmt.Printf("\n\033[2m%s\n🐛 DEBUG [Round %d] %s\n%s\n%s\n%s\033[0m\n",
+	fmt.Fprintf(os.Stderr, "\n\033[2m%s\n🐛 DEBUG [Round %d] %s\n%s\n%s\n%s\033[0m\n",
 		sep, round, label, sep, content, sep)
 }
 

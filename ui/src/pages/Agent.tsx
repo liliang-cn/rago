@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react'
 import { useCreateAgent, useDispatchAgentTask, useAgents, useStartAgent, useStatus, useStopAgent } from '../hooks/useApi'
 import type { AgentModel, CreateAgentRequest } from '../lib/api'
 
@@ -73,6 +73,7 @@ export function Agent() {
     description: '',
     instructions: '',
     model: '',
+    required_llm_capability: 0,
     enable_rag: true,
     enable_memory: false,
     enable_ptc: false,
@@ -122,6 +123,26 @@ export function Agent() {
     ].slice(0, 12))
   }
 
+  const handleCreateFormField =
+    (field: 'name' | 'description' | 'instructions' | 'model') =>
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setCreateForm((current) => ({ ...current, [field]: event.target.value }))
+    }
+
+  const handleRequiredCapabilityChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const value = Number(event.target.value)
+    setCreateForm((current) => ({
+      ...current,
+      required_llm_capability: Number.isNaN(value) ? 0 : value,
+    }))
+  }
+
+  const handleCapabilityToggle =
+    (field: (typeof capabilityMeta)[number]['key']) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setCreateForm((current) => ({ ...current, [field]: event.target.checked }))
+    }
+
   const handleCreateAgent = async (event: FormEvent) => {
     event.preventDefault()
 
@@ -145,6 +166,7 @@ export function Agent() {
         description: '',
         instructions: '',
         model: '',
+        required_llm_capability: 0,
         enable_rag: true,
         enable_memory: false,
         enable_ptc: false,
@@ -225,20 +247,20 @@ export function Agent() {
     <div className="space-y-8">
       <section className="dashboard-hero">
         <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#ffcf99]">Multi-agent command deck</p>
-          <h2 className="mt-3 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-            Run your specialists like an ops room, not a chat demo.
+          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-sky-700">Multi-agent command deck</p>
+          <h2 className="mt-3 text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
+            Run your specialists in a focused, readable workspace.
           </h2>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-[#f6e8d5] sm:text-base">
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
             Monitor agent health, launch or stop specialists, delegate tasks directly, and mint new agents from the web UI without dropping to the CLI.
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map((metric) => (
             <div key={metric.label} className="glass-panel rounded-[28px] p-5">
-              <p className="text-xs uppercase tracking-[0.24em] text-[#8ea0b5]">{metric.label}</p>
-              <p className="mt-3 text-4xl font-semibold text-white">{metric.value}</p>
-              <p className="mt-2 text-sm text-[#a7b7c9]">{metric.subtext}</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{metric.label}</p>
+              <p className="mt-3 text-4xl font-semibold text-slate-900">{metric.value}</p>
+              <p className="mt-2 text-sm text-slate-600">{metric.subtext}</p>
             </div>
           ))}
         </div>
@@ -248,37 +270,37 @@ export function Agent() {
         <aside className="glass-panel rounded-[32px] p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">Registry</p>
-              <h3 className="mt-2 text-2xl font-semibold text-white">Agents</h3>
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Registry</p>
+              <h3 className="mt-2 text-2xl font-semibold text-slate-900">Agents</h3>
             </div>
             <button
               type="button"
               onClick={() => setShowCreateForm((value) => !value)}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10"
+              className="dashboard-secondary-button px-4 py-2 text-sm"
             >
               {showCreateForm ? 'Close' : 'New agent'}
             </button>
           </div>
 
           {showCreateForm && (
-            <form onSubmit={handleCreateAgent} className="mt-5 space-y-3 rounded-[24px] border border-white/10 bg-black/10 p-4">
+            <form onSubmit={handleCreateAgent} className="dashboard-muted-card mt-5 space-y-3 rounded-[24px] p-4">
               <input
                 value={createForm.name}
-                onChange={(event) => setCreateForm((current) => ({ ...current, name: event.target.value }))}
+                onChange={handleCreateFormField('name')}
                 placeholder="Agent name"
                 className="dashboard-input"
                 required
               />
               <input
                 value={createForm.description}
-                onChange={(event) => setCreateForm((current) => ({ ...current, description: event.target.value }))}
+                onChange={handleCreateFormField('description')}
                 placeholder="One-line mission"
                 className="dashboard-input"
                 required
               />
               <textarea
                 value={createForm.instructions}
-                onChange={(event) => setCreateForm((current) => ({ ...current, instructions: event.target.value }))}
+                onChange={handleCreateFormField('instructions')}
                 placeholder="System instructions"
                 rows={4}
                 className="dashboard-input resize-none"
@@ -286,31 +308,40 @@ export function Agent() {
               />
               <input
                 value={createForm.model}
-                onChange={(event) => setCreateForm((current) => ({ ...current, model: event.target.value }))}
-                placeholder="Model override (optional)"
+                onChange={handleCreateFormField('model')}
+                placeholder="Preferred provider or model (optional)"
+                className="dashboard-input"
+              />
+              <input
+                type="number"
+                min={0}
+                max={5}
+                value={createForm.required_llm_capability ?? 0}
+                onChange={handleRequiredCapabilityChange}
+                placeholder="Required LLM capability (0-5)"
                 className="dashboard-input"
               />
               <textarea
                 value={rawMCPTools}
-                onChange={(event) => setRawMCPTools(event.target.value)}
+                onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setRawMCPTools(event.target.value)}
                 placeholder="MCP tools allowlist, one per line"
                 rows={3}
                 className="dashboard-input resize-none"
               />
               <textarea
                 value={rawSkills}
-                onChange={(event) => setRawSkills(event.target.value)}
+                onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setRawSkills(event.target.value)}
                 placeholder="Skill IDs allowlist, one per line"
                 rows={3}
                 className="dashboard-input resize-none"
               />
-              <div className="grid grid-cols-2 gap-2 text-sm text-[#d7e1ec]">
+              <div className="grid grid-cols-2 gap-2 text-sm text-slate-700">
                 {capabilityMeta.map((capability) => (
-                  <label key={capability.key} className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/5 px-3 py-2">
+                  <label key={capability.key} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2">
                     <input
                       type="checkbox"
                       checked={Boolean(createForm[capability.key])}
-                      onChange={(event) => setCreateForm((current) => ({ ...current, [capability.key]: event.target.checked }))}
+                      onChange={handleCapabilityToggle(capability.key)}
                     />
                     {capability.label}
                   </label>
@@ -327,10 +358,10 @@ export function Agent() {
           )}
 
           <div className="mt-5 space-y-3">
-            {isLoading && <div className="rounded-[24px] border border-white/10 bg-white/5 p-4 text-sm text-[#a7b7c9]">Loading agents…</div>}
-            {error && <div className="rounded-[24px] border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-100">{error.message}</div>}
+            {isLoading && <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">Loading agents…</div>}
+            {error && <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error.message}</div>}
             {!isLoading && !agents.length && (
-              <div className="rounded-[24px] border border-dashed border-white/10 bg-white/5 p-5 text-sm text-[#a7b7c9]">
+              <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
                 No agents registered yet. Create one or seed defaults from the server.
               </div>
             )}
@@ -342,14 +373,14 @@ export function Agent() {
                 className={cn(
                   'w-full rounded-[24px] border p-4 text-left transition',
                   selectedAgent?.name === agent.name
-                    ? 'border-[#ffb15e] bg-[#2d1f17] shadow-[0_12px_32px_rgba(255,177,94,0.18)]'
-                    : 'border-white/8 bg-white/[0.03] hover:bg-white/[0.07]',
+                    ? 'border-sky-200 bg-sky-50 shadow-[0_12px_30px_rgba(59,130,246,0.08)]'
+                    : 'border-slate-200 bg-white hover:border-sky-100 hover:bg-slate-50',
                 )}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-lg font-medium text-white">{agent.name}</p>
-                    <p className="mt-1 text-sm text-[#a7b7c9]">{agent.description}</p>
+                    <p className="text-lg font-medium text-slate-900">{agent.name}</p>
+                    <p className="mt-1 text-sm text-slate-600">{agent.description}</p>
                   </div>
                   <span className={cn('rounded-full px-3 py-1 text-xs ring-1', statusTone(agent.status))}>{agent.status}</span>
                 </div>
@@ -358,8 +389,8 @@ export function Agent() {
                     <span
                       key={capability.key}
                       className={cn(
-                        'rounded-full px-2.5 py-1 text-xs text-white/90',
-                        agent[capability.key] ? capability.color : 'bg-white/10 text-[#8290a3]',
+                        'rounded-full px-2.5 py-1 text-xs',
+                        agent[capability.key] ? `${capability.color} text-white` : 'bg-slate-100 text-slate-500',
                       )}
                     >
                       {capability.label}
@@ -378,13 +409,13 @@ export function Agent() {
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                   <div className="max-w-3xl">
                     <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="text-3xl font-semibold text-white">{selectedAgent.name}</h3>
+                      <h3 className="text-3xl font-semibold text-slate-900">{selectedAgent.name}</h3>
                       <span className={cn('rounded-full px-3 py-1 text-xs ring-1', statusTone(selectedAgent.status))}>
                         {selectedAgent.status}
                       </span>
                     </div>
-                    <p className="mt-3 text-base leading-7 text-[#d7e1ec]">{selectedAgent.description}</p>
-                    <p className="mt-4 text-sm leading-7 text-[#a7b7c9]">{selectedAgent.instructions}</p>
+                    <p className="mt-3 text-base leading-7 text-slate-700">{selectedAgent.description}</p>
+                    <p className="mt-4 text-sm leading-7 text-slate-500">{selectedAgent.instructions}</p>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -400,7 +431,7 @@ export function Agent() {
                       type="button"
                       onClick={() => handleLifecycle('stop', selectedAgent)}
                       disabled={stopAgent.isPending}
-                      className="rounded-full border border-white/12 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+                      className="dashboard-secondary-button text-sm font-medium"
                     >
                       Stop agent
                     </button>
@@ -408,36 +439,40 @@ export function Agent() {
                 </div>
 
                 <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-[24px] border border-white/8 bg-black/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">Model</p>
-                    <p className="mt-3 text-lg text-white">{selectedAgent.model || 'Default pool'}</p>
+                  <div className="dashboard-muted-card rounded-[24px] p-4">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Model</p>
+                    <p className="mt-3 text-lg text-slate-900">{selectedAgent.model || 'Default pool'}</p>
                   </div>
-                  <div className="rounded-[24px] border border-white/8 bg-black/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">Created</p>
-                    <p className="mt-3 text-lg text-white">{formatDate(selectedAgent.created_at)}</p>
+                  <div className="dashboard-muted-card rounded-[24px] p-4">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Created</p>
+                    <p className="mt-3 text-lg text-slate-900">{formatDate(selectedAgent.created_at)}</p>
                   </div>
-                  <div className="rounded-[24px] border border-white/8 bg-black/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">MCP allowlist</p>
-                    <p className="mt-3 text-lg text-white">{selectedAgent.mcp_tools?.length || 0} tools</p>
+                  <div className="dashboard-muted-card rounded-[24px] p-4">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">LLM capability</p>
+                    <p className="mt-3 text-lg text-slate-900">{selectedAgent.required_llm_capability || 0}</p>
                   </div>
-                  <div className="rounded-[24px] border border-white/8 bg-black/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">Skill allowlist</p>
-                    <p className="mt-3 text-lg text-white">{selectedAgent.skills?.length || 0} skills</p>
+                  <div className="dashboard-muted-card rounded-[24px] p-4">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">MCP allowlist</p>
+                    <p className="mt-3 text-lg text-slate-900">{selectedAgent.mcp_tools?.length || 0} tools</p>
+                  </div>
+                  <div className="dashboard-muted-card rounded-[24px] p-4">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Skill allowlist</p>
+                    <p className="mt-3 text-lg text-slate-900">{selectedAgent.skills?.length || 0} skills</p>
                   </div>
                 </div>
 
                 <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_360px]">
-                  <form onSubmit={handleDispatch} className="rounded-[28px] border border-white/8 bg-white/[0.03] p-5">
+                  <form onSubmit={handleDispatch} className="dashboard-muted-card rounded-[28px] p-5">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">Direct dispatch</p>
-                        <h4 className="mt-2 text-xl font-semibold text-white">Send a focused task</h4>
+                        <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Direct dispatch</p>
+                        <h4 className="mt-2 text-xl font-semibold text-slate-900">Send a focused task</h4>
                       </div>
-                      {dispatchTask.isPending && <span className="text-sm text-[#ffcf99]">Running…</span>}
+                      {dispatchTask.isPending && <span className="text-sm text-sky-700">Running…</span>}
                     </div>
                     <textarea
                       value={instruction}
-                      onChange={(event) => setInstruction(event.target.value)}
+                      onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setInstruction(event.target.value)}
                       placeholder={`Delegate a concrete task to ${selectedAgent.name}...`}
                       rows={8}
                       className="dashboard-input mt-5 resize-none"
@@ -453,23 +488,23 @@ export function Agent() {
                       <button
                         type="button"
                         onClick={() => setInstruction(`Summarize your remit, available capabilities, and current operating boundaries in 5 bullets.`)}
-                        className="rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm text-[#d7e1ec] transition hover:bg-white/10"
+                        className="dashboard-secondary-button text-sm"
                       >
                         Insert health-check prompt
                       </button>
                     </div>
                   </form>
 
-                  <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-5">
-                    <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">Capability matrix</p>
+                  <div className="dashboard-muted-card rounded-[28px] p-5">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Capability matrix</p>
                     <div className="mt-5 grid gap-3">
                       {capabilityMeta.map((capability) => (
-                        <div key={capability.key} className="rounded-[22px] border border-white/8 bg-black/10 p-4">
+                        <div key={capability.key} className="rounded-[22px] border border-slate-200 bg-white p-4">
                           <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-white">{capability.label}</span>
-                            <span className={cn('h-3 w-3 rounded-full', selectedAgent[capability.key] ? capability.color : 'bg-white/10')} />
+                            <span className="text-sm font-medium text-slate-900">{capability.label}</span>
+                            <span className={cn('h-3 w-3 rounded-full', selectedAgent[capability.key] ? capability.color : 'bg-slate-200')} />
                           </div>
-                          <p className="mt-2 text-sm text-[#a7b7c9]">
+                          <p className="mt-2 text-sm text-slate-600">
                             {selectedAgent[capability.key]
                               ? `${capability.label} is exposed to this specialist.`
                               : `${capability.label} is currently withheld from this specialist.`}
@@ -481,7 +516,7 @@ export function Agent() {
                 </div>
               </>
             ) : (
-              <div className="rounded-[28px] border border-dashed border-white/10 bg-white/[0.03] p-8 text-[#a7b7c9]">
+              <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 p-8 text-slate-500">
                 Select an agent from the registry to inspect and control it.
               </div>
             )}
@@ -490,20 +525,20 @@ export function Agent() {
           <section className="glass-panel rounded-[32px] p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-[#8ea0b5]">Recent activity</p>
-                <h3 className="mt-2 text-2xl font-semibold text-white">Ops log</h3>
+                <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Recent activity</p>
+                <h3 className="mt-2 text-2xl font-semibold text-slate-900">Ops log</h3>
               </div>
-              <p className="text-sm text-[#a7b7c9]">UI-triggered actions and their latest outcomes.</p>
+              <p className="text-sm text-slate-500">UI-triggered actions and their latest outcomes.</p>
             </div>
 
             <div className="mt-5 space-y-3">
               {!activity.length && (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-[#a7b7c9]">
+                <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
                   No UI activity yet. Start, stop, create, or dispatch a task to populate the log.
                 </div>
               )}
               {activity.map((item) => (
-                <article key={item.id} className="rounded-[24px] border border-white/8 bg-black/10 p-4">
+                <article key={item.id} className="rounded-[24px] border border-slate-200 bg-white p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -519,12 +554,12 @@ export function Agent() {
                         >
                           {item.kind}
                         </span>
-                        <span className="text-xs uppercase tracking-[0.24em] text-[#8ea0b5]">{item.agentName}</span>
+                        <span className="text-xs uppercase tracking-[0.24em] text-slate-500">{item.agentName}</span>
                       </div>
-                      <h4 className="mt-3 text-lg font-medium text-white">{item.title}</h4>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[#d7e1ec]">{item.detail}</p>
+                      <h4 className="mt-3 text-lg font-medium text-slate-900">{item.title}</h4>
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">{item.detail}</p>
                     </div>
-                    <div className="text-right text-xs text-[#8ea0b5]">
+                    <div className="text-right text-xs text-slate-500">
                       <div>{timeAgo(item.timestamp)}</div>
                       {item.durationMs ? <div className="mt-1">{item.durationMs} ms</div> : null}
                     </div>

@@ -155,16 +155,17 @@ func (h *Handler) HandleAgents(w http.ResponseWriter, r *http.Request) {
 		JSONResponse(w, map[string]interface{}{"agents": agents})
 	case http.MethodPost:
 		var req struct {
-			Name         string   `json:"name"`
-			Description  string   `json:"description"`
-			Instructions string   `json:"instructions"`
-			Model        string   `json:"model"`
-			MCPTools     []string `json:"mcp_tools"`
-			Skills       []string `json:"skills"`
-			EnableRAG    bool     `json:"enable_rag"`
-			EnableMemory bool     `json:"enable_memory"`
-			EnablePTC    bool     `json:"enable_ptc"`
-			EnableMCP    bool     `json:"enable_mcp"`
+			Name                  string   `json:"name"`
+			Description           string   `json:"description"`
+			Instructions          string   `json:"instructions"`
+			Model                 string   `json:"model"`
+			RequiredLLMCapability int      `json:"required_llm_capability"`
+			MCPTools              []string `json:"mcp_tools"`
+			Skills                []string `json:"skills"`
+			EnableRAG             bool     `json:"enable_rag"`
+			EnableMemory          bool     `json:"enable_memory"`
+			EnablePTC             bool     `json:"enable_ptc"`
+			EnableMCP             bool     `json:"enable_mcp"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			JSONError(w, "Invalid request body", http.StatusBadRequest)
@@ -176,20 +177,21 @@ func (h *Handler) HandleAgents(w http.ResponseWriter, r *http.Request) {
 		}
 
 		agentModel, err := h.agentManager.CreateAgent(r.Context(), &agent.AgentModel{
-			ID:           uuid.New().String(),
-			Name:         strings.TrimSpace(req.Name),
-			Description:  strings.TrimSpace(req.Description),
-			Instructions: strings.TrimSpace(req.Instructions),
-			Model:        strings.TrimSpace(req.Model),
-			Status:       agent.AgentStatusStopped,
-			MCPTools:     req.MCPTools,
-			Skills:       req.Skills,
-			EnableRAG:    req.EnableRAG,
-			EnableMemory: req.EnableMemory,
-			EnablePTC:    req.EnablePTC,
-			EnableMCP:    req.EnableMCP,
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
+			ID:                    uuid.New().String(),
+			Name:                  strings.TrimSpace(req.Name),
+			Description:           strings.TrimSpace(req.Description),
+			Instructions:          strings.TrimSpace(req.Instructions),
+			Model:                 strings.TrimSpace(req.Model),
+			RequiredLLMCapability: req.RequiredLLMCapability,
+			Status:                agent.AgentStatusStopped,
+			MCPTools:              req.MCPTools,
+			Skills:                req.Skills,
+			EnableRAG:             req.EnableRAG,
+			EnableMemory:          req.EnableMemory,
+			EnablePTC:             req.EnablePTC,
+			EnableMCP:             req.EnableMCP,
+			CreatedAt:             time.Now(),
+			UpdatedAt:             time.Now(),
 		})
 		if err != nil {
 			JSONError(w, err.Error(), http.StatusBadRequest)

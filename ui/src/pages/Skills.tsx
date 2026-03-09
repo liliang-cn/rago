@@ -39,9 +39,9 @@ export function Skills() {
 
   if (error) {
     return (
-      <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-        <p className="text-red-600 dark:text-red-400">{t('errorLoadingSkills')}: {error.message}</p>
-        <button onClick={() => refetch()} className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg">
+      <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-4">
+        <p className="text-rose-700">{t('errorLoadingSkills')}: {error.message}</p>
+        <button onClick={() => refetch()} className="dashboard-button mt-2 px-4 py-2">
           Retry
         </button>
       </div>
@@ -51,51 +51,51 @@ export function Skills() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('skills')}</h2>
+        <h2 className="text-xl font-semibold text-slate-900">{t('skills')}</h2>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          className="dashboard-button px-4 py-2"
         >
           {showAddForm ? 'Cancel' : 'Add Skill'}
         </button>
       </div>
 
       {showAddForm && (
-        <div className="p-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">{t('createNewSkill')}</h3>
+        <div className="glass-panel rounded-[28px] p-6">
+          <h3 className="text-lg font-medium text-slate-900 mb-4">{t('createNewSkill')}</h3>
           <form onSubmit={handleCreateSkill} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
                 Name *
               </label>
               <input
                 type="text"
                 name="name"
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                className="dashboard-input"
                 placeholder="my-skill"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
                 Description
               </label>
               <input
                 type="text"
                 name="description"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                className="dashboard-input"
                 placeholder="A brief description of the skill"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
                 Content (SKILL.md format) *
               </label>
               <textarea
                 name="content"
                 required
                 rows={10}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                className="dashboard-input font-mono text-sm"
                 placeholder={`# My Skill
 
 ## Variables
@@ -111,14 +111,14 @@ Process the input and generate output.`}
               <button
                 type="submit"
                 disabled={createMutation.isPending}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="dashboard-button px-6 py-2"
               >
                 {createMutation.isPending ? 'Creating...' : 'Create'}
               </button>
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200"
+                className="dashboard-secondary-button px-6 py-2"
               >
                 Cancel
               </button>
@@ -128,32 +128,32 @@ Process the input and generate output.`}
       )}
 
       {selectedSkill && (
-        <div className="p-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div className="glass-panel rounded-[28px] p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">{selectedSkill.name}</h3>
+            <h3 className="text-lg font-medium text-slate-900">{selectedSkill.name}</h3>
             <button
               onClick={() => setSelectedSkill(null)}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400"
+              className="text-slate-500 hover:text-slate-700"
             >
               Close
             </button>
           </div>
           <div className="space-y-4">
-            <p className="text-gray-600 dark:text-gray-400">{selectedSkill.description}</p>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-slate-600">{selectedSkill.description}</p>
+            <div className="text-sm text-slate-500">
               <p>Version: {selectedSkill.version}</p>
               <p>Path: {selectedSkill.path}</p>
               <p>Enabled: {selectedSkill.enabled ? 'Yes' : 'No'}</p>
             </div>
             {selectedSkill.variables && Object.keys(selectedSkill.variables).length > 0 && (
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Variables</h4>
+                <h4 className="font-medium text-slate-900 mb-2">Variables</h4>
                 <div className="space-y-2">
                   {Object.entries(selectedSkill.variables).map(([name, def]) => (
-                    <div key={name} className="p-3 bg-gray-50 dark:bg-gray-700 rounded">
-                      <p className="font-medium text-gray-900 dark:text-white">{name}</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{def.description}</p>
-                      <p className="text-xs text-gray-500">Type: {def.type} | Required: {def.required ? 'Yes' : 'No'}</p>
+                    <div key={name} className="dashboard-muted-card rounded-[20px] p-3">
+                      <p className="font-medium text-slate-900">{name}</p>
+                      <p className="text-sm text-slate-600">{def.description}</p>
+                      <p className="text-xs text-slate-500">Type: {def.type} | Required: {def.required ? 'Yes' : 'No'}</p>
                     </div>
                   ))}
                 </div>
@@ -168,11 +168,11 @@ Process the input and generate output.`}
           skills.map((skill) => (
             <div
               key={skill.id}
-              className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-blue-500 transition-colors"
+              className="dashboard-muted-card rounded-[24px] p-4 hover:border-sky-300 transition-colors"
             >
               <div className="flex items-start justify-between mb-2">
                 <h3
-                  className="font-medium text-gray-900 dark:text-white cursor-pointer hover:text-blue-600"
+                  className="font-medium text-slate-900 cursor-pointer hover:text-blue-600"
                   onClick={() => setSelectedSkill(skill)}
                 >
                   {skill.name}
@@ -181,10 +181,10 @@ Process the input and generate output.`}
                   {skill.enabled ? 'Enabled' : 'Disabled'}
                 </span>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+              <p className="text-sm text-slate-600 mb-3 line-clamp-2">
                 {skill.description || 'No description'}
               </p>
-              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+              <div className="flex items-center justify-between text-xs text-slate-500">
                 <span>v{skill.version}</span>
                 <button
                   onClick={() => handleDeleteSkill(skill.id)}
@@ -196,7 +196,7 @@ Process the input and generate output.`}
             </div>
           ))
         ) : (
-          <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
+          <div className="col-span-full text-center py-12 text-slate-500">
             No skills found. Click "Add Skill" to create one.
           </div>
         )}
