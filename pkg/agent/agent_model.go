@@ -11,10 +11,22 @@ const (
 	AgentStatusError   AgentStatus = "error"
 )
 
+// AgentKind distinguishes persistent user-facing captains from reusable specialists.
+type AgentKind string
+
+const (
+	AgentKindCaptain    AgentKind = "captain"
+	AgentKindLeader     AgentKind = AgentKindCaptain
+	AgentKindCommander  AgentKind = AgentKindCaptain
+	AgentKindSpecialist AgentKind = "specialist"
+)
+
 // AgentModel represents the configuration of a dynamic agent in the database.
 type AgentModel struct {
 	ID                    string      `json:"id"`
+	TeamID                string      `json:"squad_id,omitempty"`
 	Name                  string      `json:"name"`
+	Kind                  AgentKind   `json:"kind"`
 	Description           string      `json:"description"`
 	Instructions          string      `json:"instructions"`
 	Model                 string      `json:"model"`
@@ -29,3 +41,13 @@ type AgentModel struct {
 	CreatedAt             time.Time   `json:"created_at"`
 	UpdatedAt             time.Time   `json:"updated_at"`
 }
+
+type Squad struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type Team = Squad

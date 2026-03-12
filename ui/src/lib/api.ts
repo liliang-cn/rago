@@ -65,7 +65,9 @@ export interface StatusResponse {
 
 export interface AgentModel {
   id: string
+  squad_id?: string
   name: string
+  kind: 'captain' | 'specialist'
   description: string
   instructions: string
   model?: string
@@ -86,6 +88,8 @@ export interface AgentsResponse {
 }
 
 export interface CreateAgentRequest {
+  squad_id?: string
+  kind?: 'captain' | 'specialist'
   name: string
   description: string
   instructions: string
@@ -99,6 +103,25 @@ export interface CreateAgentRequest {
   enable_mcp?: boolean
 }
 
+export interface CreateSquadRequest {
+  name: string
+  description: string
+}
+
+export interface Squad {
+  id: string
+  name: string
+  description: string
+  captain?: AgentModel
+  members: AgentModel[]
+  created_at?: string
+  updated_at?: string
+}
+
+export interface SquadsResponse {
+  squads: Squad[]
+}
+
 export interface DispatchAgentTaskRequest {
   instruction: string
 }
@@ -108,6 +131,22 @@ export interface DispatchAgentTaskResponse {
   agent: AgentModel
   response: string
   duration_ms: number
+}
+
+export interface OpsLogEntry {
+  id: string
+  agent_name: string
+  kind: 'dispatch' | 'lifecycle' | 'create' | string
+  status: 'success' | 'error' | 'info' | string
+  title: string
+  detail: string
+  timestamp: string
+  duration_ms?: number
+  metadata?: Record<string, unknown>
+}
+
+export interface OpsLogsResponse {
+  logs: OpsLogEntry[]
 }
 
 export interface ProviderStatus {
@@ -458,6 +497,14 @@ export const api = {
     fetchAPI<Memory[]>(`/memories/search?q=${encodeURIComponent(query)}`),
 
   // Agents API
+  getSquads: () => fetchAPI<SquadsResponse>('/squads'),
+
+  createSquad: (data: CreateSquadRequest) =>
+    fetchAPI<Squad>('/squads', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   getAgents: () => fetchAPI<AgentsResponse>('/agents'),
 
   getAgent: (name: string) => fetchAPI<AgentModel>(`/agents/${encodeURIComponent(name)}`),
@@ -481,6 +528,17 @@ export const api = {
   dispatchAgentTask: (name: string, data: DispatchAgentTaskRequest) =>
     fetchAPI<DispatchAgentTaskResponse>(`/agents/${encodeURIComponent(name)}/dispatch`, {
       method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getOpsLogs: (limit = 20) =>
+    fetchAPI<OpsLogsResponse>(`/ops/logs?limit=${limit}`),
+
+  getSetup: () => fetchAPI<SetupState>('/setup'),
+
+  applySetup: (data: ApplySetupRequest) =>
+    fetchAPI<{ success: boolean; requiresRestart: boolean; setup: SetupState }>('/setup', {
+      method: 'PUT',
       body: JSON.stringify(data),
     }),
 }
@@ -513,4 +571,43 @@ export interface UpdateConfigRequest {
   ragDbPath?: string
   memoryStoreType?: string
   memoryPath?: string
+}
+
+export interface SetupProvider {
+  name: string
+  baseUrl: string
+  apiKey?: string
+  modelName: string
+  embeddingModel?: string
+  maxConcurrency: number
+  capability: number
+}
+
+export interface SetupState {
+  initialized: boolean
+  configPath: string
+  home: string
+  workingDirectory: string
+  serverHost: string
+  serverPort: number
+  mcpEnabled: boolean
+  mcpAllowedDirs: string[]
+  skillsPaths: string[]
+  ragDbPath: string
+  memoryStoreType: string
+  memoryPath: string
+  providers: SetupProvider[]
+}
+
+export interface ApplySetupRequest {
+  home: string
+  workingDirectory: string
+  serverHost: string
+  serverPort: number
+  mcpEnabled: boolean
+  skillsPaths: string[]
+  ragDbPath: string
+  memoryStoreType: string
+  memoryPath: string
+  provider: SetupProvider
 }

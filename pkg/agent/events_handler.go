@@ -240,9 +240,9 @@ func (b *EventHandlerBuilder) Build() *EventHandlers {
 // EventProcessor processes events from a channel
 type EventProcessor struct {
 	handlers *EventHandlers
-	done    chan struct{}
-	result  *Event // Final result
-	err     error  // Final error
+	done     chan struct{}
+	result   *Event // Final result
+	err      error  // Final error
 }
 
 // Process starts processing events from the channel
@@ -290,7 +290,7 @@ func (p *EventProcessor) Done() <-chan struct{} {
 func NewEventProcessor(handlers *EventHandlers) *EventProcessor {
 	return &EventProcessor{
 		handlers: handlers,
-		done:    make(chan struct{}),
+		done:     make(chan struct{}),
 	}
 }
 

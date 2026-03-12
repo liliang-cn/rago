@@ -483,6 +483,7 @@ func (b *Builder) build() (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create service: %w", err)
 	}
+	svc.cfg = agentgoCfg
 
 	// Apply debug config: either from WithDebug() builder call or global agentgoCfg.Debug (e.g. from DEBUG=1 env var)
 	if agentgoCfg.Debug {

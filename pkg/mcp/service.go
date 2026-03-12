@@ -160,7 +160,14 @@ func (s *Service) GetServerCount() int {
 
 // CallTool calls a specific tool by name
 func (s *Service) CallTool(ctx context.Context, toolName string, arguments map[string]interface{}) (*ToolResult, error) {
-	return s.manager.CallTool(ctx, toolName, arguments)
+	if err := validateFilesystemToolArgs(toolName, arguments, s.mcpConfig.FilesystemIgnore); err != nil {
+		return nil, err
+	}
+	result, err := s.manager.CallTool(ctx, toolName, arguments)
+	if err != nil {
+		return nil, err
+	}
+	return filterFilesystemToolResult(toolName, result, s.mcpConfig.FilesystemIgnore), nil
 }
 
 // ChatOptions configures MCP-enabled chat

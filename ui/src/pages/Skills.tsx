@@ -3,6 +3,18 @@ import { useTranslation } from 'react-i18next'
 import { useSkills, useCreateSkill, useDeleteSkill } from '../hooks/useApi'
 import type { Skill, CreateSkillRequest } from '../lib/api'
 
+function formatTimestamp(value?: string) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString()
+}
+
+function displayValue(value?: string | number | boolean | null) {
+  if (value === undefined || value === null || value === '') return '-'
+  return String(value)
+}
+
 export function Skills() {
   const { t } = useTranslation()
   const [showAddForm, setShowAddForm] = useState(false)
@@ -24,15 +36,18 @@ export function Skills() {
   }
 
   const handleDeleteSkill = async (id: string) => {
-    if (confirm('Are you sure you want to delete this skill?')) {
+    if (confirm(t('confirmDeleteSkill'))) {
       await deleteMutation.mutateAsync(id)
+      if (selectedSkill?.id === id) {
+        setSelectedSkill(null)
+      }
     }
   }
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
       </div>
     )
   }
@@ -42,69 +57,62 @@ export function Skills() {
       <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-4">
         <p className="text-rose-700">{t('errorLoadingSkills')}: {error.message}</p>
         <button onClick={() => refetch()} className="dashboard-button mt-2 px-4 py-2">
-          Retry
+          {t('retry')}
         </button>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="page-skills">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-slate-900">{t('skills')}</h2>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
           className="dashboard-button px-4 py-2"
+          data-testid="skills-toggle-create"
         >
-          {showAddForm ? 'Cancel' : 'Add Skill'}
+          {showAddForm ? t('cancel') : t('addSkillButton')}
         </button>
       </div>
 
       {showAddForm && (
-        <div className="glass-panel rounded-[28px] p-6">
-          <h3 className="text-lg font-medium text-slate-900 mb-4">{t('createNewSkill')}</h3>
-          <form onSubmit={handleCreateSkill} className="space-y-4">
+        <div className="glass-panel rounded-[28px] p-6" data-testid="skills-create-panel">
+          <h3 className="mb-4 text-lg font-medium text-slate-900">{t('createNewSkill')}</h3>
+          <form onSubmit={handleCreateSkill} className="space-y-4" data-testid="skills-create-form">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Name *
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                {t('skillNameRequired')}
               </label>
               <input
                 type="text"
                 name="name"
                 required
                 className="dashboard-input"
-                placeholder="my-skill"
+                placeholder={t('skillNameExample')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Description
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                {t('skillDescriptionLabel')}
               </label>
               <input
                 type="text"
                 name="description"
                 className="dashboard-input"
-                placeholder="A brief description of the skill"
+                placeholder={t('skillDescriptionPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Content (SKILL.md format) *
+              <label className="mb-2 block text-sm font-medium text-slate-700">
+                {t('skillContentLabel')}
               </label>
               <textarea
                 name="content"
                 required
                 rows={10}
                 className="dashboard-input font-mono text-sm"
-                placeholder={`# My Skill
-
-## Variables
-- input: The input to process (required)
-
-## Steps
-
-### Step 1: Process
-Process the input and generate output.`}
+                placeholder={t('skillContentPlaceholder')}
               />
             </div>
             <div className="flex gap-2">
@@ -112,48 +120,177 @@ Process the input and generate output.`}
                 type="submit"
                 disabled={createMutation.isPending}
                 className="dashboard-button px-6 py-2"
+                data-testid="skills-create-submit"
               >
-                {createMutation.isPending ? 'Creating...' : 'Create'}
+                {createMutation.isPending ? t('creating') : t('createButton')}
               </button>
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
                 className="dashboard-secondary-button px-6 py-2"
               >
-                Cancel
+                {t('cancel')}
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {selectedSkill && (
-        <div className="glass-panel rounded-[28px] p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-slate-900">{selectedSkill.name}</h3>
-            <button
-              onClick={() => setSelectedSkill(null)}
-              className="text-slate-500 hover:text-slate-700"
+      <div className="space-y-4" data-testid="skills-list">
+        {skills && skills.length > 0 ? (
+          skills.map((skill) => (
+            <section
+              key={skill.id}
+              data-testid={`skill-card-${skill.id}`}
+              className="dashboard-muted-card rounded-[24px] p-4"
             >
-              Close
-            </button>
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-medium text-slate-900">{skill.name}</h3>
+                    <span className={`rounded px-2 py-1 text-xs ${skill.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
+                      {skill.enabled ? t('skillEnabled') : t('disabled')}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-600">
+                    {skill.description || t('noDescription')}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                    <span>{t('version')}: {displayValue(skill.version)}</span>
+                    <span>{t('category')}: {displayValue(skill.category)}</span>
+                    <span>{t('author')}: {displayValue(skill.author)}</span>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-3 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSkill(skill)}
+                    className="text-blue-600 hover:text-blue-700"
+                    data-testid={`skill-open-${skill.id}`}
+                  >
+                    {t('viewDetails')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteSkill(skill.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    {t('delete')}
+                  </button>
+                </div>
+              </div>
+            </section>
+          ))
+        ) : (
+          <div className="py-12 text-center text-slate-500">
+            {t('noSkillsFound')}
           </div>
-          <div className="space-y-4">
-            <p className="text-slate-600">{selectedSkill.description}</p>
-            <div className="text-sm text-slate-500">
-              <p>Version: {selectedSkill.version}</p>
-              <p>Path: {selectedSkill.path}</p>
-              <p>Enabled: {selectedSkill.enabled ? 'Yes' : 'No'}</p>
-            </div>
-            {selectedSkill.variables && Object.keys(selectedSkill.variables).length > 0 && (
+        )}
+      </div>
+
+      {selectedSkill && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/18 px-4 backdrop-blur-sm"
+          onClick={() => setSelectedSkill(null)}
+          data-testid="skills-detail-modal-overlay"
+        >
+          <div
+            className="glass-panel max-h-[85vh] w-full max-w-4xl overflow-auto rounded-[28px] p-6"
+            onClick={(event) => event.stopPropagation()}
+            data-testid="skills-detail-modal"
+          >
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <h4 className="font-medium text-slate-900 mb-2">Variables</h4>
+                <h3 className="text-xl font-semibold text-slate-900">{selectedSkill.name}</h3>
+                <p className="mt-2 max-w-3xl text-sm text-slate-600">
+                  {selectedSkill.description || t('noDescription')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSkill(null)}
+                className="dashboard-secondary-button px-4 py-2"
+              >
+                {t('closeButton')}
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[18px] border border-sky-100 bg-white p-3">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{t('author')}</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{displayValue(selectedSkill.author)}</p>
+              </div>
+              <div className="rounded-[18px] border border-sky-100 bg-white p-3">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{t('category')}</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{displayValue(selectedSkill.category)}</p>
+              </div>
+              <div className="rounded-[18px] border border-sky-100 bg-white p-3">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{t('version')}</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{displayValue(selectedSkill.version)}</p>
+              </div>
+              <div className="rounded-[18px] border border-sky-100 bg-white p-3">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{t('enabled')}</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{selectedSkill.enabled ? t('yes') : t('no')}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-[18px] border border-sky-100 bg-white p-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <p className="text-sm text-slate-600">
+                  <span className="font-medium text-slate-900">{t('path')}:</span> {displayValue(selectedSkill.path)}
+                </p>
+                <p className="text-sm text-slate-600">
+                  <span className="font-medium text-slate-900">{t('created')}:</span> {formatTimestamp(selectedSkill.created_at || selectedSkill.created)}
+                </p>
+              </div>
+              <div className="mt-4">
+                <h4 className="text-sm font-medium text-slate-900">{t('tags')}</h4>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selectedSkill.tags && selectedSkill.tags.length > 0 ? (
+                    selectedSkill.tags.map((tag) => (
+                      <span key={tag} className="rounded-full bg-sky-100 px-2 py-1 text-xs font-medium text-sky-700">
+                        {tag}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm text-slate-500">-</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {selectedSkill.variables && Object.keys(selectedSkill.variables).length > 0 && (
+              <div className="mt-4">
+                <h4 className="mb-2 text-sm font-medium text-slate-900">{t('variables')}</h4>
                 <div className="space-y-2">
                   {Object.entries(selectedSkill.variables).map(([name, def]) => (
-                    <div key={name} className="dashboard-muted-card rounded-[20px] p-3">
+                    <div key={name} className="rounded-[18px] border border-sky-100 bg-white p-3">
                       <p className="font-medium text-slate-900">{name}</p>
-                      <p className="text-sm text-slate-600">{def.description}</p>
-                      <p className="text-xs text-slate-500">Type: {def.type} | Required: {def.required ? 'Yes' : 'No'}</p>
+                      <p className="text-sm text-slate-600">{def.description || t('noDescription')}</p>
+                      <p className="text-xs text-slate-500">
+                        {t('type')}: {def.type} | {t('required')}: {def.required ? t('yes') : t('no')}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedSkill.steps && selectedSkill.steps.length > 0 && (
+              <div className="mt-4">
+                <h4 className="mb-2 text-sm font-medium text-slate-900">{t('steps')}</h4>
+                <div className="space-y-2">
+                  {selectedSkill.steps.map((step, index) => (
+                    <div key={step.id || `${selectedSkill.id}-step-${index}`} className="rounded-[18px] border border-sky-100 bg-white p-3">
+                      <p className="font-medium text-slate-900">
+                        {index + 1}. {step.title || t('untitledStep')}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">{step.description || t('noDescription')}</p>
+                      {step.content && (
+                        <pre className="mt-2 overflow-x-auto rounded-[14px] bg-slate-50 p-3 text-xs text-slate-700">
+                          <code>{step.content}</code>
+                        </pre>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -162,45 +299,6 @@ Process the input and generate output.`}
           </div>
         </div>
       )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {skills && skills.length > 0 ? (
-          skills.map((skill) => (
-            <div
-              key={skill.id}
-              className="dashboard-muted-card rounded-[24px] p-4 hover:border-sky-300 transition-colors"
-            >
-              <div className="flex items-start justify-between mb-2">
-                <h3
-                  className="font-medium text-slate-900 cursor-pointer hover:text-blue-600"
-                  onClick={() => setSelectedSkill(skill)}
-                >
-                  {skill.name}
-                </h3>
-                <span className={`px-2 py-1 text-xs rounded ${skill.enabled ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'}`}>
-                  {skill.enabled ? 'Enabled' : 'Disabled'}
-                </span>
-              </div>
-              <p className="text-sm text-slate-600 mb-3 line-clamp-2">
-                {skill.description || 'No description'}
-              </p>
-              <div className="flex items-center justify-between text-xs text-slate-500">
-                <span>v{skill.version}</span>
-                <button
-                  onClick={() => handleDeleteSkill(skill.id)}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="col-span-full text-center py-12 text-slate-500">
-            No skills found. Click "Add Skill" to create one.
-          </div>
-        )}
-      </div>
     </div>
   )
 }

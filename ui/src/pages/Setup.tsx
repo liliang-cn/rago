@@ -1,0 +1,311 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useApplySetup, useSetup } from '../hooks/useApi'
+
+function splitLines(value: string) {
+  return value
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+const STEP_COUNT = 4
+
+export function Setup() {
+  const { t } = useTranslation()
+  const { data, isLoading, error } = useSetup()
+  const applySetup = useApplySetup()
+  const [step, setStep] = useState(0)
+  const [saved, setSaved] = useState(false)
+
+  const [home, setHome] = useState('')
+  const [workingDirectory, setWorkingDirectory] = useState('')
+  const [serverHost, setServerHost] = useState('127.0.0.1')
+  const [serverPort, setServerPort] = useState('7127')
+  const [mcpEnabled, setMcpEnabled] = useState(true)
+  const [skillsPaths, setSkillsPaths] = useState('')
+  const [ragDbPath, setRagDbPath] = useState('')
+  const [memoryStoreType, setMemoryStoreType] = useState('file')
+  const [memoryPath, setMemoryPath] = useState('')
+  const [providerName, setProviderName] = useState('local')
+  const [providerBaseUrl, setProviderBaseUrl] = useState('http://127.0.0.1:11434/v1')
+  const [apiKey, setApiKey] = useState('')
+  const [modelName, setModelName] = useState('')
+  const [embeddingModel, setEmbeddingModel] = useState('')
+  const [maxConcurrency, setMaxConcurrency] = useState('5')
+  const [capability, setCapability] = useState('4')
+
+  useEffect(() => {
+    if (!data) return
+    const firstProvider = data.providers[0]
+    setHome(data.home || '')
+    setWorkingDirectory(data.workingDirectory || data.home || '')
+    setServerHost(data.serverHost || '127.0.0.1')
+    setServerPort(String(data.serverPort || 7127))
+    setMcpEnabled(data.mcpEnabled)
+    setSkillsPaths((data.skillsPaths || []).join('\n'))
+    setRagDbPath(data.ragDbPath || '')
+    setMemoryStoreType(data.memoryStoreType || 'file')
+    setMemoryPath(data.memoryPath || '')
+    setProviderName(firstProvider?.name || 'local')
+    setProviderBaseUrl(firstProvider?.baseUrl || 'http://127.0.0.1:11434/v1')
+    setModelName(firstProvider?.modelName || '')
+    setEmbeddingModel(firstProvider?.embeddingModel || '')
+    setMaxConcurrency(String(firstProvider?.maxConcurrency || 5))
+    setCapability(String(firstProvider?.capability || 4))
+  }, [data])
+
+  const reviewItems = useMemo(
+    () => [
+      [t('home'), home],
+      [t('workingDirectory'), workingDirectory],
+      [t('serverHost'), serverHost],
+      [t('serverPort'), serverPort],
+      [t('mcp'), mcpEnabled ? t('enabled') : t('disabled')],
+      [t('skillsPaths'), skillsPaths || '-'],
+      [t('ragDatabasePath'), ragDbPath || '-'],
+      [t('memoryStoreType'), memoryStoreType || '-'],
+      [t('memoryPath'), memoryPath || '-'],
+    ],
+    [t, home, workingDirectory, serverHost, serverPort, mcpEnabled, skillsPaths, ragDbPath, memoryStoreType, memoryPath],
+  )
+
+  const providerItems = useMemo(
+    () => [
+      [t('providerName'), providerName],
+      [t('providerBaseUrl'), providerBaseUrl],
+      [t('modelName'), modelName],
+      [t('embeddingModel'), embeddingModel || '-'],
+      [t('maxConcurrency'), maxConcurrency],
+      [t('capabilityLevel'), capability],
+    ],
+    [t, providerName, providerBaseUrl, modelName, embeddingModel, maxConcurrency, capability],
+  )
+
+  const handleApply = async () => {
+    await applySetup.mutateAsync({
+      home,
+      workingDirectory,
+      serverHost,
+      serverPort: Number(serverPort),
+      mcpEnabled,
+      skillsPaths: splitLines(skillsPaths),
+      ragDbPath,
+      memoryStoreType,
+      memoryPath,
+      provider: {
+        name: providerName,
+        baseUrl: providerBaseUrl,
+        apiKey,
+        modelName,
+        embeddingModel,
+        maxConcurrency: Number(maxConcurrency) || 5,
+        capability: Number(capability) || 4,
+      },
+    })
+    setSaved(true)
+  }
+
+  if (isLoading) {
+    return <div className="glass-panel rounded-[28px] p-6 text-slate-600">{t('loading')}</div>
+  }
+
+  if (error) {
+    return <div className="rounded-[28px] border border-rose-200 bg-rose-50 p-6 text-rose-700">{t('error')}: {error.message}</div>
+  }
+
+  return (
+    <div className="space-y-6" data-testid="page-setup">
+      <div className="glass-panel rounded-[32px] p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{t('setupStep', { current: step + 1, total: STEP_COUNT })}</p>
+            <h2 className="mt-2 text-3xl font-semibold text-slate-900">{t('setupTitle')}</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">{t('setupIntro')}</p>
+          </div>
+          <div className={`rounded-full px-4 py-2 text-sm ${data?.initialized ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+            {data?.initialized ? t('setupStatusReady') : t('setupStatusPending')}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="glass-panel rounded-[32px] p-4">
+          {[
+            t('setupWorkspace'),
+            t('setupProvider'),
+            t('setupFeatures'),
+            t('setupReview'),
+          ].map((label, index) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setStep(index)}
+              className={`mb-2 flex w-full items-center justify-between rounded-[20px] px-4 py-3 text-left text-sm ${step === index ? 'bg-blue-600 text-white' : 'bg-sky-50 text-slate-700'}`}
+              data-testid={`setup-step-${index}`}
+            >
+              <span>{label}</span>
+              <span>{index + 1}</span>
+            </button>
+          ))}
+        </aside>
+
+        <section className="glass-panel rounded-[32px] p-6">
+          {step === 0 && (
+            <div className="space-y-4" data-testid="setup-workspace">
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">{t('home')}</span>
+                <input value={home} onChange={(e) => setHome(e.target.value)} className="dashboard-input" />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">{t('workingDirectory')}</span>
+                <input value={workingDirectory} onChange={(e) => setWorkingDirectory(e.target.value)} className="dashboard-input" />
+                <p className="text-xs text-slate-500">{t('workingDirectoryHelp')}</p>
+              </label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700">{t('serverHost')}</span>
+                  <input value={serverHost} onChange={(e) => setServerHost(e.target.value)} className="dashboard-input" />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700">{t('serverPort')}</span>
+                  <input value={serverPort} onChange={(e) => setServerPort(e.target.value)} className="dashboard-input" />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {step === 1 && (
+            <div className="space-y-4" data-testid="setup-provider">
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">{t('providerName')}</span>
+                <input value={providerName} onChange={(e) => setProviderName(e.target.value)} className="dashboard-input" />
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">{t('providerBaseUrl')}</span>
+                <input value={providerBaseUrl} onChange={(e) => setProviderBaseUrl(e.target.value)} className="dashboard-input" />
+                <p className="text-xs text-slate-500">{t('setupProviderHint')}</p>
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">{t('apiKey')}</span>
+                <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} className="dashboard-input" type="password" />
+              </label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700">{t('modelName')}</span>
+                  <input value={modelName} onChange={(e) => setModelName(e.target.value)} className="dashboard-input" />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700">{t('embeddingModel')}</span>
+                  <input value={embeddingModel} onChange={(e) => setEmbeddingModel(e.target.value)} className="dashboard-input" />
+                </label>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700">{t('maxConcurrency')}</span>
+                  <input value={maxConcurrency} onChange={(e) => setMaxConcurrency(e.target.value)} className="dashboard-input" />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700">{t('capabilityLevel')}</span>
+                  <input value={capability} onChange={(e) => setCapability(e.target.value)} className="dashboard-input" />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-4" data-testid="setup-features">
+              <label className="flex items-center gap-3 rounded-[20px] bg-sky-50 px-4 py-3 text-slate-700">
+                <input type="checkbox" checked={mcpEnabled} onChange={(e) => setMcpEnabled(e.target.checked)} />
+                {t('mcp')}
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">{t('skillsPaths')}</span>
+                <textarea value={skillsPaths} onChange={(e) => setSkillsPaths(e.target.value)} rows={4} className="dashboard-input resize-none" />
+                <p className="text-xs text-slate-500">{t('skillsPathsHelp')}</p>
+              </label>
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">{t('ragDatabasePath')}</span>
+                <input value={ragDbPath} onChange={(e) => setRagDbPath(e.target.value)} className="dashboard-input" />
+                <p className="text-xs text-slate-500">{t('ragDbPathHelp')}</p>
+              </label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700">{t('memoryStoreType')}</span>
+                  <input value={memoryStoreType} onChange={(e) => setMemoryStoreType(e.target.value)} className="dashboard-input" />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700">{t('memoryPath')}</span>
+                  <input value={memoryPath} onChange={(e) => setMemoryPath(e.target.value)} className="dashboard-input" />
+                  <p className="text-xs text-slate-500">{t('memoryPathHelp')}</p>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-6" data-testid="setup-review">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">{t('setupReviewConfig')}</h3>
+                <dl className="mt-4 grid gap-3 md:grid-cols-2">
+                  {reviewItems.map(([label, value]) => (
+                    <div key={label} className="dashboard-muted-card rounded-[20px] p-4">
+                      <dt className="text-xs uppercase tracking-[0.2em] text-slate-500">{label}</dt>
+                      <dd className="mt-2 break-all text-sm text-slate-900">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">{t('setupReviewProvider')}</h3>
+                <dl className="mt-4 grid gap-3 md:grid-cols-2">
+                  {providerItems.map(([label, value]) => (
+                    <div key={label} className="dashboard-muted-card rounded-[20px] p-4">
+                      <dt className="text-xs uppercase tracking-[0.2em] text-slate-500">{label}</dt>
+                      <dd className="mt-2 break-all text-sm text-slate-900">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+              <p className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {t('setupRestartNotice')}
+              </p>
+              {saved && <p className="text-sm text-emerald-700">{t('setupCompleted')}</p>}
+            </div>
+          )}
+
+          <div className="mt-8 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setStep((current) => Math.max(0, current - 1))}
+              className="dashboard-secondary-button px-4 py-2 text-sm"
+              disabled={step === 0}
+            >
+              {t('setupBack')}
+            </button>
+            {step < STEP_COUNT - 1 ? (
+              <button
+                type="button"
+                onClick={() => setStep((current) => Math.min(STEP_COUNT - 1, current + 1))}
+                className="dashboard-button px-5 py-2"
+                data-testid="setup-next"
+              >
+                {t('setupNext')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleApply}
+                disabled={applySetup.isPending}
+                className="dashboard-button px-5 py-2"
+                data-testid="setup-apply"
+              >
+                {applySetup.isPending ? t('loading') : t('setupApply')}
+              </button>
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}

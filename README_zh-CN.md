@@ -82,6 +82,21 @@ go run ./cmd/agentgo-cli chat --show-memory
 go run ./cmd/agentgo-cli chat --with-ptc
 ```
 
+运行 `Squad` 工作流：
+
+```bash
+# 创建一个 squad
+agentgo squad add "Docs Squad" --description "文档和发布说明"
+
+# 给某个 squad 增加一个 specialist member
+agentgo squad member add Writer --squad "Docs Squad" \
+  --description "写简洁文档" \
+  --instructions "在 workspace 中编写简洁的 Markdown 文档。"
+
+# 通过默认 Captain 和某个 member 执行任务
+agentgo squad go "@Assistant @Writer 总结 UI 和后端的关系，并写入 workspace/ui_backend_overview.md"
+```
+
 ---
 
 ## 认知记忆层 (Hindsight & PageIndex)
@@ -230,6 +245,56 @@ coordinator := agent.NewSubAgentCoordinator()
 resultChan  := coordinator.RunAsync(ctx, subAgent)
 results     := coordinator.WaitAll(ctx)
 ```
+
+## Squad API
+
+AgentGo 也提供面向 `Squad / Captain / Member` 的持久化管理 API：
+
+```go
+store, err := agent.NewStore(filepath.Join(cfg.DataDir(), "agent.db"))
+if err != nil {
+    panic(err)
+}
+
+manager := agent.NewSquadManager(store)
+if err := manager.SeedDefaultMembers(); err != nil {
+    panic(err)
+}
+
+docsSquad, err := manager.CreateSquad(ctx, &agent.Squad{
+    Name:        "Docs Squad",
+    Description: "文档和发布说明",
+})
+if err != nil {
+    panic(err)
+}
+
+writer, err := manager.AddSpecialist(
+    ctx,
+    docsSquad.ID,
+    "Writer",
+    "写简洁文档",
+    "在 workspace 中编写简洁的 Markdown 文档。",
+)
+if err != nil {
+    panic(err)
+}
+
+result, err := manager.DispatchTask(ctx, writer.Name, "编写 workspace/ui_backend_overview.md")
+if err != nil {
+    panic(err)
+}
+fmt.Println(result)
+```
+
+常用的 squad-manager 入口：
+
+- `CreateSquad`, `ListSquads`, `GetSquadByName`
+- `AddCaptain`, `AddSpecialist`, `CreateMember`, `ListMembers`
+- `ListCaptains`, `ListSpecialists`
+- `EnableCaptain`, `DisableCaptain`
+- `DispatchTask`, `DispatchTaskStream`
+- `EnqueueSharedTask`, `ListSharedTasks`
 
 ---
 

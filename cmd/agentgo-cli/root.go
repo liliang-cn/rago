@@ -7,13 +7,13 @@ import (
 
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/acp"
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/agent"
-	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/agents"
 	cachecmd "github.com/liliang-cn/agent-go/cmd/agentgo-cli/cache"
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/mcp"
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/memory"
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/ptc"
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/rag"
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/skills"
+	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/squad"
 	"github.com/liliang-cn/agent-go/pkg/config"
 	agentgolog "github.com/liliang-cn/agent-go/pkg/log"
 	"github.com/liliang-cn/agent-go/pkg/services"
@@ -122,8 +122,8 @@ func init() {
 	// Add Agent command
 	RootCmd.AddCommand(agent.AgentCmd)
 
-	// Add Dynamic Agents command
-	RootCmd.AddCommand(agents.AgentsCmd)
+	// Add agent registry command
+	RootCmd.AddCommand(squad.SquadCmd)
 
 	// Add ACP command
 	RootCmd.AddCommand(acp.Cmd)

@@ -68,3 +68,36 @@ func TestHandleDuplicateToolCallsNonSearchReturnsBestEffortAnswer(t *testing.T) 
 		t.Fatalf("fallback = %q, want %q", fallback, want)
 	}
 }
+
+func TestHandleDuplicateToolCallsTaskCompleteReturnsResultWithoutFallbackNoise(t *testing.T) {
+	svc := &Service{}
+	seen := map[string]int{
+		"task_complete:map[result:仓库结构总结完成]": 1,
+	}
+	result := &domain.GenerationResult{
+		Content: "The task has been completed.",
+		ToolCalls: []domain.ToolCall{
+			{
+				ID:   "call-1",
+				Type: "function",
+				Function: domain.FunctionCall{
+					Name: "task_complete",
+					Arguments: map[string]interface{}{
+						"result": "仓库结构总结完成",
+					},
+				},
+			},
+		},
+	}
+
+	filtered, duplicates, fallback := svc.handleDuplicateToolCalls(nil, result, seen)
+	if len(filtered) != 0 {
+		t.Fatalf("expected no executable tool calls, got %d", len(filtered))
+	}
+	if len(duplicates) != 0 {
+		t.Fatalf("expected no synthetic duplicate results, got %d", len(duplicates))
+	}
+	if fallback != "仓库结构总结完成" {
+		t.Fatalf("fallback = %q, want %q", fallback, "仓库结构总结完成")
+	}
+}

@@ -27,10 +27,14 @@ func (s *Service) buildSystemPrompt(ctx context.Context, agent *Agent) string {
 	// Append PTC instructions when enabled so the LLM knows how to use execute_javascript.
 	// Dynamically list what is callable via callTool() so the model doesn't have to guess.
 	if s.ptcIntegration != nil {
-		availableCallTools := s.ptcIntegration.GetAvailableCallTools(ctx)
+		availableCallTools := s.ptcAvailableCallTools(ctx)
 		if ptcPrompt := s.ptcIntegration.GetPTCSystemPrompt(availableCallTools); ptcPrompt != "" {
 			rendered += "\n\n" + ptcPrompt
 		}
+	}
+
+	if summary := s.buildToolCatalogSummary(ctx); summary != "" {
+		rendered += "\n\n" + summary
 	}
 
 	return rendered
@@ -72,8 +76,13 @@ func (s *Service) buildPTCSystemPrompt(ctx context.Context) string {
 
 	// PTC instructions with dynamic tool list
 	if s.ptcIntegration != nil && s.ptcIntegration.config.Enabled {
-		availableCallTools := s.ptcIntegration.GetAvailableCallTools(ctx)
+		availableCallTools := s.ptcAvailableCallTools(ctx)
 		sb.WriteString(s.ptcIntegration.GetPTCSystemPrompt(availableCallTools))
+	}
+
+	if summary := s.buildToolCatalogSummary(ctx); summary != "" {
+		sb.WriteString("\n")
+		sb.WriteString(summary)
 	}
 
 	return sb.String()

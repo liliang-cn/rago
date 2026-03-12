@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -93,6 +94,12 @@ type Runtime struct {
 	closed         bool
 	maxCalls       int
 }
+
+var (
+	toolCamelBoundaryRe   = regexp.MustCompile(`([a-z0-9])([A-Z])`)
+	toolNonWordRe         = regexp.MustCompile(`[^a-z0-9]+`)
+	filesystemListEntryRe = regexp.MustCompile(`^\[(DIR|FILE)\]\s+(.+?) \((file://[^)]+)\)(?: - (\d+) bytes)?$`)
+)
 
 // NewRuntime creates a new Goja runtime
 func NewRuntime() *Runtime {
@@ -324,6 +331,13 @@ func (r *Runtime) registerBuiltins(vm *goja.Runtime, state *executionState) {
 		// Get tool handler
 		handler, ok := state.tools[toolName]
 		if !ok {
+			if resolved, found := resolveToolName(toolName, state.tools); found {
+				toolName = resolved
+				handler = state.tools[toolName]
+				ok = true
+			}
+		}
+		if !ok {
 			panic(vm.NewTypeError(fmt.Sprintf("tool '%s' not found", toolName)))
 		}
 
@@ -375,7 +389,7 @@ func (r *Runtime) registerBuiltins(vm *goja.Runtime, state *executionState) {
 		// - Go structs are JSON-roundtripped so field names use json tags (lowercase)
 		result = normalizeForJS(result)
 		if strings.HasPrefix(toolName, "mcp_") {
-			result = normalizeMCPToolResult(result)
+			result = normalizeMCPToolResult(toolName, result)
 		}
 
 		return toJSValue(vm, result)
@@ -516,8 +530,11 @@ func jsonRoundTrip(value interface{}) interface{} {
 	return normalized
 }
 
-func normalizeMCPToolResult(result interface{}) interface{} {
+func normalizeMCPToolResult(toolName string, result interface{}) interface{} {
 	if isStandardToolEnvelope(result) {
+		if m, ok := result.(map[string]interface{}); ok {
+			return normalizeMCPToolEnvelope(toolName, m)
+		}
 		return result
 	}
 	switch result.(type) {
@@ -525,11 +542,11 @@ func normalizeMCPToolResult(result interface{}) interface{} {
 		return result
 	}
 
-	return map[string]interface{}{
+	return normalizeMCPToolEnvelope(toolName, map[string]interface{}{
 		"success": true,
 		"data":    result,
 		"error":   nil,
-	}
+	})
 }
 
 func isStandardToolEnvelope(result interface{}) bool {
@@ -564,4 +581,133 @@ func toJSValue(vm *goja.Runtime, value interface{}) goja.Value {
 	default:
 		return vm.ToValue(v)
 	}
+}
+
+func normalizeMCPToolEnvelope(toolName string, envelope map[string]interface{}) map[string]interface{} {
+	if toolName == "mcp_filesystem_list_directory" {
+		if text, ok := envelope["data"].(string); ok {
+			envelope["data_text"] = text
+			envelope["data"] = parseFilesystemListDirectory(text)
+		}
+	}
+	return envelope
+}
+
+func parseFilesystemListDirectory(raw string) []interface{} {
+	lines := strings.Split(raw, "\n")
+	items := make([]interface{}, 0)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		matches := filesystemListEntryRe.FindStringSubmatch(line)
+		if len(matches) == 0 {
+			continue
+		}
+
+		itemType := strings.ToLower(matches[1])
+		name := matches[2]
+		uri := matches[3]
+		path := strings.TrimPrefix(uri, "file://")
+
+		entry := map[string]interface{}{
+			"name": name,
+			"type": itemType,
+			"uri":  uri,
+			"path": path,
+		}
+		if matches[4] != "" {
+			if size, err := strconv.Atoi(matches[4]); err == nil {
+				entry["size_bytes"] = size
+			}
+		}
+		items = append(items, entry)
+	}
+
+	return items
+}
+
+func resolveToolName(name string, tools map[string]ptc.ToolHandler) (string, bool) {
+	if _, ok := tools[name]; ok {
+		return name, true
+	}
+
+	candidates := make([]string, 0, len(tools))
+	for candidate := range tools {
+		candidates = append(candidates, candidate)
+	}
+
+	if resolved := resolveClosestToolName(name, candidates); resolved != "" {
+		return resolved, true
+	}
+	return "", false
+}
+
+func resolveClosestToolName(name string, candidates []string) string {
+	if name == "" || len(candidates) == 0 {
+		return ""
+	}
+
+	normalizedTarget := normalizeToolName(name)
+	if normalizedTarget == "" {
+		return ""
+	}
+
+	bestName := ""
+	bestScore := 0
+	targetTokens := strings.Split(normalizedTarget, "_")
+
+	for _, candidate := range candidates {
+		normalizedCandidate := normalizeToolName(candidate)
+		if normalizedCandidate == normalizedTarget {
+			return candidate
+		}
+		score := scoreToolNameMatch(targetTokens, strings.Split(normalizedCandidate, "_"))
+		if score > bestScore {
+			bestScore = score
+			bestName = candidate
+		}
+	}
+
+	if bestScore < 4 {
+		return ""
+	}
+	return bestName
+}
+
+func normalizeToolName(name string) string {
+	name = toolCamelBoundaryRe.ReplaceAllString(name, `${1}_${2}`)
+	name = strings.ToLower(name)
+	name = toolNonWordRe.ReplaceAllString(name, "_")
+	name = strings.Trim(name, "_")
+	name = strings.ReplaceAll(name, "__", "_")
+	return name
+}
+
+func scoreToolNameMatch(target, candidate []string) int {
+	if len(target) == 0 || len(candidate) == 0 {
+		return 0
+	}
+
+	score := 0
+	for i := 0; i < len(target) && i < len(candidate); i++ {
+		if target[i] != candidate[i] {
+			break
+		}
+		score += 3
+	}
+
+	candidateSet := make(map[string]struct{}, len(candidate))
+	for _, token := range candidate {
+		candidateSet[token] = struct{}{}
+	}
+	for _, token := range target {
+		if _, ok := candidateSet[token]; ok {
+			score++
+		}
+	}
+
+	return score
 }

@@ -56,7 +56,7 @@ export function MCP() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="page-mcp">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-slate-900">{t('mcp')}</h2>
         <div className="flex gap-2">
@@ -66,38 +66,40 @@ export function MCP() {
               refetchTools()
             }}
             className="dashboard-secondary-button px-4 py-2 text-sm"
+            data-testid="mcp-refresh"
           >
-            Refresh
+            {t('refresh')}
           </button>
           <button
             onClick={() => setShowAddForm(true)}
             className="dashboard-button px-4 py-2 text-sm"
+            data-testid="mcp-add-server"
           >
-            Add Server
+            {t('addServerButton')}
           </button>
         </div>
       </div>
 
       {/* Add Server Form */}
       {showAddForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20 backdrop-blur-sm">
-          <div className="glass-panel w-full max-w-md rounded-[28px] p-6 mx-4">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Add MCP Server</h3>
-            <form onSubmit={handleAddServer} className="space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-sky-950/10 backdrop-blur-sm">
+          <div className="glass-panel w-full max-w-md rounded-[28px] p-6 mx-4" data-testid="mcp-add-server-modal">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">{t('addMcpServerTitle')}</h3>
+            <form onSubmit={handleAddServer} className="space-y-4" data-testid="mcp-add-server-form">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Name *
+                  {t('skillNameRequired')}
                 </label>
                 <input
                   name="name"
                   required
                   className="dashboard-input"
-                  placeholder="my-server"
+                  placeholder={t('serverNameExample')}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Type
+                  {t('serverTypeLabel')}
                 </label>
                 <select
                   name="type"
@@ -109,32 +111,32 @@ export function MCP() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Command (for stdio)
+                  {t('commandForStdio')}
                 </label>
                 <input
                   name="command"
                   className="dashboard-input"
-                  placeholder="npx -y @my-server/mcp-server"
+                  placeholder={t('serverCommandExample')}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Args (space-separated)
+                  {t('argsSpaceSeparated')}
                 </label>
                 <input
                   name="args"
                   className="dashboard-input"
-                  placeholder="--port 3000"
+                  placeholder={t('serverArgsExample')}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  URL (for HTTP)
+                  {t('urlForHttp')}
                 </label>
                 <input
                   name="url"
                   className="dashboard-input"
-                  placeholder="http://localhost:3000/mcp"
+                  placeholder={t('serverUrlExample')}
                 />
               </div>
               <div className="flex justify-end gap-2 pt-4">
@@ -143,13 +145,13 @@ export function MCP() {
                   onClick={() => setShowAddForm(false)}
                   className="dashboard-secondary-button px-4 py-2"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   type="submit"
                   className="dashboard-button px-4 py-2"
                 >
-                  Add Server
+                  {t('addServerButton')}
                 </button>
               </div>
             </form>
@@ -160,8 +162,8 @@ export function MCP() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Servers List */}
         <div>
-          <h3 className="text-lg font-medium text-slate-900 mb-4">Servers</h3>
-          <div className="space-y-3">
+          <h3 className="text-lg font-medium text-slate-900 mb-4">{t('servers')}</h3>
+          <div className="space-y-3" data-testid="mcp-server-list">
             {servers && servers.length > 0 ? (
               servers.map((server) => (
                 <div
@@ -175,24 +177,24 @@ export function MCP() {
                     <span
                       className={`px-2 py-1 text-xs rounded ${
                         server.running
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-slate-100 text-slate-700'
                       }`}
                     >
-                      {server.running ? 'Running' : 'Stopped'}
+                      {server.running ? t('running') : t('stopped')}
                     </span>
                   </div>
                   <p className="text-sm text-slate-600 mb-2">
-                    {server.description || server.command || 'No command'}
+                    {server.description || server.command || t('noCommand')}
                   </p>
                   <p className="text-sm text-slate-500">
-                    Tools: {server.tool_count}
+                    {t('toolsSummary', { count: server.tool_count })}
                   </p>
                 </div>
               ))
             ) : (
               <div className="dashboard-muted-card rounded-[24px] p-4 text-center text-slate-500">
-                No MCP servers configured
+                {t('noServers')}
               </div>
             )}
           </div>
@@ -200,14 +202,15 @@ export function MCP() {
 
         {/* Tools List */}
         <div>
-          <h3 className="text-lg font-medium text-slate-900 mb-4">Available Tools</h3>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
+          <h3 className="text-lg font-medium text-slate-900 mb-4">{t('availableTools')}</h3>
+          <div className="space-y-3 max-h-96 overflow-y-auto" data-testid="mcp-tool-list">
             {tools && tools.length > 0 ? (
               tools.map((tool) => (
                 <div
                   key={`${tool.server_name}-${tool.name}`}
-                  className="dashboard-muted-card rounded-[24px] p-4 cursor-pointer hover:border-sky-300 transition-colors"
+                  className="dashboard-muted-card cursor-pointer rounded-[24px] p-4 transition-colors hover:border-sky-300 hover:bg-sky-50/50"
                   onClick={() => setSelectedTool(tool)}
+                  data-testid={`mcp-tool-${tool.server_name}-${tool.name}`}
                 >
                   <div className="flex items-start justify-between mb-1">
                     <h4 className="font-medium text-slate-900 text-sm">
@@ -224,7 +227,7 @@ export function MCP() {
               ))
             ) : (
               <div className="dashboard-muted-card rounded-[24px] p-4 text-center text-slate-500">
-                No tools available
+                {t('noToolsAvailable')}
               </div>
             )}
           </div>
@@ -233,10 +236,10 @@ export function MCP() {
 
       {/* Tool Test Panel */}
       {selectedTool && (
-        <div className="glass-panel mt-6 rounded-[28px] p-4">
+        <div className="glass-panel mt-6 rounded-[28px] p-4" data-testid="mcp-tool-panel">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-slate-900">
-              Test Tool: {selectedTool.name}
+              {t('testToolTitle', { name: selectedTool.name })}
             </h3>
             <button
               onClick={() => {
@@ -245,14 +248,14 @@ export function MCP() {
               }}
               className="text-slate-500 hover:text-slate-700"
             >
-              Close
+              {t('closeButton')}
             </button>
           </div>
-          <form onSubmit={handleCallTool} className="space-y-4">
+          <form onSubmit={handleCallTool} className="space-y-4" data-testid="mcp-tool-form">
             <input type="hidden" name="tool_name" value={selectedTool.name} />
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Arguments (JSON)
+                {t('toolArgs')}
               </label>
               <textarea
                 name="arguments"
@@ -265,13 +268,14 @@ export function MCP() {
               type="submit"
               disabled={callToolMutation.isPending}
               className="dashboard-button px-4 py-2"
+              data-testid="mcp-call-tool"
             >
-              {callToolMutation.isPending ? 'Calling...' : 'Call Tool'}
+              {callToolMutation.isPending ? t('calling') : t('callTool')}
             </button>
           </form>
           {toolResult && (
             <div className="dashboard-muted-card mt-4 rounded-[20px] p-4">
-              <h4 className="text-sm font-medium text-slate-700 mb-2">Result</h4>
+              <h4 className="text-sm font-medium text-slate-700 mb-2">{t('result')}</h4>
               <pre className="text-xs text-slate-600 overflow-x-auto whitespace-pre-wrap">
                 {toolResult}
               </pre>

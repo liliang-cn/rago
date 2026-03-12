@@ -8,9 +8,9 @@
   font-weight: 400;
   color: #16324f;
   background:
-    radial-gradient(circle at top left, rgba(96, 165, 250, 0.16), transparent 28%),
-    radial-gradient(circle at top right, rgba(191, 219, 254, 0.55), transparent 24%),
-    linear-gradient(180deg, #f8fbff 0%, #f1f7ff 52%, #eef5ff 100%);
+    radial-gradient(circle at top left, rgba(96, 165, 250, 0.1), transparent 24%),
+    radial-gradient(circle at top right, rgba(191, 219, 254, 0.42), transparent 20%),
+    linear-gradient(180deg, #ffffff 0%, #f7fbff 52%, #eff6ff 100%);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -47,19 +47,19 @@ a {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(circle at 12% 8%, rgba(147, 197, 253, 0.2), transparent 0 28%),
-    radial-gradient(circle at 85% 0%, rgba(191, 219, 254, 0.36), transparent 0 24%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 35%);
+    radial-gradient(circle at 14% 10%, rgba(147, 197, 253, 0.16), transparent 0 24%),
+    radial-gradient(circle at 84% 2%, rgba(219, 234, 254, 0.75), transparent 0 22%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 38%);
   pointer-events: none;
 }
 
 .glass-panel {
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(147, 197, 253, 0.22);
+  background: rgba(255, 255, 255, 0.96);
   box-shadow:
-    0 18px 45px rgba(15, 23, 42, 0.08),
-    0 3px 10px rgba(59, 130, 246, 0.05);
-  backdrop-filter: blur(14px);
+    0 16px 38px rgba(37, 99, 235, 0.06),
+    0 2px 8px rgba(15, 23, 42, 0.03);
+  backdrop-filter: blur(10px);
 }
 
 .dashboard-hero {
@@ -78,34 +78,36 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
-  padding: 0.7rem 1rem;
+  border-radius: 0.65rem;
+  padding: 0.62rem 0.95rem;
   font-size: 0.92rem;
-  transition: all 160ms ease;
+  font-weight: 500;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 
 .nav-pill-idle {
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(255, 255, 255, 0.76);
-  color: #42617f;
+  border: 1px solid #dbeafe;
+  background: #ffffff;
+  color: #31506e;
 }
 
 .nav-pill-idle:hover {
-  background: #ffffff;
-  color: #1447e6;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
 }
 
 .nav-pill-active {
-  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: 1px solid #2563eb;
+  background: #2563eb;
   color: #ffffff;
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
 }
 
 .dashboard-input {
   width: 100%;
   border-radius: 1.1rem;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  background: rgba(248, 250, 252, 0.92);
+  border: 1px solid rgba(191, 219, 254, 0.9);
+  background: #f8fbff;
   padding: 0.9rem 1rem;
   color: #16324f;
   outline: none;
@@ -119,26 +121,26 @@ a {
 .dashboard-input:focus {
   border-color: rgba(59, 130, 246, 0.55);
   background: #ffffff;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
 }
 
 .dashboard-button {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  border-radius: 999px;
-  border: 0;
-  background: linear-gradient(135deg, #2563eb, #60a5fa);
-  padding: 0.9rem 1.3rem;
+  border-radius: 0.7rem;
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  padding: 0.72rem 1.05rem;
   color: #ffffff;
-  font-size: 0.95rem;
+  font-size: 0.94rem;
   font-weight: 600;
-  transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
-  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.16);
+  transition: background 140ms ease, border-color 140ms ease, opacity 140ms ease;
 }
 
 .dashboard-button:hover:not(:disabled) {
-  transform: translateY(-1px);
+  background: #1d4ed8;
+  border-color: #1d4ed8;
 }
 
 .dashboard-button:disabled {
@@ -147,21 +149,21 @@ a {
 }
 
 .dashboard-secondary-button {
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(255, 255, 255, 0.88);
-  padding: 0.75rem 1rem;
+  border-radius: 0.7rem;
+  border: 1px solid #dbeafe;
+  background: #ffffff;
+  padding: 0.72rem 1.05rem;
   color: #31506e;
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 
 .dashboard-secondary-button:hover:not(:disabled) {
-  border-color: rgba(59, 130, 246, 0.28);
-  background: #ffffff;
+  border-color: rgba(96, 165, 250, 0.5);
+  background: #eff6ff;
   color: #1447e6;
 }
 
 .dashboard-muted-card {
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(241, 245, 249, 0.78));
+  border: 1px solid rgba(191, 219, 254, 0.82);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 251, 255, 0.96));
 }

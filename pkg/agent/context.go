@@ -13,20 +13,20 @@ import (
 
 // SystemContext 系统上下文信息
 type SystemContext struct {
-	Date        string
-	Time        string
-	Timezone    string
-	OS          string
-	Arch        string
-	Hostname    string
-	WorkingDir  string
-	HomeDir     string
-	User        string
-	GoVersion   string
-	EnvInfo     map[string]string // selected env vars
-	HasMemory   bool              // memory system is enabled
-	MCPServers  []string          // available MCP server names (e.g. mcp_filesystem)
-	SkillNames  []string          // available skill IDs
+	Date       string
+	Time       string
+	Timezone   string
+	OS         string
+	Arch       string
+	Hostname   string
+	WorkingDir string
+	HomeDir    string
+	User       string
+	GoVersion  string
+	EnvInfo    map[string]string // selected env vars
+	HasMemory  bool              // memory system is enabled
+	MCPServers []string          // available MCP server names (e.g. mcp_filesystem)
+	SkillNames []string          // available skill IDs
 }
 
 // buildSystemContext 收集系统上下文信息

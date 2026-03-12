@@ -1,21 +1,12 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react'
-import { useCreateAgent, useDispatchAgentTask, useAgents, useStartAgent, useStatus, useStopAgent } from '../hooks/useApi'
-import type { AgentModel, CreateAgentRequest } from '../lib/api'
-
-type ActivityItem = {
-  id: string
-  agentName: string
-  kind: 'dispatch' | 'lifecycle' | 'create'
-  status: 'success' | 'error' | 'info'
-  title: string
-  detail: string
-  timestamp: number
-  durationMs?: number
-}
+import { ChangeEvent, FormEvent, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useCreateAgent, useCreateSquad, useAgents, useOpsLogs, useSquads, useStartAgent, useStatus, useStopAgent } from '../hooks/useApi'
+import type { AgentModel, CreateAgentRequest, CreateSquadRequest, OpsLogEntry } from '../lib/api'
+import { MultiAgentChatPanel } from '../components/MultiAgentChatPanel'
 
 const capabilityMeta = [
-  { key: 'enable_rag', label: 'RAG', color: 'bg-emerald-500' },
-  { key: 'enable_memory', label: 'Memory', color: 'bg-amber-500' },
+  { key: 'enable_rag', labelKey: 'rag', color: 'bg-emerald-500' },
+  { key: 'enable_memory', labelKey: 'memoryNav', color: 'bg-amber-500' },
   { key: 'enable_ptc', label: 'PTC', color: 'bg-sky-500' },
   { key: 'enable_mcp', label: 'MCP', color: 'bg-fuchsia-500' },
 ] as const
@@ -24,18 +15,18 @@ function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(' ')
 }
 
-function timeAgo(timestamp: number) {
+function timeAgo(timestamp: number, t: (key: string, options?: Record<string, unknown>) => string) {
   const diff = Math.max(0, Date.now() - timestamp)
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 1) return t('justNow')
+  if (minutes < 60) return t('minutesAgo', { count: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
+  if (hours < 24) return t('hoursAgo', { count: hours })
+  return t('daysAgo', { count: Math.floor(hours / 24) })
 }
 
-function formatDate(input?: string) {
-  if (!input) return 'Unknown'
+function formatDate(input: string | undefined, t: (key: string) => string) {
+  if (!input) return t('unknown')
   const date = new Date(input)
   if (Number.isNaN(date.getTime())) return input
   return date.toLocaleString()
@@ -44,12 +35,27 @@ function formatDate(input?: string) {
 function statusTone(status: AgentModel['status']) {
   switch (status) {
     case 'running':
-      return 'text-emerald-200 bg-emerald-500/15 ring-emerald-500/30'
+      return 'text-emerald-700 bg-emerald-50 ring-emerald-200'
     case 'error':
-      return 'text-rose-200 bg-rose-500/15 ring-rose-500/30'
+      return 'text-rose-700 bg-rose-50 ring-rose-200'
     default:
-      return 'text-stone-200 bg-stone-500/15 ring-stone-500/30'
+      return 'text-slate-600 bg-slate-50 ring-slate-200'
   }
+}
+
+function statusLabel(status: AgentModel['status'], t: (key: string) => string) {
+  switch (status) {
+    case 'running':
+      return t('enabled')
+    case 'stopped':
+      return t('disabled')
+    default:
+      return status
+  }
+}
+
+function kindLabel(kind: AgentModel['kind'], t: (key: string) => string) {
+  return kind === 'specialist' ? t('kindSpecialist') : t('kindCaptain')
 }
 
 function countEnabledCapabilities(agent: AgentModel) {
@@ -57,18 +63,23 @@ function countEnabledCapabilities(agent: AgentModel) {
 }
 
 export function Agent() {
+  const { t } = useTranslation()
+  const { data: squads = [] } = useSquads()
   const { data: agents = [], isLoading, error } = useAgents()
   const { data: status } = useStatus()
+  const { data: activity = [] } = useOpsLogs(20)
   const createAgent = useCreateAgent()
+  const createSquad = useCreateSquad()
   const startAgent = useStartAgent()
   const stopAgent = useStopAgent()
-  const dispatchTask = useDispatchAgentTask()
 
-  const [selectedName, setSelectedName] = useState('')
-  const [instruction, setInstruction] = useState('')
-  const [activity, setActivity] = useState<ActivityItem[]>([])
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [showCreateSquadForm, setShowCreateSquadForm] = useState(false)
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
+  const [squadForm, setSquadForm] = useState<CreateSquadRequest>({ name: '', description: '' })
   const [createForm, setCreateForm] = useState<CreateAgentRequest>({
+    kind: 'specialist',
+    squad_id: '',
     name: '',
     description: '',
     instructions: '',
@@ -84,44 +95,23 @@ export function Agent() {
   const [rawMCPTools, setRawMCPTools] = useState('')
   const [rawSkills, setRawSkills] = useState('')
 
-  useEffect(() => {
-    if (!agents.length) {
-      setSelectedName('')
-      return
-    }
-    if (!selectedName || !agents.some((agent) => agent.name === selectedName)) {
-      setSelectedName(agents[0].name)
-    }
-  }, [agents, selectedName])
-
-  const selectedAgent = useMemo(
-    () => agents.find((agent) => agent.name === selectedName) ?? null,
-    [agents, selectedName],
+  const captainAgents = useMemo(
+    () => agents.filter((agent) => agent.kind === 'captain'),
+    [agents],
   )
 
   const metrics = useMemo(() => {
-    const runningAgents = agents.filter((agent) => agent.status === 'running').length
-    const totalCapabilities = agents.reduce((sum, agent) => sum + countEnabledCapabilities(agent), 0)
+    const enabledAgents = captainAgents.filter((agent) => agent.status === 'running').length
+    const totalCapabilities = captainAgents.reduce((sum, agent) => sum + countEnabledCapabilities(agent), 0)
     const providers = status?.providers?.filter((provider) => provider.status === 'enabled').length ?? 0
 
     return [
-      { label: 'Agents online', value: String(runningAgents), subtext: `${agents.length} total agents` },
-      { label: 'Capabilities armed', value: String(totalCapabilities), subtext: 'Across all specialists' },
-      { label: 'Providers healthy', value: String(providers), subtext: `${status?.providers?.length ?? 0} providers tracked` },
-      { label: 'Knowledge footprint', value: String(status?.rag?.documents ?? 0), subtext: `${status?.rag?.chunks ?? 0} chunks indexed` },
+      { label: t('agentsEnabled'), value: String(enabledAgents), subtext: t('agentsTotal', { count: captainAgents.length }) },
+      { label: t('capabilitiesArmed'), value: String(totalCapabilities), subtext: t('acrossAllSpecialists') },
+      { label: t('providersHealthy'), value: String(providers), subtext: t('providersTracked', { count: status?.providers?.length ?? 0 }) },
+      { label: t('knowledgeFootprint'), value: String(status?.rag?.documents ?? 0), subtext: t('chunksIndexed', { count: status?.rag?.chunks ?? 0 }) },
     ]
-  }, [agents, status])
-
-  const appendActivity = (item: Omit<ActivityItem, 'id' | 'timestamp'>) => {
-    setActivity((current) => [
-      {
-        ...item,
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-      },
-      ...current,
-    ].slice(0, 12))
-  }
+  }, [captainAgents, status, t])
 
   const handleCreateFormField =
     (field: 'name' | 'description' | 'instructions' | 'model') =>
@@ -154,14 +144,9 @@ export function Agent() {
 
     try {
       const agent = await createAgent.mutateAsync(payload)
-      appendActivity({
-        agentName: agent.name,
-        kind: 'create',
-        status: 'success',
-        title: `Created ${agent.name}`,
-        detail: agent.description || 'New specialist registered.',
-      })
       setCreateForm({
+        kind: 'specialist',
+        squad_id: '',
         name: '',
         description: '',
         instructions: '',
@@ -177,15 +162,23 @@ export function Agent() {
       setRawMCPTools('')
       setRawSkills('')
       setShowCreateForm(false)
-      setSelectedName(agent.name)
+      setExpandedAgent(agent.name)
     } catch (mutationError) {
-      appendActivity({
-        agentName: createForm.name || 'New agent',
-        kind: 'create',
-        status: 'error',
-        title: 'Create agent failed',
-        detail: mutationError instanceof Error ? mutationError.message : 'Unknown error',
+      console.error(mutationError)
+    }
+  }
+
+  const handleCreateSquad = async (event: FormEvent) => {
+    event.preventDefault()
+    try {
+      await createSquad.mutateAsync({
+        name: squadForm.name.trim(),
+        description: squadForm.description.trim(),
       })
+      setSquadForm({ name: '', description: '' })
+      setShowCreateSquadForm(false)
+    } catch (mutationError) {
+      console.error(mutationError)
     }
   }
 
@@ -196,65 +189,14 @@ export function Agent() {
       } else {
         await stopAgent.mutateAsync(agent.name)
       }
-      appendActivity({
-        agentName: agent.name,
-        kind: 'lifecycle',
-        status: 'info',
-        title: `${mode === 'start' ? 'Started' : 'Stopped'} ${agent.name}`,
-        detail: mode === 'start' ? 'Agent is ready to receive delegated tasks.' : 'Agent has been paused.',
-      })
     } catch (mutationError) {
-      appendActivity({
-        agentName: agent.name,
-        kind: 'lifecycle',
-        status: 'error',
-        title: `${mode === 'start' ? 'Start' : 'Stop'} failed`,
-        detail: mutationError instanceof Error ? mutationError.message : 'Unknown error',
-      })
-    }
-  }
-
-  const handleDispatch = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!selectedAgent || !instruction.trim()) return
-
-    try {
-      const result = await dispatchTask.mutateAsync({
-        name: selectedAgent.name,
-        instruction,
-      })
-      appendActivity({
-        agentName: selectedAgent.name,
-        kind: 'dispatch',
-        status: 'success',
-        title: `Task completed by ${selectedAgent.name}`,
-        detail: result.response,
-        durationMs: result.duration_ms,
-      })
-      setInstruction('')
-    } catch (mutationError) {
-      appendActivity({
-        agentName: selectedAgent.name,
-        kind: 'dispatch',
-        status: 'error',
-        title: `Dispatch failed for ${selectedAgent.name}`,
-        detail: mutationError instanceof Error ? mutationError.message : 'Unknown error',
-      })
+      console.error(mutationError)
     }
   }
 
   return (
-    <div className="space-y-8">
-      <section className="dashboard-hero">
-        <div className="max-w-3xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-sky-700">Multi-agent command deck</p>
-          <h2 className="mt-3 text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">
-            Run your specialists in a focused, readable workspace.
-          </h2>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-            Monitor agent health, launch or stop specialists, delegate tasks directly, and mint new agents from the web UI without dropping to the CLI.
-          </p>
-        </div>
+    <div className="space-y-8" data-testid="page-agent">
+      <section className="dashboard-hero" data-testid="agent-metrics">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map((metric) => (
             <div key={metric.label} className="glass-panel rounded-[28px] p-5">
@@ -266,309 +208,358 @@ export function Agent() {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="glass-panel rounded-[32px] p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Registry</p>
-              <h3 className="mt-2 text-2xl font-semibold text-slate-900">Agents</h3>
-            </div>
+      <section className="space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{t('squads')}</p>
+            <h2 className="mt-2 text-3xl font-semibold text-slate-900">{t('agents')}</h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setShowCreateSquadForm((value) => !value)}
+              className="dashboard-secondary-button px-4 py-2 text-sm"
+              data-testid="squad-toggle-create"
+            >
+              {showCreateSquadForm ? t('close') : t('newSquad')}
+            </button>
             <button
               type="button"
               onClick={() => setShowCreateForm((value) => !value)}
               className="dashboard-secondary-button px-4 py-2 text-sm"
+              data-testid="agent-toggle-create"
             >
-              {showCreateForm ? 'Close' : 'New agent'}
+              {showCreateForm ? t('close') : t('newAgent')}
             </button>
           </div>
+        </div>
 
-          {showCreateForm && (
-            <form onSubmit={handleCreateAgent} className="dashboard-muted-card mt-5 space-y-3 rounded-[24px] p-4">
-              <input
-                value={createForm.name}
-                onChange={handleCreateFormField('name')}
-                placeholder="Agent name"
-                className="dashboard-input"
-                required
-              />
-              <input
-                value={createForm.description}
-                onChange={handleCreateFormField('description')}
-                placeholder="One-line mission"
-                className="dashboard-input"
-                required
-              />
-              <textarea
-                value={createForm.instructions}
-                onChange={handleCreateFormField('instructions')}
-                placeholder="System instructions"
-                rows={4}
-                className="dashboard-input resize-none"
-                required
-              />
-              <input
-                value={createForm.model}
-                onChange={handleCreateFormField('model')}
-                placeholder="Preferred provider or model (optional)"
-                className="dashboard-input"
-              />
-              <input
-                type="number"
-                min={0}
-                max={5}
-                value={createForm.required_llm_capability ?? 0}
-                onChange={handleRequiredCapabilityChange}
-                placeholder="Required LLM capability (0-5)"
-                className="dashboard-input"
-              />
-              <textarea
-                value={rawMCPTools}
-                onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setRawMCPTools(event.target.value)}
-                placeholder="MCP tools allowlist, one per line"
-                rows={3}
-                className="dashboard-input resize-none"
-              />
-              <textarea
-                value={rawSkills}
-                onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setRawSkills(event.target.value)}
-                placeholder="Skill IDs allowlist, one per line"
-                rows={3}
-                className="dashboard-input resize-none"
-              />
-              <div className="grid grid-cols-2 gap-2 text-sm text-slate-700">
-                {capabilityMeta.map((capability) => (
-                  <label key={capability.key} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(createForm[capability.key])}
-                      onChange={handleCapabilityToggle(capability.key)}
-                    />
-                    {capability.label}
-                  </label>
-                ))}
-              </div>
-              <button
-                type="submit"
-                disabled={createAgent.isPending}
-                className="dashboard-button w-full justify-center"
-              >
-                {createAgent.isPending ? 'Creating...' : 'Create specialist'}
-              </button>
-            </form>
-          )}
+        {showCreateSquadForm && (
+          <form onSubmit={handleCreateSquad} className="glass-panel space-y-3 rounded-[28px] p-5" data-testid="squad-create-form">
+            <input
+              value={squadForm.name}
+              onChange={(event) => setSquadForm((current) => ({ ...current, name: event.target.value }))}
+              placeholder={t('squadNamePlaceholder')}
+              className="dashboard-input"
+              required
+            />
+            <input
+              value={squadForm.description}
+              onChange={(event) => setSquadForm((current) => ({ ...current, description: event.target.value }))}
+              placeholder={t('squadDescriptionPlaceholder')}
+              className="dashboard-input"
+              required
+            />
+            <button
+              type="submit"
+              disabled={createSquad.isPending}
+              className="dashboard-button w-full justify-center"
+              data-testid="squad-create-submit"
+            >
+              {createSquad.isPending ? t('creating') : t('createSquad')}
+            </button>
+          </form>
+        )}
 
-          <div className="mt-5 space-y-3">
-            {isLoading && <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">Loading agents…</div>}
-            {error && <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error.message}</div>}
-            {!isLoading && !agents.length && (
-              <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
-                No agents registered yet. Create one or seed defaults from the server.
-              </div>
-            )}
-            {agents.map((agent) => (
-              <button
-                type="button"
-                key={agent.id}
-                onClick={() => setSelectedName(agent.name)}
-                className={cn(
-                  'w-full rounded-[24px] border p-4 text-left transition',
-                  selectedAgent?.name === agent.name
-                    ? 'border-sky-200 bg-sky-50 shadow-[0_12px_30px_rgba(59,130,246,0.08)]'
-                    : 'border-slate-200 bg-white hover:border-sky-100 hover:bg-slate-50',
-                )}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-lg font-medium text-slate-900">{agent.name}</p>
-                    <p className="mt-1 text-sm text-slate-600">{agent.description}</p>
-                  </div>
-                  <span className={cn('rounded-full px-3 py-1 text-xs ring-1', statusTone(agent.status))}>{agent.status}</span>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {capabilityMeta.map((capability) => (
-                    <span
-                      key={capability.key}
-                      className={cn(
-                        'rounded-full px-2.5 py-1 text-xs',
-                        agent[capability.key] ? `${capability.color} text-white` : 'bg-slate-100 text-slate-500',
-                      )}
-                    >
-                      {capability.label}
-                    </span>
-                  ))}
-                </div>
-              </button>
-            ))}
-          </div>
-        </aside>
-
-        <div className="space-y-6">
-          <section className="glass-panel rounded-[32px] p-6">
-            {selectedAgent ? (
-              <>
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="max-w-3xl">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="text-3xl font-semibold text-slate-900">{selectedAgent.name}</h3>
-                      <span className={cn('rounded-full px-3 py-1 text-xs ring-1', statusTone(selectedAgent.status))}>
-                        {selectedAgent.status}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-base leading-7 text-slate-700">{selectedAgent.description}</p>
-                    <p className="mt-4 text-sm leading-7 text-slate-500">{selectedAgent.instructions}</p>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => handleLifecycle('start', selectedAgent)}
-                      disabled={startAgent.isPending}
-                      className="dashboard-button justify-center"
-                    >
-                      Start agent
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleLifecycle('stop', selectedAgent)}
-                      disabled={stopAgent.isPending}
-                      className="dashboard-secondary-button text-sm font-medium"
-                    >
-                      Stop agent
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <div className="dashboard-muted-card rounded-[24px] p-4">
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Model</p>
-                    <p className="mt-3 text-lg text-slate-900">{selectedAgent.model || 'Default pool'}</p>
-                  </div>
-                  <div className="dashboard-muted-card rounded-[24px] p-4">
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Created</p>
-                    <p className="mt-3 text-lg text-slate-900">{formatDate(selectedAgent.created_at)}</p>
-                  </div>
-                  <div className="dashboard-muted-card rounded-[24px] p-4">
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">LLM capability</p>
-                    <p className="mt-3 text-lg text-slate-900">{selectedAgent.required_llm_capability || 0}</p>
-                  </div>
-                  <div className="dashboard-muted-card rounded-[24px] p-4">
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">MCP allowlist</p>
-                    <p className="mt-3 text-lg text-slate-900">{selectedAgent.mcp_tools?.length || 0} tools</p>
-                  </div>
-                  <div className="dashboard-muted-card rounded-[24px] p-4">
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Skill allowlist</p>
-                    <p className="mt-3 text-lg text-slate-900">{selectedAgent.skills?.length || 0} skills</p>
-                  </div>
-                </div>
-
-                <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_360px]">
-                  <form onSubmit={handleDispatch} className="dashboard-muted-card rounded-[28px] p-5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Direct dispatch</p>
-                        <h4 className="mt-2 text-xl font-semibold text-slate-900">Send a focused task</h4>
-                      </div>
-                      {dispatchTask.isPending && <span className="text-sm text-sky-700">Running…</span>}
-                    </div>
-                    <textarea
-                      value={instruction}
-                      onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setInstruction(event.target.value)}
-                      placeholder={`Delegate a concrete task to ${selectedAgent.name}...`}
-                      rows={8}
-                      className="dashboard-input mt-5 resize-none"
-                    />
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <button
-                        type="submit"
-                        disabled={dispatchTask.isPending || !instruction.trim()}
-                        className="dashboard-button"
-                      >
-                        Dispatch task
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setInstruction(`Summarize your remit, available capabilities, and current operating boundaries in 5 bullets.`)}
-                        className="dashboard-secondary-button text-sm"
-                      >
-                        Insert health-check prompt
-                      </button>
-                    </div>
-                  </form>
-
-                  <div className="dashboard-muted-card rounded-[28px] p-5">
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Capability matrix</p>
-                    <div className="mt-5 grid gap-3">
-                      {capabilityMeta.map((capability) => (
-                        <div key={capability.key} className="rounded-[22px] border border-slate-200 bg-white p-4">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-slate-900">{capability.label}</span>
-                            <span className={cn('h-3 w-3 rounded-full', selectedAgent[capability.key] ? capability.color : 'bg-slate-200')} />
-                          </div>
-                          <p className="mt-2 text-sm text-slate-600">
-                            {selectedAgent[capability.key]
-                              ? `${capability.label} is exposed to this specialist.`
-                              : `${capability.label} is currently withheld from this specialist.`}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 p-8 text-slate-500">
-                Select an agent from the registry to inspect and control it.
-              </div>
-            )}
-          </section>
-
-          <section className="glass-panel rounded-[32px] p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Recent activity</p>
-                <h3 className="mt-2 text-2xl font-semibold text-slate-900">Ops log</h3>
-              </div>
-              <p className="text-sm text-slate-500">UI-triggered actions and their latest outcomes.</p>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {!activity.length && (
-                <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
-                  No UI activity yet. Start, stop, create, or dispatch a task to populate the log.
-                </div>
-              )}
-              {activity.map((item) => (
-                <article key={item.id} className="rounded-[24px] border border-slate-200 bg-white p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={cn(
-                            'rounded-full px-2.5 py-1 text-xs',
-                            item.status === 'success'
-                              ? 'bg-emerald-500/15 text-emerald-200'
-                              : item.status === 'error'
-                                ? 'bg-rose-500/15 text-rose-200'
-                                : 'bg-sky-500/15 text-sky-200',
-                          )}
-                        >
-                          {item.kind}
-                        </span>
-                        <span className="text-xs uppercase tracking-[0.24em] text-slate-500">{item.agentName}</span>
-                      </div>
-                      <h4 className="mt-3 text-lg font-medium text-slate-900">{item.title}</h4>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">{item.detail}</p>
-                    </div>
-                    <div className="text-right text-xs text-slate-500">
-                      <div>{timeAgo(item.timestamp)}</div>
-                      {item.durationMs ? <div className="mt-1">{item.durationMs} ms</div> : null}
-                    </div>
-                  </div>
-                </article>
+        {showCreateForm && (
+          <form onSubmit={handleCreateAgent} className="glass-panel space-y-3 rounded-[28px] p-5" data-testid="agent-create-form">
+            <select
+              value={createForm.squad_id}
+              onChange={(event) => setCreateForm((current) => ({ ...current, squad_id: event.target.value }))}
+              className="dashboard-input"
+            >
+              <option value="">{t('defaultSquadOption')}</option>
+              {squads.map((squad) => (
+                <option key={squad.id} value={squad.id}>
+                  {squad.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={createForm.kind}
+              onChange={(event) => setCreateForm((current) => ({ ...current, kind: event.target.value as CreateAgentRequest['kind'] }))}
+              className="dashboard-input"
+            >
+              <option value="specialist">{t('kindSpecialist')}</option>
+              <option value="captain">{t('kindCaptain')}</option>
+            </select>
+            <input
+              value={createForm.name}
+              onChange={handleCreateFormField('name')}
+              placeholder={t('agentNamePlaceholder')}
+              className="dashboard-input"
+              required
+            />
+            <input
+              value={createForm.description}
+              onChange={handleCreateFormField('description')}
+              placeholder={t('oneLineMission')}
+              className="dashboard-input"
+              required
+            />
+            <textarea
+              value={createForm.instructions}
+              onChange={handleCreateFormField('instructions')}
+              placeholder={t('systemInstructions')}
+              rows={4}
+              className="dashboard-input resize-none"
+              required
+            />
+            <input
+              value={createForm.model}
+              onChange={handleCreateFormField('model')}
+              placeholder={t('preferredProviderOrModel')}
+              className="dashboard-input"
+            />
+            <input
+              type="number"
+              min={0}
+              max={5}
+              value={createForm.required_llm_capability ?? 0}
+              onChange={handleRequiredCapabilityChange}
+              placeholder={t('requiredLlmCapability')}
+              className="dashboard-input"
+            />
+            <textarea
+              value={rawMCPTools}
+              onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setRawMCPTools(event.target.value)}
+              placeholder={t('mcpToolsAllowlist')}
+              rows={3}
+              className="dashboard-input resize-none"
+            />
+            <textarea
+              value={rawSkills}
+              onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setRawSkills(event.target.value)}
+              placeholder={t('skillIdsAllowlist')}
+              rows={3}
+              className="dashboard-input resize-none"
+            />
+            <div className="grid grid-cols-2 gap-2 text-sm text-slate-700">
+              {capabilityMeta.map((capability) => (
+                <label key={capability.key} className="flex items-center gap-2 rounded-2xl border border-sky-100 bg-sky-50/50 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(createForm[capability.key])}
+                    onChange={handleCapabilityToggle(capability.key)}
+                  />
+                  {'labelKey' in capability ? t(capability.labelKey) : capability.label}
+                </label>
               ))}
             </div>
-          </section>
+            <button
+              type="submit"
+              disabled={createAgent.isPending}
+              className="dashboard-button w-full justify-center"
+              data-testid="agent-create-submit"
+            >
+              {createAgent.isPending ? t('creating') : t('createSpecialist')}
+            </button>
+          </form>
+        )}
+
+        {isLoading && <div className="glass-panel rounded-[28px] p-5 text-sm text-slate-500">{t('loadingAgents')}</div>}
+        {error && <div className="glass-panel rounded-[28px] border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">{error.message}</div>}
+
+        {!isLoading && captainAgents.length === 0 && (
+          <div className="glass-panel rounded-[28px] border border-dashed border-sky-100 bg-sky-50/60 p-6 text-sm text-slate-500">
+            {t('noAgentsRegistered')}
+          </div>
+        )}
+
+        <section className="grid gap-4 xl:grid-cols-2" data-testid="squad-list">
+          {squads.map((squad) => (
+            <article key={squad.id} className="glass-panel rounded-[28px] p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('squads')}</p>
+                  <h3 className="mt-2 text-2xl font-semibold text-slate-900">{squad.name}</h3>
+                  <p className="mt-2 text-sm text-slate-600">{squad.description}</p>
+                </div>
+                <div className="text-right text-sm text-slate-500">
+                  <div>{t('captainLabel')}: {squad.captain?.name ?? t('unknown')}</div>
+                  <div>{t('membersCount', { count: squad.members.length })}</div>
+                </div>
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <div className="grid gap-6 xl:grid-cols-2" data-testid="agent-captain-panels">
+          {captainAgents.map((agent) => (
+            <div key={agent.id} className="space-y-4">
+              <section className="glass-panel rounded-[32px] p-6" data-testid={`captain-card-${agent.name}`}>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-2xl font-semibold text-slate-900">{agent.name}</h3>
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs text-blue-800">{kindLabel(agent.kind, t)}</span>
+                      <span className={cn('rounded-full px-3 py-1 text-xs ring-1', statusTone(agent.status))}>{statusLabel(agent.status, t)}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600">{agent.description}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleLifecycle('start', agent)}
+                      disabled={startAgent.isPending}
+                      className="dashboard-button justify-center"
+                      data-testid={`agent-start-${agent.name}`}
+                    >
+                      {t('enableAgent')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLifecycle('stop', agent)}
+                      disabled={stopAgent.isPending}
+                      className="dashboard-secondary-button text-sm font-medium"
+                      data-testid={`agent-stop-${agent.name}`}
+                    >
+                      {t('disableAgent')}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="dashboard-muted-card rounded-[22px] p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('model')}</p>
+                    <p className="mt-2 text-sm text-slate-900">{agent.model || t('defaultPool')}</p>
+                  </div>
+                  <div className="dashboard-muted-card rounded-[22px] p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('created')}</p>
+                    <p className="mt-2 text-sm text-slate-900">{formatDate(agent.created_at, t)}</p>
+                  </div>
+                  <div className="dashboard-muted-card rounded-[22px] p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('llmCapability')}</p>
+                    <p className="mt-2 text-sm text-slate-900">{agent.required_llm_capability || 0}</p>
+                  </div>
+                  <div className="dashboard-muted-card rounded-[22px] p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('skillAllowlist')}</p>
+                    <p className="mt-2 text-sm text-slate-900">{t('skillCountText', { count: agent.skills?.length || 0 })}</p>
+                  </div>
+                </div>
+              </section>
+
+              <MultiAgentChatPanel captain={agent} />
+            </div>
+          ))}
         </div>
+
+        <section className="glass-panel rounded-[32px] p-6" data-testid="agent-registry">
+          <div>
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{t('members')}</p>
+            <h3 className="mt-2 text-2xl font-semibold text-slate-900">{t('registry')}</h3>
+          </div>
+
+          <div className="mt-5 space-y-3" data-testid="agent-list">
+            {!isLoading && !agents.length && (
+              <div className="rounded-[24px] border border-dashed border-sky-100 bg-sky-50/60 p-5 text-sm text-slate-500">
+                {t('noAgentsRegistered')}
+              </div>
+            )}
+            {agents.map((agent) => {
+              const isExpanded = expandedAgent === agent.name
+              return (
+                <article key={agent.id} className="rounded-[24px] border border-sky-100 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedAgent((current) => (current === agent.name ? null : agent.name))}
+                    className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+                    data-testid={`agent-row-${agent.name}`}
+                  >
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-lg font-medium text-slate-900">{agent.name}</span>
+                        <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs text-sky-800">{kindLabel(agent.kind, t)}</span>
+                        {agent.kind === 'captain' && (
+                          <span className={cn('rounded-full px-2.5 py-1 text-xs ring-1', statusTone(agent.status))}>{statusLabel(agent.status, t)}</span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600">{agent.description}</p>
+                    </div>
+                    <span className="text-sm text-slate-400">{isExpanded ? '−' : '+'}</span>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-sky-100 px-5 py-4">
+                      <p className="text-sm leading-7 text-slate-600">{agent.instructions}</p>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        <div className="dashboard-muted-card rounded-[20px] p-3">
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('model')}</p>
+                          <p className="mt-2 text-sm text-slate-900">{agent.model || t('defaultPool')}</p>
+                        </div>
+                        <div className="dashboard-muted-card rounded-[20px] p-3">
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('created')}</p>
+                          <p className="mt-2 text-sm text-slate-900">{formatDate(agent.created_at, t)}</p>
+                        </div>
+                        <div className="dashboard-muted-card rounded-[20px] p-3">
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('mcpAllowlist')}</p>
+                          <p className="mt-2 text-sm text-slate-900">{t('toolCount', { count: agent.mcp_tools?.length || 0 })}</p>
+                        </div>
+                        <div className="dashboard-muted-card rounded-[20px] p-3">
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('skillAllowlist')}</p>
+                          <p className="mt-2 text-sm text-slate-900">{t('skillCountText', { count: agent.skills?.length || 0 })}</p>
+                        </div>
+                        <div className="dashboard-muted-card rounded-[20px] p-3">
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('squads')}</p>
+                          <p className="mt-2 text-sm text-slate-900">
+                            {squads.find((squad) => squad.id === agent.squad_id)?.name || t('defaultSquadOption')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+        </section>
+
+        <section className="glass-panel rounded-[32px] p-6" data-testid="agent-ops-log">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{t('recentActivity')}</p>
+              <h3 className="mt-2 text-2xl font-semibold text-slate-900">{t('opsLog')}</h3>
+            </div>
+            <p className="text-sm text-slate-500">{t('uiTriggeredActions')}</p>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {!activity.length && (
+              <div className="rounded-[24px] border border-dashed border-sky-100 bg-sky-50/60 p-5 text-sm text-slate-500">
+                {t('noUiActivityYet')}
+              </div>
+            )}
+            {activity.map((item: OpsLogEntry) => (
+              <article key={item.id} className="rounded-[24px] border border-sky-100 bg-white p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={cn(
+                          'rounded-full px-2.5 py-1 text-xs',
+                          item.status === 'success'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : item.status === 'error'
+                              ? 'bg-rose-50 text-rose-700'
+                              : 'bg-sky-50 text-sky-700',
+                        )}
+                      >
+                        {item.kind}
+                      </span>
+                      <span className="text-xs uppercase tracking-[0.24em] text-slate-500">{item.agent_name}</span>
+                    </div>
+                    <h4 className="mt-3 text-lg font-medium text-slate-900">{item.title}</h4>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">{item.detail}</p>
+                  </div>
+                  <div className="text-right text-xs text-slate-500">
+                    <div>{timeAgo(new Date(item.timestamp).getTime(), t)}</div>
+                    {item.duration_ms ? <div className="mt-1">{item.duration_ms} ms</div> : null}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       </section>
     </div>
   )

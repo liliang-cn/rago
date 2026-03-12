@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/liliang-cn/agent-go/pkg/config"
 	"github.com/liliang-cn/agent-go/pkg/domain"
 	agentgolog "github.com/liliang-cn/agent-go/pkg/log"
 	"github.com/liliang-cn/agent-go/pkg/mcp"
@@ -95,6 +96,7 @@ type Service struct {
 	PTC     *PTCIntegration
 
 	tokenCounter *usage.TokenCounter
+	cfg          *config.Config
 }
 
 // Ensure Service implements ptc.SearchProvider
@@ -552,7 +554,9 @@ func (s *Service) runWithConfig(ctx context.Context, goal string, cfg *RunConfig
 	}
 	if ptcRes != nil {
 		result.PTCResult = ptcRes
-		result.ToolCalls = len(ptcRes.ExecutionResult.ToolCalls)
+		if ptcRes.ExecutionResult != nil {
+			result.ToolCalls = len(ptcRes.ExecutionResult.ToolCalls)
+		}
 		result.ToolsUsed = uniqueStrings(toolNamesFromPTC(ptcRes))
 		result.EstimatedTokens = s.estimateRunTokens(goal, currentResult) + s.estimatePTCTokens(ptcRes)
 	}

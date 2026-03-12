@@ -4,6 +4,8 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 // ── schemaFromStruct tests ───────────────────────────────────────────────────
@@ -216,6 +218,78 @@ func TestToolBuilder_Items(t *testing.T) {
 	}
 	if items["type"] != "string" {
 		t.Errorf("items type mismatch: %v", items["type"])
+	}
+}
+
+func TestSearchDeferredToolsBM25(t *testing.T) {
+	registry := NewToolRegistry()
+	registry.Register(domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "mcp_filesystem_write_file",
+			Description: "Write a file into the workspace",
+		},
+		DeferLoading: true,
+	}, nil, CategoryMCP)
+	registry.Register(domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "mcp_filesystem_list_directory",
+			Description: "List files in a directory",
+		},
+		DeferLoading: true,
+	}, nil, CategoryMCP)
+
+	results := registry.SearchDeferredToolsBM25("write golang file to workspace")
+	if len(results) == 0 {
+		t.Fatal("expected bm25 tool search results")
+	}
+	if results[0].Function.Name != "mcp_filesystem_write_file" {
+		t.Fatalf("expected write_file first, got %#v", results)
+	}
+}
+
+func TestExecuteToolSearchBM25(t *testing.T) {
+	registry := NewToolRegistry()
+	registry.Register(domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "mcp_filesystem_write_file",
+			Description: "Write a file into the workspace",
+		},
+		DeferLoading: true,
+	}, nil, CategoryMCP)
+	registry.Register(domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "mcp_filesystem_read_file",
+			Description: "Read a file from disk",
+		},
+		DeferLoading: true,
+	}, nil, CategoryMCP)
+
+	results, err := registry.ExecuteToolSearch("save a go file in workspace", "bm25")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected bm25 execute search results")
+	}
+	if results[0].Function.Name != "mcp_filesystem_write_file" {
+		t.Fatalf("expected write_file first, got %#v", results)
+	}
+}
+
+func TestResolveClosestToolName(t *testing.T) {
+	candidates := []string{
+		"mcp_filesystem_list_directory",
+		"mcp_filesystem_write_file",
+		"mcp_filesystem_search_files",
+	}
+
+	got := resolveClosestToolName("mcp_filesystem_listFiles", candidates)
+	if got != "mcp_filesystem_list_directory" {
+		t.Fatalf("resolveClosestToolName() = %q, want %q", got, "mcp_filesystem_list_directory")
 	}
 }
 

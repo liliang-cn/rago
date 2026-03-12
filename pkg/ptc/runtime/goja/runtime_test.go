@@ -572,7 +572,8 @@ const res = callTool('mcp_filesystem_list_directory', { path: '.' });
 return {
 	ok: res.success,
 	error: res.error,
-	data: toolData(res)
+	data: toolData(res),
+	data_text: res.data_text
 };
 `,
 		Language: ptc.LanguageJavaScript,
@@ -594,8 +595,63 @@ return {
 	if rv["ok"] != true {
 		t.Fatalf("expected wrapped MCP result to expose success=true, got %v", rv["ok"])
 	}
-	if rv["data"] != "Directory listing for: /tmp" {
-		t.Fatalf("expected wrapped MCP result data, got %v", rv["data"])
+	data, ok := rv["data"].([]interface{})
+	if !ok {
+		t.Fatalf("expected structured directory entries, got %T: %v", rv["data"], rv["data"])
+	}
+	if len(data) != 0 {
+		t.Fatalf("expected no parsed entries from header-only listing, got %v", data)
+	}
+	if rv["data_text"] != "Directory listing for: /tmp" {
+		t.Fatalf("expected wrapped MCP result raw text, got %v", rv["data_text"])
+	}
+}
+
+func TestRuntime_CallToolResolvesCamelCaseToolName(t *testing.T) {
+	runtime := NewRuntime()
+	defer runtime.Close()
+
+	err := runtime.RegisterTool("mcp_filesystem_list_directory", func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		return "Directory listing for: /tmp\n\n[FILE] app.go (file:///tmp/app.go) - 42 bytes", nil
+	})
+	if err != nil {
+		t.Fatalf("failed to register tool: %v", err)
+	}
+
+	ctx := context.Background()
+	req := &ptc.ExecutionRequest{
+		Code: `
+const res = callTool('mcp_filesystem_listFiles', { path: '.' });
+return {
+	ok: toolOk(res),
+	first: toolData(res)[0]
+};
+`,
+		Language: ptc.LanguageJavaScript,
+		Timeout:  10 * time.Second,
+	}
+
+	result, err := runtime.Execute(ctx, req)
+	if err != nil {
+		t.Fatalf("execution failed: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected success, got error: %s", result.Error)
+	}
+
+	rv, ok := result.ReturnValue.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map return value, got %T: %v", result.ReturnValue, result.ReturnValue)
+	}
+	if rv["ok"] != true {
+		t.Fatalf("expected ok=true, got %v", rv["ok"])
+	}
+	first, ok := rv["first"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected first entry map, got %T: %v", rv["first"], rv["first"])
+	}
+	if first["name"] != "app.go" {
+		t.Fatalf("expected parsed entry name, got %v", first["name"])
 	}
 }
 

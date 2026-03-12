@@ -16,15 +16,16 @@ import (
 )
 
 type Config struct {
-	Home   string       `mapstructure:"home"`
-	Debug  bool         `mapstructure:"debug"`
-	Server ServerConfig `mapstructure:"server"`
-	LLM    LLMConfig    `mapstructure:"llm"`
-	RAG    RAGConfig    `mapstructure:"rag"`
-	MCP    mcp.Config   `mapstructure:"mcp"`
-	Skills SkillsConfig `mapstructure:"skills"`
-	Memory MemoryConfig `mapstructure:"memory"`
-	Cache  CacheConfig  `mapstructure:"cache"`
+	Home    string        `mapstructure:"home"`
+	Debug   bool          `mapstructure:"debug"`
+	Server  ServerConfig  `mapstructure:"server"`
+	LLM     LLMConfig     `mapstructure:"llm"`
+	RAG     RAGConfig     `mapstructure:"rag"`
+	MCP     mcp.Config    `mapstructure:"mcp"`
+	Skills  SkillsConfig  `mapstructure:"skills"`
+	Memory  MemoryConfig  `mapstructure:"memory"`
+	Cache   CacheConfig   `mapstructure:"cache"`
+	Tooling ToolingConfig `mapstructure:"tooling"`
 }
 
 type LLMConfig struct {
@@ -158,6 +159,12 @@ type CacheConfig struct {
 	ChunkCacheTTL     time.Duration `mapstructure:"chunk_ttl"`
 }
 
+// ToolingConfig controls how tool definitions are exposed to the model.
+type ToolingConfig struct {
+	SavingMode        bool `mapstructure:"saving_mode"`
+	EnableSearchTools bool `mapstructure:"enable_search_tools"`
+}
+
 // GraphRAGConfig configures GraphRAG (Knowledge Graph + RAG)
 type GraphRAGConfig struct {
 	Enabled                  bool     `mapstructure:"enabled"`
@@ -265,6 +272,9 @@ func Load(configPath string) (*Config, error) {
 	config.resolveDatabasePath()
 	config.resolveMCPServerPaths()
 	config.expandPaths()
+	if len(config.MCP.FilesystemDirs) == 0 {
+		config.MCP.FilesystemDirs = []string{config.WorkspaceDir()}
+	}
 
 	// Load MCP servers
 	if err := config.MCP.LoadServersFromJSON(); err != nil {
@@ -401,6 +411,10 @@ func setDefaults() {
 	viper.SetDefault("rag.graph.graph_query_topk", 10)
 	viper.SetDefault("rag.graph.vector_weight", 0.7)
 	viper.SetDefault("rag.graph.graph_weight", 0.3)
+
+	// Tool exposure defaults
+	viper.SetDefault("tooling.saving_mode", false)
+	viper.SetDefault("tooling.enable_search_tools", true)
 }
 
 func bindEnvVars() {
@@ -443,6 +457,8 @@ func bindEnvVars() {
 	viper.BindEnv("cache.vector_ttl", "AgentGo_CACHE_VECTOR_TTL")
 	viper.BindEnv("cache.llm_ttl", "AgentGo_CACHE_LLM_TTL")
 	viper.BindEnv("cache.chunk_ttl", "AgentGo_CACHE_CHUNK_TTL")
+	viper.BindEnv("tooling.saving_mode", "AgentGo_TOOLING_SAVING_MODE")
+	viper.BindEnv("tooling.enable_search_tools", "AgentGo_TOOLING_ENABLE_SEARCH_TOOLS")
 }
 
 // DataDir returns the path to the data directory
@@ -453,6 +469,14 @@ func (c *Config) DataDir() string {
 // SkillsDir returns the path to the skills directory
 func (c *Config) SkillsDir() string {
 	return filepath.Join(c.Home, "skills")
+}
+
+func defaultGlobalSkillsDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return filepath.Join(".agents", "skills")
+	}
+	return filepath.Join(home, ".agents", "skills")
 }
 
 // SkillsPaths returns all skills search paths
@@ -474,6 +498,7 @@ func (c *Config) SkillsPaths() []string {
 		".skills",                           // Project root
 		filepath.Join(".agentgo", "skills"), // Project .agentgo
 		c.SkillsDir(),                       // Home/skills
+		defaultGlobalSkillsDir(),            // OS home global path
 	}
 	for _, p := range defaults {
 		expanded := expandHomePath(p)

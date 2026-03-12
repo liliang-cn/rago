@@ -68,6 +68,7 @@ type Config struct {
 	Servers               []string       `toml:"servers" json:"servers" mapstructure:"servers"`                                     // Array of server config file paths
 	ServersConfigPath     string         `toml:"servers_config_path" json:"servers_config_path" mapstructure:"servers_config_path"` // Deprecated: use Servers instead
 	FilesystemDirs        []string       `toml:"filesystem_dirs" json:"filesystem_dirs" mapstructure:"filesystem_dirs"`             // Allowed dirs for built-in filesystem server; defaults to home dir
+	FilesystemIgnore      []string       `toml:"filesystem_ignore" json:"filesystem_ignore" mapstructure:"filesystem_ignore"`       // Blacklisted directory names filtered from filesystem MCP operations
 	LoadedServers         []ServerConfig `toml:"-" json:"-" mapstructure:"-"`                                                       // Internal: loaded server configurations
 	mu                    sync.Mutex     `toml:"-" json:"-" mapstructure:"-"`                                                       // Protects LoadedServers
 }
@@ -82,6 +83,7 @@ func DefaultConfig() Config {
 		HealthCheckInterval:   60 * time.Second,
 		Servers:               []string{}, // Empty by default, resolved by resolveMCPServerPaths()
 		ServersConfigPath:     "",         // Deprecated
+		FilesystemIgnore:      DefaultFilesystemIgnoreNames(),
 		LoadedServers:         []ServerConfig{},
 	}
 }

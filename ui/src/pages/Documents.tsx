@@ -10,7 +10,7 @@ function getDocumentPath(doc: { path?: string; metadata?: Record<string, unknown
 
 function getDocumentFilename(doc: { path?: string; metadata?: Record<string, unknown> }) {
   const path = getDocumentPath(doc)
-  return path.split('/').pop() || path || 'Untitled'
+  return path.split('/').pop() || path || ''
 }
 
 function getDocumentCreated(doc: { created?: string; metadata?: Record<string, unknown> }) {
@@ -34,8 +34,8 @@ function DocumentDetailModal({ docId, onClose }: { docId: string; onClose: () =>
 
   if (isLoading) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-sky-950/10 backdrop-blur-sm">
+        <div className="glass-panel rounded-[24px] p-6">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       </div>
@@ -44,11 +44,11 @@ function DocumentDetailModal({ docId, onClose }: { docId: string; onClose: () =>
 
   if (error || !doc) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg">
-          <p className="text-red-600 dark:text-red-400">{t('error')} loading document</p>
-          <button onClick={onClose} className="mt-4 px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded">
-            Close
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-sky-950/10 backdrop-blur-sm" onClick={onClose}>
+        <div className="glass-panel max-w-lg rounded-[28px] p-6">
+          <p className="text-rose-700">{t('errorLoadingDocument')}</p>
+          <button onClick={onClose} className="dashboard-secondary-button mt-4 px-4 py-2">
+            {t('closeButton')}
           </button>
         </div>
       </div>
@@ -62,11 +62,11 @@ function DocumentDetailModal({ docId, onClose }: { docId: string; onClose: () =>
   const metadataEntries = Object.entries(doc.metadata ?? {})
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl max-h-[80vh] overflow-auto" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-sky-950/10 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass-panel max-h-[80vh] max-w-2xl overflow-auto rounded-[28px] p-6" onClick={e => e.stopPropagation()} data-testid="document-detail-modal">
         <div className="flex justify-between items-start mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{filename}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+          <h3 className="text-lg font-semibold text-slate-900">{filename}</h3>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-700" data-testid="document-detail-close">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -74,30 +74,30 @@ function DocumentDetailModal({ docId, onClose }: { docId: string; onClose: () =>
         </div>
         <div className="space-y-3 text-sm">
           <div>
-            <span className="text-gray-500 dark:text-gray-400">ID: </span>
-            <span className="font-mono text-gray-900 dark:text-white">{doc.id}</span>
+            <span className="text-slate-500">{t('id')}: </span>
+            <span className="font-mono text-slate-900">{doc.id}</span>
           </div>
           <div>
-            <span className="text-gray-500 dark:text-gray-400">{t('path')}: </span>
-            <span className="text-gray-900 dark:text-white break-all">{path || '-'}</span>
+            <span className="text-slate-500">{t('path')}: </span>
+            <span className="break-all text-slate-900">{path || '-'}</span>
           </div>
           <div>
-            <span className="text-gray-500 dark:text-gray-400">{t('created')}: </span>
-            <span className="text-gray-900 dark:text-white">{formatDocumentDate(created)}</span>
+            <span className="text-slate-500">{t('created')}: </span>
+            <span className="text-slate-900">{formatDocumentDate(created)}</span>
           </div>
           <div>
-            <span className="text-gray-500 dark:text-gray-400">Type: </span>
-            <span className="text-gray-900 dark:text-white">{extension || '-'}</span>
+            <span className="text-slate-500">{t('type')}: </span>
+            <span className="text-slate-900">{extension || '-'}</span>
           </div>
           {metadataEntries.length > 0 && (
             <div>
-              <span className="text-gray-500 dark:text-gray-400">{t('metadata')}: </span>
-              <div className="mt-2 rounded-lg bg-gray-50 p-3 dark:bg-gray-900/50">
+              <span className="text-slate-500">{t('metadata')}: </span>
+              <div className="mt-2 rounded-xl border border-sky-100 bg-sky-50/60 p-3">
                 <dl className="space-y-2">
                   {metadataEntries.map(([key, value]) => (
                     <div key={key} className="grid grid-cols-[140px_1fr] gap-3">
-                      <dt className="font-medium text-gray-500 dark:text-gray-400">{key}</dt>
-                      <dd className="break-all text-gray-900 dark:text-white">{String(value)}</dd>
+                      <dt className="font-medium text-slate-500">{key}</dt>
+                      <dd className="break-all text-slate-900">{String(value)}</dd>
                     </div>
                   ))}
                 </dl>
@@ -106,8 +106,8 @@ function DocumentDetailModal({ docId, onClose }: { docId: string; onClose: () =>
           )}
           {doc.content && (
             <div>
-              <span className="text-gray-500 dark:text-gray-400">{t('content')}: </span>
-              <pre className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-gray-50 p-3 text-xs text-gray-900 dark:bg-gray-900/50 dark:text-white max-h-96 overflow-auto">{doc.content}</pre>
+              <span className="text-slate-500">{t('content')}: </span>
+              <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-sky-100 bg-sky-50/60 p-3 text-xs text-slate-900">{doc.content}</pre>
             </div>
           )}
         </div>
@@ -140,7 +140,7 @@ export function Documents() {
         window.location.reload()
       }
     } catch (err) {
-      alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      alert(t('uploadFailed', { message: err instanceof Error ? err.message : t('unknownError') }))
     } finally {
       setUploading(false)
       if (fileInputRef.current) {
@@ -150,12 +150,12 @@ export function Documents() {
   }
 
   const handleDelete = async (id: string, path: string) => {
-    const filename = path?.split('/').pop() || path || 'this document'
-    if (!confirm(`Delete "${filename}"?`)) return
+    const filename = path?.split('/').pop() || path || t('thisDocument')
+    if (!confirm(t('deleteDocumentPrompt', { name: filename }))) return
     try {
       await deleteDoc.mutateAsync(id)
     } catch (err) {
-      alert(`Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      alert(t('deleteFailed', { message: err instanceof Error ? err.message : t('unknownError') }))
     }
   }
 
@@ -169,19 +169,19 @@ export function Documents() {
 
   if (docsError) {
     return (
-      <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-        <p className="text-red-600 dark:text-red-400">
-          {t('error')} loading documents: {docsError.message}
+      <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-4">
+        <p className="text-rose-700">
+          {t('error')}: {docsError.message}
         </p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="page-documents">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          Documents & Collections
+        <h2 className="text-xl font-semibold text-slate-900">
+          {t('documentsCollections')}
         </h2>
         <div>
           <input
@@ -190,33 +190,35 @@ export function Documents() {
             onChange={handleUpload}
             className="hidden"
             accept=".txt,.md,.pdf,.json,.csv"
+            data-testid="documents-file-input"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="dashboard-button px-4 py-2"
+            data-testid="documents-upload"
           >
-            {uploading ? 'Uploading...' : 'Upload File'}
+            {uploading ? t('uploading') : t('uploadFile')}
           </button>
         </div>
       </div>
 
       {collections && collections.length > 0 && (
         <div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-            Collections
+          <h3 className="mb-3 text-lg font-medium text-slate-900">
+            {t('collections')}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {collections.map((collection) => (
               <div
                 key={collection.name}
-                className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                className="glass-panel rounded-[24px] p-4"
               >
-                <h4 className="font-medium text-gray-900 dark:text-white">
+                <h4 className="font-medium text-slate-900">
                   {collection.name}
                 </h4>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {collection.count} documents
+                <p className="text-sm text-slate-500">
+                  {t('documentsCount')}: {collection.count}
                 </p>
               </div>
             ))}
@@ -226,62 +228,64 @@ export function Documents() {
 
       {documents && documents.length > 0 && (
         <div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-3">
-            Documents ({documents.length})
+          <h3 className="mb-3 text-lg font-medium text-slate-900">
+            {t('documentsTotal', { count: documents.length })}
           </h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800">
+          <div className="overflow-x-auto rounded-[28px] border border-sky-100 bg-white" data-testid="documents-table">
+            <table className="min-w-full divide-y divide-sky-100">
+              <thead className="bg-sky-50/70">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Filename
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    {t('filename')}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Path
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    {t('path')}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Type
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    {t('type')}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Created
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    {t('created')}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    {t('actions')}
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody className="divide-y divide-sky-100 bg-white">
                 {documents.map((doc) => {
                   const filename = getDocumentFilename(doc)
                   const path = getDocumentPath(doc)
                   const extension = getDocumentExtension(doc)
                   const created = getDocumentCreated(doc)
                   return (
-                    <tr key={doc.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                    <tr key={doc.id} className="hover:bg-sky-50/40" data-testid={`document-row-${doc.id}`}>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-slate-900">
                         {filename}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-md break-all">
+                      <td className="max-w-md break-all px-6 py-4 text-sm text-slate-500">
                         {path || '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-500">
                         {extension || '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-500">
                         {formatDocumentDate(created)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                         <button
                           onClick={() => setSelectedDocId(doc.id)}
-                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                          className="text-blue-600 hover:text-blue-800"
+                          data-testid={`document-view-${doc.id}`}
                         >
-                          View
+                          {t('viewDocument')}
                         </button>
                         <button
                           onClick={() => handleDelete(doc.id, path)}
-                          className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                          className="text-red-600 hover:text-red-800"
+                          data-testid={`document-delete-${doc.id}`}
                         >
-                          Delete
+                          {t('delete')}
                         </button>
                       </td>
                     </tr>
@@ -294,9 +298,9 @@ export function Documents() {
       )}
 
       {(!documents || documents.length === 0) && (
-        <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">
-            {t('noDocuments')} found. Upload a file to get started.
+        <div className="rounded-[28px] border border-dashed border-sky-100 bg-sky-50/60 py-12 text-center">
+          <p className="text-slate-500">
+            {t('noDocumentsFound')}
           </p>
         </div>
       )}

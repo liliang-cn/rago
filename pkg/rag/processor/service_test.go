@@ -322,6 +322,46 @@ func TestProcessorService_QueryBasic(t *testing.T) {
 	// This is valid behavior for the simple mock
 }
 
+func TestProcessorService_QueryUsesSafeDefaultMaxTokens(t *testing.T) {
+	var capturedMaxTokens int
+	service := New(
+		&SimpleEmbedder{},
+		&SimpleGenerator{
+			generateFunc: func(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
+				capturedMaxTokens = opts.MaxTokens
+				return "ok", nil
+			},
+		},
+		&SimpleChunker{},
+		&SimpleVectorStore{},
+		&SimpleDocumentStore{},
+		&config.Config{
+			RAG: config.RAGConfig{
+				Chunker: config.ChunkerConfig{
+					ChunkSize: 100,
+					Overlap:   20,
+					Method:    "sentence",
+				},
+			},
+		},
+		&SimpleMetadataExtractor{},
+		nil,
+	)
+
+	ctx := context.Background()
+	if _, err := service.Ingest(ctx, domain.IngestRequest{Content: "RAG max tokens test content"}); err != nil {
+		t.Fatalf("Failed to ingest content: %v", err)
+	}
+
+	if _, err := service.Query(ctx, domain.QueryRequest{Query: "max tokens?"}); err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+
+	if capturedMaxTokens != 2000 {
+		t.Fatalf("expected default max tokens 2000, got %d", capturedMaxTokens)
+	}
+}
+
 func TestProcessorService_ListDocuments(t *testing.T) {
 	service := createSimpleTestService()
 	ctx := context.Background()

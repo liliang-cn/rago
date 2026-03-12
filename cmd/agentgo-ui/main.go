@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/liliang-cn/agent-go/cmd/agentgo-ui/internal/handler"
@@ -109,6 +110,9 @@ func runServer(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create MCP service
+	if err := os.MkdirAll(cfg.WorkspaceDir(), 0755); err != nil {
+		return fmt.Errorf("failed to create workspace directory: %w", err)
+	}
 	mcpConfig := &mcp.Config{
 		Enabled:           cfg.MCP.Enabled,
 		Servers:           cfg.MCP.Servers,
@@ -138,12 +142,12 @@ func runServer(cmd *cobra.Command, args []string) error {
 		memoryService = memory.NewService(memoryStore, llm, embedder, memory.DefaultConfig())
 	}
 
-	var agentManager *agent.AgentManager
+	var squadManager *agent.SquadManager
 
 	// Create Agent service using Builder
 	agentgolog.Infof("Creating agent service with Builder...")
 	b := agent.New("AgentGo Frontdesk").
-		WithSystemPrompt("You are the system Frontdesk and Commander. You can interact with users, and delegate tasks to specialized agents using the tools provided.").
+		WithSystemPrompt("You are the system Frontdesk and Captain. You can interact with users, and delegate tasks to specialized agents using the tools provided.").
 		WithDebug().
 		WithPTC().
 		WithMCP().
@@ -162,23 +166,23 @@ func runServer(cmd *cobra.Command, args []string) error {
 	} else {
 		agentgolog.Infof("Agent service created successfully")
 
-		// Initialize AgentManager
+		// Initialize SquadManager
 		agentDBPath := cfg.DataDir() + "/agent.db"
 		agentStore, storeErr := agent.NewStore(agentDBPath)
 		if storeErr != nil {
 			agentgolog.Warn("Failed to create agent store: %v", storeErr)
 		} else {
-			agentManager = agent.NewAgentManager(agentStore)
-			if err := agentManager.SeedDefaultAgents(); err != nil {
-				agentgolog.Warn("Failed to seed default agents: %v", err)
+			squadManager = agent.NewSquadManager(agentStore)
+			if err := squadManager.SeedDefaultMembers(); err != nil {
+				agentgolog.Warn("Failed to seed default squad members: %v", err)
 			}
-			agentManager.RegisterCommanderTools(agentService)
-			agentgolog.Infof("Agent Manager and Commander tools initialized")
+			squadManager.RegisterCaptainTools(agentService)
+			agentgolog.Infof("Squad manager and captain tools initialized")
 		}
 	}
 
 	// Create handler
-	h := handler.New(cfg, ragClient, skillsService, mcpService, memoryService, agentService, agentManager, llm, embedder)
+	h := handler.New(cfg, ragClient, skillsService, mcpService, memoryService, agentService, squadManager, llm, embedder)
 
 	// Create API router
 	mux := http.NewServeMux()
@@ -190,6 +194,9 @@ func runServer(cmd *cobra.Command, args []string) error {
 	mux.HandleFunc("/api/collections", h.HandleCollections)
 	mux.HandleFunc("/api/status", h.HandleStatus)
 	mux.HandleFunc("/api/chat", h.HandleChat)
+	mux.HandleFunc("/api/chat/multi", h.HandleMultiAgentChat)
+	mux.HandleFunc("/api/squads/tasks", h.HandleSquadTasks)
+	mux.HandleFunc("/api/squads", h.HandleSquads)
 	mux.HandleFunc("/api/ingest", h.HandleIngest)
 
 	// Skills endpoints
@@ -214,8 +221,10 @@ func runServer(cmd *cobra.Command, args []string) error {
 	mux.HandleFunc("/api/agent/stream", h.HandleAgentStream)
 	mux.HandleFunc("/api/agents", h.HandleAgents)
 	mux.HandleFunc("/api/agents/", h.HandleAgentOperation)
+	mux.HandleFunc("/api/ops/logs", h.HandleOpsLogs)
 
 	mux.HandleFunc("/api/config", h.ConfigHandler.HandleConfig)
+	mux.HandleFunc("/api/setup", h.SetupHandler.HandleSetup)
 
 	// Serve static files
 	distFS, err := fs.Sub(staticFS, "dist")

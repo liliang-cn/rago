@@ -508,16 +508,17 @@ func (r *Runtime) executeToolViaSubAgent(ctx context.Context, tc domain.ToolCall
 // executeToolOrHandoff executes a tool call and handles agent switching
 func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) (interface{}, error, bool) {
 	toolName := tc.Function.Name
+	resolvedToolName := r.resolveExecutableToolName(toolName)
 
 	// --- DEBUG: LOG TOOL START ---
 	if r.svc.debug {
-		fmt.Fprintf(os.Stderr, "\n🛠️  DEBUG RUNTIME TOOL CALL: %s\n", toolName)
+		fmt.Fprintf(os.Stderr, "\n🛠️  DEBUG RUNTIME TOOL CALL: %s\n", resolvedToolName)
 		fmt.Fprintf(os.Stderr, "   Arguments: %v\n", tc.Function.Arguments)
 	}
 
 	// === PRE-TOOL HOOK ===
 	hookData := HookData{
-		ToolName:  tc.Function.Name,
+		ToolName:  resolvedToolName,
 		ToolArgs:  tc.Function.Arguments,
 		SessionID: r.session.GetID(),
 		AgentID:   r.currentAgent.ID(),
@@ -552,7 +553,7 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 	}
 
 	if err := r.svc.authorizeTool(ctx, PermissionRequest{
-		ToolName:  toolName,
+		ToolName:  resolvedToolName,
 		ToolArgs:  tc.Function.Arguments,
 		SessionID: r.session.GetID(),
 		AgentID:   r.currentAgent.ID(),
@@ -571,18 +572,18 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 		if result == "" {
 			result = "Task complete"
 		}
-	} else if handler, ok := r.currentAgent.GetHandler(tc.Function.Name); ok {
+	} else if handler, ok := r.currentAgent.GetHandler(resolvedToolName); ok {
 		// 2. Agent-Local Tools
 		result, execErr = handler(ctx, tc.Function.Arguments)
-	} else if r.svc.toolRegistry.Has(toolName) {
+	} else if r.svc.toolRegistry.Has(resolvedToolName) {
 		// 3. Unified ToolRegistry — custom tools, RAG, Memory, SubAgent, search_available_tools.
-		result, execErr = r.svc.toolRegistry.Call(ctx, toolName, tc.Function.Arguments)
-	} else if r.svc.isMCPTool(tc.Function.Name) {
+		result, execErr = r.svc.toolRegistry.Call(ctx, resolvedToolName, tc.Function.Arguments)
+	} else if r.svc.isMCPTool(resolvedToolName) {
 		// 4. MCP Tools
-		result, execErr = r.svc.mcpService.CallTool(ctx, tc.Function.Name, tc.Function.Arguments)
-	} else if r.svc.isSkill(ctx, tc.Function.Name) && r.svc.skillsService != nil {
+		result, execErr = r.svc.mcpService.CallTool(ctx, resolvedToolName, tc.Function.Arguments)
+	} else if r.svc.isSkill(ctx, resolvedToolName) && r.svc.skillsService != nil {
 		// 5. Skills
-		skillID := strings.TrimPrefix(tc.Function.Name, "skill_")
+		skillID := strings.TrimPrefix(resolvedToolName, "skill_")
 		res, err := r.svc.skillsService.Execute(ctx, &skills.ExecutionRequest{
 			SkillID:   skillID,
 			Variables: tc.Function.Arguments,
@@ -606,7 +607,7 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 				result = res.Output
 			}
 		}
-	} else if domain.IsToolSearchTool(toolName) {
+	} else if domain.IsToolSearchTool(resolvedToolName) {
 		// 7. Tool Search: search for deferred tools
 		query, _ := tc.Function.Arguments["query"].(string)
 		if query == "" {
@@ -614,7 +615,7 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 		} else {
 			// Determine search type
 			searchType := "regex"
-			if toolName == "tool_search_tool_bm25" {
+			if resolvedToolName == "tool_search_tool_bm25" {
 				searchType = "bm25"
 			}
 			// Execute search
@@ -622,6 +623,7 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 			if err != nil {
 				execErr = err
 			} else {
+				matchedTools = r.svc.filterToolDefinitionsForAgent(r.currentAgent, matchedTools)
 				// Build tool_references result
 				var refs []domain.ToolReference
 				for _, t := range matchedTools {
@@ -654,6 +656,30 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 	}
 
 	return result, execErr, false
+}
+
+func (r *Runtime) resolveExecutableToolName(name string) string {
+	if name == "" || name == "task_complete" || strings.HasPrefix(name, "transfer_to_") {
+		return name
+	}
+
+	candidates := make([]string, 0, len(r.currentAgent.Tools())+32)
+	for _, def := range r.currentAgent.Tools() {
+		candidates = append(candidates, def.Function.Name)
+	}
+	for _, info := range r.svc.toolRegistry.ListForCallTool() {
+		candidates = append(candidates, info.Name)
+	}
+	if r.svc.mcpService != nil {
+		for _, def := range r.svc.mcpService.ListTools() {
+			candidates = append(candidates, def.Function.Name)
+		}
+	}
+
+	if resolved := resolveClosestToolName(name, candidates); resolved != "" {
+		return resolved
+	}
+	return name
 }
 
 func (r *Runtime) prepareContext(ctx context.Context, goal string) (string, string) {

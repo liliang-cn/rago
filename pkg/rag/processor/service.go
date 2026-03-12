@@ -122,17 +122,17 @@ func (s *Service) Ingest(ctx context.Context, req domain.IngestRequest) (domain.
 
 	// Automatic metadata extraction
 	/*
-	if s.config.Ingest.MetadataExtraction.Enable && s.llmService != nil {
-		log.Println("Enhanced metadata extraction enabled, calling LLM...")
-		// Use default model from pool
-		extracted, err := s.llmService.ExtractMetadata(ctx, content, "")
-		if err != nil {
-			log.Printf("Warning: metadata extraction failed, proceeding without it. Error: %v", err)
-		} else {
-			log.Printf("Successfully extracted metadata: %+v", extracted)
-			s.mergeMetadata(req.Metadata, extracted)
+		if s.config.Ingest.MetadataExtraction.Enable && s.llmService != nil {
+			log.Println("Enhanced metadata extraction enabled, calling LLM...")
+			// Use default model from pool
+			extracted, err := s.llmService.ExtractMetadata(ctx, content, "")
+			if err != nil {
+				log.Printf("Warning: metadata extraction failed, proceeding without it. Error: %v", err)
+			} else {
+				log.Printf("Successfully extracted metadata: %+v", extracted)
+				s.mergeMetadata(req.Metadata, extracted)
+			}
 		}
-	}
 	*/
 
 	// Fallback for creation_date
@@ -338,7 +338,7 @@ func (s *Service) Query(ctx context.Context, req domain.QueryRequest) (domain.Qu
 		genOpts.Temperature = 0.7
 	}
 	if genOpts.MaxTokens <= 0 {
-		genOpts.MaxTokens = 25000
+		genOpts.MaxTokens = 2000
 	}
 
 	answer, err := s.generator.Generate(ctx, prompt, genOpts)
@@ -484,7 +484,7 @@ func (s *Service) StreamQuery(ctx context.Context, req domain.QueryRequest, call
 		genOpts.Temperature = 0.7
 	}
 	if genOpts.MaxTokens <= 0 {
-		genOpts.MaxTokens = 25000
+		genOpts.MaxTokens = 2000
 	}
 
 	return s.generator.Stream(ctx, prompt, genOpts, s.wrapCallbackForThinking(callback, req.ShowThinking))

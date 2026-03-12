@@ -15,9 +15,13 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 	query = strings.ToLower(query)
 	keywords := strings.Fields(query)
 	scope = strings.ToLower(scope)
+	currentAgent := getCurrentAgent(ctx)
+	if currentAgent == nil {
+		currentAgent = s.agent
+	}
 
 	// Search all registered tools (not just deferred)
-	matches := s.toolRegistry.SearchAllTools(query)
+	matches := s.filterToolDefinitionsForAgent(currentAgent, s.toolRegistry.SearchAllTools(query))
 
 	// Search MCP tools if available
 	if s.mcpService != nil {
@@ -35,7 +39,7 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 					break
 				}
 			}
-			if matched {
+			if matched && s.isToolAllowedForAgent(currentAgent, t.Function.Name) {
 				t.DeferLoading = true
 				matches = append(matches, t)
 			}
@@ -63,6 +67,9 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 				}
 				if matched {
 					def := buildSkillToolDef(*sk)
+					if !s.isToolAllowedForAgent(currentAgent, def.Function.Name) {
+						continue
+					}
 					def.DeferLoading = true
 					matches = append(matches, def)
 				}
@@ -127,6 +134,38 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 		})
 	}
 	return result, nil
+}
+
+func (s *Service) filterToolDefinitionsForAgent(currentAgent *Agent, defs []domain.ToolDefinition) []domain.ToolDefinition {
+	if currentAgent == nil || len(defs) == 0 {
+		return defs
+	}
+
+	filtered := make([]domain.ToolDefinition, 0, len(defs))
+	for _, def := range defs {
+		if s.isToolAllowedForAgent(currentAgent, def.Function.Name) {
+			filtered = append(filtered, def)
+		}
+	}
+	return filtered
+}
+
+func (s *Service) isToolAllowedForAgent(currentAgent *Agent, toolName string) bool {
+	if currentAgent == nil || toolName == "" {
+		return true
+	}
+
+	if toolName == "search_available_tools" || domain.IsToolSearchTool(toolName) {
+		return true
+	}
+	if strings.HasPrefix(toolName, "skill_") {
+		skillID := strings.TrimPrefix(toolName, "skill_")
+		return isAllAllowed(currentAgent.skills) || containsStr(currentAgent.skills, skillID)
+	}
+	if strings.HasPrefix(toolName, "mcp_") {
+		return isAllAllowed(currentAgent.mcpTools) || containsStr(currentAgent.mcpTools, toolName)
+	}
+	return true
 }
 
 func getToolNames(defs []domain.ToolDefinition) []string {

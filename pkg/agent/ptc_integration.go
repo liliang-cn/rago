@@ -23,6 +23,8 @@ type PTCIntegration struct {
 	router  *ptc.AgentGoRouter // used to enumerate callTool()-accessible tools for prompts
 }
 
+var ptcThinkBlockRe = regexp.MustCompile(`(?s)<think>.*?</think>`)
+
 // PTCConfig configures PTC integration
 type PTCConfig struct {
 	// Enabled enables PTC mode
@@ -103,6 +105,8 @@ func (p *PTCIntegration) SetSearchProvider(provider ptc.SearchProvider) {
 
 // IsCodeResponse checks if the LLM response contains executable code
 func (p *PTCIntegration) IsCodeResponse(content string) bool {
+	content = stripThinkBlocks(content)
+
 	// Primary: <code>...</code> tags
 	if strings.Contains(content, "<code>") {
 		return true
@@ -126,6 +130,8 @@ func (p *PTCIntegration) IsCodeResponse(content string) bool {
 // ExtractCode extracts JavaScript code from LLM response.
 // Priority: <code> tags > markdown fences > legacy markers > bare code heuristic.
 func (p *PTCIntegration) ExtractCode(content string) string {
+	content = stripThinkBlocks(content)
+
 	// Priority 1: <code>...</code> tags — the format we explicitly request
 	if code := extractBetweenTags(content, "<code>", "</code>"); code != "" {
 		return code
@@ -164,6 +170,10 @@ func (p *PTCIntegration) ExtractCode(content string) string {
 	}
 
 	return ""
+}
+
+func stripThinkBlocks(content string) string {
+	return strings.TrimSpace(ptcThinkBlockRe.ReplaceAllString(content, ""))
 }
 
 // looksLikeCode heuristically determines if content looks like code
@@ -418,6 +428,7 @@ func (p *PTCIntegration) GetPTCSystemPrompt(availableTools []ptc.ToolInfo) strin
 	sb.WriteString("- Prefer `callTool(name, args)` whenever you already know the exact tool name.\n")
 	sb.WriteString("- MCP tool results are commonly wrapped as `{ success, data, error }`.\n")
 	sb.WriteString("- Use `toolOk(result)` to check success and `toolData(result)` to read the payload safely.\n")
+	sb.WriteString("- `mcp_filesystem_list_directory` returns `toolData(result)` as a structured array of `{ name, type, path, uri, size_bytes? }` entries.\n")
 	sb.WriteString("- For filesystem tasks, if you know names such as `mcp_filesystem_write_file`, `mcp_filesystem_read_file`, or `mcp_filesystem_list_directory`, call them directly instead of searching.\n")
 	sb.WriteString("- No async/await, no promises, no require/import.\n")
 	sb.WriteString("- End with a top-level `return` statement.\n")

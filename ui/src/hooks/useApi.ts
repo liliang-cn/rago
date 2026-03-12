@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, QueryRequest, ChatRequest, CreateSkillRequest, AddMCPServerRequest, CallToolRequest, AddMemoryRequest, UpdateConfigRequest, CreateAgentRequest } from '../lib/api'
+import { api, QueryRequest, ChatRequest, CreateSkillRequest, AddMCPServerRequest, CallToolRequest, AddMemoryRequest, UpdateConfigRequest, CreateAgentRequest, CreateSquadRequest, ApplySetupRequest } from '../lib/api'
 
 // RAG Hooks
 export function useQueryRAG() {
@@ -64,6 +64,15 @@ export function useAgents() {
   })
 }
 
+export function useSquads() {
+  return useQuery({
+    queryKey: ['squads'],
+    queryFn: api.getSquads,
+    select: (data) => data.squads,
+    refetchInterval: 15000,
+  })
+}
+
 export function useAgent(name: string) {
   return useQuery({
     queryKey: ['agents', name],
@@ -78,7 +87,21 @@ export function useCreateAgent() {
     mutationFn: (data: CreateAgentRequest) => api.createAgent(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
+      queryClient.invalidateQueries({ queryKey: ['squads'] })
       queryClient.invalidateQueries({ queryKey: ['status'] })
+      queryClient.invalidateQueries({ queryKey: ['ops', 'logs'] })
+    },
+  })
+}
+
+export function useCreateSquad() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateSquadRequest) => api.createSquad(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['squads'] })
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      queryClient.invalidateQueries({ queryKey: ['ops', 'logs'] })
     },
   })
 }
@@ -91,6 +114,7 @@ export function useStartAgent() {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       queryClient.invalidateQueries({ queryKey: ['agents', name] })
       queryClient.invalidateQueries({ queryKey: ['status'] })
+      queryClient.invalidateQueries({ queryKey: ['ops', 'logs'] })
     },
   })
 }
@@ -103,6 +127,7 @@ export function useStopAgent() {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       queryClient.invalidateQueries({ queryKey: ['agents', name] })
       queryClient.invalidateQueries({ queryKey: ['status'] })
+      queryClient.invalidateQueries({ queryKey: ['ops', 'logs'] })
     },
   })
 }
@@ -115,7 +140,17 @@ export function useDispatchAgentTask() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       queryClient.invalidateQueries({ queryKey: ['agents', variables.name] })
+      queryClient.invalidateQueries({ queryKey: ['ops', 'logs'] })
     },
+  })
+}
+
+export function useOpsLogs(limit = 20) {
+  return useQuery({
+    queryKey: ['ops', 'logs', limit],
+    queryFn: () => api.getOpsLogs(limit),
+    select: (data) => data.logs,
+    refetchInterval: 5000,
   })
 }
 
@@ -244,6 +279,25 @@ export function useUpdateConfig() {
     mutationFn: (data: UpdateConfigRequest) => api.updateConfig(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['config'] })
+    },
+  })
+}
+
+export function useSetup() {
+  return useQuery({
+    queryKey: ['setup'],
+    queryFn: api.getSetup,
+  })
+}
+
+export function useApplySetup() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: ApplySetupRequest) => api.applySetup(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['setup'] })
+      queryClient.invalidateQueries({ queryKey: ['config'] })
+      queryClient.invalidateQueries({ queryKey: ['status'] })
     },
   })
 }

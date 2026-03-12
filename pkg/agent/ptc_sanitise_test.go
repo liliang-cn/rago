@@ -254,6 +254,40 @@ return results;`,
 	}
 }
 
+func TestExtractCode_IgnoresThinkBlocksBeforeCode(t *testing.T) {
+	ptc, err := NewPTCIntegration(DefaultPTCConfig(), nil)
+	if err != nil {
+		t.Fatalf("NewPTCIntegration() error = %v", err)
+	}
+
+	content := `<think>
+I should inspect the workspace and maybe call several tools first.
+</think>
+<code>
+const content = "# Test Search\n说明\n完成时间";
+callTool('mcp_filesystem_write_file', {
+  path: 'workspace/test_search.md',
+  content,
+});
+return 'workspace/test_search.md';
+</code>`
+
+	if !ptc.IsCodeResponse(content) {
+		t.Fatalf("IsCodeResponse() = false, want true")
+	}
+
+	got := ptc.ExtractCode(content)
+	want := `const content = "# Test Search\n说明\n完成时间";
+callTool('mcp_filesystem_write_file', {
+  path: 'workspace/test_search.md',
+  content,
+});
+return 'workspace/test_search.md';`
+	if got != want {
+		t.Fatalf("ExtractCode() mismatch:\ngot:\n%s\n\nwant:\n%s", got, want)
+	}
+}
+
 func TestLooksLikeCompleteJS(t *testing.T) {
 	tests := []struct {
 		code string

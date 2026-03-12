@@ -25,12 +25,12 @@ capability = 4                      # Capability level (1-5)
 # key = ""
 # model_name = "qwen3.5:8b"
 
-# Example: OpenAI
+# Example: OpenAI-compatible
 # [[llm.providers]]
-# name = "openai"
-# base_url = "https://api.openai.com/v1"
+# name = "openai-compatible"
+# base_url = "https://api.example.com/v1"
 # key = "sk-..."
-# model_name = "gpt-4o"
+# model_name = "gpt-4o-mini"
 
 [embedding]
 enabled = true
@@ -61,6 +61,10 @@ log_level = "info"
 default_timeout = "5m"
 max_concurrent_requests = 10
 health_check_interval = "60s"
+
+[tooling]
+saving_mode = false             # Default: send tool definitions directly to the model
+enable_search_tools = true      # When saving_mode=true, allow tool search instead of full schemas
 
 # Built-in servers (filesystem + websearch) are always available — no external
 # binaries or mcpServers.json entries needed. They run in-process inside the binary.

@@ -170,6 +170,8 @@ func TestResolveMCPServerPaths(t *testing.T) {
 
 func TestSkillsPaths(t *testing.T) {
 	home := t.TempDir()
+	userHome := t.TempDir()
+	t.Setenv("HOME", userHome)
 	cfg := validConfig(home)
 	cfg.Skills.Paths = []string{"relative-skills", filepath.Join(home, "skills")}
 
@@ -180,10 +182,11 @@ func TestSkillsPaths(t *testing.T) {
 	}
 
 	expected := map[string]bool{
-		filepath.Join(home, "relative-skills"): false,
-		filepath.Join(home, "skills"):          false,
-		".skills":                              false,
-		filepath.Join(".agentgo", "skills"):    false,
+		filepath.Join(home, "relative-skills"):         false,
+		filepath.Join(home, "skills"):                  false,
+		".skills":                                      false,
+		filepath.Join(".agentgo", "skills"):            false,
+		filepath.Join(userHome, ".agents", "skills"): false,
 	}
 	for _, p := range paths {
 		if _, ok := expected[p]; ok {

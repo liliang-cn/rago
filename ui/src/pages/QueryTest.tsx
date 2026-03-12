@@ -16,18 +16,18 @@ export function QueryTest() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="page-query">
       <div className="glass-panel rounded-[32px] p-6">
         <h2 className="text-xl font-semibold text-slate-900 mb-4">
-          RAG Query
+          {t('ragQuery')}
         </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" data-testid="query-form">
           <div>
             <label
               htmlFor="query"
               className="block text-sm font-medium text-slate-700 mb-2"
             >
-              Query
+              {t('query')}
             </label>
             <textarea
               id="query"
@@ -35,7 +35,8 @@ export function QueryTest() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="dashboard-input resize-none"
-              placeholder="Enter your query..."
+              placeholder={t('queryPlaceholder')}
+              data-testid="query-input"
             />
           </div>
           <div>
@@ -43,7 +44,7 @@ export function QueryTest() {
               htmlFor="topK"
               className="block text-sm font-medium text-slate-700 mb-2"
             >
-              Top K Results: {topK}
+              {t('topKResults', { count: topK })}
             </label>
             <input
               id="topK"
@@ -59,8 +60,9 @@ export function QueryTest() {
             type="submit"
             disabled={mutation.isPending || !query.trim()}
             className="dashboard-button px-6 py-2 disabled:cursor-not-allowed"
+            data-testid="query-submit"
           >
-            {mutation.isPending ? 'Querying...' : 'Query'}
+            {mutation.isPending ? t('querying') : t('query')}
           </button>
         </form>
       </div>
@@ -68,7 +70,7 @@ export function QueryTest() {
       {mutation.isError && (
         <div className="rounded-[24px] border border-rose-200 bg-rose-50 p-4">
           <p className="text-rose-700">
-            Error: {mutation.error?.message}
+            {t('error')}: {mutation.error?.message}
           </p>
         </div>
       )}
@@ -77,7 +79,7 @@ export function QueryTest() {
         <div className="space-y-4">
           <div className="glass-panel rounded-[28px] p-6">
             <h3 className="font-medium text-slate-900 mb-3">
-              Answer
+              {t('answer')}
             </h3>
             <p className="text-slate-700 whitespace-pre-wrap">
               {mutation.data.answer}
@@ -87,7 +89,7 @@ export function QueryTest() {
           {mutation.data.sources && mutation.data.sources.length > 0 && (
             <div>
               <h3 className="font-medium text-slate-900 mb-3">
-                Sources
+                {t('sources')}
               </h3>
               <div className="space-y-3">
                 {mutation.data.sources.map((source, index) => (
@@ -97,7 +99,7 @@ export function QueryTest() {
                   >
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm font-medium text-blue-700">
-                        Score: {source.score.toFixed(4)}
+                        {t('score')}: {source.score.toFixed(4)}
                       </span>
                     </div>
                     <p className="text-sm text-slate-600 line-clamp-3">

@@ -71,39 +71,39 @@ export function Settings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="page-settings">
       <div className="glass-panel rounded-[32px] p-6">
-        <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Project configuration</p>
+        <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{t('projectConfiguration')}</p>
         <h2 className="mt-2 text-3xl font-semibold text-slate-900">{t('settings')}</h2>
         <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
-          This page now reads and writes the actual project configuration file used by AgentGo, not a separate UI-only settings file.
+          {t('settingsIntro')}
         </p>
       </div>
 
-      <form onSubmit={handleSave} className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_380px]">
+      <form onSubmit={handleSave} className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_380px]" data-testid="settings-form">
         <div className="space-y-6">
           <section className="glass-panel rounded-[32px] p-6">
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Core</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{t('core')}</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700">Home</span>
+                <span className="text-sm font-medium text-slate-700">{t('home')}</span>
                 <input value={homeDir} onChange={(e) => setHomeDir(e.target.value)} className="dashboard-input" />
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700">Debug</span>
+                <span className="text-sm font-medium text-slate-700">{t('debugLabel')}</span>
                 <div className="dashboard-muted-card rounded-[18px] px-4 py-3 text-slate-700">
                   <label className="flex items-center gap-3">
                     <input type="checkbox" checked={debug} onChange={(e) => setDebug(e.target.checked)} />
-                    Enable verbose runtime logging
+                    {t('enableVerboseRuntimeLogging')}
                   </label>
                 </div>
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700">Server host</span>
+                <span className="text-sm font-medium text-slate-700">{t('serverHost')}</span>
                 <input value={serverHost} onChange={(e) => setServerHost(e.target.value)} className="dashboard-input" />
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700">Server port</span>
+                <span className="text-sm font-medium text-slate-700">{t('serverPort')}</span>
                 <input value={serverPort} onChange={(e) => setServerPort(e.target.value)} className="dashboard-input" />
               </label>
             </div>
@@ -115,33 +115,33 @@ export function Settings() {
               <div className="dashboard-muted-card rounded-[20px] px-4 py-3 text-slate-700">
                 <label className="flex items-center gap-3">
                   <input type="checkbox" checked={mcpEnabled} onChange={(e) => setMCPEnabled(e.target.checked)} />
-                  Enable MCP subsystem
+                  {t('mcp')}
                 </label>
               </div>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700">Filesystem allowlist</span>
+                <span className="text-sm font-medium text-slate-700">{t('filesystemAllowlist')}</span>
                 <textarea value={allowedDirs} onChange={(e) => setAllowedDirs(e.target.value)} rows={5} className="dashboard-input resize-none" />
               </label>
             </div>
           </section>
 
           <section className="glass-panel rounded-[32px] p-6">
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Knowledge and memory</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{t('knowledgeAndMemory')}</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="space-y-2 md:col-span-2">
-                <span className="text-sm font-medium text-slate-700">Skills paths</span>
+                <span className="text-sm font-medium text-slate-700">{t('skillsPaths')}</span>
                 <textarea value={skillsPaths} onChange={(e) => setSkillsPaths(e.target.value)} rows={4} className="dashboard-input resize-none" />
               </label>
               <label className="space-y-2 md:col-span-2">
-                <span className="text-sm font-medium text-slate-700">RAG database path</span>
+                <span className="text-sm font-medium text-slate-700">{t('ragDatabasePath')}</span>
                 <input value={ragDbPath} onChange={(e) => setRagDbPath(e.target.value)} className="dashboard-input" />
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700">Memory store type</span>
+                <span className="text-sm font-medium text-slate-700">{t('memoryStoreType')}</span>
                 <input value={memoryStoreType} onChange={(e) => setMemoryStoreType(e.target.value)} className="dashboard-input" />
               </label>
               <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700">Memory path</span>
+                <span className="text-sm font-medium text-slate-700">{t('memoryPath')}</span>
                 <input value={memoryPath} onChange={(e) => setMemoryPath(e.target.value)} className="dashboard-input" />
               </label>
             </div>
@@ -157,29 +157,29 @@ export function Settings() {
 
         <aside className="space-y-6">
           <section className="glass-panel rounded-[32px] p-6">
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Source of truth</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{t('sourceOfTruth')}</p>
             <dl className="mt-5 space-y-4 text-sm">
               <div>
-                <dt className="text-slate-500">Config file</dt>
+                <dt className="text-slate-500">{t('configFile')}</dt>
                 <dd className="mt-1 break-all text-slate-900">{config?.configPath}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Data dir</dt>
+                <dt className="text-slate-500">{t('dataDir')}</dt>
                 <dd className="mt-1 break-all text-slate-900">{config?.dataDir}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Workspace dir</dt>
+                <dt className="text-slate-500">{t('workspaceDir')}</dt>
                 <dd className="mt-1 break-all text-slate-900">{config?.workspaceDir}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">MCP servers file</dt>
+                <dt className="text-slate-500">{t('mcpServersFile')}</dt>
                 <dd className="mt-1 break-all text-slate-900">{config?.mcpServersPath}</dd>
               </div>
             </dl>
           </section>
 
           <section className="glass-panel rounded-[32px] p-6">
-            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Language</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{t('language')}</p>
             <div className="mt-5 flex gap-3">
               <button
                 type="button"

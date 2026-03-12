@@ -87,7 +87,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 	// Create agent with full capabilities
 	builder := agent.New("AgentGo Frontdesk").
 		WithConfig(chatCfg).
-		WithSystemPrompt("You are the system Frontdesk and Commander. You can interact with users, and delegate tasks to specialized agents using the tools provided.").
+		WithSystemPrompt("You are the system Frontdesk and Captain. You can interact with users, and delegate tasks to specialized agents using the tools provided.").
 		WithDBPath(agentDBPath).
 		WithMCP().
 		WithSkills().
@@ -109,12 +109,12 @@ func runChat(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to build agent service: %w", err)
 	}
 
-	// Initialize AgentManager
-	var agentManager *agent.AgentManager
+	// Initialize TeamManager
+	var agentManager *agent.TeamManager
 	agentStore, storeErr := agent.NewStore(agentDBPath)
 	if storeErr == nil {
-		agentManager = agent.NewAgentManager(agentStore)
-		_ = agentManager.SeedDefaultAgents()
+		agentManager = agent.NewTeamManager(agentStore)
+		_ = agentManager.SeedDefaultMembers()
 		agentManager.RegisterCommanderTools(svc)
 	}
 	defer svc.Close()
@@ -141,7 +141,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 
 	if agentManager != nil {
 		tasks, parseErr := parseDelegatedTasks(message, func(name string) bool {
-			_, err := agentManager.GetAgentByName(name)
+			_, err := agentManager.GetMemberByName(name)
 			return err == nil
 		})
 		if parseErr != nil {
@@ -240,7 +240,7 @@ func progressCallback(event agent.ProgressEvent) {
 	}
 }
 
-func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.AgentManager) error {
+func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.TeamManager) error {
 	fmt.Println("🤖 AgentGo Chat Mode")
 	if chatWithPTC {
 		fmt.Println("⚡ PTC Mode: Enabled (JS sandbox for complex logic)")
@@ -325,7 +325,7 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 
 			if manager != nil {
 				tasks, parseErr := parseDelegatedTasks(input, func(name string) bool {
-					_, err := manager.GetAgentByName(name)
+					_, err := manager.GetMemberByName(name)
 					return err == nil
 				})
 				if parseErr != nil {
@@ -425,7 +425,7 @@ func parseMentionedAgent(word string) (string, bool) {
 	return matches[1], true
 }
 
-func runDelegatedTaskChain(ctx context.Context, manager *agent.AgentManager, tasks []delegatedTask, background bool) error {
+func runDelegatedTaskChain(ctx context.Context, manager *agent.TeamManager, tasks []delegatedTask, background bool) error {
 	if manager == nil {
 		return fmt.Errorf("agent manager is not initialized")
 	}

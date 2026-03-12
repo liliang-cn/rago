@@ -82,6 +82,21 @@ go run ./cmd/agentgo-cli chat --show-memory
 go run ./cmd/agentgo-cli chat --with-ptc
 ```
 
+Run squad workflows from the CLI:
+
+```bash
+# Create a squad
+agentgo squad add "Docs Squad" --description "Documentation and release notes"
+
+# Add a specialist member to a squad
+agentgo squad member add Writer --squad "Docs Squad" \
+  --description "Writes concise docs" \
+  --instructions "Write concise markdown documents in the workspace."
+
+# Run a task through the default captain and a specialist
+agentgo squad go "@Assistant @Writer summarize the UI/backend relationship and write workspace/ui_backend_overview.md"
+```
+
 ---
 
 ## Cognitive Memory (Hindsight & PageIndex)
@@ -234,6 +249,56 @@ coordinator := agent.NewSubAgentCoordinator()
 resultChan  := coordinator.RunAsync(ctx, subAgent)
 results     := coordinator.WaitAll(ctx)
 ```
+
+## Squad API
+
+AgentGo exposes a squad-oriented manager API for persistent captains and reusable specialists:
+
+```go
+store, err := agent.NewStore(filepath.Join(cfg.DataDir(), "agent.db"))
+if err != nil {
+    panic(err)
+}
+
+manager := agent.NewSquadManager(store)
+if err := manager.SeedDefaultMembers(); err != nil {
+    panic(err)
+}
+
+docsSquad, err := manager.CreateSquad(ctx, &agent.Squad{
+    Name:        "Docs Squad",
+    Description: "Documentation and release notes",
+})
+if err != nil {
+    panic(err)
+}
+
+writer, err := manager.AddSpecialist(
+    ctx,
+    docsSquad.ID,
+    "Writer",
+    "Writes concise docs",
+    "Write concise markdown documents in the workspace.",
+)
+if err != nil {
+    panic(err)
+}
+
+result, err := manager.DispatchTask(ctx, writer.Name, "Write workspace/ui_backend_overview.md")
+if err != nil {
+    panic(err)
+}
+fmt.Println(result)
+```
+
+Useful squad-manager entry points:
+
+- `CreateSquad`, `ListSquads`, `GetSquadByName`
+- `AddCaptain`, `AddSpecialist`, `CreateMember`, `ListMembers`
+- `ListCaptains`, `ListSpecialists`
+- `EnableCaptain`, `DisableCaptain`
+- `DispatchTask`, `DispatchTaskStream`
+- `EnqueueSharedTask`, `ListSharedTasks`
 
 ---
 

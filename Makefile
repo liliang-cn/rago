@@ -1,4 +1,4 @@
-.PHONY: help build agentgo-cli agentgo-ui ui-dev ui-deps test check clean deps coverage-core
+.PHONY: help build agentgo-cli agentgo-ui ui-build sync-ui-dist ui-dev ui-api-dev ui-web-dev ui-deps test check clean deps coverage-core
 
 CORE_COVERAGE_PKGS := ./pkg/config ./pkg/cache ./cmd/agentgo-ui/internal/handler ./pkg/prompt ./pkg/ptc/runtime/goja ./pkg/ptc/store ./pkg/rag/embedder ./pkg/scheduler/executors
 
@@ -20,7 +20,11 @@ help:
 	@echo "  deps        - Install deps"
 	@echo ""
 	@echo "UI:"
-	@echo "  ui-dev      - Start UI dev server"
+	@echo "  ui-build    - Build UI assets and sync embedded dist"
+	@echo "  sync-ui-dist - Sync built UI assets into cmd/agentgo-ui/dist"
+	@echo "  ui-dev      - Start Vite and Go API dev servers together"
+	@echo "  ui-api-dev  - Start Go UI API with air hot reload"
+	@echo "  ui-web-dev  - Start Vite dev server only"
 	@echo "  ui-deps     - Install UI deps"
 	@echo ""
 	@echo "Version: $(GIT_TAG)"
@@ -33,15 +37,30 @@ agentgo-cli:
 	@mkdir -p bin
 	@go build $(LDFLAGS) -o bin/agentgo-cli ./cmd/agentgo-cli
 
-agentgo-ui:
+agentgo-ui: ui-build
 	@echo "Building agentgo-ui..."
 	@mkdir -p bin
-	@cd ui && npm run build
-	@cp -r ui/dist cmd/agentgo-ui/dist
 	@go build $(LDFLAGS) -o bin/agentgo-ui ./cmd/agentgo-ui
-	
+
+ui-build: sync-ui-dist
+
+sync-ui-dist:
+	@echo "Building UI assets..."
+	@cd ui && npm run build
+	@mkdir -p cmd/agentgo-ui/dist
+	@cp -R ui/dist/. cmd/agentgo-ui/dist/
 
 ui-dev:
+	@mkdir -p /tmp/go-build-cache
+	@mkdir -p /tmp/go-mod-cache
+	@/usr/bin/env sh -c 'env GOCACHE=/tmp/go-build-cache GOMODCACHE=/tmp/go-mod-cache go tool air -c .air.toml & api_pid=$$!; trap "kill $$api_pid" EXIT INT TERM; until curl -fsS http://127.0.0.1:7127/api/status >/dev/null 2>&1; do sleep 1; done; cd ui && npm run dev'
+
+ui-api-dev:
+	@mkdir -p /tmp/go-build-cache
+	@mkdir -p /tmp/go-mod-cache
+	@env GOCACHE=/tmp/go-build-cache GOMODCACHE=/tmp/go-mod-cache go tool air -c .air.toml
+
+ui-web-dev:
 	@cd ui && npm run dev
 
 ui-deps:

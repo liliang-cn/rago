@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/liliang-cn/agent-go/pkg/agent"
 	"github.com/liliang-cn/agent-go/pkg/config"
@@ -18,37 +19,46 @@ import (
 
 // Handler holds all services
 type Handler struct {
-	cfg           *config.Config
-	ragClient     *rag.Client
-	skillsService *skills.Service
-	mcpService    *mcp.Service
-	memoryService *memory.Service
-	agentService  *agent.Service
-	agentManager  *agent.AgentManager
-	llm           domain.Generator
-	embedder      domain.Embedder
-	ConfigHandler *ConfigHandler
+	cfg            *config.Config
+	ragClient      *rag.Client
+	skillsService  *skills.Service
+	mcpService     *mcp.Service
+	memoryService  *memory.Service
+	agentService   *agent.Service
+	squadManager   *agent.SquadManager
+	llm            domain.Generator
+	embedder       domain.Embedder
+	ConfigHandler  *ConfigHandler
+	SetupHandler   *SetupHandler
+	aiChatMu       sync.RWMutex
+	aiChatSessions map[string]string
+	opsLogMu       sync.RWMutex
+	opsLogs        []OpsLogEntry
 }
 
 // New creates a new handler
 func New(cfg *config.Config, ragClient *rag.Client, skillsService *skills.Service,
 	mcpService *mcp.Service, memoryService *memory.Service,
-	agentService *agent.Service, agentManager *agent.AgentManager, llm domain.Generator, embedder domain.Embedder) *Handler {
+	agentService *agent.Service, squadManager *agent.SquadManager, llm domain.Generator, embedder domain.Embedder) *Handler {
 
 	configPath := resolveConfigPath(cfg)
 	configHandler := NewConfigHandler(cfg, configPath)
+	setupHandler := NewSetupHandler(cfg, configPath)
 
 	return &Handler{
-		cfg:           cfg,
-		ConfigHandler: configHandler,
-		ragClient:     ragClient,
-		skillsService: skillsService,
-		mcpService:    mcpService,
-		memoryService: memoryService,
-		agentService:  agentService,
-		agentManager:  agentManager,
-		llm:           llm,
-		embedder:      embedder,
+		cfg:            cfg,
+		ConfigHandler:  configHandler,
+		SetupHandler:   setupHandler,
+		ragClient:      ragClient,
+		skillsService:  skillsService,
+		mcpService:     mcpService,
+		memoryService:  memoryService,
+		agentService:   agentService,
+		squadManager:   squadManager,
+		llm:            llm,
+		embedder:       embedder,
+		aiChatSessions: make(map[string]string),
+		opsLogs:        make([]OpsLogEntry, 0, 64),
 	}
 }
 
@@ -186,14 +196,14 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 			status = "enabled"
 		}
 		providers = append(providers, map[string]interface{}{
-			"name":               name,
-			"status":             status,
-			"type":               "llm",
-			"model":              st.ModelName,
-			"healthy":            st.Healthy,
-			"active_requests":    st.ActiveRequests,
-			"max_concurrency":    st.MaxConcurrency,
-			"capability":         st.Capability,
+			"name":            name,
+			"status":          status,
+			"type":            "llm",
+			"model":           st.ModelName,
+			"healthy":         st.Healthy,
+			"active_requests": st.ActiveRequests,
+			"max_concurrency": st.MaxConcurrency,
+			"capability":      st.Capability,
 		})
 	}
 
@@ -205,14 +215,14 @@ func (h *Handler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 			status = "enabled"
 		}
 		providers = append(providers, map[string]interface{}{
-			"name":               name,
-			"status":             status,
-			"type":               "embedding",
-			"model":              st.ModelName,
-			"healthy":            st.Healthy,
-			"active_requests":    st.ActiveRequests,
-			"max_concurrency":    st.MaxConcurrency,
-			"capability":         st.Capability,
+			"name":            name,
+			"status":          status,
+			"type":            "embedding",
+			"model":           st.ModelName,
+			"healthy":         st.Healthy,
+			"active_requests": st.ActiveRequests,
+			"max_concurrency": st.MaxConcurrency,
+			"capability":      st.Capability,
 		})
 	}
 

@@ -82,7 +82,7 @@ Example format:
 	messages = append(messages, userMsg)
 
 	// Build PTC tools list for the LLM.
-	availableCallTools := s.ptcIntegration.GetAvailableCallTools(ctx)
+	availableCallTools := s.ptcAvailableCallTools(ctx)
 	ptcTools := s.ptcIntegration.GetPTCTools(availableCallTools)
 
 	if s.debug || cfg.Debug {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/liliang-cn/agent-go/pkg/domain"
 	"github.com/liliang-cn/agent-go/pkg/ptc"
+	"github.com/liliang-cn/agent-go/pkg/search"
 )
 
 // ToolHandler executes a tool call synchronously.
@@ -123,7 +124,6 @@ func (r *ToolRegistry) SearchAllTools(query string) []domain.ToolDefinition {
 	return matches
 }
 
-//
 // Register adds (or replaces) a tool. The tool will be:
 //   - returned by ListForLLM(false) for native function calling
 //   - accessible via callTool() in the PTC JavaScript sandbox after SyncToPTCRouter
@@ -239,10 +239,10 @@ func (r *ToolRegistry) SyncToPTCRouter(router *ptc.AgentGoRouter) {
 
 // ToolSearchConfig configures tool search functionality
 type ToolSearchConfig struct {
-	Enabled       bool
-	SearchType    string // "regex" or "bm25"
-	MaxResults    int    // Maximum tools to return per search
-	AutoActivate  bool   // Automatically activate tools after search
+	Enabled      bool
+	SearchType   string // "regex" or "bm25"
+	MaxResults   int    // Maximum tools to return per search
+	AutoActivate bool   // Automatically activate tools after search
 }
 
 // DefaultToolSearchConfig returns default configuration
@@ -300,9 +300,7 @@ func (r *ToolRegistry) ExecuteToolSearch(query, searchType string) ([]domain.Too
 	var results []domain.ToolDefinition
 
 	if searchType == "bm25" {
-		// For BM25, we use the same keyword matching but with natural language query
-		// In a production system, this would use a proper BM25 implementation
-		results = r.SearchDeferredTools(query)
+		results = r.SearchDeferredToolsBM25(query)
 	} else {
 		// Regex search - treat the query as a regex pattern
 		results = r.SearchDeferredToolsRegex(query)
@@ -315,6 +313,43 @@ func (r *ToolRegistry) ExecuteToolSearch(query, searchType string) ([]domain.Too
 	}
 
 	return results, nil
+}
+
+// SearchDeferredToolsBM25 searches deferred tools using BM25 over tool names and descriptions.
+func (r *ToolRegistry) SearchDeferredToolsBM25(query string) []domain.ToolDefinition {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if strings.TrimSpace(query) == "" {
+		return nil
+	}
+
+	documents := make([]search.Document, 0, len(r.tools))
+	defsByName := make(map[string]domain.ToolDefinition, len(r.tools))
+	for _, tool := range r.tools {
+		if !tool.def.DeferLoading {
+			continue
+		}
+		name := tool.def.Function.Name
+		defsByName[name] = tool.def
+		documents = append(documents, search.Document{
+			ID: name,
+			Text: strings.Join([]string{
+				name,
+				strings.ReplaceAll(name, "_", " "),
+				tool.def.Function.Description,
+			}, " "),
+		})
+	}
+
+	scored := search.Rank(query, documents, 5, nil)
+	results := make([]domain.ToolDefinition, 0, len(scored))
+	for _, item := range scored {
+		if def, ok := defsByName[item.ID]; ok {
+			results = append(results, def)
+		}
+	}
+	return results
 }
 
 // SearchDeferredToolsRegex searches deferred tools using regex pattern matching

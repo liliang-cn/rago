@@ -1,228 +1,397 @@
-import { useState, useRef, useEffect } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api } from '../lib/api'
+import { useChat } from '@ai-sdk/react'
+import { DefaultChatTransport } from 'ai'
+import { useAgents } from '../hooks/useApi'
 
-interface Message {
+type ChatMode = 'rag' | 'agent'
+
+type UIMessagePart = {
+  type: string
+  text?: string
+  state?: string
+  toolName?: string
+  input?: unknown
+  output?: unknown
+  errorText?: string
+  data?: Record<string, unknown>
+}
+
+type UIMessage = {
   id: string
-  role: 'user' | 'assistant'
-  content: string
-  streaming?: boolean
-  debug?: {
-    sessionId: string
-    timestamp: number
-    latency?: number
+  role: 'user' | 'assistant' | 'system'
+  metadata?: Record<string, unknown>
+  parts?: UIMessagePart[]
+}
+
+function stringify(value: unknown) {
+  if (value == null) return ''
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+function getTextParts(message: UIMessage) {
+  return (message.parts ?? []).filter((part) => part.type === 'text' && typeof part.text === 'string')
+}
+
+function getReasoningParts(message: UIMessage) {
+  return (message.parts ?? []).filter((part) => part.type === 'reasoning' && typeof part.text === 'string')
+}
+
+function getToolParts(message: UIMessage) {
+  return (message.parts ?? []).filter((part) => part.type === 'dynamic-tool' || part.type.startsWith('tool-'))
+}
+
+function getAgentEventParts(message: UIMessage) {
+  return (message.parts ?? []).filter((part) => part.type === 'data-agent-event')
+}
+
+function renderToolState(part: UIMessagePart) {
+  switch (part.state) {
+    case 'input-streaming':
+      return 'input'
+    case 'input-available':
+      return 'queued'
+    case 'output-available':
+      return 'done'
+    case 'output-error':
+      return 'error'
+    case 'output-denied':
+      return 'denied'
+    default:
+      return part.state ?? 'unknown'
   }
 }
 
 export function Chat() {
   const { t } = useTranslation()
-  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
-  const [sessionId, setSessionId] = useState(() => crypto.randomUUID())
-  const [useStream, setUseStream] = useState(true)
-  const [debugMode, setDebugMode] = useState(false)
+  const [chatMode, setChatMode] = useState<ChatMode>('rag')
+  const [debugEnabled, setDebugEnabled] = useState(false)
+  const [selectedAgent, setSelectedAgent] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { data: agents = [] } = useAgents()
+  const captainAgents = useMemo(
+    () => agents.filter((agent) => agent.kind === 'captain'),
+    [agents],
+  )
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  const { messages, sendMessage, status, error, setMessages } = useChat({
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+      prepareSendMessagesRequest: ({ body, messages }) => {
+        const requestBody = (body ?? {}) as Record<string, unknown>
+        const lastUserMessage = [...messages]
+          .reverse()
+          .find((message) => message.role === 'user')
+        const parts = (Array.isArray(lastUserMessage?.parts) ? lastUserMessage.parts : []) as Array<any>
+        const messageText = parts
+          .filter((part) => Boolean(part) && typeof part === 'object' && part.type === 'text' && typeof part.text === 'string')
+          .map((part) => String(part.text))
+          .join('\n')
+
+        return {
+          api: '/api/chat',
+          body: {
+            ...requestBody,
+            ...(messageText ? { message: messageText } : {}),
+            mode: chatMode,
+            ...(chatMode === 'agent' && selectedAgent ? { agent_name: selectedAgent } : {}),
+          },
+        }
+      },
+    }),
+  })
 
   useEffect(() => {
-    scrollToBottom()
+    if (!selectedAgent && captainAgents.length > 0) {
+      setSelectedAgent(captainAgents[0].name)
+    }
+  }, [captainAgents, selectedAgent])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const isStreaming = status === 'submitted' || status === 'streaming'
+  const totalParts = useMemo(
+    () => messages.reduce((sum, message) => sum + (((message as UIMessage).parts?.length) ?? 0), 0),
+    [messages],
+  )
+  const agentEvents = useMemo(
+    () => messages.flatMap((message) => getAgentEventParts(message as UIMessage)),
+    [messages],
+  )
+  const lastAssistant = [...messages].reverse().find((message) => message.role === 'assistant') as UIMessage | undefined
+
+  const handleSend = async (event: React.FormEvent) => {
+    event.preventDefault()
     if (!input.trim() || isStreaming) return
 
-    const startTime = Date.now()
-    const userMessage: Message = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: input,
-      debug: debugMode ? { sessionId, timestamp: startTime } : undefined,
-    }
-    setMessages((prev) => [...prev, userMessage])
+    const text = input
     setInput('')
-
-    // Create placeholder for streaming response
-    const assistantId = crypto.randomUUID()
-    if (useStream) {
-      setMessages((prev) => [
-        ...prev,
-        { id: assistantId, role: 'assistant', content: '', streaming: true },
-      ])
-      setIsStreaming(true)
-
-      try {
-        await api.chatStream(
-          { message: input, session_id: sessionId },
-          (chunk) => {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === assistantId
-                  ? { ...msg, content: msg.content + chunk }
-                  : msg
-              )
-            )
-          },
-          (error) => {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === assistantId
-                  ? { ...msg, content: `{t('error')}: ${error.message}`, streaming: false }
-                  : msg
-              )
-            )
-            setIsStreaming(false)
-          },
-          () => {
-            const latency = Date.now() - startTime
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === assistantId
-                  ? {
-                      ...msg,
-                      streaming: false,
-                      debug: debugMode ? { sessionId, timestamp: Date.now(), latency } : undefined,
-                    }
-                  : msg
-              )
-            )
-            setIsStreaming(false)
-          }
-        )
-      } catch (error) {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantId
-              ? {
-                  ...msg,
-                  content: `{t('error')}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                  streaming: false,
-                }
-              : msg
-          )
-        )
-        setIsStreaming(false)
-      }
-    } else {
-      // Non-streaming fallback
-      try {
-        const response = await api.chat({ message: input, session_id: sessionId })
-        const latency = Date.now() - startTime
-        const assistantMessage: Message = {
-          id: assistantId,
-          role: 'assistant',
-          content: response.response,
-          debug: debugMode ? { sessionId, timestamp: Date.now(), latency } : undefined,
-        }
-        setMessages((prev) => [...prev, assistantMessage])
-      } catch (error) {
-        const errorMessage: Message = {
-          id: assistantId,
-          role: 'assistant',
-          content: `{t('error')}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        }
-        setMessages((prev) => [...prev, errorMessage])
-      }
-    }
-  }
-
-  const handleClear = () => {
-    setMessages([])
-    setSessionId(crypto.randomUUID())
+    await sendMessage({
+      role: 'user',
+      parts: [{ type: 'text', text }],
+    })
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)]">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-slate-900">{t('chat')}</h2>
-        <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              checked={useStream}
-              onChange={(e) => setUseStream(e.target.checked)}
-              className="rounded border-slate-300"
-            />
-            Stream
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              checked={debugMode}
-              onChange={(e) => setDebugMode(e.target.checked)}
-              className="rounded border-slate-300"
-            />
-            Debug
+    <div className="flex h-[calc(100vh-200px)] flex-col gap-4" data-testid="page-chat">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">{t('chat')}</h2>
+          <p className="mt-1 text-sm text-slate-500">{t('chatWorkbench')}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2" data-testid="chat-toolbar">
+          <label className="inline-flex items-center gap-3 rounded-xl border border-sky-100 bg-white px-3 py-2 text-sm text-slate-700" data-testid="chat-debug-toggle">
+            <span>{t('debug')}</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={debugEnabled}
+              onClick={() => setDebugEnabled((value) => !value)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${debugEnabled ? 'bg-blue-600' : 'bg-slate-200'}`}
+              data-testid="chat-debug-switch"
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${debugEnabled ? 'translate-x-5' : 'translate-x-1'}`}
+              />
+            </button>
           </label>
           <button
-            onClick={handleClear}
-            className="dashboard-secondary-button px-3 py-1 text-sm"
+            onClick={() => {
+              setMessages([])
+              setInput('')
+            }}
+            className="dashboard-secondary-button px-3 py-2 text-sm"
+            data-testid="chat-clear"
           >
-            Clear
+            {t('clear')}
           </button>
         </div>
       </div>
 
-      {debugMode && (
-        <div className="dashboard-muted-card mb-4 rounded-2xl p-3 text-xs font-mono text-slate-600">
-          Session: {sessionId}
-        </div>
-      )}
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="glass-panel rounded-[24px] p-4" data-testid="chat-console">
+          <div className="mb-4 grid gap-3 md:grid-cols-[180px_220px_minmax(0,1fr)]">
+            <label className="text-sm text-slate-600">
+              <span className="mb-1 block font-medium text-slate-700">{t('chatMode')}</span>
+              <select
+                value={chatMode}
+                onChange={(e) => setChatMode(e.target.value as ChatMode)}
+                className="dashboard-input"
+                data-testid="chat-mode"
+              >
+                <option value="rag">{t('chatModeRag')}</option>
+                <option value="agent">{t('chatModeAgent')}</option>
+              </select>
+            </label>
 
-      <div className="glass-panel flex-1 overflow-y-auto rounded-[28px] p-4 mb-4">
-        {messages.length === 0 && (
-          <div className="text-center text-slate-500 py-8">
-            Start a conversation...
-          </div>
-        )}
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`mb-4 ${
-              message.role === 'user' ? 'text-right' : 'text-left'
-            }`}
-          >
-            <div
-              className={`inline-block max-w-[80%] px-4 py-2 rounded-lg ${
-                message.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-50 text-slate-900 border border-slate-200'
-              }`}
-            >
-              <p className="whitespace-pre-wrap">
-                {message.content}
-                {message.streaming && (
-                  <span className="inline-block w-2 h-4 ml-1 bg-blue-600 animate-pulse" />
+            <label className="text-sm text-slate-600">
+              <span className="mb-1 block font-medium text-slate-700">{t('chatTargetAgent')}</span>
+              <select
+                value={selectedAgent}
+                onChange={(e) => setSelectedAgent(e.target.value)}
+                className="dashboard-input"
+                disabled={chatMode !== 'agent' || captainAgents.length === 0}
+                data-testid="chat-agent-select"
+              >
+                {captainAgents.length === 0 && <option value="">{t('loadingAgents')}</option>}
+                {captainAgents.map((agent) => (
+                  <option key={agent.id} value={agent.name}>
+                    {agent.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="dashboard-muted-card rounded-2xl p-3 text-xs text-slate-600" data-testid="chat-session-meta">
+              <div className="font-mono text-[11px] text-slate-500">
+                {t('chatStatusLine', {
+                  id: lastAssistant?.id ?? '-',
+                  status,
+                  messages: messages.length,
+                  parts: totalParts,
+                })}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <span className="rounded-full bg-sky-100 px-2 py-1 text-[11px] text-sky-800">
+                  {t(chatMode === 'agent' ? 'chatModeAgent' : 'chatModeRag')}
+                </span>
+                {chatMode === 'agent' && selectedAgent && (
+                  <span className="rounded-full bg-blue-100 px-2 py-1 text-[11px] text-blue-800">{selectedAgent}</span>
                 )}
-              </p>
-              {debugMode && message.debug && (
-                <div className="mt-2 pt-2 border-t border-slate-200 text-xs font-mono opacity-70">
-                  {message.debug.latency && <span>Latency: {message.debug.latency}ms</span>}
-                </div>
-              )}
+                {debugEnabled && (
+                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-700">
+                    {t('debug')}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-        ))}
-        <div ref={messagesEndRef} />
+
+          <div className="max-h-[calc(100vh-410px)] space-y-4 overflow-y-auto pr-1" data-testid="chat-messages">
+            {messages.length === 0 && <div className="py-10 text-center text-slate-500">{t('startConversation')}</div>}
+
+            {messages.map((rawMessage) => {
+              const message = rawMessage as UIMessage
+              const textParts = getTextParts(message)
+              const reasoningParts = getReasoningParts(message)
+              const toolParts = getToolParts(message)
+              const eventParts = getAgentEventParts(message)
+              const isUser = message.role === 'user'
+              const isAssistant = message.role === 'assistant'
+
+              return (
+                <div key={message.id} className={isUser ? 'text-right' : 'text-left'} data-testid={`chat-message-${message.role}`}>
+                  <div
+                    className={`inline-block max-w-[88%] rounded-2xl px-4 py-3 ${
+                      isUser ? 'bg-blue-600 text-white' : 'border border-sky-100 bg-sky-50/80 text-slate-900'
+                    }`}
+                  >
+                    {textParts.length > 0 && (
+                      <div className="space-y-3">
+                        {textParts.map((part, index) => (
+                          <p key={`${message.id}-text-${index}`} className="whitespace-pre-wrap leading-7">
+                            {part.text}
+                            {isAssistant && isStreaming && part.state === 'streaming' && message.id === messages[messages.length - 1]?.id && (
+                              <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-blue-600 align-middle" />
+                            )}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+
+                    {debugEnabled && reasoningParts.length > 0 && (
+                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-xs text-amber-900">
+                        <div className="mb-2 font-semibold">{t('chatReasoning')}</div>
+                        {reasoningParts.map((part, index) => (
+                          <pre key={`${message.id}-reasoning-${index}`} className="whitespace-pre-wrap font-mono">
+                            {part.text}
+                          </pre>
+                        ))}
+                      </div>
+                    )}
+
+                    {toolParts.length > 0 && (
+                      <div className="mt-3 space-y-2 text-left">
+                        {toolParts.map((part, index) => (
+                          <div key={`${message.id}-tool-${index}`} className="rounded-xl border border-sky-200 bg-white/90 p-3 text-xs text-slate-700">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="font-semibold text-slate-900">{part.toolName ?? part.type}</div>
+                              <span className="rounded-full bg-slate-100 px-2 py-1 font-mono text-[11px] text-slate-600">
+                                {renderToolState(part)}
+                              </span>
+                            </div>
+                            {debugEnabled && (
+                              <>
+                                {part.input !== undefined && (
+                                  <div className="mt-2">
+                                    <div className="mb-1 font-medium text-slate-600">{t('chatToolInput')}</div>
+                                    <pre className="overflow-x-auto rounded-lg bg-slate-950/95 p-3 text-[11px] text-sky-100">{stringify(part.input)}</pre>
+                                  </div>
+                                )}
+                                {part.output !== undefined && (
+                                  <div className="mt-2">
+                                    <div className="mb-1 font-medium text-slate-600">{t('chatToolOutput')}</div>
+                                    <pre className="overflow-x-auto rounded-lg bg-slate-950/95 p-3 text-[11px] text-emerald-100">{stringify(part.output)}</pre>
+                                  </div>
+                                )}
+                                {part.errorText && <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-700">{part.errorText}</div>}
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {debugEnabled && eventParts.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {eventParts.map((part, index) => {
+                          const eventType = String(part.data?.event_type ?? 'event')
+                          const content = String(part.data?.content ?? '')
+                          return (
+                            <div key={`${message.id}-event-${index}`} className="rounded-xl border border-blue-100 bg-blue-50 p-2 text-left text-xs text-blue-900">
+                              <div className="font-semibold">{eventType}</div>
+                              {content && <div className="mt-1 whitespace-pre-wrap">{content}</div>}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {debugEnabled && (
+                      <div className="mt-3 border-t border-slate-200 pt-2 text-left text-[11px] font-mono text-slate-500">
+                        {message.role} | {message.id}
+                        {message.metadata && (
+                          <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-100 p-2 text-[11px] text-slate-700">{stringify(message.metadata)}</pre>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+
+            {error && <div className="rounded-[20px] border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{t('error')}: {error.message}</div>}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {debugEnabled && (
+        <aside className="space-y-3" data-testid="chat-debug-panel">
+          <div className="dashboard-muted-card rounded-[24px] p-4">
+            <div className="mb-2 text-sm font-semibold text-slate-900">{t('debug')}</div>
+            <p className="text-sm text-slate-600">{t('chatDebugHint')}</p>
+          </div>
+
+          <div className="dashboard-muted-card rounded-[24px] p-4" data-testid="chat-debug-summary">
+            <div className="mb-3 text-sm font-semibold text-slate-900">{t('chatProtocolSummary')}</div>
+            <div className="space-y-2 text-xs text-slate-600">
+              <div>{t('chatMessagesCount', { count: messages.length })}</div>
+              <div>{t('chatPartsCount', { count: totalParts })}</div>
+              <div>{t('chatEventsCount', { count: agentEvents.length })}</div>
+              <div>{t('chatCurrentStatus', { status })}</div>
+            </div>
+          </div>
+
+          <div className="dashboard-muted-card rounded-[24px] p-4" data-testid="chat-last-message">
+            <div className="mb-3 text-sm font-semibold text-slate-900">{t('chatLastAssistantMessage')}</div>
+            {lastAssistant ? (
+              <pre className="max-h-64 overflow-auto rounded-xl bg-slate-950/95 p-3 text-[11px] text-sky-100">
+                {stringify({
+                  id: lastAssistant.id,
+                  metadata: lastAssistant.metadata ?? null,
+                  parts: lastAssistant.parts ?? [],
+                })}
+              </pre>
+            ) : (
+              <div className="text-sm text-slate-500">{t('chatNoStructuredData')}</div>
+            )}
+          </div>
+        </aside>
+        )}
       </div>
 
-      <form onSubmit={handleSend} className="flex gap-2">
+      <form onSubmit={handleSend} className="flex gap-2" data-testid="chat-form">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type a message..."
+          placeholder={chatMode === 'agent' ? t('chatPromptAgent') : t('typeMessage')}
           className="dashboard-input flex-1"
           disabled={isStreaming}
+          data-testid="chat-input"
         />
         <button
           type="submit"
-          disabled={isStreaming || !input.trim()}
+          disabled={isStreaming || !input.trim() || (chatMode === 'agent' && !selectedAgent)}
           className="dashboard-button px-6 py-2 disabled:cursor-not-allowed"
+          data-testid="chat-send"
         >
           {isStreaming ? t('sending') : t('sendMessage')}
         </button>

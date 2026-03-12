@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/liliang-cn/agent-go/pkg/domain"
+	"github.com/liliang-cn/agent-go/pkg/ptc"
 	"github.com/liliang-cn/agent-go/pkg/skills"
 )
 
@@ -41,6 +43,7 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 	toolsMap := make(map[string]domain.ToolDefinition)
 	ptcEnabled := s.isPTCEnabled()
 	sessionID := s.CurrentSessionID()
+	searchMode := s.shouldExposeSearchTools()
 
 	// Helper to add tools with deduplication
 	addTools := func(defs []domain.ToolDefinition) {
@@ -53,29 +56,8 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 	// This includes built-in tools like delegate_to_subagent and task_complete
 	addTools(s.toolRegistry.ListForLLM(ptcEnabled, sessionID))
 
-	// Check if there are deferred tools - if so, add tool search tools
-	hasDeferredTools := false
-	for _, t := range s.toolRegistry.ListForLLM(ptcEnabled, sessionID) {
-		if t.DeferLoading {
-			hasDeferredTools = true
-			break
-		}
-	}
-	// Also check MCP and skills for deferred tools
-	if !hasDeferredTools && s.mcpService != nil {
-		// If MCP has many tools, consider them deferred
-		if len(s.mcpService.ListTools()) > 5 {
-			hasDeferredTools = true
-		}
-	}
-	if !hasDeferredTools && s.skillsService != nil {
-		skillsList, _ := s.skillsService.ListSkills(ctx, skills.SkillFilter{})
-		if len(skillsList) > 5 {
-			hasDeferredTools = true
-		}
-	}
-	// Add tool search tools if there are deferred tools
-	if hasDeferredTools && !ptcEnabled {
+	// In saving mode, expose search tools instead of sending large MCP/skill catalogs directly.
+	if searchMode && !ptcEnabled {
 		for _, ts := range GetToolSearchTools() {
 			toolsMap[ts.Function.Name] = ts
 		}
@@ -103,7 +85,7 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 	if s.mcpService != nil && !ptcEnabled {
 		allMCP := s.mcpService.ListTools()
 		activeMap := s.toolRegistry.sessionActivated[sessionID]
-		deferAllMCP := len(allMCP) > 5 // Automatically defer if there are many tools
+		deferAllMCP := searchMode
 
 		if currentAgent == nil || isAllAllowed(currentAgent.mcpTools) {
 			for _, tool := range allMCP {
@@ -136,7 +118,7 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 	if s.skillsService != nil && !ptcEnabled {
 		skillsList, _ := s.skillsService.ListSkills(ctx, skills.SkillFilter{})
 		activeMap := s.toolRegistry.sessionActivated[sessionID]
-		deferAllSkills := len(skillsList) > 5
+		deferAllSkills := searchMode
 
 		allowedAll := currentAgent == nil || isAllAllowed(currentAgent.skills)
 		for _, sk := range skillsList {
@@ -196,7 +178,7 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 	// PTC: expose execute_javascript as a direct LLM tool. Embed the dynamic
 	// callTool() list so the model knows exactly what it can call.
 	if s.ptcIntegration != nil {
-		availableCallTools := s.ptcIntegration.GetAvailableCallTools(ctx)
+		availableCallTools := s.ptcAvailableCallTools(ctx)
 		addTools(s.ptcIntegration.GetPTCTools(availableCallTools))
 	}
 
@@ -207,6 +189,103 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 	}
 
 	return tools
+}
+
+func (s *Service) shouldExposeSearchTools() bool {
+	if s == nil || s.cfg == nil {
+		return false
+	}
+	return s.cfg.Tooling.SavingMode && s.cfg.Tooling.EnableSearchTools
+}
+
+func (s *Service) ptcAvailableCallTools(ctx context.Context) []ptc.ToolInfo {
+	if s.ptcIntegration == nil {
+		return nil
+	}
+	tools := s.ptcIntegration.GetAvailableCallTools(ctx)
+	if s.shouldExposeSearchTools() {
+		return tools
+	}
+
+	filtered := make([]ptc.ToolInfo, 0, len(tools))
+	for _, tool := range tools {
+		if tool.Name == "search_available_tools" || domain.IsToolSearchTool(tool.Name) {
+			continue
+		}
+		filtered = append(filtered, tool)
+	}
+	return filtered
+}
+
+func (s *Service) buildToolCatalogSummary(ctx context.Context) string {
+	if !s.shouldExposeSearchTools() {
+		return ""
+	}
+
+	var lines []string
+
+	if s.mcpService != nil {
+		serverNames := make([]string, 0)
+		seenServers := make(map[string]struct{})
+		for _, tool := range s.mcpService.ListTools() {
+			parts := strings.SplitN(tool.Function.Name, "_", 3)
+			if len(parts) < 3 || parts[0] != "mcp" {
+				continue
+			}
+			server := parts[0] + "_" + parts[1]
+			if _, ok := seenServers[server]; ok {
+				continue
+			}
+			seenServers[server] = struct{}{}
+			serverNames = append(serverNames, server)
+		}
+		slices.Sort(serverNames)
+		if len(serverNames) > 0 {
+			lines = append(lines, "- MCP servers available: "+strings.Join(serverNames, ", "))
+		}
+	}
+
+	if s.skillsService != nil {
+		skillsList, _ := s.skillsService.ListSkills(ctx, skills.SkillFilter{})
+		skillNames := make([]string, 0, len(skillsList))
+		for _, sk := range skillsList {
+			if !sk.Enabled || sk.DisableModelInvocation {
+				continue
+			}
+			skillNames = append(skillNames, sk.ID)
+		}
+		slices.Sort(skillNames)
+		if len(skillNames) > 0 {
+			lines = append(lines, "- Skills available: "+strings.Join(skillNames, ", "))
+		}
+	}
+
+	toolHints := make([]string, 0)
+	for _, tool := range s.toolRegistry.ListForCallTool() {
+		if tool.Name == "search_available_tools" || domain.IsToolSearchTool(tool.Name) {
+			continue
+		}
+		if strings.HasPrefix(tool.Name, "mcp_") || strings.HasPrefix(tool.Name, "skill_") {
+			continue
+		}
+		toolHints = append(toolHints, tool.Name)
+	}
+	slices.Sort(toolHints)
+	if len(toolHints) > 0 {
+		if len(toolHints) > 12 {
+			toolHints = toolHints[:12]
+		}
+		lines = append(lines, "- Built-in tool names you can search for: "+strings.Join(toolHints, ", "))
+	}
+
+	if len(lines) == 0 {
+		return ""
+	}
+
+	return "Search-mode tool catalog:\n" +
+		"- Tool schemas are minimized to save tokens.\n" +
+		"- Use search tools when you need an exact callable name.\n" +
+		strings.Join(lines, "\n")
 }
 
 func (s *Service) resetRunMemorySaved() {

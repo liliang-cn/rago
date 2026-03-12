@@ -252,6 +252,13 @@ func (s *Service) handleDuplicateToolCalls(messages []domain.Message, result *do
 			continue
 		}
 
+		if tc.Function.Name == "task_complete" {
+			if res, ok := tc.Function.Arguments["result"].(string); ok && strings.TrimSpace(res) != "" {
+				return nil, nil, strings.TrimSpace(res)
+			}
+			return nil, nil, extractBestEffortAnswer(result.Content, messages)
+		}
+
 		log.Printf("[Agent] Duplicate tool call detected: %s", key)
 		if isSearchToolName(tc.Function.Name) {
 			duplicates = append(duplicates, ToolExecutionResult{
@@ -525,6 +532,8 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, ses
 		idx, toolCall := i, tc
 
 		g.Go(func() error {
+			toolCtx := withCurrentAgent(groupCtx, currentAgent)
+
 			// Format tool name for display
 			toolName := toolCall.Function.Name
 			toolDesc := toolName
@@ -545,7 +554,7 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, ses
 				slog.Any("arguments", toolCall.Function.Arguments))
 
 			// Delegate to SubAgent
-			result, err, _ := s.executeToolViaSubAgent(groupCtx, currentAgent, session, toolCall)
+			result, err, _ := s.executeToolViaSubAgent(toolCtx, currentAgent, session, toolCall)
 
 			if err != nil {
 				s.logger.Error("Tool execution failed",
