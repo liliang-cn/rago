@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/acp"
@@ -51,9 +52,15 @@ var RootCmd = &cobra.Command{
 			return fmt.Errorf("failed to load configuration: %w", err)
 		}
 
-		// Enable debug mode if CLI flag is set or config has debug=true
-		if debug || cfg.Debug {
-			agentgolog.SetDebug(true)
+		switch {
+		case quiet:
+			agentgolog.SetLevel(slog.LevelError)
+		case debug || cfg.Debug:
+			agentgolog.SetLevel(slog.LevelDebug)
+		case verbose:
+			agentgolog.SetLevel(slog.LevelInfo)
+		default:
+			agentgolog.SetLevel(slog.LevelWarn)
 		}
 
 		if commandNeedsGlobalPool(cmd) {

@@ -35,6 +35,8 @@ func SetDebug(enabled bool) {
 
 func IsDebug() bool { return levelVar.Level() == slog.LevelDebug }
 
+func Level() slog.Level { return levelVar.Level() }
+
 func GetLogger() *slog.Logger { return defaultLogger }
 
 func WithModule(module string) *slog.Logger {

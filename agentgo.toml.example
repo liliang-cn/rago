@@ -66,6 +66,10 @@ health_check_interval = "60s"
 saving_mode = false             # Default: send tool definitions directly to the model
 enable_search_tools = true      # When saving_mode=true, allow tool search instead of full schemas
 
+[tooling.web_search]
+mode = "auto"                   # auto | native | mcp | off
+search_context_size = "medium"  # low | medium | high when native/auto search is used
+
 # Built-in servers (filesystem + websearch) are always available — no external
 # binaries or mcpServers.json entries needed. They run in-process inside the binary.
 #

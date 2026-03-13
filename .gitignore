@@ -18,3 +18,11 @@ cmd/agentgo-ui/dist/
 ui-config.json
 
 .agentgo/
+
+workspace/
+
+progress.md
+
+findings.md
+
+task_plan.md

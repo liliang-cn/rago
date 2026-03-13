@@ -43,15 +43,13 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 	if session != nil {
 		summary = session.Summary
 	}
-	messages := s.buildConversationMessages(goal, ragContext, memoryContext, summary)
+	messages := s.buildConversationMessages(session, goal, ragContext, memoryContext, summary)
 
 	if cfg.StoreHistory && s.historyStore != nil {
-		s.historyStore.RecordMessage(ctx, session.GetID(), currentAgent.ID(), goal, messages[0], 0)
+		s.historyStore.RecordMessage(ctx, session.GetID(), currentAgent.ID(), goal, messages[len(messages)-1], 0)
 	}
 
 	toolCallCount := 0
-
-	fmt.Printf("[DEBUG] Entering executeWithLLM, debug=%v\n", s.debug)
 
 	// --- DEBUG: LOG AGENT CONFIGURATION ---
 	if s.debug {
@@ -132,10 +130,14 @@ func (s *Service) executeWithLLM(ctx context.Context, goal string, intent *Inten
 	return result, metrics, err
 }
 
-// buildConversationMessages constructs the initial user message, enriched with RAG, memory context and session summary.
-func (s *Service) buildConversationMessages(goal, ragContext, memoryContext, summary string) []domain.Message {
+// buildConversationMessages constructs the next-turn user message and prepends prior session history when available.
+func (s *Service) buildConversationMessages(session *Session, goal, ragContext, memoryContext, summary string) []domain.Message {
 	content := goal
-	if summary != "" {
+	history := make([]domain.Message, 0)
+	if session != nil {
+		history = session.GetMessages()
+	}
+	if summary != "" && len(history) == 0 {
 		content = "--- Conversation Summary ---\n" + summary + "\n--- End Summary ---\n\n" + content
 	}
 	if ragContext != "" {
@@ -144,7 +146,9 @@ func (s *Service) buildConversationMessages(goal, ragContext, memoryContext, sum
 	if memoryContext != "" {
 		content += "\n\nRelevant context from memory:\n" + memoryContext
 	}
-	return []domain.Message{{Role: "user", Content: content}}
+	messages := append([]domain.Message{}, history...)
+	messages = append(messages, domain.Message{Role: "user", Content: content})
+	return messages
 }
 
 // runOneLLMTurn builds the prompt for this round and calls the LLM once.
@@ -177,10 +181,7 @@ func (s *Service) runOneLLMTurn(ctx context.Context, currentAgent *Agent, messag
 		maxTokens = 2000
 	}
 
-	result, err := s.llmService.GenerateWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
-		Temperature: temperature,
-		MaxTokens:   maxTokens,
-	})
+	result, err := s.llmService.GenerateWithTools(ctx, genMessages, tools, s.toolGenerationOptions(temperature, maxTokens, ""))
 	if err != nil {
 		return nil, 0, fmt.Errorf("LLM generation failed: %w", err)
 	}
@@ -543,13 +544,11 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, ses
 
 			s.emitProgress("tool_call", fmt.Sprintf("→ %s", toolDesc), 0, toolName)
 
-			// --- DEBUG: LOG TOOL CALL ---
 			if s.debug {
-				fmt.Printf("\n🛠️  DEBUG TOOL CALL: %s\n", toolName)
-				fmt.Printf("   Arguments: %v\n", toolCall.Function.Arguments)
+				s.EmitDebugPrint(0, "tool_call", fmt.Sprintf("TOOL: %s\nARGS: %v", toolName, toolCall.Function.Arguments))
 			}
 
-			s.logger.Info("Executing Tool",
+			s.logger.Debug("Executing Tool",
 				slog.String("tool", toolName),
 				slog.Any("arguments", toolCall.Function.Arguments))
 
@@ -562,21 +561,18 @@ func (s *Service) executeToolCalls(ctx context.Context, currentAgent *Agent, ses
 					slog.Any("error", err))
 
 				if s.debug {
-					fmt.Printf("   ❌ ERROR: %v\n", err)
-					fmt.Println(strings.Repeat("-", 20))
+					s.EmitDebugPrint(0, "tool_result", fmt.Sprintf("TOOL: %s\nERROR: %v", toolName, err))
 				}
 
 				return fmt.Errorf("Tool %s failed: %w", toolCall.Function.Name, err)
 			}
 
-			s.logger.Info("Tool Result",
+			s.logger.Debug("Tool Result",
 				slog.String("tool", toolName),
 				slog.Any("result", result))
 
-			// --- DEBUG: LOG TOOL SUCCESS ---
 			if s.debug {
-				fmt.Printf("   ✅ RESULT: %v\n", result)
-				fmt.Println(strings.Repeat("-", 20))
+				s.EmitDebugPrint(0, "tool_result", fmt.Sprintf("TOOL: %s\nRESULT: %v", toolName, result))
 			}
 
 			// Emit tool result progress
@@ -662,10 +658,7 @@ func (s *Service) executeWithDynamicToolSelection(ctx context.Context, goal stri
 	}
 
 	// Use GenerateWithTools - let LLM natively decide which tools to call
-	result, err := s.llmService.GenerateWithTools(ctx, messages, availableTools, &domain.GenerationOptions{
-		Temperature: 0.3,
-		MaxTokens:   1000,
-	})
+	result, err := s.llmService.GenerateWithTools(ctx, messages, availableTools, s.toolGenerationOptions(0.3, 1000, ""))
 
 	if err != nil {
 		return nil, fmt.Errorf("tool execution failed: %w", err)
@@ -921,8 +914,21 @@ func (s *Service) executeSubAgentDelegation(ctx context.Context, currentAgent *A
 		WithSubAgentToolDenylist(denylist),
 		WithSubAgentContext(contextData),
 	)
+	subAgent.config.Debug = runDebugFromContext(ctx)
 
-	result, err := subAgent.Run(ctx)
+	sink := eventSinkFromContext(ctx)
+	var (
+		result interface{}
+		err    error
+	)
+	if sink == nil {
+		result, err = subAgent.Run(ctx)
+	} else {
+		for evt := range subAgent.RunAsync(ctx) {
+			sink(evt)
+		}
+		result, err = subAgent.GetResult()
+	}
 	if err != nil {
 		return nil, fmt.Errorf("sub-agent execution failed: %w", err)
 	}

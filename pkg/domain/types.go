@@ -154,10 +154,12 @@ type RealtimeGenerator interface {
 }
 
 type GenerationOptions struct {
-	Temperature float64
-	MaxTokens   int
-	Think       *bool
-	ToolChoice  string // "auto", "required", "none", or specific function name
+	Temperature          float64
+	MaxTokens            int
+	Think                *bool
+	ToolChoice           string // "auto", "required", "none", or specific function name
+	WebSearchMode        WebSearchMode
+	WebSearchContextSize string
 }
 
 // Tool calling related types
@@ -193,7 +195,6 @@ type ToolReference struct {
 func IsToolSearchTool(name string) bool {
 	return name == "tool_search_tool_regex" || name == "tool_search_tool_bm25"
 }
-
 
 // ToolFunction defines a function that can be called
 type ToolFunction struct {

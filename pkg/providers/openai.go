@@ -178,6 +178,81 @@ func toOpenAIMessages(messages []domain.Message) ([]openai.ChatCompletionMessage
 	return openAIMessages, nil
 }
 
+func buildOpenAIChatCompletionParams(messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, model string) (openai.ChatCompletionNewParams, error) {
+	openAIMessages, err := toOpenAIMessages(messages)
+	if err != nil {
+		return openai.ChatCompletionNewParams{}, fmt.Errorf("failed to convert messages: %w", err)
+	}
+
+	params := openai.ChatCompletionNewParams{
+		Model:    shared.ChatModel(model),
+		Messages: openAIMessages,
+	}
+
+	if len(tools) > 0 {
+		openaiTools := make([]openai.ChatCompletionToolUnionParam, len(tools))
+		for i, tool := range tools {
+			openaiTools[i] = openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+				Name:        tool.Function.Name,
+				Description: openai.String(tool.Function.Description),
+				Parameters:  tool.Function.Parameters,
+			})
+		}
+		params.Tools = openaiTools
+
+		if opts != nil && opts.ToolChoice != "" {
+			switch opts.ToolChoice {
+			case "required":
+				params.ToolChoice = openai.ToolChoiceOptionFunctionToolChoice(openai.ChatCompletionNamedToolChoiceFunctionParam{
+					Name: tools[0].Function.Name,
+				})
+			case "auto", "none":
+			default:
+				params.ToolChoice = openai.ToolChoiceOptionFunctionToolChoice(openai.ChatCompletionNamedToolChoiceFunctionParam{
+					Name: opts.ToolChoice,
+				})
+			}
+		}
+	}
+
+	if opts != nil {
+		if opts.Temperature >= 0 {
+			params.Temperature = openai.Float(opts.Temperature)
+		}
+		if opts.MaxTokens > 0 {
+			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
+		}
+		if domain.UsesNativeWebSearch(opts.WebSearchMode) {
+			params.WebSearchOptions = openai.ChatCompletionNewParamsWebSearchOptions{
+				SearchContextSize: domain.NormalizeWebSearchContextSize(opts.WebSearchContextSize),
+			}
+		}
+	}
+
+	return params, nil
+}
+
+func shouldRetryOpenAIWithoutNativeWebSearch(opts *domain.GenerationOptions, err error) bool {
+	if opts == nil || domain.NormalizeWebSearchMode(opts.WebSearchMode) != domain.WebSearchModeAuto || err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "web_search_options") ||
+		strings.Contains(msg, "web search") ||
+		strings.Contains(msg, "unsupported parameter") ||
+		strings.Contains(msg, "unknown field")
+}
+
+func cloneOptionsWithoutNativeWebSearch(opts *domain.GenerationOptions) *domain.GenerationOptions {
+	if opts == nil {
+		return &domain.GenerationOptions{WebSearchMode: domain.WebSearchModeMCP}
+	}
+	cloned := *opts
+	cloned.WebSearchMode = domain.WebSearchModeMCP
+	return &cloned
+}
+
 // Generate generates text using OpenAI API
 func (p *OpenAILLMProvider) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
 	if prompt == "" {
@@ -263,57 +338,21 @@ func (p *OpenAILLMProvider) GenerateWithTools(ctx context.Context, messages []do
 		return nil, fmt.Errorf("%w: empty messages", domain.ErrInvalidInput)
 	}
 
-	openAIMessages, err := toOpenAIMessages(messages)
+	params, err := buildOpenAIChatCompletionParams(messages, tools, opts, p.config.LLMModel)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert messages: %w", err)
-	}
-
-	params := openai.ChatCompletionNewParams{
-		Model:    shared.ChatModel(p.config.LLMModel),
-		Messages: openAIMessages,
-	}
-
-	if len(tools) > 0 {
-		openaiTools := make([]openai.ChatCompletionToolUnionParam, len(tools))
-		for i, tool := range tools {
-			openaiTools[i] = openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
-				Name:        tool.Function.Name,
-				Description: openai.String(tool.Function.Description),
-				Parameters:  tool.Function.Parameters,
-			})
-		}
-		params.Tools = openaiTools
-
-		// Set tool choice if specified
-		if opts != nil && opts.ToolChoice != "" {
-			switch opts.ToolChoice {
-			case "required":
-				// Force the model to call one of the tools
-				params.ToolChoice = openai.ToolChoiceOptionFunctionToolChoice(openai.ChatCompletionNamedToolChoiceFunctionParam{
-					Name: tools[0].Function.Name, // Use first tool as default
-				})
-			case "auto", "none":
-				// Let OpenAI handle auto/none behavior naturally
-				// "auto" is default when tools are present
-			default:
-				// Assume it's a specific function name
-				params.ToolChoice = openai.ToolChoiceOptionFunctionToolChoice(openai.ChatCompletionNamedToolChoiceFunctionParam{
-					Name: opts.ToolChoice,
-				})
-			}
-		}
-	}
-
-	if opts != nil {
-		if opts.Temperature >= 0 {
-			params.Temperature = openai.Float(opts.Temperature)
-		}
-		if opts.MaxTokens > 0 {
-			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
-		}
+		return nil, err
 	}
 
 	completion, err := p.client.Chat.Completions.New(ctx, params)
+	if err != nil {
+		if shouldRetryOpenAIWithoutNativeWebSearch(opts, err) {
+			retryParams, buildErr := buildOpenAIChatCompletionParams(messages, tools, cloneOptionsWithoutNativeWebSearch(opts), p.config.LLMModel)
+			if buildErr != nil {
+				return nil, buildErr
+			}
+			completion, err = p.client.Chat.Completions.New(ctx, retryParams)
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", domain.ErrGenerationFailed, err)
 	}
@@ -358,54 +397,17 @@ func (p *OpenAILLMProvider) StreamWithTools(ctx context.Context, messages []doma
 		return fmt.Errorf("%w: nil callback", domain.ErrInvalidInput)
 	}
 
-	openAIMessages, err := toOpenAIMessages(messages)
+	err := p.streamWithToolsOnce(ctx, messages, tools, opts, callback)
+	if shouldRetryOpenAIWithoutNativeWebSearch(opts, err) {
+		return p.streamWithToolsOnce(ctx, messages, tools, cloneOptionsWithoutNativeWebSearch(opts), callback)
+	}
+	return err
+}
+
+func (p *OpenAILLMProvider) streamWithToolsOnce(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions, callback domain.ToolCallCallback) error {
+	params, err := buildOpenAIChatCompletionParams(messages, tools, opts, p.config.LLMModel)
 	if err != nil {
-		return fmt.Errorf("failed to convert messages: %w", err)
-	}
-
-	params := openai.ChatCompletionNewParams{
-		Model:    shared.ChatModel(p.config.LLMModel),
-		Messages: openAIMessages,
-	}
-
-	if len(tools) > 0 {
-		openaiTools := make([]openai.ChatCompletionToolUnionParam, len(tools))
-		for i, tool := range tools {
-			openaiTools[i] = openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
-				Name:        tool.Function.Name,
-				Description: openai.String(tool.Function.Description),
-				Parameters:  tool.Function.Parameters,
-			})
-		}
-		params.Tools = openaiTools
-
-		// Set tool choice if specified
-		if opts != nil && opts.ToolChoice != "" {
-			switch opts.ToolChoice {
-			case "required":
-				// Force the model to call one of the tools
-				params.ToolChoice = openai.ToolChoiceOptionFunctionToolChoice(openai.ChatCompletionNamedToolChoiceFunctionParam{
-					Name: tools[0].Function.Name, // Use first tool as default
-				})
-			case "auto", "none":
-				// Let OpenAI handle auto/none behavior naturally
-				// "auto" is default when tools are present
-			default:
-				// Assume it's a specific function name
-				params.ToolChoice = openai.ToolChoiceOptionFunctionToolChoice(openai.ChatCompletionNamedToolChoiceFunctionParam{
-					Name: opts.ToolChoice,
-				})
-			}
-		}
-	}
-
-	if opts != nil {
-		if opts.Temperature >= 0 {
-			params.Temperature = openai.Float(opts.Temperature)
-		}
-		if opts.MaxTokens > 0 {
-			params.MaxCompletionTokens = openai.Int(int64(opts.MaxTokens))
-		}
+		return err
 	}
 
 	stream := p.client.Chat.Completions.NewStreaming(ctx, params)

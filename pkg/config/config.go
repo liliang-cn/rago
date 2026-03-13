@@ -161,8 +161,14 @@ type CacheConfig struct {
 
 // ToolingConfig controls how tool definitions are exposed to the model.
 type ToolingConfig struct {
-	SavingMode        bool `mapstructure:"saving_mode"`
-	EnableSearchTools bool `mapstructure:"enable_search_tools"`
+	SavingMode        bool            `mapstructure:"saving_mode"`
+	EnableSearchTools bool            `mapstructure:"enable_search_tools"`
+	WebSearch         WebSearchConfig `mapstructure:"web_search"`
+}
+
+type WebSearchConfig struct {
+	Mode              string `mapstructure:"mode"`
+	SearchContextSize string `mapstructure:"search_context_size"`
 }
 
 // GraphRAGConfig configures GraphRAG (Knowledge Graph + RAG)
@@ -415,6 +421,8 @@ func setDefaults() {
 	// Tool exposure defaults
 	viper.SetDefault("tooling.saving_mode", false)
 	viper.SetDefault("tooling.enable_search_tools", true)
+	viper.SetDefault("tooling.web_search.mode", "mcp")
+	viper.SetDefault("tooling.web_search.search_context_size", "medium")
 }
 
 func bindEnvVars() {
@@ -459,6 +467,8 @@ func bindEnvVars() {
 	viper.BindEnv("cache.chunk_ttl", "AgentGo_CACHE_CHUNK_TTL")
 	viper.BindEnv("tooling.saving_mode", "AgentGo_TOOLING_SAVING_MODE")
 	viper.BindEnv("tooling.enable_search_tools", "AgentGo_TOOLING_ENABLE_SEARCH_TOOLS")
+	viper.BindEnv("tooling.web_search.mode", "AgentGo_TOOLING_WEB_SEARCH_MODE")
+	viper.BindEnv("tooling.web_search.search_context_size", "AgentGo_TOOLING_WEB_SEARCH_CONTEXT_SIZE")
 }
 
 // DataDir returns the path to the data directory
@@ -581,6 +591,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid cache configuration: %w", err)
 	}
 
+	if err := c.validateToolingConfig(); err != nil {
+		return fmt.Errorf("invalid tooling configuration: %w", err)
+	}
+
 	return nil
 }
 
@@ -701,6 +715,31 @@ func (c *Config) validateCacheConfig() error {
 		if ttl <= 0 {
 			return fmt.Errorf("%s must be positive: %v", name, ttl)
 		}
+	}
+
+	return nil
+}
+
+func (c *Config) validateToolingConfig() error {
+	validWebSearchModes := map[string]bool{
+		"":       true,
+		"auto":   true,
+		"native": true,
+		"mcp":    true,
+		"off":    true,
+	}
+	if !validWebSearchModes[strings.ToLower(c.Tooling.WebSearch.Mode)] {
+		return fmt.Errorf("invalid web_search.mode: %s (supported: auto, native, mcp, off)", c.Tooling.WebSearch.Mode)
+	}
+
+	validContextSizes := map[string]bool{
+		"":       true,
+		"low":    true,
+		"medium": true,
+		"high":   true,
+	}
+	if !validContextSizes[strings.ToLower(c.Tooling.WebSearch.SearchContextSize)] {
+		return fmt.Errorf("invalid web_search.search_context_size: %s (supported: low, medium, high)", c.Tooling.WebSearch.SearchContextSize)
 	}
 
 	return nil

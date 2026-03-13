@@ -2,7 +2,11 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/liliang-cn/agent-go/pkg/domain"
@@ -704,6 +708,86 @@ func TestMessageConversion(t *testing.T) {
 		assert.NotNil(t, result)
 		assert.Len(t, result, 1)
 	})
+}
+
+func TestOpenAILLMProviderGenerateWithToolsIncludesNativeWebSearch(t *testing.T) {
+	var captured map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		assert.Equal(t, "/chat/completions", r.URL.Path)
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&captured))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`))
+	}))
+	defer server.Close()
+
+	provider, err := NewOpenAILLMProvider(&domain.OpenAIProviderConfig{
+		APIKey:   "test-key",
+		BaseURL:  server.URL,
+		LLMModel: "gpt-4o-mini",
+	})
+	assert.NoError(t, err)
+
+	result, err := provider.GenerateWithTools(context.Background(), []domain.Message{
+		{Role: "user", Content: "latest news"},
+	}, []domain.ToolDefinition{
+		{
+			Type: "function",
+			Function: domain.ToolFunction{
+				Name:        "mcp_websearch_search",
+				Description: "search the web",
+				Parameters: map[string]interface{}{
+					"type": "object",
+				},
+			},
+		},
+	}, &domain.GenerationOptions{
+		WebSearchMode:        domain.WebSearchModeNative,
+		WebSearchContextSize: "high",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "ok", result.Content)
+
+	webSearchOptions, ok := captured["web_search_options"].(map[string]interface{})
+	assert.True(t, ok)
+	assert.Equal(t, "high", webSearchOptions["search_context_size"])
+}
+
+func TestOpenAILLMProviderGenerateWithToolsRetriesAutoWithoutNativeWebSearch(t *testing.T) {
+	var requestCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		requestCount.Add(1)
+		var payload map[string]interface{}
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
+
+		if _, ok := payload["web_search_options"]; ok {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"message":"unsupported parameter: web_search_options"}}`))
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"fallback ok"}}]}`))
+	}))
+	defer server.Close()
+
+	provider, err := NewOpenAILLMProvider(&domain.OpenAIProviderConfig{
+		APIKey:   "test-key",
+		BaseURL:  server.URL,
+		LLMModel: "gpt-4o-mini",
+	})
+	assert.NoError(t, err)
+
+	result, err := provider.GenerateWithTools(context.Background(), []domain.Message{
+		{Role: "user", Content: "today's news"},
+	}, nil, &domain.GenerationOptions{
+		WebSearchMode:        domain.WebSearchModeAuto,
+		WebSearchContextSize: "medium",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "fallback ok", result.Content)
+	assert.EqualValues(t, 2, requestCount.Load())
 }
 
 // Benchmark tests

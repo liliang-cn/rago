@@ -11,7 +11,6 @@ import (
 	"github.com/liliang-cn/agent-go/pkg/domain"
 	"github.com/liliang-cn/agent-go/pkg/mcp"
 	"github.com/liliang-cn/agent-go/pkg/memory"
-	"github.com/liliang-cn/agent-go/pkg/pool"
 	"github.com/liliang-cn/agent-go/pkg/ptc"
 	"github.com/liliang-cn/agent-go/pkg/rag/chunker"
 	ragprocessor "github.com/liliang-cn/agent-go/pkg/rag/processor"
@@ -122,6 +121,11 @@ type Builder struct {
 	// cached result
 	svc *Service
 	err error
+}
+
+type modelInfoProvider interface {
+	GetModelName() string
+	GetBaseURL() string
 }
 
 // New creates a new agent builder for chainable configuration.
@@ -552,16 +556,12 @@ func (b *Builder) build() (*Service, error) {
 		svc.Register(t)
 	}
 
-	// Store model metadata for Info()
-	// If custom LLM is provided (pool.Client), use its model info
-	if b.llmService != nil {
-		if pc, ok := b.llmService.(*pool.Client); ok {
-			svc.SetModelInfo(pc.GetModelName(), pc.GetBaseURL())
-		}
-	} else if len(agentgoCfg.LLM.Providers) > 0 {
-		p := agentgoCfg.LLM.Providers[0]
-		svc.SetModelInfo(p.ModelName, p.BaseURL)
+	if modelName, baseURL := resolveServiceModelInfo(llmSvc, agentgoCfg); modelName != "" || baseURL != "" {
+		svc.SetModelInfo(modelName, baseURL)
 	}
+
+	svc.agent.SetName(b.name)
+	svc.registry.Register(svc.agent)
 
 	if b.systemPrompt != "" {
 		svc.SetAgentInstructions(b.systemPrompt)
@@ -633,6 +633,19 @@ func (b *Builder) build() (*Service, error) {
 	}
 
 	return svc, nil
+}
+
+func resolveServiceModelInfo(llmSvc domain.Generator, cfg *config.Config) (string, string) {
+	if provider, ok := llmSvc.(modelInfoProvider); ok {
+		return provider.GetModelName(), provider.GetBaseURL()
+	}
+
+	if cfg != nil && len(cfg.LLM.Providers) > 0 {
+		p := cfg.LLM.Providers[0]
+		return p.ModelName, p.BaseURL
+	}
+
+	return "", ""
 }
 
 func (b *Builder) buildMemoryService(agentgoCfg *config.Config, embedSvc domain.Embedder, llmSvc domain.Generator) (domain.MemoryService, error) {

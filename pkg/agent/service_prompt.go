@@ -37,6 +37,10 @@ func (s *Service) buildSystemPrompt(ctx context.Context, agent *Agent) string {
 		rendered += "\n\n" + summary
 	}
 
+	if note := s.buildWebSearchPromptNote(); note != "" {
+		rendered += "\n\n" + note
+	}
+
 	return rendered
 }
 
@@ -83,6 +87,11 @@ func (s *Service) buildPTCSystemPrompt(ctx context.Context) string {
 	if summary := s.buildToolCatalogSummary(ctx); summary != "" {
 		sb.WriteString("\n")
 		sb.WriteString(summary)
+	}
+
+	if note := s.buildWebSearchPromptNote(); note != "" {
+		sb.WriteString("\n\n")
+		sb.WriteString(note)
 	}
 
 	return sb.String()

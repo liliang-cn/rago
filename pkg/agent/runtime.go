@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
@@ -25,11 +24,12 @@ type Runtime struct {
 	eventChan    chan *Event
 	currentAgent *Agent
 	session      *Session
+	cfg          *RunConfig
 	sources      []domain.Chunk // Collect RAG sources during execution
 }
 
 // NewRuntime creates a new runtime instance
-func NewRuntime(svc *Service, session *Session) *Runtime {
+func NewRuntime(svc *Service, session *Session, cfg *RunConfig) *Runtime {
 	// Determine initial agent
 	currentAgent := svc.agent
 	if session.AgentID != "" && svc.registry != nil {
@@ -43,6 +43,7 @@ func NewRuntime(svc *Service, session *Session) *Runtime {
 		eventChan:    make(chan *Event, 100), // Buffer events
 		currentAgent: currentAgent,
 		session:      session,
+		cfg:          cfg,
 	}
 }
 
@@ -55,16 +56,13 @@ func (r *Runtime) RunStream(ctx context.Context, goal string) <-chan *Event {
 // loop is the core event loop
 func (r *Runtime) loop(ctx context.Context, goal string) {
 	defer func() {
-		fmt.Fprintf(os.Stderr, "[AGENT] Runtime loop finished\n")
 		close(r.eventChan)
 	}()
-
-	fmt.Fprintf(os.Stderr, "[AGENT] Runtime loop started for goal: %s\n", goal)
 
 	r.emit(EventTypeStart, fmt.Sprintf("Starting task: %s", goal))
 
 	// --- DEBUG: LOG AGENT CONFIGURATION ---
-	if r.svc.debug {
+	if r.debugEnabled() {
 		var sb strings.Builder
 		info := r.svc.Info()
 		fmt.Fprintf(&sb, "AGENT:    %s (%s)\n", info.Name, info.ID)
@@ -72,16 +70,14 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		fmt.Fprintf(&sb, "BASEURL:  %s\n", info.BaseURL)
 		fmt.Fprintf(&sb, "FEATURES: RAG:%v, MCP:%v, Skills:%v, PTC:%v, Memory:%v\n",
 			info.RAGEnabled, info.MCPEnabled, info.SkillsEnabled, info.PTCEnabled, info.MemoryEnabled)
-		r.svc.EmitDebugPrint(0, "config", sb.String())
+		r.emitDebug(0, "config", sb.String())
 	}
 
 	// 1. Prepare context (Memory & RAG) — with a timeout so a slow embedding
 	// model or unreachable LLM doesn't block the entire run forever.
-	fmt.Fprintf(os.Stderr, "[AGENT] Preparing context...\n")
 	prepCtx, prepCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer prepCancel()
 	memoryContext, ragContext := r.prepareContext(prepCtx, goal)
-	fmt.Fprintf(os.Stderr, "[AGENT] Context prepared, memory=%d chars, rag=%d chars\n", len(memoryContext), len(ragContext))
 
 	// 2. Build initial messages
 	messages := []domain.Message{
@@ -115,7 +111,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		genMessages := append([]domain.Message{{Role: "system", Content: systemMsg}}, messages...)
 
 		// --- DEBUG: LOG FULL PROMPT + TOOLS ---
-		if r.svc.debug {
+		if r.debugEnabled() {
 			var promptBuilder strings.Builder
 			info := r.svc.Info()
 			fmt.Fprintf(&promptBuilder, "MODEL: %s (%s)\n", info.Model, info.BaseURL)
@@ -128,7 +124,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			for _, m := range genMessages {
 				fmt.Fprintf(&promptBuilder, "[%s]:\n%s\n", strings.ToUpper(m.Role), m.Content)
 			}
-			r.svc.EmitDebugPrint(round+1, "prompt", promptBuilder.String())
+			r.emitDebug(round+1, "prompt", promptBuilder.String())
 		}
 
 		// 5. LLM Call (Streaming)
@@ -143,11 +139,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		taskCompleteTriggered := false
 
 		var lastResponseID string
-		fmt.Fprintf(os.Stderr, "[AGENT] Round %d: Calling LLM with %d tools...\n", round, len(tools))
-		err := r.svc.llmService.StreamWithTools(ctx, genMessages, tools, &domain.GenerationOptions{
-			Temperature: 0.3,
-			MaxTokens:   2000,
-		}, func(delta *domain.GenerationResult) error {
+		err := r.svc.llmService.StreamWithTools(ctx, genMessages, tools, r.svc.toolGenerationOptions(0.3, 2000, ""), func(delta *domain.GenerationResult) error {
 			if delta.ID != "" {
 				lastResponseID = delta.ID
 			}
@@ -157,6 +149,8 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			//    and signal early termination by returning a sentinel error.
 			for _, tc := range delta.ToolCalls {
 				if tc.Function.Name == "task_complete" {
+					toolCalls = delta.ToolCalls
+					r.emitToolCall(tc.Function.Name, tc.Function.Arguments)
 					if r, ok := tc.Function.Arguments["result"].(string); ok && r != "" {
 						taskCompleteResult = r
 					}
@@ -193,6 +187,18 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			if result == "" {
 				result = fullContent.String()
 			}
+			if r.debugEnabled() {
+				var respBuilder strings.Builder
+				fmt.Fprintf(&respBuilder, "CONTENT: %s\n", fullContent.String())
+				if len(toolCalls) > 0 {
+					fmt.Fprintf(&respBuilder, "TOOL CALLS:\n")
+					for _, tc := range toolCalls {
+						fmt.Fprintf(&respBuilder, "  - %s(%v)\n", tc.Function.Name, tc.Function.Arguments)
+					}
+				}
+				r.emitDebug(round+1, "response", respBuilder.String())
+			}
+			r.emitToolResult("task_complete", result, nil)
 			allSources := r.sources
 			r.svc.ragSourcesMu.RLock()
 			allSources = append(allSources, r.svc.ragSources...)
@@ -219,7 +225,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		}
 
 		// --- DEBUG: LOG LLM RESPONSE ---
-		if r.svc.debug {
+		if r.debugEnabled() {
 			var respBuilder strings.Builder
 			fmt.Fprintf(&respBuilder, "CONTENT: %s\n", fullContent.String())
 			if len(toolCalls) > 0 {
@@ -232,7 +238,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			for i, m := range messages {
 				fmt.Fprintf(&respBuilder, " [%d] %s: %s\n", i, strings.ToUpper(m.Role), m.Content)
 			}
-			r.svc.EmitDebugPrint(round+1, "response", respBuilder.String())
+			r.emitDebug(round+1, "response", respBuilder.String())
 		}
 
 		// 6. Handle Result
@@ -275,25 +281,17 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			if r.svc.isPTCEnabled() {
 				content := fullContent.String()
 				isCode := r.svc.ptcIntegration.IsCodeResponse(content)
-				if r.svc.debug {
-					fmt.Fprintf(os.Stderr, "DEBUG [PTC Override] IsCodeResponse=%v contentLen=%d\n", isCode, len(content))
+				if r.debugEnabled() {
+					r.emitDebug(round+1, "ptc_override", fmt.Sprintf("IsCodeResponse=%v contentLen=%d", isCode, len(content)))
 				}
 				if isCode {
 					extracted := r.svc.ptcIntegration.ExtractCode(content)
-					if r.svc.debug {
-						if len(extracted) > 100 {
-							fmt.Fprintf(os.Stderr, "DEBUG [PTC Override] ExtractCode len=%d first100=%q\n", len(extracted), extracted[:100])
-						} else {
-							fmt.Fprintf(os.Stderr, "DEBUG [PTC Override] ExtractCode len=%d content=%q\n", len(extracted), extracted)
-						}
+					if r.debugEnabled() {
+						r.emitDebug(round+1, "ptc_override", fmt.Sprintf("Extracted code len=%d", len(extracted)))
 					}
 					extracted = sanitiseJSCode(extracted)
-					if r.svc.debug {
-						if len(extracted) > 100 {
-							fmt.Fprintf(os.Stderr, "DEBUG [PTC Override] After sanitise len=%d first100=%q\n", len(extracted), extracted[:100])
-						} else {
-							fmt.Fprintf(os.Stderr, "DEBUG [PTC Override] After sanitise len=%d content=%q\n", len(extracted), extracted)
-						}
+					if r.debugEnabled() {
+						r.emitDebug(round+1, "ptc_override", fmt.Sprintf("Sanitised code len=%d", len(extracted)))
 					}
 					if extracted != "" {
 						for i, tc := range toolCalls {
@@ -302,8 +300,8 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 									toolCalls[i].Function.Arguments = make(map[string]interface{})
 								}
 								toolCalls[i].Function.Arguments["code"] = extracted
-								if r.svc.debug {
-									fmt.Fprintf(os.Stderr, "DEBUG [PTC Override] Replaced code for tool call %d\n", i)
+								if r.debugEnabled() {
+									r.emitDebug(round+1, "ptc_override", fmt.Sprintf("Replaced execute_javascript payload for tool call %d", i))
 								}
 							}
 						}
@@ -497,24 +495,12 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 	}
 }
 
-// executeToolViaSubAgent runs a tool or skill call using a separate SubAgent goroutine
-func (r *Runtime) executeToolViaSubAgent(ctx context.Context, tc domain.ToolCall) (interface{}, error, bool) {
-	subagentID := uuid.New().String()
-	r.emit(EventTypeThinking, fmt.Sprintf("Delegating %s to SubAgent %s...", tc.Function.Name, subagentID[:8]))
-
-	return r.svc.executeToolViaSubAgent(ctx, r.currentAgent, r.session, tc)
-}
-
 // executeToolOrHandoff executes a tool call and handles agent switching
 func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) (interface{}, error, bool) {
 	toolName := tc.Function.Name
 	resolvedToolName := r.resolveExecutableToolName(toolName)
-
-	// --- DEBUG: LOG TOOL START ---
-	if r.svc.debug {
-		fmt.Fprintf(os.Stderr, "\n🛠️  DEBUG RUNTIME TOOL CALL: %s\n", resolvedToolName)
-		fmt.Fprintf(os.Stderr, "   Arguments: %v\n", tc.Function.Arguments)
-	}
+	ctx = withEventSink(ctx, r.forwardSubAgentEvent)
+	ctx = withRunDebug(ctx, r.debugEnabled())
 
 	// === PRE-TOOL HOOK ===
 	hookData := HookData{
@@ -645,16 +631,6 @@ func (r *Runtime) executeToolOrHandoff(ctx context.Context, tc domain.ToolCall) 
 		r.svc.hooks.Emit(HookEventPostToolUse, hookData)
 	}
 
-	// --- DEBUG: LOG TOOL RESULT ---
-	if r.svc.debug {
-		if execErr != nil {
-			fmt.Fprintf(os.Stderr, "   ❌ ERROR: %v\n", execErr)
-		} else {
-			fmt.Fprintf(os.Stderr, "   ✅ RESULT: %v\n", result)
-		}
-		fmt.Fprintln(os.Stderr, strings.Repeat("-", 20))
-	}
-
 	return result, execErr, false
 }
 
@@ -776,4 +752,8 @@ func (r *Runtime) emitDebug(round int, debugType string, content string) {
 		Content:   content,
 		Timestamp: time.Now(),
 	}
+}
+
+func (r *Runtime) debugEnabled() bool {
+	return r.svc.debug || (r.cfg != nil && r.cfg.Debug)
 }

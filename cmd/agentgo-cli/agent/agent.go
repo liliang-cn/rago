@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 	"sync"
 
@@ -458,6 +460,62 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 	return ragClient, agentService, nil
 }
 
+type streamRenderState struct {
+	currentRound     int
+	hasPartialOutput bool
+}
+
+func renderStreamEvent(w io.Writer, evt *agent.Event, state *streamRenderState) {
+	switch evt.Type {
+	case agent.EventTypeStart:
+		fmt.Fprintf(w, "🚀 %s\n", evt.Content)
+	case agent.EventTypeThinking:
+		state.currentRound++
+		fmt.Fprintf(w, "\n🔄 [Round %d] Thinking...\n", state.currentRound)
+		if evt.ToolResult != nil && evt.Content != "Thinking..." {
+			fmt.Fprintf(w, "💭 %s\n", evt.Content)
+		}
+	case agent.EventTypeToolCall:
+		fmt.Fprintf(w, "🛠️  Using Tool: %s (args: %v)\n", evt.ToolName, evt.ToolArgs)
+	case agent.EventTypeToolResult:
+		// task_complete already maps to the final assistant answer shown on complete.
+		if evt.ToolName == "task_complete" {
+			return
+		}
+		fmt.Fprintf(w, "✅ Tool Success: %s\n", evt.ToolName)
+		if evt.ToolResult != nil {
+			fmt.Fprintf(w, "📝 Result: %v\n", evt.ToolResult)
+		}
+	case agent.EventTypeHandoff:
+		fmt.Fprintf(w, "🔀 Handoff: %s\n", evt.Content)
+	case agent.EventTypePartial:
+		fmt.Fprint(w, evt.Content)
+		state.hasPartialOutput = true
+	case agent.EventTypeComplete:
+		if !state.hasPartialOutput && evt.Content != "" {
+			fmt.Fprintf(w, "\n%s", evt.Content)
+		}
+		fmt.Fprint(w, "\n\n🏁 Task Completed!\n")
+		if len(evt.Sources) > 0 {
+			fmt.Fprint(w, "\n📚 Sources:\n")
+			for i, src := range evt.Sources {
+				preview := src.Content
+				if len(preview) > 100 {
+					preview = preview[:100] + "..."
+				}
+				fmt.Fprintf(w, "  %d. %s\n", i+1, preview)
+			}
+		}
+	case agent.EventTypeDebug:
+		label := strings.ToUpper(evt.DebugType)
+		sep := strings.Repeat("─", 60)
+		fmt.Fprintf(w, "\n\033[2m%s\n🐛 DEBUG [Round %d] %s\n%s\n%s\n%s\033[0m\n",
+			sep, evt.Round, label, sep, evt.Content, sep)
+	case agent.EventTypeError:
+		fmt.Fprintf(w, "\n❌ Error: %s\n", evt.Content)
+	}
+}
+
 // runStream runs the agent with Event Loop streaming output
 func runStream(ctx context.Context, goal string) error {
 	fmt.Printf("🎯 Agent Goal: %s\n\n", goal)
@@ -478,57 +536,10 @@ func runStream(ctx context.Context, goal string) error {
 	}
 
 	// Consume events
-	var currentRound int
-	var hasPartialOutput bool
+	out := io.Writer(os.Stdout)
+	state := &streamRenderState{}
 	for evt := range events {
-		switch evt.Type {
-		case agent.EventTypeStart:
-			fmt.Printf("🚀 %s\n", evt.Content)
-		case agent.EventTypeThinking:
-			currentRound++
-			fmt.Printf("\n🔄 [Round %d] Thinking...\n", currentRound)
-			if evt.ToolResult != nil && evt.Content != "Thinking..." {
-				fmt.Printf("💭 %s\n", evt.Content)
-			}
-		case agent.EventTypeToolCall:
-			fmt.Printf("🛠️  Using Tool: %s (args: %v)\n", evt.ToolName, evt.ToolArgs)
-		case agent.EventTypeToolResult:
-			fmt.Printf("✅ Tool Success: %s\n", evt.ToolName)
-			if evt.ToolResult != nil {
-				fmt.Printf("📝 Result: %v\n", evt.ToolResult)
-			}
-		case agent.EventTypeHandoff:
-			fmt.Printf("🔀 Handoff: %s\n", evt.Content)
-		case agent.EventTypePartial:
-			// Print text as it comes (Typewriter effect)
-			fmt.Print(evt.Content)
-			hasPartialOutput = true
-		case agent.EventTypeComplete:
-			// Only print content if it wasn't already streamed via EventTypePartial
-			if !hasPartialOutput && evt.Content != "" {
-				fmt.Printf("\n%s", evt.Content)
-			}
-			fmt.Printf("\n\n🏁 Task Completed!\n")
-			// Show RAG sources if available
-			if len(evt.Sources) > 0 {
-				fmt.Printf("\n📚 Sources:\n")
-				for i, src := range evt.Sources {
-					preview := src.Content
-					if len(preview) > 100 {
-						preview = preview[:100] + "..."
-					}
-					fmt.Printf("  %d. %s\n", i+1, preview)
-				}
-			}
-		case agent.EventTypeDebug:
-			// Render debug output with a clear visual separator so it's easy to scan
-			label := strings.ToUpper(evt.DebugType)
-			sep := strings.Repeat("─", 60)
-			fmt.Printf("\n\033[2m%s\n🐛 DEBUG [Round %d] %s\n%s\n%s\n%s\033[0m\n",
-				sep, evt.Round, label, sep, evt.Content, sep)
-		case agent.EventTypeError:
-			fmt.Printf("\n❌ Error: %s\n", evt.Content)
-		}
+		renderStreamEvent(out, evt, state)
 	}
 
 	return nil

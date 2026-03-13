@@ -346,6 +346,24 @@ type llmServiceWrapper struct {
 	hint pool.SelectionHint
 }
 
+func (w *llmServiceWrapper) GetModelName() string {
+	client, err := w.pool.GetWithHint(w.hint)
+	if err != nil {
+		return w.hint.PreferredModel
+	}
+	defer w.pool.Release(client)
+	return client.GetModelName()
+}
+
+func (w *llmServiceWrapper) GetBaseURL() string {
+	client, err := w.pool.GetWithHint(w.hint)
+	if err != nil {
+		return ""
+	}
+	defer w.pool.Release(client)
+	return client.GetBaseURL()
+}
+
 func (w *llmServiceWrapper) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
 	client, err := w.pool.GetWithHint(w.hint)
 	if err != nil {

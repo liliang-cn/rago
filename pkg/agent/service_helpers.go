@@ -86,9 +86,13 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 		allMCP := s.mcpService.ListTools()
 		activeMap := s.toolRegistry.sessionActivated[sessionID]
 		deferAllMCP := searchMode
+		hideNativeWebSearchTools := s.shouldHideMCPWebSearchTools()
 
 		if currentAgent == nil || isAllAllowed(currentAgent.mcpTools) {
 			for _, tool := range allMCP {
+				if hideNativeWebSearchTools && isMCPWebSearchToolName(tool.Function.Name) {
+					continue
+				}
 				if !deferAllMCP || (activeMap != nil && activeMap[tool.Function.Name]) {
 					// Set DeferLoading based on whether we're deferring
 					t := tool
@@ -100,6 +104,9 @@ func (s *Service) collectAllAvailableTools(ctx context.Context, currentAgent *Ag
 			}
 		} else {
 			for _, tool := range allMCP {
+				if hideNativeWebSearchTools && isMCPWebSearchToolName(tool.Function.Name) {
+					continue
+				}
 				if containsStr(currentAgent.mcpTools, tool.Function.Name) {
 					if !deferAllMCP || (activeMap != nil && activeMap[tool.Function.Name]) {
 						// Set DeferLoading based on whether we're deferring
@@ -198,6 +205,42 @@ func (s *Service) shouldExposeSearchTools() bool {
 	return s.cfg.Tooling.SavingMode && s.cfg.Tooling.EnableSearchTools
 }
 
+func (s *Service) webSearchMode() domain.WebSearchMode {
+	if s == nil || s.cfg == nil {
+		return domain.WebSearchModeMCP
+	}
+	return domain.NormalizeWebSearchMode(domain.WebSearchMode(s.cfg.Tooling.WebSearch.Mode))
+}
+
+func (s *Service) webSearchContextSize() string {
+	if s == nil || s.cfg == nil {
+		return "medium"
+	}
+	return domain.NormalizeWebSearchContextSize(s.cfg.Tooling.WebSearch.SearchContextSize)
+}
+
+func (s *Service) shouldHideMCPWebSearchTools() bool {
+	mode := s.webSearchMode()
+	return mode == domain.WebSearchModeNative || mode == domain.WebSearchModeOff
+}
+
+func isMCPWebSearchToolName(name string) bool {
+	return strings.HasPrefix(name, "mcp_websearch_")
+}
+
+func (s *Service) toolGenerationOptions(temperature float64, maxTokens int, toolChoice string) *domain.GenerationOptions {
+	opts := &domain.GenerationOptions{
+		Temperature:          temperature,
+		MaxTokens:            maxTokens,
+		WebSearchMode:        s.webSearchMode(),
+		WebSearchContextSize: s.webSearchContextSize(),
+	}
+	if toolChoice != "" {
+		opts.ToolChoice = toolChoice
+	}
+	return opts
+}
+
 func (s *Service) ptcAvailableCallTools(ctx context.Context) []ptc.ToolInfo {
 	if s.ptcIntegration == nil {
 		return nil
@@ -286,6 +329,19 @@ func (s *Service) buildToolCatalogSummary(ctx context.Context) string {
 		"- Tool schemas are minimized to save tokens.\n" +
 		"- Use search tools when you need an exact callable name.\n" +
 		strings.Join(lines, "\n")
+}
+
+func (s *Service) buildWebSearchPromptNote() string {
+	switch s.webSearchMode() {
+	case domain.WebSearchModeNative:
+		return "Web search capability:\n- Up-to-date web lookups are available through the model's native web search capability.\n- Do not search the tool catalog for mcp_websearch tools when you need current web information."
+	case domain.WebSearchModeAuto:
+		return "Web search capability:\n- Prefer the model's native web search capability for up-to-date web lookups.\n- If native search is unavailable or insufficient, use the available mcp_websearch_* tools as a fallback."
+	case domain.WebSearchModeOff:
+		return "Web search capability:\n- Web search is disabled for this run.\n- Do not look for mcp_websearch tools."
+	default:
+		return ""
+	}
 }
 
 func (s *Service) resetRunMemorySaved() {
@@ -439,6 +495,10 @@ func collectAvailableTools(mcpService MCPToolExecutor, ragProcessor domain.Proce
 
 // executeToolViaSubAgent runs a tool or skill call using a separate SubAgent goroutine
 func (s *Service) executeToolViaSubAgent(ctx context.Context, currentAgent *Agent, session *Session, tc domain.ToolCall) (interface{}, error, bool) {
+	return s.executeToolViaSubAgentWithEvents(ctx, currentAgent, session, tc, nil, s.debug)
+}
+
+func (s *Service) executeToolViaSubAgentWithEvents(ctx context.Context, currentAgent *Agent, session *Session, tc domain.ToolCall, sink func(*Event), debug bool) (interface{}, error, bool) {
 	// Create subagent config
 	subCfg := SubAgentConfig{
 		Agent:         currentAgent,
@@ -446,12 +506,23 @@ func (s *Service) executeToolViaSubAgent(ctx context.Context, currentAgent *Agen
 		Goal:          fmt.Sprintf("Execute tool: %s", tc.Function.Name),
 		Service:       s,
 		ToolCall:      &tc,
+		Debug:         debug,
 	}
 
 	sa := NewSubAgent(subCfg)
 
-	// Run subagent
-	result, err := sa.Run(ctx)
+	var (
+		result interface{}
+		err    error
+	)
+	if sink == nil {
+		result, err = sa.Run(ctx)
+	} else {
+		for evt := range sa.RunAsync(ctx) {
+			sink(evt)
+		}
+		result, err = sa.GetResult()
+	}
 
 	// Check if this was a handoff
 	isHandoff := strings.HasPrefix(tc.Function.Name, "transfer_to_") && err == nil

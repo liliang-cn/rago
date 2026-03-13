@@ -200,13 +200,7 @@ func (c *Client) Stream(ctx context.Context, prompt string, opts *domain.Generat
 	return nil
 }
 
-// GenerateWithTools 使用工具生成
-func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
-	if opts == nil {
-		opts = &domain.GenerationOptions{}
-	}
-
-	// 转换messages格式
+func buildPoolGenerateWithToolsRequest(modelName string, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) map[string]interface{} {
 	apiMessages := make([]map[string]interface{}, len(messages))
 	for i, msg := range messages {
 		apiMessages[i] = map[string]interface{}{
@@ -214,7 +208,6 @@ func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Messag
 			"content": msg.Content,
 		}
 		if msg.ToolCalls != nil {
-			// Transform tool calls to match API requirement (arguments as string)
 			apiToolCalls := make([]map[string]interface{}, len(msg.ToolCalls))
 			for j, tc := range msg.ToolCalls {
 				argsBytes, _ := json.Marshal(tc.Function.Arguments)
@@ -237,7 +230,6 @@ func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Messag
 		}
 	}
 
-	// 转换tools格式
 	apiTools := make([]map[string]interface{}, len(tools))
 	for i, tool := range tools {
 		apiTools[i] = map[string]interface{}{
@@ -247,22 +239,58 @@ func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Messag
 	}
 
 	reqBody := map[string]interface{}{
-		"model":    c.modelName,
+		"model":    modelName,
 		"messages": apiMessages,
 		"tools":    apiTools,
 	}
 
-	if opts.Temperature > 0 {
-		reqBody["temperature"] = opts.Temperature
-	}
-	if opts.MaxTokens > 0 {
-		reqBody["max_tokens"] = opts.MaxTokens
-	}
-	if opts.ToolChoice != "" {
-		reqBody["tool_choice"] = opts.ToolChoice
+	if opts != nil {
+		if opts.Temperature > 0 {
+			reqBody["temperature"] = opts.Temperature
+		}
+		if opts.MaxTokens > 0 {
+			reqBody["max_tokens"] = opts.MaxTokens
+		}
+		if opts.ToolChoice != "" {
+			reqBody["tool_choice"] = opts.ToolChoice
+		}
+		if domain.UsesNativeWebSearch(opts.WebSearchMode) {
+			reqBody["web_search_options"] = map[string]interface{}{
+				"search_context_size": domain.NormalizeWebSearchContextSize(opts.WebSearchContextSize),
+			}
+		}
 	}
 
+	return reqBody
+}
+
+func shouldRetryPoolWithoutNativeWebSearch(opts *domain.GenerationOptions, err error) bool {
+	if opts == nil || domain.NormalizeWebSearchMode(opts.WebSearchMode) != domain.WebSearchModeAuto || err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "web_search_options") ||
+		strings.Contains(msg, "web search") ||
+		strings.Contains(msg, "unsupported parameter") ||
+		strings.Contains(msg, "unknown field")
+}
+
+// GenerateWithTools 使用工具生成
+func (c *Client) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
+	if opts == nil {
+		opts = &domain.GenerationOptions{}
+	}
+	reqBody := buildPoolGenerateWithToolsRequest(c.modelName, messages, tools, opts)
+
 	resp, err := c.doRequest(ctx, "/chat/completions", reqBody)
+	if err != nil {
+		if shouldRetryPoolWithoutNativeWebSearch(opts, err) {
+			retryOpts := *opts
+			retryOpts.WebSearchMode = domain.WebSearchModeMCP
+			resp, err = c.doRequest(ctx, "/chat/completions", buildPoolGenerateWithToolsRequest(c.modelName, messages, tools, &retryOpts))
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("request failed (model=%s): %w", c.modelName, err)
 	}

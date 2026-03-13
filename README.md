@@ -2,6 +2,8 @@
 
 **Local-first RAG + Agent framework for Go.**
 
+> “AgentGo? It's useless and it consumes a lot of tokens.” -- some guy on the internet
+
 [中文文档](README_zh-CN.md) · [API Reference](references/API.md) · [Architecture](references/ARCHITECTURE.md)
 
 AgentGo is a Go library for building AI applications that keep your data local. Start with semantic search over your documents, add agent automation when you need it.
@@ -14,15 +16,15 @@ go get github.com/liliang-cn/agent-go
 
 ## What AgentGo does
 
-| Capability | Details |
-|---|---|
-| **RAG** | Ingest docs → chunk → embed → SQLite vector store → hybrid search |
-| **Agent** | Multi-turn reasoning loop with tool calls, planning, and session memory |
-| **Memory** | **Cognitive Layer**: Hindsight-style evolution (Fact → Observation) + PageIndex-style reasoning navigation |
-| **Tools** | MCP (Model Context Protocol), Skills (YAML+Markdown), custom inline tools |
-| **PTC** | LLM writes JavaScript; tools run in a Goja sandbox — cuts round-trips |
-| **Streaming** | Token-by-token via channel; full event stream with tool call visibility |
-| **Providers** | OpenAI, Anthropic, Azure, DeepSeek, Ollama — switchable at runtime |
+| Capability    | Details                                                                                                    |
+| ------------- | ---------------------------------------------------------------------------------------------------------- |
+| **RAG**       | Ingest docs → chunk → embed → SQLite vector store → hybrid search                                          |
+| **Agent**     | Multi-turn reasoning loop with tool calls, planning, and session memory                                    |
+| **Memory**    | **Cognitive Layer**: Hindsight-style evolution (Fact → Observation) + PageIndex-style reasoning navigation |
+| **Tools**     | MCP (Model Context Protocol), Skills (YAML+Markdown), custom inline tools                                  |
+| **PTC**       | LLM writes JavaScript; tools run in a Goja sandbox — cuts round-trips                                      |
+| **Streaming** | Token-by-token via channel; full event stream with tool call visibility                                    |
+| **Providers** | OpenAI, Anthropic, Azure, DeepSeek, Ollama — switchable at runtime                                         |
 
 ---
 
@@ -103,13 +105,13 @@ agentgo squad go "@Assistant @Writer summarize the UI/backend relationship and w
 
 AgentGo implements an evolving memory layer inspired by **Hindsight** (Cognitive Hierarchy) and **PageIndex** (Structural Navigation).
 
-| Concept | Description |
-|---|---|
-| **Facts** | Raw atomic data points extracted from conversations (e.g., "User likes Go"). |
-| **Observations** | LLM-consolidated insights synthesized from multiple facts via **Reflect()**. |
-| **Hierarchical Index** | A `_index/` directory with Markdown summaries for lightning-fast reasoning navigation. |
-| **Hybrid Search** | Parallel **Vector Search** (similarity) + **Index Navigator** (reasoning) fused via RRF. |
-| **Traceability** | Every observation tracks its **EvidenceIDs**, providing a clear audit trail of why the agent "knows" something. |
+| Concept                | Description                                                                                                     |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Facts**              | Raw atomic data points extracted from conversations (e.g., "User likes Go").                                    |
+| **Observations**       | LLM-consolidated insights synthesized from multiple facts via **Reflect()**.                                    |
+| **Hierarchical Index** | A `_index/` directory with Markdown summaries for lightning-fast reasoning navigation.                          |
+| **Hybrid Search**      | Parallel **Vector Search** (similarity) + **Index Navigator** (reasoning) fused via RRF.                        |
+| **Traceability**       | Every observation tracks its **EvidenceIDs**, providing a clear audit trail of why the agent "knows" something. |
 
 ### Memory Evolution
 
@@ -121,6 +123,7 @@ AgentGo implements an evolving memory layer inspired by **Hindsight** (Cognitive
 ---
 
 ## Builder
+
 ```go
 // Implement your own module
 type Module interface {
@@ -137,14 +140,14 @@ svc, _ := agent.New("agent").
 
 ## Invocation API
 
-| Method | Returns | Session | Use case |
-|---|---|---|---|
-| `Ask(ctx, prompt)` | `(string, error)` | no | one-shot Q&A |
-| `Chat(ctx, prompt)` | `(*ExecutionResult, error)` | yes (auto UUID) | conversational |
-| `Run(ctx, goal, ...opts)` | `(*ExecutionResult, error)` | optional | full agent loop |
-| `Stream(ctx, prompt)` | `<-chan string` | no | live token output |
-| `ChatStream(ctx, prompt)` | `<-chan string` | yes | conversational + live |
-| `RunStream(ctx, goal)` | `(<-chan *Event, error)` | optional | full event visibility |
+| Method                    | Returns                     | Session         | Use case              |
+| ------------------------- | --------------------------- | --------------- | --------------------- |
+| `Ask(ctx, prompt)`        | `(string, error)`           | no              | one-shot Q&A          |
+| `Chat(ctx, prompt)`       | `(*ExecutionResult, error)` | yes (auto UUID) | conversational        |
+| `Run(ctx, goal, ...opts)` | `(*ExecutionResult, error)` | optional        | full agent loop       |
+| `Stream(ctx, prompt)`     | `<-chan string`             | no              | live token output     |
+| `ChatStream(ctx, prompt)` | `<-chan string`             | yes             | conversational + live |
+| `RunStream(ctx, goal)`    | `(<-chan *Event, error)`    | optional        | full event visibility |
 
 ```go
 result, _ := svc.Run(ctx, "goal",
@@ -188,10 +191,10 @@ svc, _ := agent.New("analyst").
 
 Memory and cache are different subsystems:
 
-| Subsystem | Storage | What for |
-|---|---|---|
-| **Memory** | Markdown/YAML files or SQLite + vectors | Durable facts, observations, preferences, and reasoning context |
-| **Cache** | In-memory or file-backed JSON entries | Disposable acceleration artifacts for query/vector/LLM/chunk reuse |
+| Subsystem  | Storage                                 | What for                                                           |
+| ---------- | --------------------------------------- | ------------------------------------------------------------------ |
+| **Memory** | Markdown/YAML files or SQLite + vectors | Durable facts, observations, preferences, and reasoning context    |
+| **Cache**  | In-memory or file-backed JSON entries   | Disposable acceleration artifacts for query/vector/LLM/chunk reuse |
 
 ```go
 // Enable cognitive memory
@@ -205,12 +208,14 @@ lr, _ := agent.NewLongRun(svc).
 ```
 
 Memory degrades gracefully:
+
 - no embedder -> file memory still works
 - file-backed memory uses Markdown + YAML frontmatter and PageIndex-style retrieval
 - `remember:` prompts can be written directly to memory
 - ordinary dialogue can also be extracted into memory via `StoreIfWorthwhile`
 
 Cache is separate from memory:
+
 - use `agentgo cache status|put|get|delete|clear`
 - configure `cache.store_type = "memory"` or `cache.store_type = "file"`
 
@@ -333,26 +338,26 @@ Config file: `agentgo.toml` (auto-discovered in `./` → `~/.agentgo/` → `~/.a
 
 ### SQLite files
 
-| File | Default path | Purpose |
-|------|-------------|---------|
-| `agentgo.db` | `$home/data/agentgo.db` | RAG documents + vector index; shared as Memory vector store when `memory.store_type = "vector"` |
-| `agent.db` | `$home/data/agent.db` | Agent sessions and plan state |
-| `history.db` *(opt)* | via `WithHistoryDBPath()` | Detailed tool-call logs — only created when `WithStoreHistory(true)` |
+| File                 | Default path              | Purpose                                                                                         |
+| -------------------- | ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `agentgo.db`         | `$home/data/agentgo.db`   | RAG documents + vector index; shared as Memory vector store when `memory.store_type = "vector"` |
+| `agent.db`           | `$home/data/agent.db`     | Agent sessions and plan state                                                                   |
+| `history.db` _(opt)_ | via `WithHistoryDBPath()` | Detailed tool-call logs — only created when `WithStoreHistory(true)`                            |
 
 ### Memory store types
 
-| `store_type` | Storage | Requires embedder |
-|-------------|---------|-------------------|
-| `file` *(default)* | `data/memories/entities/*.md` and `data/memories/streams/*.md` | No |
-| `vector` | `data/agentgo.db` (shared) | Yes |
-| `hybrid` | file primary + `agentgo.db` shadow index | Yes |
+| `store_type`       | Storage                                                        | Requires embedder |
+| ------------------ | -------------------------------------------------------------- | ----------------- |
+| `file` _(default)_ | `data/memories/entities/*.md` and `data/memories/streams/*.md` | No                |
+| `vector`           | `data/agentgo.db` (shared)                                     | Yes               |
+| `hybrid`           | file primary + `agentgo.db` shadow index                       | Yes               |
 
 ### Cache store types
 
-| `store_type` | Storage | Purpose |
-|-------------|---------|---------|
-| `memory` *(default)* | in-process memory | Fast ephemeral cache |
-| `file` | `data/cache/<namespace>/*.json` | Restart-friendly cache persistence |
+| `store_type`         | Storage                         | Purpose                            |
+| -------------------- | ------------------------------- | ---------------------------------- |
+| `memory` _(default)_ | in-process memory               | Fast ephemeral cache               |
+| `file`               | `data/cache/<namespace>/*.json` | Restart-friendly cache persistence |
 
 ### Key config fields
 

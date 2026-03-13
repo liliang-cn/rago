@@ -168,6 +168,11 @@ func (a *Agent) SetInstructions(instructions string) {
 	a.instructions = instructions
 }
 
+// SetName updates the agent's display name.
+func (a *Agent) SetName(name string) {
+	a.name = name
+}
+
 // SetTools sets the agent's available tools
 func (a *Agent) SetTools(tools []domain.ToolDefinition) {
 	a.tools = tools

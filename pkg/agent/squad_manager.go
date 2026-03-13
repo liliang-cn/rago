@@ -22,14 +22,16 @@ import (
 
 // SquadManager handles the lifecycle, discovery, and execution routing for squad members.
 type SquadManager struct {
-	store         *Store
-	runningAgents map[string]context.CancelFunc // Tracks running agents if they are background loopers
-	services      map[string]*Service           // Cached instantiated agent services
-	mu            sync.RWMutex
-	queueMu       sync.Mutex
-	taskQueues    map[string][]string
-	sharedTasks   map[string]*SharedTask
-	queueRunning  map[string]bool
+	store          *Store
+	runningAgents  map[string]context.CancelFunc // Tracks running agents if they are background loopers
+	services       map[string]*Service           // Cached instantiated agent services
+	mu             sync.RWMutex
+	sessionMu      sync.Mutex
+	memberSessions map[string]string
+	queueMu        sync.Mutex
+	taskQueues     map[string][]string
+	sharedTasks    map[string]*SharedTask
+	queueRunning   map[string]bool
 }
 
 // TeamManager is kept as a compatibility alias for older call sites.
@@ -181,12 +183,13 @@ func (m *SquadManager) ensureDefaultSquad() (*Squad, error) {
 // NewSquadManager creates a new squad manager based on a store.
 func NewSquadManager(s *Store) *SquadManager {
 	return &SquadManager{
-		store:         s,
-		runningAgents: make(map[string]context.CancelFunc),
-		services:      make(map[string]*Service),
-		taskQueues:    make(map[string][]string),
-		sharedTasks:   make(map[string]*SharedTask),
-		queueRunning:  make(map[string]bool),
+		store:          s,
+		runningAgents:  make(map[string]context.CancelFunc),
+		services:       make(map[string]*Service),
+		memberSessions: make(map[string]string),
+		taskQueues:     make(map[string][]string),
+		sharedTasks:    make(map[string]*SharedTask),
+		queueRunning:   make(map[string]bool),
 	}
 }
 
@@ -338,7 +341,7 @@ func (m *SquadManager) executeSharedTask(ctx context.Context, task *SharedTask) 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			text, err := m.DispatchTask(ctx, agentName, task.Prompt)
+			text, err := m.ChatWithMember(ctx, task.CaptainName, agentName, task.Prompt)
 			resultCh <- dispatchResult{AgentName: agentName, Text: strings.TrimSpace(text), Err: err}
 		}()
 	}
@@ -1018,6 +1021,19 @@ func isMeaningfulDispatchText(text string) bool {
 
 // DispatchTask runs the task on the target squad member service directly.
 func (m *SquadManager) DispatchTask(ctx context.Context, agentName string, instruction string) (string, error) {
+	return m.dispatchTask(ctx, agentName, instruction, "")
+}
+
+// ChatWithMember runs a squad chat turn with persistent history scoped to one conversation key and member.
+func (m *SquadManager) ChatWithMember(ctx context.Context, conversationKey, agentName string, instruction string) (string, error) {
+	conversationKey = strings.TrimSpace(conversationKey)
+	if conversationKey == "" {
+		return m.DispatchTask(ctx, agentName, instruction)
+	}
+	return m.dispatchTask(ctx, agentName, instruction, m.conversationSessionID(conversationKey, agentName))
+}
+
+func (m *SquadManager) dispatchTask(ctx context.Context, agentName string, instruction string, sessionID string) (string, error) {
 	if err := m.ensureAgentRunning(ctx, agentName); err != nil {
 		return "", fmt.Errorf("cannot start agent %s: %w", agentName, err)
 	}
@@ -1032,9 +1048,12 @@ func (m *SquadManager) DispatchTask(ctx context.Context, agentName string, instr
 		wrappedInstruction = buildTeamTaskEnvelope(cfg, agentName, instruction)
 	}
 
-	// For dispatch, we create a temporary sub-agent flow or run directly
-	// Let's run a single session Run
-	res, err := svc.Run(ctx, wrappedInstruction, dispatchRunOptions(agentName)...)
+	runOptions := dispatchRunOptions(agentName)
+	if strings.TrimSpace(sessionID) != "" {
+		runOptions = append(runOptions, WithSessionID(sessionID))
+	}
+
+	res, err := svc.Run(ctx, wrappedInstruction, runOptions...)
 	if err != nil {
 		return "", err
 	}
@@ -1047,8 +1066,50 @@ func (m *SquadManager) DispatchTask(ctx context.Context, agentName string, instr
 	return string(bz), nil
 }
 
+func (m *SquadManager) conversationSessionID(conversationKey, agentName string) string {
+	key := strings.ToLower(strings.TrimSpace(conversationKey)) + "::" + strings.ToLower(strings.TrimSpace(agentName))
+
+	m.sessionMu.Lock()
+	defer m.sessionMu.Unlock()
+
+	if sessionID, ok := m.memberSessions[key]; ok && strings.TrimSpace(sessionID) != "" {
+		return sessionID
+	}
+
+	sessionID := uuid.NewString()
+	m.memberSessions[key] = sessionID
+	return sessionID
+}
+
 // DispatchTaskStream runs the task on the target agent and returns the raw event stream.
 func (m *SquadManager) DispatchTaskStream(ctx context.Context, agentName string, instruction string) (<-chan *Event, error) {
+	return m.dispatchTaskStream(ctx, agentName, instruction, "", nil)
+}
+
+// ChatWithMemberStream runs a squad chat turn with persistent history and returns the raw event stream.
+func (m *SquadManager) ChatWithMemberStream(ctx context.Context, conversationKey, agentName, instruction string) (<-chan *Event, error) {
+	conversationKey = strings.TrimSpace(conversationKey)
+	if conversationKey == "" {
+		return m.DispatchTaskStream(ctx, agentName, instruction)
+	}
+	return m.dispatchTaskStream(ctx, agentName, instruction, m.conversationSessionID(conversationKey, agentName), nil)
+}
+
+// DispatchTaskStreamWithOptions runs the task and returns the raw event stream with explicit run options.
+func (m *SquadManager) DispatchTaskStreamWithOptions(ctx context.Context, agentName string, instruction string, opts ...RunOption) (<-chan *Event, error) {
+	return m.dispatchTaskStream(ctx, agentName, instruction, "", opts)
+}
+
+// ChatWithMemberStreamWithOptions runs a squad chat turn with persistent history and explicit run options.
+func (m *SquadManager) ChatWithMemberStreamWithOptions(ctx context.Context, conversationKey, agentName, instruction string, opts ...RunOption) (<-chan *Event, error) {
+	conversationKey = strings.TrimSpace(conversationKey)
+	if conversationKey == "" {
+		return m.DispatchTaskStreamWithOptions(ctx, agentName, instruction, opts...)
+	}
+	return m.dispatchTaskStream(ctx, agentName, instruction, m.conversationSessionID(conversationKey, agentName), opts)
+}
+
+func (m *SquadManager) dispatchTaskStream(ctx context.Context, agentName string, instruction string, sessionID string, extraOpts []RunOption) (<-chan *Event, error) {
 	if err := m.ensureAgentRunning(ctx, agentName); err != nil {
 		return nil, fmt.Errorf("cannot start agent %s: %w", agentName, err)
 	}
@@ -1063,7 +1124,13 @@ func (m *SquadManager) DispatchTaskStream(ctx context.Context, agentName string,
 		wrappedInstruction = buildTeamTaskEnvelope(cfg, agentName, instruction)
 	}
 
-	return svc.RunStream(ctx, wrappedInstruction)
+	runOptions := dispatchRunOptions(agentName)
+	if strings.TrimSpace(sessionID) != "" {
+		runOptions = append(runOptions, WithSessionID(sessionID))
+	}
+	runOptions = append(runOptions, extraOpts...)
+
+	return svc.RunStreamWithOptions(ctx, wrappedInstruction, runOptions...)
 }
 
 func dispatchRunOptions(agentName string) []RunOption {

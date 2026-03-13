@@ -1,6 +1,9 @@
 package squad
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 func TestParseDelegatedTasks(t *testing.T) {
 	isKnown := func(name string) bool {
@@ -80,5 +83,15 @@ func TestSquadCommandHasMemberAddSubcommand(t *testing.T) {
 	}
 	if cmd == nil || cmd.Name() != "add" {
 		t.Fatalf("unexpected command: %#v", cmd)
+	}
+}
+
+func TestDecodeInputRuneFromReaderHandlesChineseUTF8(t *testing.T) {
+	r, n := decodeInputRuneFromReader(bytes.NewBufferString("\xbd\xa0"), 0xe4)
+	if r != '你' {
+		t.Fatalf("expected 你, got %q", r)
+	}
+	if n != 3 {
+		t.Fatalf("expected 3-byte rune, got %d", n)
 	}
 }

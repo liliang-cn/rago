@@ -67,6 +67,7 @@ type SubAgentConfig struct {
 	RetryOnFailure  int                      // Number of retries on failure (default: 0)
 	CancelOnTimeout bool                     // Cancel execution on timeout (default: true)
 	ToolCall        *domain.ToolCall         // (Optional) Specific tool call to execute
+	Debug           bool                     // Emit debug prompt/response events
 }
 
 // SubAgent represents a wrapped agent execution with independent context
@@ -95,6 +96,7 @@ type SubAgent struct {
 
 	// Progress tracking
 	progressChan chan SubAgentProgress
+	events       chan *Event
 }
 
 // SubAgentOption configures a SubAgent
@@ -142,6 +144,7 @@ func NewSubAgent(cfg SubAgentConfig, opts ...SubAgentOption) *SubAgent {
 		session:      session,
 		hooks:        hooks,
 		progressChan: make(chan SubAgentProgress, 10),
+		events:       make(chan *Event, 64),
 	}
 }
 
@@ -187,6 +190,15 @@ func (sa *SubAgent) emitProgress(message string) {
 		sa.config.ProgressCb(progress)
 	}
 
+	sa.emitEvent(&Event{
+		ID:        uuid.New().String(),
+		Type:      EventTypeStateUpdate,
+		AgentID:   sa.config.Agent.ID(),
+		AgentName: sa.config.Agent.Name(),
+		Content:   fmt.Sprintf("Turn %d/%d: %s", progress.CurrentTurn, progress.MaxTurns, progress.Message),
+		Timestamp: time.Now(),
+	})
+
 	// Emit progress hook
 	if sa.hooks != nil {
 		sa.hooks.Emit(HookEventSubagentProgress, HookData{
@@ -229,6 +241,7 @@ func (sa *SubAgent) Run(parentCtx context.Context) (interface{}, error) {
 			"timeout":   sa.config.Timeout.String(),
 		},
 	})
+	sa.emitStart(fmt.Sprintf("Starting sub-agent goal: %s", sa.config.Goal))
 
 	defer func() {
 		sa.mu.Lock()
@@ -251,10 +264,19 @@ func (sa *SubAgent) Run(parentCtx context.Context) (interface{}, error) {
 				sa.state = SubAgentStateCompleted
 			}
 		}
+		finalErr := sa.err
+		finalResult := sa.result
 		sa.mu.Unlock()
+
+		if finalErr != nil {
+			sa.emitError(finalErr.Error())
+		} else {
+			sa.emitComplete(toolResultToString(finalResult))
+		}
 
 		// Close progress channel
 		close(sa.progressChan)
+		close(sa.events)
 
 		// Cleanup timeout context
 		if sa.timeoutCancel != nil {
@@ -314,60 +336,11 @@ func (sa *SubAgent) Run(parentCtx context.Context) (interface{}, error) {
 
 // RunAsync starts the sub-agent in background
 func (sa *SubAgent) RunAsync(parentCtx context.Context) <-chan *Event {
-	eventChan := make(chan *Event, 50)
-
 	go func() {
-		// Wait for the progress-forwarding goroutine to drain before
-		// closing eventChan, preventing "send on closed channel" panics.
-		var progressDone sync.WaitGroup
-		progressDone.Add(1)
-
-		// Forward progress events
-		go func() {
-			defer progressDone.Done()
-			for progress := range sa.progressChan {
-				eventChan <- &Event{
-					ID:        uuid.New().String(),
-					Type:      EventTypeStateUpdate,
-					AgentID:   sa.config.Agent.ID(),
-					AgentName: sa.config.Agent.Name(),
-					Content:   fmt.Sprintf("Turn %d/%d: %s", progress.CurrentTurn, progress.MaxTurns, progress.Message),
-					Timestamp: time.Now(),
-				}
-			}
-		}()
-
-		result, err := sa.Run(parentCtx)
-
-		// Run() closes sa.progressChan in its defer, so wait for the
-		// progress goroutine to finish draining before writing to eventChan.
-		progressDone.Wait()
-
-		// Send completion event
-		eventChan <- &Event{
-			ID:        uuid.New().String(),
-			Type:      EventTypeComplete,
-			AgentID:   sa.config.Agent.ID(),
-			AgentName: sa.config.Agent.Name(),
-			Content:   fmt.Sprintf("%v", result),
-			Timestamp: time.Now(),
-		}
-
-		if err != nil {
-			eventChan <- &Event{
-				ID:        uuid.New().String(),
-				Type:      EventTypeError,
-				AgentID:   sa.config.Agent.ID(),
-				AgentName: sa.config.Agent.Name(),
-				Content:   err.Error(),
-				Timestamp: time.Now(),
-			}
-		}
-
-		close(eventChan)
+		_, _ = sa.Run(parentCtx)
 	}()
 
-	return eventChan
+	return sa.events
 }
 
 // Cancel forcefully cancels the sub-agent execution
@@ -487,18 +460,43 @@ func (sa *SubAgent) execute(ctx context.Context) (interface{}, error) {
 		// After a nudge or once tools have been used, let the model choose freely
 		// ("auto") — forcing "required" beyond Turn 1 can cause some proxies to
 		// return non-standard binary responses.
-		genOpts := &domain.GenerationOptions{
-			Temperature: 0.3,
-			MaxTokens:   2000,
-		}
+		genOpts := sa.config.Service.toolGenerationOptions(0.3, 2000, "")
 		if len(tools) > 0 && !toolUsed && !nudged {
 			genOpts.ToolChoice = "required"
 		}
 
-		// LLM call
-		result, err := sa.config.Service.llmService.GenerateWithTools(ctx, genMessages, tools, genOpts)
+		if sa.config.Debug {
+			sa.emitDebug(round+1, "prompt", buildDebugPrompt(sa.config.Service.Info(), tools, genMessages))
+		}
+
+		var (
+			fullContent strings.Builder
+			toolCalls   []domain.ToolCall
+		)
+
+		err := sa.config.Service.llmService.StreamWithTools(ctx, genMessages, tools, genOpts, func(delta *domain.GenerationResult) error {
+			if delta.ReasoningContent != "" {
+				sa.emitThinking(delta.ReasoningContent)
+			}
+			if delta.Content != "" {
+				fullContent.WriteString(delta.Content)
+				sa.emitPartial(delta.Content)
+			}
+			if len(delta.ToolCalls) > 0 {
+				toolCalls = delta.ToolCalls
+			}
+			return nil
+		})
 		if err != nil {
 			return nil, fmt.Errorf("LLM error: %w", err)
+		}
+		result := &domain.GenerationResult{
+			Content:   fullContent.String(),
+			ToolCalls: toolCalls,
+		}
+
+		if sa.config.Debug {
+			sa.emitDebug(round+1, "response", buildDebugResponse(result.Content, result.ToolCalls, nil))
 		}
 
 		// Handle tool calls
@@ -515,8 +513,10 @@ func (sa *SubAgent) execute(ctx context.Context) (interface{}, error) {
 			// Execute tools
 			for _, tc := range result.ToolCalls {
 				sa.emitProgress(fmt.Sprintf("Executing tool: %s", tc.Function.Name))
+				sa.emitToolCall(tc.Function.Name, tc.Function.Arguments)
 
 				toolResult, toolErr, _ := sa.executeTool(ctx, tc)
+				sa.emitToolResult(tc.Function.Name, toolResult, toolErr)
 
 				var content string
 				if toolErr != nil {
@@ -698,6 +698,7 @@ func (sa *SubAgent) Resume(ctx context.Context, newGoal string) (interface{}, er
 	sa.state = SubAgentStateRunning
 	sa.config.Goal = newGoal
 	sa.progressChan = make(chan SubAgentProgress, 10)
+	sa.events = make(chan *Event, 64)
 	sa.mu.Unlock()
 
 	return sa.Run(ctx)

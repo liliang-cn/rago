@@ -167,6 +167,32 @@ func TestSquadHelpersExposeSquadStyleAPI(t *testing.T) {
 	}
 }
 
+func TestConversationSessionIDIsStablePerConversationAndMember(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "agent.db"))
+	if err != nil {
+		t.Fatalf("new store failed: %v", err)
+	}
+	manager := NewSquadManager(store)
+
+	first := manager.conversationSessionID("squad-chat-1", "Assistant")
+	second := manager.conversationSessionID("squad-chat-1", "Assistant")
+	otherMember := manager.conversationSessionID("squad-chat-1", "Writer")
+	otherConversation := manager.conversationSessionID("squad-chat-2", "Assistant")
+
+	if first == "" {
+		t.Fatal("expected non-empty session id")
+	}
+	if first != second {
+		t.Fatalf("expected stable session id, got %q and %q", first, second)
+	}
+	if first == otherMember {
+		t.Fatal("expected different members to get different session ids")
+	}
+	if first == otherConversation {
+		t.Fatal("expected different conversations to get different session ids")
+	}
+}
+
 func TestEnqueueSharedTaskQueuesImmediately(t *testing.T) {
 	store, err := NewStore(filepath.Join(t.TempDir(), "agent.db"))
 	if err != nil {

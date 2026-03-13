@@ -90,6 +90,8 @@ func TestConfigValidateFailures(t *testing.T) {
 		{"bad cache store", func(c *Config) { c.Cache.StoreType = "bad" }, "invalid store_type"},
 		{"bad cache max size", func(c *Config) { c.Cache.MaxSize = 0 }, "max_size must be positive"},
 		{"bad cache ttl", func(c *Config) { c.Cache.QueryCacheTTL = 0 }, "query_ttl must be positive"},
+		{"bad web search mode", func(c *Config) { c.Tooling.WebSearch.Mode = "bad" }, "invalid web_search.mode"},
+		{"bad web search context size", func(c *Config) { c.Tooling.WebSearch.SearchContextSize = "huge" }, "invalid web_search.search_context_size"},
 	}
 
 	for _, tt := range tests {
@@ -182,10 +184,10 @@ func TestSkillsPaths(t *testing.T) {
 	}
 
 	expected := map[string]bool{
-		filepath.Join(home, "relative-skills"):         false,
-		filepath.Join(home, "skills"):                  false,
-		".skills":                                      false,
-		filepath.Join(".agentgo", "skills"):            false,
+		filepath.Join(home, "relative-skills"):       false,
+		filepath.Join(home, "skills"):                false,
+		".skills":                                    false,
+		filepath.Join(".agentgo", "skills"):          false,
 		filepath.Join(userHome, ".agents", "skills"): false,
 	}
 	for _, p := range paths {

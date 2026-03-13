@@ -19,6 +19,9 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 	if currentAgent == nil {
 		currentAgent = s.agent
 	}
+	if redirect, ok := s.searchToolRedirect(query, instruction, scope); ok {
+		return redirect, nil
+	}
 
 	// Search all registered tools (not just deferred)
 	matches := s.filterToolDefinitionsForAgent(currentAgent, s.toolRegistry.SearchAllTools(query))
@@ -26,6 +29,9 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 	// Search MCP tools if available
 	if s.mcpService != nil {
 		for _, t := range s.mcpService.ListTools() {
+			if s.shouldHideMCPWebSearchTools() && isMCPWebSearchToolName(t.Function.Name) {
+				continue
+			}
 			name := strings.ToLower(t.Function.Name)
 			// Apply scope filter: skip tools that don't match the scope prefix
 			if scope != "" && !strings.HasPrefix(name, scope) {
@@ -94,10 +100,7 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 			{Role: "user", Content: instruction},
 		}
 
-		opts := &domain.GenerationOptions{
-			Temperature: 0.1,
-			ToolChoice:  "auto",
-		}
+		opts := s.toolGenerationOptions(0.1, 0, "auto")
 
 		result, err := s.llmService.GenerateWithTools(ctx, messages, matches, opts)
 		if err != nil {
@@ -134,6 +137,87 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 		})
 	}
 	return result, nil
+}
+
+func (s *Service) searchToolRedirect(query string, instruction string, scope string) (string, bool) {
+	mode := s.webSearchMode()
+	if mode == domain.WebSearchModeMCP {
+		return "", false
+	}
+
+	if !s.requestsHiddenMCPWebSearchTools(query, instruction, scope) {
+		return "", false
+	}
+
+	switch mode {
+	case domain.WebSearchModeOff:
+		return "Web search is disabled for this run. Do not search for MCP web search tools.", true
+	case domain.WebSearchModeNative:
+		return "Native web search is enabled for this model. Do not search for MCP web search tools. Answer the user's request directly using the model's native web search capability.", true
+	case domain.WebSearchModeAuto:
+		return "", false
+	default:
+		return "", false
+	}
+}
+
+func (s *Service) requestsHiddenMCPWebSearchTools(query string, instruction string, scope string) bool {
+	scope = strings.ToLower(strings.TrimSpace(scope))
+	if strings.HasPrefix(scope, "mcp_websearch") {
+		return true
+	}
+	if s.mcpService == nil {
+		return false
+	}
+
+	keywords := toolSearchKeywords(query)
+	if len(keywords) == 0 {
+		keywords = toolSearchKeywords(instruction)
+	}
+	if len(keywords) == 0 {
+		return false
+	}
+
+	for _, tool := range s.mcpService.ListTools() {
+		if !isMCPWebSearchToolName(tool.Function.Name) {
+			continue
+		}
+		if matchesToolSearchKeywords(tool, keywords) {
+			return true
+		}
+	}
+	return false
+}
+
+func toolSearchKeywords(text string) []string {
+	normalized := strings.ToLower(strings.TrimSpace(text))
+	if normalized == "" {
+		return nil
+	}
+	raw := strings.Fields(normalized)
+	keywords := make([]string, 0, len(raw))
+	for _, token := range raw {
+		token = strings.Trim(token, ".,!?;:()[]{}\"'")
+		if len(token) < 3 {
+			continue
+		}
+		keywords = append(keywords, token)
+	}
+	return keywords
+}
+
+func matchesToolSearchKeywords(tool domain.ToolDefinition, keywords []string) bool {
+	if len(keywords) == 0 {
+		return false
+	}
+	name := strings.ToLower(tool.Function.Name)
+	desc := strings.ToLower(tool.Function.Description)
+	for _, kw := range keywords {
+		if strings.Contains(name, kw) || strings.Contains(desc, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) filterToolDefinitionsForAgent(currentAgent *Agent, defs []domain.ToolDefinition) []domain.ToolDefinition {

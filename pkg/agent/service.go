@@ -356,11 +356,25 @@ func (s *Service) ExecutePlan(ctx context.Context, plan *Plan) (*ExecutionResult
 // RunStream executes a goal and returns a stream of events
 // This is the preferred method for reactive applications.
 func (s *Service) RunStream(ctx context.Context, goal string) (<-chan *Event, error) {
-	// Create or get session (auto-generated ID if not set)
-	sessionID := s.CurrentSessionID()
+	return s.RunStreamWithOptions(ctx, goal)
+}
+
+// RunStreamWithOptions executes a goal and returns a stream of events using the provided run options.
+func (s *Service) RunStreamWithOptions(ctx context.Context, goal string, opts ...RunOption) (<-chan *Event, error) {
+	cfg := DefaultRunConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	sessionID := strings.TrimSpace(cfg.SessionID)
 	if sessionID == "" {
-		s.ResetSession()
 		sessionID = s.CurrentSessionID()
+		if sessionID == "" {
+			s.ResetSession()
+			sessionID = s.CurrentSessionID()
+		}
+	} else {
+		s.SetSessionID(sessionID)
 	}
 
 	session, err := s.store.GetSession(sessionID)
@@ -368,9 +382,7 @@ func (s *Service) RunStream(ctx context.Context, goal string) (<-chan *Event, er
 		session = NewSessionWithID(sessionID, s.agent.ID())
 	}
 
-	// Create Runtime
-	runtime := NewRuntime(s, session)
-
+	runtime := NewRuntime(s, session, cfg)
 	return runtime.RunStream(ctx, goal), nil
 }
 
