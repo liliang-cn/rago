@@ -33,16 +33,12 @@ type Config struct {
 }
 
 type UpdateConfigRequest struct {
-	Home            *string  `json:"home,omitempty"`
-	Debug           *bool    `json:"debug,omitempty"`
-	ServerHost      *string  `json:"serverHost,omitempty"`
-	ServerPort      *int     `json:"serverPort,omitempty"`
-	MCPEnabled      *bool    `json:"mcpEnabled,omitempty"`
-	MCPAllowedDirs  []string `json:"mcpAllowedDirs,omitempty"`
-	SkillsPaths     []string `json:"skillsPaths,omitempty"`
-	RAGDBPath       *string  `json:"ragDbPath,omitempty"`
-	MemoryStoreType *string  `json:"memoryStoreType,omitempty"`
-	MemoryPath      *string  `json:"memoryPath,omitempty"`
+	Home            *string `json:"home,omitempty"`
+	Debug           *bool   `json:"debug,omitempty"`
+	ServerHost      *string `json:"serverHost,omitempty"`
+	ServerPort      *int    `json:"serverPort,omitempty"`
+	MCPEnabled      *bool   `json:"mcpEnabled,omitempty"`
+	MemoryStoreType *string `json:"memoryStoreType,omitempty"`
 }
 
 func NewConfigHandler(cfg *config.Config, configPath string) *ConfigHandler {
@@ -86,21 +82,10 @@ func (h *ConfigHandler) updateConfig(w http.ResponseWriter, r *http.Request) {
 	if req.MCPEnabled != nil {
 		h.cfg.MCP.Enabled = *req.MCPEnabled
 	}
-	if req.MCPAllowedDirs != nil {
-		h.cfg.MCP.FilesystemDirs = req.MCPAllowedDirs
-	}
-	if req.SkillsPaths != nil {
-		h.cfg.Skills.Paths = req.SkillsPaths
-	}
-	if req.RAGDBPath != nil {
-		h.cfg.RAG.Storage.DBPath = *req.RAGDBPath
-	}
 	if req.MemoryStoreType != nil {
 		h.cfg.Memory.StoreType = *req.MemoryStoreType
 	}
-	if req.MemoryPath != nil {
-		h.cfg.Memory.MemoryPath = *req.MemoryPath
-	}
+	h.cfg.ApplyHomeLayout()
 
 	if err := h.saveConfig(); err != nil {
 		JSONError(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
@@ -131,11 +116,11 @@ func (h *ConfigHandler) saveConfig() error {
 	setNested(data, []string{"server", "host"}, h.cfg.Server.Host)
 	setNested(data, []string{"server", "port"}, h.cfg.Server.Port)
 	setNested(data, []string{"mcp", "enabled"}, h.cfg.MCP.Enabled)
-	setNested(data, []string{"mcp", "filesystem_dirs"}, h.cfg.MCP.FilesystemDirs)
-	setNested(data, []string{"skills", "paths"}, h.cfg.Skills.Paths)
-	setNested(data, []string{"rag", "storage", "db_path"}, h.cfg.RAG.Storage.DBPath)
 	setNested(data, []string{"memory", "store_type"}, h.cfg.Memory.StoreType)
-	setNested(data, []string{"memory", "memory_path"}, h.cfg.Memory.MemoryPath)
+	deleteNested(data, []string{"mcp", "filesystem_dirs"})
+	deleteNested(data, []string{"rag", "storage", "db_path"})
+	deleteNested(data, []string{"memory", "memory_path"})
+	deleteNested(data, []string{"cache", "path"})
 
 	content, err := toml.Marshal(data)
 	if err != nil {
@@ -155,7 +140,7 @@ func (h *ConfigHandler) snapshot() Config {
 		MCPEnabled:      h.cfg.MCP.Enabled,
 		MCPAllowedDirs:  append([]string{}, h.cfg.MCP.FilesystemDirs...),
 		MCPServersPath:  h.cfg.MCPServersPath(),
-		SkillsPaths:     append([]string{}, h.cfg.Skills.Paths...),
+		SkillsPaths:     h.cfg.SkillsPaths(),
 		RAGDBPath:       h.cfg.RAG.Storage.DBPath,
 		MemoryStoreType: h.cfg.Memory.StoreType,
 		MemoryPath:      h.cfg.Memory.MemoryPath,
@@ -176,6 +161,21 @@ func setNested(root map[string]interface{}, path []string, value interface{}) {
 		if !ok {
 			next = map[string]interface{}{}
 			current[key] = next
+		}
+		current = next
+	}
+}
+
+func deleteNested(root map[string]interface{}, path []string) {
+	current := root
+	for i, key := range path {
+		if i == len(path)-1 {
+			delete(current, key)
+			return
+		}
+		next, ok := current[key].(map[string]interface{})
+		if !ok {
+			return
 		}
 		current = next
 	}

@@ -106,32 +106,6 @@ export function useCreateSquad() {
   })
 }
 
-export function useStartAgent() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (name: string) => api.startAgent(name),
-    onSuccess: (_, name) => {
-      queryClient.invalidateQueries({ queryKey: ['agents'] })
-      queryClient.invalidateQueries({ queryKey: ['agents', name] })
-      queryClient.invalidateQueries({ queryKey: ['status'] })
-      queryClient.invalidateQueries({ queryKey: ['ops', 'logs'] })
-    },
-  })
-}
-
-export function useStopAgent() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (name: string) => api.stopAgent(name),
-    onSuccess: (_, name) => {
-      queryClient.invalidateQueries({ queryKey: ['agents'] })
-      queryClient.invalidateQueries({ queryKey: ['agents', name] })
-      queryClient.invalidateQueries({ queryKey: ['status'] })
-      queryClient.invalidateQueries({ queryKey: ['ops', 'logs'] })
-    },
-  })
-}
-
 export function useDispatchAgentTask() {
   const queryClient = useQueryClient()
   return useMutation({

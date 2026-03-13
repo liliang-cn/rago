@@ -87,7 +87,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 	// Create agent with full capabilities
 	builder := agent.New("AgentGo Frontdesk").
 		WithConfig(chatCfg).
-		WithSystemPrompt("You are the system Frontdesk and Captain. You can interact with users, and delegate tasks to specialized agents using the tools provided.").
+		WithSystemPrompt("You are the system Frontdesk and captain agent. You can interact with users, and delegate tasks to specialized agents using the tools provided.").
 		WithDBPath(agentDBPath).
 		WithMCP().
 		WithSkills().

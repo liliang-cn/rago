@@ -2,13 +2,6 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useConfig, useUpdateConfig } from '../hooks/useApi'
 
-function splitLines(value: string) {
-  return value
-    .split('\n')
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
 export function Settings() {
   const { t, i18n } = useTranslation()
   const { data: config, isLoading, error } = useConfig()
@@ -20,11 +13,7 @@ export function Settings() {
   const [serverHost, setServerHost] = useState('')
   const [serverPort, setServerPort] = useState('7127')
   const [mcpEnabled, setMCPEnabled] = useState(true)
-  const [allowedDirs, setAllowedDirs] = useState('')
-  const [skillsPaths, setSkillsPaths] = useState('')
-  const [ragDbPath, setRagDbPath] = useState('')
   const [memoryStoreType, setMemoryStoreType] = useState('')
-  const [memoryPath, setMemoryPath] = useState('')
 
   useEffect(() => {
     if (!config) return
@@ -33,11 +22,7 @@ export function Settings() {
     setServerHost(config.serverHost || '')
     setServerPort(String(config.serverPort || 7127))
     setMCPEnabled(Boolean(config.mcpEnabled))
-    setAllowedDirs(config.mcpAllowedDirs?.join('\n') || '')
-    setSkillsPaths(config.skillsPaths?.join('\n') || '')
-    setRagDbPath(config.ragDbPath || '')
     setMemoryStoreType(config.memoryStoreType || '')
-    setMemoryPath(config.memoryPath || '')
   }, [config])
 
   const handleSave = async (event: React.FormEvent) => {
@@ -49,11 +34,7 @@ export function Settings() {
         serverHost,
         serverPort: Number(serverPort),
         mcpEnabled,
-        mcpAllowedDirs: splitLines(allowedDirs),
-        skillsPaths: splitLines(skillsPaths),
-        ragDbPath,
         memoryStoreType,
-        memoryPath,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -118,31 +99,18 @@ export function Settings() {
                   {t('mcp')}
                 </label>
               </div>
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700">{t('filesystemAllowlist')}</span>
-                <textarea value={allowedDirs} onChange={(e) => setAllowedDirs(e.target.value)} rows={5} className="dashboard-input resize-none" />
-              </label>
+              <div className="rounded-[20px] border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-slate-600">
+                {t('pathsDerivedFromHome')}
+              </div>
             </div>
           </section>
 
           <section className="glass-panel rounded-[32px] p-6">
             <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{t('knowledgeAndMemory')}</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <label className="space-y-2 md:col-span-2">
-                <span className="text-sm font-medium text-slate-700">{t('skillsPaths')}</span>
-                <textarea value={skillsPaths} onChange={(e) => setSkillsPaths(e.target.value)} rows={4} className="dashboard-input resize-none" />
-              </label>
-              <label className="space-y-2 md:col-span-2">
-                <span className="text-sm font-medium text-slate-700">{t('ragDatabasePath')}</span>
-                <input value={ragDbPath} onChange={(e) => setRagDbPath(e.target.value)} className="dashboard-input" />
-              </label>
               <label className="space-y-2">
                 <span className="text-sm font-medium text-slate-700">{t('memoryStoreType')}</span>
                 <input value={memoryStoreType} onChange={(e) => setMemoryStoreType(e.target.value)} className="dashboard-input" />
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700">{t('memoryPath')}</span>
-                <input value={memoryPath} onChange={(e) => setMemoryPath(e.target.value)} className="dashboard-input" />
               </label>
             </div>
           </section>
@@ -170,6 +138,22 @@ export function Settings() {
               <div>
                 <dt className="text-slate-500">{t('workspaceDir')}</dt>
                 <dd className="mt-1 break-all text-slate-900">{config?.workspaceDir}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">{t('filesystemAllowlist')}</dt>
+                <dd className="mt-1 break-all text-slate-900">{config?.mcpAllowedDirs?.join(', ') || '-'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">{t('ragDatabasePath')}</dt>
+                <dd className="mt-1 break-all text-slate-900">{config?.ragDbPath}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">{t('memoryPath')}</dt>
+                <dd className="mt-1 break-all text-slate-900">{config?.memoryPath}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">{t('skillsPaths')}</dt>
+                <dd className="mt-1 break-all text-slate-900 whitespace-pre-line">{config?.skillsPaths?.join('\n') || '-'}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">{t('mcpServersFile')}</dt>

@@ -1,11 +1,9 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAgents } from '../hooks/useApi'
-import type { AgentModel } from '../lib/api'
+import type { AgentModel, Squad, SquadTask } from '../lib/api'
 
 type ViewMode = 'normal' | 'debug'
 type ChatStatus = 'idle' | 'sending'
-type TaskStatus = 'queued' | 'running' | 'completed' | 'failed'
 
 type UIMessagePart = {
   type: string
@@ -20,22 +18,9 @@ type UIMessage = {
   parts?: UIMessagePart[]
 }
 
-type TeamTask = {
-  id: string
-  captain_name?: string
-  agent_names: string[]
-  prompt: string
-  ack_message: string
-  status: TaskStatus
-  queued_ahead: number
-  result_text?: string
-  created_at: string
-  started_at?: string
-  finished_at?: string
-}
-
 type MultiAgentChatPanelProps = {
-  captain: AgentModel
+  squad: Squad
+  leadAgent: AgentModel
 }
 
 function stringify(value: unknown) {
@@ -68,15 +53,14 @@ function extractMentionedAgents(text: string, allowedNames: string[]) {
   return names
 }
 
-export function MultiAgentChatPanel({ captain }: MultiAgentChatPanelProps) {
+export function MultiAgentChatPanel({ squad, leadAgent }: MultiAgentChatPanelProps) {
   const { t } = useTranslation()
-  const { data: agents = [] } = useAgents()
   const [messages, setMessages] = useState<UIMessage[]>([])
   const [input, setInput] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('normal')
   const [status, setStatus] = useState<ChatStatus>('idle')
   const [error, setError] = useState<string | null>(null)
-  const [taskSnapshots, setTaskSnapshots] = useState<Record<string, TeamTask>>({})
+  const [taskSnapshots, setTaskSnapshots] = useState<Record<string, SquadTask>>({})
   const [mentionQuery, setMentionQuery] = useState('')
   const [mentionRange, setMentionRange] = useState<{ start: number; end: number } | null>(null)
   const [activeMentionIndex, setActiveMentionIndex] = useState(0)
@@ -100,7 +84,7 @@ export function MultiAgentChatPanel({ captain }: MultiAgentChatPanelProps) {
     setActiveMentionIndex(0)
     seenFinishedTaskIds.current = new Set()
     lastPollAtRef.current = 0
-  }, [captain.name])
+  }, [leadAgent.name])
 
   useEffect(() => {
     let cancelled = false
@@ -108,7 +92,8 @@ export function MultiAgentChatPanel({ captain }: MultiAgentChatPanelProps) {
     const pollTasks = async () => {
       try {
         const query = new URLSearchParams({
-          captain_name: captain.name,
+          squad_id: squad.id,
+          lead_agent_name: leadAgent.name,
           limit: '50',
           after: String(lastPollAtRef.current),
         })
@@ -117,7 +102,7 @@ export function MultiAgentChatPanel({ captain }: MultiAgentChatPanelProps) {
           return
         }
 
-        const payload = (await response.json()) as { tasks?: TeamTask[] }
+        const payload = (await response.json()) as { tasks?: SquadTask[] }
         const tasks = payload.tasks ?? []
         if (cancelled || tasks.length === 0) {
           return
@@ -144,7 +129,7 @@ export function MultiAgentChatPanel({ captain }: MultiAgentChatPanelProps) {
                 metadata: {
                   taskId: task.id,
                   status: task.status,
-                  captain: task.captain_name,
+                  leadAgent: task.lead_agent_name ?? task.captain_name,
                   agentNames: task.agent_names,
                 },
                 parts: [
@@ -172,7 +157,7 @@ export function MultiAgentChatPanel({ captain }: MultiAgentChatPanelProps) {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [captain.name])
+  }, [leadAgent.name, squad.id])
 
   const totalParts = useMemo(
     () => messages.reduce((sum, message) => sum + (((message as UIMessage).parts?.length) ?? 0), 0),
@@ -184,8 +169,8 @@ export function MultiAgentChatPanel({ captain }: MultiAgentChatPanelProps) {
       return []
     }
     const needle = mentionQuery.trim().toLowerCase()
-    return agents.filter((agent) => agent.kind === 'specialist' && agent.name.toLowerCase().includes(needle))
-  }, [agents, mentionQuery, mentionRange])
+    return squad.members.filter((agent) => agent.kind === 'specialist' && agent.name.toLowerCase().includes(needle))
+  }, [mentionQuery, mentionRange, squad.members])
   const pendingTasks = useMemo(
     () => Object.values(taskSnapshots).filter((task) => task.status === 'queued' || task.status === 'running'),
     [taskSnapshots],
@@ -245,7 +230,7 @@ export function MultiAgentChatPanel({ captain }: MultiAgentChatPanelProps) {
     if (!input.trim()) return
 
     const text = input.trim()
-    const specialistNames = agents.filter((agent) => agent.kind === 'specialist').map((agent) => agent.name)
+    const specialistNames = squad.members.filter((agent) => agent.kind === 'specialist').map((agent) => agent.name)
     const agentNames = extractMentionedAgents(text, specialistNames)
 
     setMessages((current) => [
@@ -266,12 +251,13 @@ export function MultiAgentChatPanel({ captain }: MultiAgentChatPanelProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          captain_name: captain.name,
+          squad_id: squad.id,
+          lead_agent_name: leadAgent.name,
           message: text,
           agent_names: agentNames,
         }),
       })
-      const payload = (await response.json()) as { task?: TeamTask; ack_message?: string; error?: string }
+      const payload = (await response.json()) as { task?: SquadTask; ack_message?: string; error?: string }
       if (!response.ok) {
         throw new Error(payload.error || 'Request failed')
       }
@@ -292,7 +278,7 @@ export function MultiAgentChatPanel({ captain }: MultiAgentChatPanelProps) {
                 queuedAhead: payload.task.queued_ahead,
               }
             : undefined,
-          parts: [{ type: 'text', text: payload.ack_message || `${captain.name} received that.` }],
+          parts: [{ type: 'text', text: payload.ack_message || `${leadAgent.name} received that.` }],
         },
       ])
     } catch (requestError) {
@@ -303,15 +289,16 @@ export function MultiAgentChatPanel({ captain }: MultiAgentChatPanelProps) {
   }
 
   return (
-    <section className="glass-panel rounded-[32px] p-6" data-testid={`agent-multi-chat-${captain.name}`}>
+    <section className="glass-panel rounded-[32px] p-6" data-testid={`agent-multi-chat-${squad.id}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{t('captains')}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <h3 className="text-2xl font-semibold text-slate-900">{captain.name}</h3>
+            <h3 className="text-2xl font-semibold text-slate-900">{leadAgent.name}</h3>
             <span className="rounded-full bg-blue-100 px-3 py-1 text-xs text-blue-800">{t('kindCaptain')}</span>
           </div>
-          <p className="mt-2 text-sm text-slate-600">{captain.description}</p>
+          <p className="mt-2 text-sm font-medium text-slate-700">{squad.name}</p>
+          <p className="mt-2 text-sm text-slate-600">{leadAgent.description}</p>
           <p className="mt-2 text-sm text-slate-500">{t('chatMultiAgentHint')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

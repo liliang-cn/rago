@@ -87,16 +87,34 @@ go run ./cmd/agentgo-cli chat --with-ptc
 Run squad workflows from the CLI:
 
 ```bash
+# Create a standalone agent
+agentgo agent add Scout --description "Independent field agent" \
+  --instructions "Work independently, answer directly, and use tools when needed."
+
+# Inspect or update that agent
+agentgo agent show Scout
+agentgo agent update Scout --model openai/gpt-5-mini
+
+# Run a stored agent directly
+agentgo agent run --agent Scout "Summarize the current repo structure"
+
 # Create a squad
 agentgo squad add "Docs Squad" --description "Documentation and release notes"
 
-# Add a specialist member to a squad
-agentgo squad member add Writer --squad "Docs Squad" \
-  --description "Writes concise docs" \
-  --instructions "Write concise markdown documents in the workspace."
+# Join the standalone agent to a squad
+agentgo agent join Scout --squad "Docs Squad" --role specialist
 
 # Run a task through the default captain and a specialist
-agentgo squad go "@Assistant @Writer summarize the UI/backend relationship and write workspace/ui_backend_overview.md"
+agentgo squad go "@Captain @Scout summarize the UI/backend relationship and write workspace/ui_backend_overview.md"
+
+# Inspect runtime task state; follows while tasks are still running or queued
+agentgo squad status "Docs Squad"
+
+# Leave the squad again
+agentgo agent leave Scout
+
+# Delete the squad when you're done
+agentgo squad delete "Docs Squad"
 ```
 
 ---
@@ -257,7 +275,7 @@ results     := coordinator.WaitAll(ctx)
 
 ## Squad API
 
-AgentGo exposes a squad-oriented manager API for persistent captains and reusable specialists:
+AgentGo exposes a squad-oriented manager API for standalone agents and squad agents. A `captain` is just an agent role inside a squad.
 
 ```go
 store, err := agent.NewStore(filepath.Join(cfg.DataDir(), "agent.db"))
@@ -270,6 +288,16 @@ if err := manager.SeedDefaultMembers(); err != nil {
     panic(err)
 }
 
+scout, err := manager.CreateAgent(ctx, &agent.AgentModel{
+    Name:         "Scout",
+    Kind:         agent.AgentKindAgent,
+    Description:  "Independent field agent",
+    Instructions: "Work independently and answer directly.",
+})
+if err != nil {
+    panic(err)
+}
+
 docsSquad, err := manager.CreateSquad(ctx, &agent.Squad{
     Name:        "Docs Squad",
     Description: "Documentation and release notes",
@@ -278,13 +306,7 @@ if err != nil {
     panic(err)
 }
 
-writer, err := manager.AddSpecialist(
-    ctx,
-    docsSquad.ID,
-    "Writer",
-    "Writes concise docs",
-    "Write concise markdown documents in the workspace.",
-)
+writer, err := manager.JoinSquad(ctx, scout.Name, docsSquad.ID, agent.AgentKindSpecialist)
 if err != nil {
     panic(err)
 }
@@ -298,10 +320,11 @@ fmt.Println(result)
 
 Useful squad-manager entry points:
 
+- `CreateAgent`, `UpdateAgent`, `DeleteAgent`, `GetAgentByName`, `ListAgents`, `ListStandaloneAgents`
+- `JoinSquad`, `LeaveSquad`, `GetAgentService`
 - `CreateSquad`, `ListSquads`, `GetSquadByName`
-- `AddCaptain`, `AddSpecialist`, `CreateMember`, `ListMembers`
-- `ListCaptains`, `ListSpecialists`
-- `EnableCaptain`, `DisableCaptain`
+- `AddSquadAgent`, `CreateSquadAgent`, `ListSquadAgents`, `GetSquadAgentByName`
+- `AddCaptain`, `AddSpecialist`, `ListCaptains`, `ListSpecialists` (role-specific helpers)
 - `DispatchTask`, `DispatchTaskStream`
 - `EnqueueSharedTask`, `ListSharedTasks`
 
@@ -364,16 +387,11 @@ Config file: `agentgo.toml` (auto-discovered in `./` → `~/.agentgo/` → `~/.a
 ```toml
 home = "~/.agentgo"             # base for all relative paths
 
-[rag.storage]
-db_path   = ""               # RAG db; default: $home/data/agentgo.db
-
 [memory]
 store_type  = "file"         # file | vector | hybrid
-memory_path = ""             # default: $home/data/memories
 
 [cache]
 store_type = "memory"        # memory | file
-path       = ""              # default: $home/data/cache
 max_size   = 1000
 query_ttl  = "15m"
 vector_ttl = "24h"
@@ -392,6 +410,14 @@ auto_load = true
 [mcp]
 servers = ["~/.agentgo/mcpServers.json"]
 ```
+
+AgentGo derives the runtime storage layout automatically from `home`:
+
+- workspace: `$home/workspace`
+- MCP filesystem allowlist: `$home/workspace`
+- RAG database: `$home/data/agentgo.db`
+- memory store: `$home/data/memories` or `$home/data/agentgo.db` when `memory.store_type = "vector"`
+- cache directory: `$home/data/cache`
 
 ### Cache CLI
 

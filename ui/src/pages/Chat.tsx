@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
-import { useAgents } from '../hooks/useApi'
+import { useSquads } from '../hooks/useApi'
 
 type ChatMode = 'rag' | 'agent'
 
@@ -73,10 +73,13 @@ export function Chat() {
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { data: agents = [] } = useAgents()
-  const captainAgents = useMemo(
-    () => agents.filter((agent) => agent.kind === 'captain'),
-    [agents],
+  const { data: squads = [] } = useSquads()
+  const leadAgents = useMemo(
+    () =>
+      squads
+        .map((squad) => squad.lead_agent ?? squad.captain)
+        .filter((agent): agent is NonNullable<typeof agent> => Boolean(agent)),
+    [squads],
   )
 
   const { messages, sendMessage, status, error, setMessages } = useChat({
@@ -107,10 +110,10 @@ export function Chat() {
   })
 
   useEffect(() => {
-    if (!selectedAgent && captainAgents.length > 0) {
-      setSelectedAgent(captainAgents[0].name)
+    if (!selectedAgent && leadAgents.length > 0) {
+      setSelectedAgent(leadAgents[0].name)
     }
-  }, [captainAgents, selectedAgent])
+  }, [leadAgents, selectedAgent])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -197,11 +200,11 @@ export function Chat() {
                 value={selectedAgent}
                 onChange={(e) => setSelectedAgent(e.target.value)}
                 className="dashboard-input"
-                disabled={chatMode !== 'agent' || captainAgents.length === 0}
+                disabled={chatMode !== 'agent' || leadAgents.length === 0}
                 data-testid="chat-agent-select"
               >
-                {captainAgents.length === 0 && <option value="">{t('loadingAgents')}</option>}
-                {captainAgents.map((agent) => (
+                {leadAgents.length === 0 && <option value="">{t('loadingAgents')}</option>}
+                {leadAgents.map((agent) => (
                   <option key={agent.id} value={agent.name}>
                     {agent.name}
                   </option>

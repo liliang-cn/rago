@@ -73,8 +73,11 @@ search_context_size = "medium"  # low | medium | high when native/auto search is
 # Built-in servers (filesystem + websearch) are always available — no external
 # binaries or mcpServers.json entries needed. They run in-process inside the binary.
 #
-# filesystem_dirs controls which directories the built-in filesystem server can access.
-# Defaults to the user's home directory if not set.
-# filesystem_dirs = ["/Users/yourname", "/tmp"]
+# Runtime storage paths are derived from `home` automatically:
+# - workspace: $home/workspace
+# - filesystem allowlist: $home/workspace
+# - RAG DB: $home/data/agentgo.db
+# - memory path: $home/data/memories (or $home/data/agentgo.db for vector mode)
+# - cache path: $home/data/cache
 
 # Note: Additional servers can be configured in mcpServers.json (auto-discovered in AgentGo home dir)

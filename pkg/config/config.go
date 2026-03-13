@@ -272,15 +272,8 @@ func Load(configPath string) (*Config, error) {
 		config.MCP.HealthCheckInterval = defaultMCP.HealthCheckInterval
 		config.MCP.Enabled = defaultMCP.Enabled
 	}
+	config.ApplyHomeLayout()
 	config.MCP.LoadedServers = mcp.GetBuiltInServers(config.MCP.FilesystemDirs)
-
-	// Unify all paths under Home
-	config.resolveDatabasePath()
-	config.resolveMCPServerPaths()
-	config.expandPaths()
-	if len(config.MCP.FilesystemDirs) == 0 {
-		config.MCP.FilesystemDirs = []string{config.WorkspaceDir()}
-	}
 
 	// Load MCP servers
 	if err := config.MCP.LoadServersFromJSON(); err != nil {
@@ -677,6 +670,22 @@ func (c *Config) resolveDatabasePath() {
 	}
 }
 
+// ApplyHomeLayout recalculates runtime-managed storage paths so they always
+// live under the configured AgentGo home directory.
+func (c *Config) ApplyHomeLayout() {
+	c.Home = expandHomePath(c.Home)
+	c.RAG.Storage.DBPath = filepath.Join(c.DataDir(), "agentgo.db")
+	if strings.EqualFold(c.Memory.StoreType, "vector") {
+		c.Memory.MemoryPath = c.RAG.Storage.DBPath
+	} else {
+		c.Memory.MemoryPath = filepath.Join(c.DataDir(), "memories")
+	}
+	c.Cache.Path = filepath.Join(c.DataDir(), "cache")
+	c.MCP.FilesystemDirs = []string{c.WorkspaceDir()}
+	c.resolveMCPServerPaths()
+	c.expandPaths()
+}
+
 func (c *Config) expandPaths() {
 	c.Home = expandHomePath(c.Home)
 	c.RAG.Storage.DBPath = expandHomePath(c.RAG.Storage.DBPath)
@@ -692,6 +701,9 @@ func (c *Config) expandPaths() {
 		if err := os.MkdirAll(c.Cache.Path, 0755); err != nil {
 			log.Printf("Warning: failed to create cache directory %s: %v", c.Cache.Path, err)
 		}
+	}
+	if err := os.MkdirAll(c.WorkspaceDir(), 0755); err != nil {
+		log.Printf("Warning: failed to create workspace directory %s: %v", c.WorkspaceDir(), err)
 	}
 }
 

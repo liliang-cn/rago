@@ -85,16 +85,34 @@ go run ./cmd/agentgo-cli chat --with-ptc
 运行 `Squad` 工作流：
 
 ```bash
+# 创建一个独立 Agent
+agentgo agent add Scout --description "独立执行任务的特工" \
+  --instructions "独立工作，直接回答，必要时使用工具。"
+
+# 查看或更新 Agent
+agentgo agent show Scout
+agentgo agent update Scout --model openai/gpt-5-mini
+
+# 直接运行这个 Agent
+agentgo agent run --agent Scout "总结当前仓库结构"
+
 # 创建一个 squad
 agentgo squad add "Docs Squad" --description "文档和发布说明"
 
-# 给某个 squad 增加一个 specialist member
-agentgo squad member add Writer --squad "Docs Squad" \
-  --description "写简洁文档" \
-  --instructions "在 workspace 中编写简洁的 Markdown 文档。"
+# 让独立 Agent 加入 squad
+agentgo agent join Scout --squad "Docs Squad" --role specialist
 
-# 通过默认 Captain 和某个 member 执行任务
-agentgo squad go "@Assistant @Writer 总结 UI 和后端的关系，并写入 workspace/ui_backend_overview.md"
+# 通过默认领队 Agent 和某个 squad agent 执行任务
+agentgo squad go "@Captain @Scout 总结 UI 和后端的关系，并写入 workspace/ui_backend_overview.md"
+
+# 查看 squad 当前运行态；有 running/queued 任务时会自动 follow
+agentgo squad status "Docs Squad"
+
+# 让 Agent 退出 squad
+agentgo agent leave Scout
+
+# 不再需要时删除这个 squad
+agentgo squad delete "Docs Squad"
 ```
 
 ---
@@ -248,7 +266,7 @@ results     := coordinator.WaitAll(ctx)
 
 ## Squad API
 
-AgentGo 也提供面向 `Squad / Captain / Member` 的持久化管理 API：
+AgentGo 也提供面向 `独立 Agent / Squad / Squad Agent` 的持久化管理 API。`captain` 只是 squad 内的一种 agent 角色。
 
 ```go
 store, err := agent.NewStore(filepath.Join(cfg.DataDir(), "agent.db"))
@@ -261,6 +279,16 @@ if err := manager.SeedDefaultMembers(); err != nil {
     panic(err)
 }
 
+scout, err := manager.CreateAgent(ctx, &agent.AgentModel{
+    Name:         "Scout",
+    Kind:         agent.AgentKindAgent,
+    Description:  "独立执行任务的特工",
+    Instructions: "独立工作并直接回答。",
+})
+if err != nil {
+    panic(err)
+}
+
 docsSquad, err := manager.CreateSquad(ctx, &agent.Squad{
     Name:        "Docs Squad",
     Description: "文档和发布说明",
@@ -269,13 +297,7 @@ if err != nil {
     panic(err)
 }
 
-writer, err := manager.AddSpecialist(
-    ctx,
-    docsSquad.ID,
-    "Writer",
-    "写简洁文档",
-    "在 workspace 中编写简洁的 Markdown 文档。",
-)
+writer, err := manager.JoinSquad(ctx, scout.Name, docsSquad.ID, agent.AgentKindSpecialist)
 if err != nil {
     panic(err)
 }
@@ -289,10 +311,11 @@ fmt.Println(result)
 
 常用的 squad-manager 入口：
 
+- `CreateAgent`, `UpdateAgent`, `DeleteAgent`, `GetAgentByName`, `ListAgents`, `ListStandaloneAgents`
+- `JoinSquad`, `LeaveSquad`, `GetAgentService`
 - `CreateSquad`, `ListSquads`, `GetSquadByName`
-- `AddCaptain`, `AddSpecialist`, `CreateMember`, `ListMembers`
-- `ListCaptains`, `ListSpecialists`
-- `EnableCaptain`, `DisableCaptain`
+- `AddSquadAgent`, `CreateSquadAgent`, `ListSquadAgents`, `GetSquadAgentByName`
+- `AddCaptain`, `AddSpecialist`, `ListCaptains`, `ListSpecialists`（角色化辅助方法）
 - `DispatchTask`, `DispatchTaskStream`
 - `EnqueueSharedTask`, `ListSharedTasks`
 
@@ -348,13 +371,8 @@ result, _ := svc.Execute(ctx, plan.ID)
 ```toml
 home = "~/.agentgo"             # 所有相对路径的基准目录
 
-[cortexdb]
-db_path   = ""               # RAG 数据库，默认 $home/data/agentgo.db
-                             # 环境变量：AgentGo_CORTEXDB_DB_PATH
-
 [memory]
 store_type  = "file"         # file | vector | hybrid
-memory_path = ""             # 默认 $home/data/memories
 
 [chunker]
 chunk_size = 512
@@ -368,6 +386,14 @@ auto_load = true
 [mcp]
 servers = ["~/.agentgo/mcpServers.json"]
 ```
+
+AgentGo 会根据 `home` 自动派生运行期存储布局：
+
+- 工作区：`$home/workspace`
+- MCP 文件系统白名单：`$home/workspace`
+- RAG 数据库：`$home/data/agentgo.db`
+- 记忆存储：`$home/data/memories`，当 `memory.store_type = "vector"` 时改为 `$home/data/agentgo.db`
+- 缓存目录：`$home/data/cache`
 
 完整带注释的配置参见 [`references/CONFIG.md`](references/CONFIG.md)。
 

@@ -40,7 +40,7 @@ func testConfig(t *testing.T) *config.Config {
 		},
 	}
 	cfg.MCP.Enabled = true
-	cfg.MCP.FilesystemDirs = []string{home}
+	cfg.ApplyHomeLayout()
 	return cfg
 }
 
@@ -101,11 +101,7 @@ func TestConfigHandlerGetAndPut(t *testing.T) {
 		Debug:           boolPtr(false),
 		ServerHost:      stringPtr("0.0.0.0"),
 		ServerPort:      intPtr(9000),
-		MCPAllowedDirs:  []string{"/tmp"},
-		SkillsPaths:     []string{"custom"},
-		RAGDBPath:       stringPtr("/tmp/agentgo.db"),
 		MemoryStoreType: stringPtr("vector"),
-		MemoryPath:      stringPtr("/tmp/memory.db"),
 	}
 	body, _ := json.Marshal(reqBody)
 	putReq := httptest.NewRequest(http.MethodPut, "/api/config", bytes.NewReader(body))
@@ -116,6 +112,15 @@ func TestConfigHandlerGetAndPut(t *testing.T) {
 	}
 	if cfg.Server.Port != 9000 || cfg.Memory.StoreType != "vector" {
 		t.Fatalf("expected config mutation, got %+v", cfg)
+	}
+	if got := cfg.RAG.Storage.DBPath; got != filepath.Join(cfg.Home, "data", "agentgo.db") {
+		t.Fatalf("expected derived rag db path, got %s", got)
+	}
+	if got := cfg.Memory.MemoryPath; got != cfg.RAG.Storage.DBPath {
+		t.Fatalf("expected vector memory path to reuse rag db path, got %s", got)
+	}
+	if len(cfg.MCP.FilesystemDirs) != 1 || cfg.MCP.FilesystemDirs[0] != filepath.Join(cfg.Home, "workspace") {
+		t.Fatalf("expected workspace-only mcp dirs, got %v", cfg.MCP.FilesystemDirs)
 	}
 	if _, err := os.Stat(configPath); err != nil {
 		t.Fatalf("expected config file to be written: %v", err)
@@ -166,7 +171,7 @@ func TestHandleAgentsAndOperations(t *testing.T) {
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
 		}
-		model, err := manager.GetMemberByName("Writer")
+		model, err := manager.GetAgentByName("Writer")
 		if err != nil {
 			t.Fatalf("expected persisted agent: %v", err)
 		}
@@ -176,8 +181,8 @@ func TestHandleAgentsAndOperations(t *testing.T) {
 		if model.RequiredLLMCapability != 4 {
 			t.Fatalf("expected required_llm_capability to persist, got %d", model.RequiredLLMCapability)
 		}
-		if model.Kind != agent.AgentKindCaptain {
-			t.Fatalf("expected captain kind, got %q", model.Kind)
+		if model.Kind != agent.AgentKindAgent {
+			t.Fatalf("expected standalone agent kind, got %q", model.Kind)
 		}
 	})
 
@@ -190,45 +195,37 @@ func TestHandleAgentsAndOperations(t *testing.T) {
 		}
 	})
 
-	t.Run("start stop get agent", func(t *testing.T) {
-		assistant, err := manager.GetMemberByName("Assistant")
+	t.Run("get agent", func(t *testing.T) {
+		captain, err := manager.GetMemberByName("Captain")
 		if err != nil {
-			t.Fatalf("get seeded assistant failed: %v", err)
+			t.Fatalf("get seeded captain failed: %v", err)
 		}
-		if assistant.Kind != agent.AgentKindCaptain {
-			t.Fatalf("expected Assistant to be captain, got %q", assistant.Kind)
+		if captain.Kind != agent.AgentKindCaptain {
+			t.Fatalf("expected Captain to be captain, got %q", captain.Kind)
 		}
 
-		model, err := manager.GetMemberByName("Coder")
+		assistant, err := manager.GetAgentByName("Assistant")
 		if err != nil {
-			t.Fatalf("get seeded agent failed: %v", err)
+			t.Fatalf("get standalone assistant failed: %v", err)
 		}
-		if model.Kind != agent.AgentKindSpecialist {
-			t.Fatalf("expected Coder to be specialist, got %q", model.Kind)
+		if assistant.Kind != agent.AgentKindAgent {
+			t.Fatalf("expected Assistant to be standalone, got %q", assistant.Kind)
+		}
+
+		model, err := manager.GetAgentByName("Writer")
+		if err != nil {
+			t.Fatalf("get created agent failed: %v", err)
+		}
+		if model.Kind != agent.AgentKindAgent {
+			t.Fatalf("expected Writer to be standalone agent, got %q", model.Kind)
 		}
 
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/api/agents/Writer/start", nil)
-		req.URL.Path = "/api/agents/Writer/start"
-		h.HandleAgentOperation(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("unexpected start status: %d body=%s", rec.Code, rec.Body.String())
-		}
-
-		rec = httptest.NewRecorder()
-		req = httptest.NewRequest(http.MethodGet, "/api/agents/Writer", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/agents/Writer", nil)
 		req.URL.Path = "/api/agents/Writer"
 		h.HandleAgentOperation(rec, req)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("unexpected get status: %d body=%s", rec.Code, rec.Body.String())
-		}
-
-		rec = httptest.NewRecorder()
-		req = httptest.NewRequest(http.MethodPost, "/api/agents/Writer/stop", nil)
-		req.URL.Path = "/api/agents/Writer/stop"
-		h.HandleAgentOperation(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("unexpected stop status: %d body=%s", rec.Code, rec.Body.String())
 		}
 	})
 
@@ -276,8 +273,8 @@ func TestHandleAgentsUnavailable(t *testing.T) {
 
 func TestParseMultiAgentPrompt(t *testing.T) {
 	t.Run("extracts mentions and strips prompt", func(t *testing.T) {
-		names, prompt := parseMultiAgentPrompt("@Assistant   @Coder compare the API and propose fixes")
-		if want := []string{"Assistant", "Coder"}; len(names) != len(want) || names[0] != want[0] || names[1] != want[1] {
+		names, prompt := parseMultiAgentPrompt("@Captain   @Coder compare the API and propose fixes")
+		if want := []string{"Captain", "Coder"}; len(names) != len(want) || names[0] != want[0] || names[1] != want[1] {
 			t.Fatalf("unexpected names: %#v", names)
 		}
 		if prompt != "compare the API and propose fixes" {
@@ -319,10 +316,19 @@ func TestHandleMultiAgentChat(t *testing.T) {
 }
 
 func TestHandleSquadTasks(t *testing.T) {
-	h := &Handler{squadManager: newTestManager(t)}
+	manager := newTestManager(t)
+	if _, err := manager.CreateMember(context.Background(), &agent.AgentModel{
+		Name:         "Writer",
+		Kind:         agent.AgentKindSpecialist,
+		Description:  "Writes concise text.",
+		Instructions: "Write concise text.",
+	}); err != nil {
+		t.Fatalf("create specialist failed: %v", err)
+	}
+	h := &Handler{squadManager: manager}
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/squads/tasks", bytes.NewBufferString(`{"captain_name":"Assistant","message":"@Coder say hi","agent_names":["Coder"]}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/squads/tasks", bytes.NewBufferString(`{"captain_name":"Captain","message":"@Writer say hi","agent_names":["Writer"]}`))
 	h.HandleSquadTasks(rec, req)
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("unexpected enqueue status: %d body=%s", rec.Code, rec.Body.String())
@@ -334,7 +340,7 @@ func TestHandleSquadTasks(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "/api/squads/tasks?captain_name=Assistant", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/squads/tasks?captain_name=Captain", nil)
 	h.HandleSquadTasks(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected list status: %d body=%s", rec.Code, rec.Body.String())
@@ -406,12 +412,6 @@ func TestAgentManagerOperationsPersist(t *testing.T) {
 		t.Fatalf("unexpected required capability: %+v", created)
 	}
 
-	if err := manager.EnableCommander(context.Background(), "Reviewer"); err != nil {
-		t.Fatalf("start agent failed: %v", err)
-	}
-	if err := manager.DisableCommander(context.Background(), "Reviewer"); err != nil {
-		t.Fatalf("stop agent failed: %v", err)
-	}
 }
 
 func TestHandleChatAISDKAgentUnavailable(t *testing.T) {

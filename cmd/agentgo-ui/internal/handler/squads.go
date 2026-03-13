@@ -14,6 +14,7 @@ type SquadResponse struct {
 	ID          string              `json:"id"`
 	Name        string              `json:"name"`
 	Description string              `json:"description"`
+	LeadAgent   *agent.AgentModel   `json:"lead_agent,omitempty"`
 	Captain     *agent.AgentModel   `json:"captain,omitempty"`
 	Members     []*agent.AgentModel `json:"members"`
 	CreatedAt   time.Time           `json:"created_at"`
@@ -33,29 +34,27 @@ func (h *Handler) HandleSquads(w http.ResponseWriter, r *http.Request) {
 			JSONError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		members, err := h.squadManager.ListMembers()
-		if err != nil {
-			JSONError(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 
 		out := make([]SquadResponse, 0, len(squads))
 		for _, squad := range squads {
+			members, err := h.squadManager.ListSquadAgentsForSquad(squad.ID)
+			if err != nil {
+				JSONError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			resp := SquadResponse{
 				ID:          squad.ID,
 				Name:        squad.Name,
 				Description: squad.Description,
 				CreatedAt:   squad.CreatedAt,
 				UpdatedAt:   squad.UpdatedAt,
-				Members:     make([]*agent.AgentModel, 0),
+				Members:     make([]*agent.AgentModel, 0, len(members)),
 			}
 			for _, member := range members {
-				if member.TeamID != squad.ID {
-					continue
-				}
 				resp.Members = append(resp.Members, member)
 				if member.Kind == agent.AgentKindCaptain && resp.Captain == nil {
 					resp.Captain = member
+					resp.LeadAgent = member
 				}
 			}
 			out = append(out, resp)

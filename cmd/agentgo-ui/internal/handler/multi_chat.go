@@ -55,8 +55,11 @@ func (h *Handler) HandleMultiAgentChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chatID := strings.TrimSpace(stringValue(raw["id"]))
-	captainName := strings.TrimSpace(stringValue(raw["captain_name"]))
-	streamAISDKMultiAgentChat(w, r, chatID, captainName, agentNames, cleanedPrompt, h.squadManager)
+	leadAgentName := strings.TrimSpace(stringValue(raw["lead_agent_name"]))
+	if leadAgentName == "" {
+		leadAgentName = strings.TrimSpace(stringValue(raw["captain_name"]))
+	}
+	streamAISDKMultiAgentChat(w, r, chatID, leadAgentName, agentNames, cleanedPrompt, h.squadManager)
 }
 
 func extractAgentNames(v any) []string {
@@ -107,7 +110,7 @@ func parseMultiAgentPrompt(prompt string) ([]string, string) {
 	return names, strings.TrimSpace(cleaned)
 }
 
-func streamAISDKMultiAgentChat(w http.ResponseWriter, r *http.Request, chatID, captainName string, agentNames []string, prompt string, manager *agent.SquadManager) {
+func streamAISDKMultiAgentChat(w http.ResponseWriter, r *http.Request, chatID, leadAgentName string, agentNames []string, prompt string, manager *agent.SquadManager) {
 	setSSEHeaders(w)
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -125,9 +128,10 @@ func streamAISDKMultiAgentChat(w http.ResponseWriter, r *http.Request, chatID, c
 		"type":      "start",
 		"messageId": messageID,
 		"messageMetadata": map[string]any{
-			"mode":         "multi-agent",
-			"agent_names":  agentNames,
-			"captain_name": captainName,
+			"mode":            "multi-agent",
+			"agent_names":     agentNames,
+			"captain_name":    leadAgentName,
+			"lead_agent_name": leadAgentName,
 		},
 	})
 	writeSSEChunk(w, flusher, map[string]any{
@@ -221,9 +225,10 @@ func streamAISDKMultiAgentChat(w http.ResponseWriter, r *http.Request, chatID, c
 		"type":         "finish",
 		"finishReason": finishReason,
 		"messageMetadata": map[string]any{
-			"mode":         "multi-agent",
-			"agent_names":  append([]string(nil), agentNames...),
-			"captain_name": captainName,
+			"mode":            "multi-agent",
+			"agent_names":     append([]string(nil), agentNames...),
+			"captain_name":    leadAgentName,
+			"lead_agent_name": leadAgentName,
 		},
 	})
 }

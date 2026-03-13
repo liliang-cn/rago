@@ -2,11 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApplySetup, useSetup } from '../hooks/useApi'
 
-function splitLines(value: string) {
-  return value
-    .split('\n')
-    .map((item) => item.trim())
-    .filter(Boolean)
+function derivePath(home: string, relative: string) {
+  const trimmedHome = home.trim()
+  if (!trimmedHome) return ''
+  return `${trimmedHome.replace(/\/+$/, '')}/${relative}`
+}
+
+function deriveMemoryPath(home: string, memoryStoreType: string) {
+  const ragPath = derivePath(home, 'data/agentgo.db')
+  if (memoryStoreType === 'vector') {
+    return ragPath
+  }
+  return derivePath(home, 'data/memories')
 }
 
 const STEP_COUNT = 4
@@ -19,14 +26,10 @@ export function Setup() {
   const [saved, setSaved] = useState(false)
 
   const [home, setHome] = useState('')
-  const [workingDirectory, setWorkingDirectory] = useState('')
   const [serverHost, setServerHost] = useState('127.0.0.1')
   const [serverPort, setServerPort] = useState('7127')
   const [mcpEnabled, setMcpEnabled] = useState(true)
-  const [skillsPaths, setSkillsPaths] = useState('')
-  const [ragDbPath, setRagDbPath] = useState('')
   const [memoryStoreType, setMemoryStoreType] = useState('file')
-  const [memoryPath, setMemoryPath] = useState('')
   const [providerName, setProviderName] = useState('local')
   const [providerBaseUrl, setProviderBaseUrl] = useState('http://127.0.0.1:11434/v1')
   const [apiKey, setApiKey] = useState('')
@@ -39,14 +42,10 @@ export function Setup() {
     if (!data) return
     const firstProvider = data.providers[0]
     setHome(data.home || '')
-    setWorkingDirectory(data.workingDirectory || data.home || '')
     setServerHost(data.serverHost || '127.0.0.1')
     setServerPort(String(data.serverPort || 7127))
     setMcpEnabled(data.mcpEnabled)
-    setSkillsPaths((data.skillsPaths || []).join('\n'))
-    setRagDbPath(data.ragDbPath || '')
     setMemoryStoreType(data.memoryStoreType || 'file')
-    setMemoryPath(data.memoryPath || '')
     setProviderName(firstProvider?.name || 'local')
     setProviderBaseUrl(firstProvider?.baseUrl || 'http://127.0.0.1:11434/v1')
     setModelName(firstProvider?.modelName || '')
@@ -55,19 +54,21 @@ export function Setup() {
     setCapability(String(firstProvider?.capability || 4))
   }, [data])
 
+  const derivedWorkspace = useMemo(() => derivePath(home, 'workspace'), [home])
+  const derivedRagDb = useMemo(() => derivePath(home, 'data/agentgo.db'), [home])
+  const derivedMemoryPath = useMemo(() => deriveMemoryPath(home, memoryStoreType), [home, memoryStoreType])
   const reviewItems = useMemo(
     () => [
       [t('home'), home],
-      [t('workingDirectory'), workingDirectory],
+      [t('workingDirectory'), derivedWorkspace],
       [t('serverHost'), serverHost],
       [t('serverPort'), serverPort],
       [t('mcp'), mcpEnabled ? t('enabled') : t('disabled')],
-      [t('skillsPaths'), skillsPaths || '-'],
-      [t('ragDatabasePath'), ragDbPath || '-'],
+      [t('ragDatabasePath'), derivedRagDb || '-'],
       [t('memoryStoreType'), memoryStoreType || '-'],
-      [t('memoryPath'), memoryPath || '-'],
+      [t('memoryPath'), derivedMemoryPath || '-'],
     ],
-    [t, home, workingDirectory, serverHost, serverPort, mcpEnabled, skillsPaths, ragDbPath, memoryStoreType, memoryPath],
+    [t, home, derivedWorkspace, serverHost, serverPort, mcpEnabled, derivedRagDb, memoryStoreType, derivedMemoryPath],
   )
 
   const providerItems = useMemo(
@@ -85,14 +86,10 @@ export function Setup() {
   const handleApply = async () => {
     await applySetup.mutateAsync({
       home,
-      workingDirectory,
       serverHost,
       serverPort: Number(serverPort),
       mcpEnabled,
-      skillsPaths: splitLines(skillsPaths),
-      ragDbPath,
       memoryStoreType,
-      memoryPath,
       provider: {
         name: providerName,
         baseUrl: providerBaseUrl,
@@ -157,11 +154,17 @@ export function Setup() {
                 <span className="text-sm font-medium text-slate-700">{t('home')}</span>
                 <input value={home} onChange={(e) => setHome(e.target.value)} className="dashboard-input" />
               </label>
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700">{t('workingDirectory')}</span>
-                <input value={workingDirectory} onChange={(e) => setWorkingDirectory(e.target.value)} className="dashboard-input" />
-                <p className="text-xs text-slate-500">{t('workingDirectoryHelp')}</p>
-              </label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="dashboard-muted-card rounded-[20px] px-4 py-3 text-slate-700">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{t('workingDirectory')}</p>
+                  <p className="mt-2 break-all text-sm">{derivedWorkspace || '-'}</p>
+                </div>
+                <div className="dashboard-muted-card rounded-[20px] px-4 py-3 text-slate-700">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{t('ragDatabasePath')}</p>
+                  <p className="mt-2 break-all text-sm">{derivedRagDb || '-'}</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-500">{t('pathsDerivedFromHome')}</p>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-slate-700">{t('serverHost')}</span>
@@ -219,26 +222,15 @@ export function Setup() {
                 <input type="checkbox" checked={mcpEnabled} onChange={(e) => setMcpEnabled(e.target.checked)} />
                 {t('mcp')}
               </label>
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700">{t('skillsPaths')}</span>
-                <textarea value={skillsPaths} onChange={(e) => setSkillsPaths(e.target.value)} rows={4} className="dashboard-input resize-none" />
-                <p className="text-xs text-slate-500">{t('skillsPathsHelp')}</p>
-              </label>
-              <label className="space-y-2">
-                <span className="text-sm font-medium text-slate-700">{t('ragDatabasePath')}</span>
-                <input value={ragDbPath} onChange={(e) => setRagDbPath(e.target.value)} className="dashboard-input" />
-                <p className="text-xs text-slate-500">{t('ragDbPathHelp')}</p>
-              </label>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-slate-700">{t('memoryStoreType')}</span>
                   <input value={memoryStoreType} onChange={(e) => setMemoryStoreType(e.target.value)} className="dashboard-input" />
                 </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-700">{t('memoryPath')}</span>
-                  <input value={memoryPath} onChange={(e) => setMemoryPath(e.target.value)} className="dashboard-input" />
-                  <p className="text-xs text-slate-500">{t('memoryPathHelp')}</p>
-                </label>
+                <div className="dashboard-muted-card rounded-[20px] px-4 py-3 text-slate-700">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{t('memoryPath')}</p>
+                  <p className="mt-2 break-all text-sm">{derivedMemoryPath || '-'}</p>
+                </div>
               </div>
             </div>
           )}

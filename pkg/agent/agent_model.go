@@ -2,20 +2,13 @@ package agent
 
 import "time"
 
-// AgentStatus represents the lifecycle state of a persistent agent
-type AgentStatus string
-
-const (
-	AgentStatusStopped AgentStatus = "stopped"
-	AgentStatusRunning AgentStatus = "running"
-	AgentStatusError   AgentStatus = "error"
-)
-
-// AgentKind distinguishes persistent user-facing captains from reusable specialists.
+// AgentKind distinguishes standalone agents, squad lead-role agents, and reusable specialists.
 type AgentKind string
 
 const (
+	AgentKindAgent      AgentKind = "agent"
 	AgentKindCaptain    AgentKind = "captain"
+	AgentKindLeadAgent  AgentKind = AgentKindCaptain
 	AgentKindLeader     AgentKind = AgentKindCaptain
 	AgentKindCommander  AgentKind = AgentKindCaptain
 	AgentKindSpecialist AgentKind = "specialist"
@@ -27,11 +20,11 @@ type AgentModel struct {
 	TeamID                string      `json:"squad_id,omitempty"`
 	Name                  string      `json:"name"`
 	Kind                  AgentKind   `json:"kind"`
+	Squads                []SquadMembership `json:"squads,omitempty"`
 	Description           string      `json:"description"`
 	Instructions          string      `json:"instructions"`
 	Model                 string      `json:"model"`
 	RequiredLLMCapability int         `json:"required_llm_capability"`
-	Status                AgentStatus `json:"status"` // "running", "stopped", "error"
 	MCPTools              []string    `json:"mcp_tools"`
 	Skills                []string    `json:"skills"`
 	EnableRAG             bool        `json:"enable_rag"`
@@ -40,6 +33,15 @@ type AgentModel struct {
 	EnableMCP             bool        `json:"enable_mcp"`
 	CreatedAt             time.Time   `json:"created_at"`
 	UpdatedAt             time.Time   `json:"updated_at"`
+}
+
+type SquadMembership struct {
+	AgentID    string    `json:"agent_id,omitempty"`
+	SquadID    string    `json:"squad_id"`
+	SquadName  string    `json:"squad_name,omitempty"`
+	Role       AgentKind `json:"role"`
+	CreatedAt  time.Time `json:"created_at,omitempty"`
+	UpdatedAt  time.Time `json:"updated_at,omitempty"`
 }
 
 type Squad struct {

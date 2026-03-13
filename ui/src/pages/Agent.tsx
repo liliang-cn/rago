@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useCreateAgent, useCreateSquad, useAgents, useOpsLogs, useSquads, useStartAgent, useStatus, useStopAgent } from '../hooks/useApi'
+import { useCreateAgent, useCreateSquad, useAgents, useOpsLogs, useSquads, useStatus } from '../hooks/useApi'
 import type { AgentModel, CreateAgentRequest, CreateSquadRequest, OpsLogEntry } from '../lib/api'
 import { MultiAgentChatPanel } from '../components/MultiAgentChatPanel'
 
@@ -32,30 +32,10 @@ function formatDate(input: string | undefined, t: (key: string) => string) {
   return date.toLocaleString()
 }
 
-function statusTone(status: AgentModel['status']) {
-  switch (status) {
-    case 'running':
-      return 'text-emerald-700 bg-emerald-50 ring-emerald-200'
-    case 'error':
-      return 'text-rose-700 bg-rose-50 ring-rose-200'
-    default:
-      return 'text-slate-600 bg-slate-50 ring-slate-200'
-  }
-}
-
-function statusLabel(status: AgentModel['status'], t: (key: string) => string) {
-  switch (status) {
-    case 'running':
-      return t('enabled')
-    case 'stopped':
-      return t('disabled')
-    default:
-      return status
-  }
-}
-
 function kindLabel(kind: AgentModel['kind'], t: (key: string) => string) {
-  return kind === 'specialist' ? t('kindSpecialist') : t('kindCaptain')
+  if (kind === 'specialist') return t('kindSpecialist')
+  if (kind === 'agent') return t('kindAgent')
+  return t('kindCaptain')
 }
 
 function countEnabledCapabilities(agent: AgentModel) {
@@ -70,8 +50,6 @@ export function Agent() {
   const { data: activity = [] } = useOpsLogs(20)
   const createAgent = useCreateAgent()
   const createSquad = useCreateSquad()
-  const startAgent = useStartAgent()
-  const stopAgent = useStopAgent()
 
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showCreateSquadForm, setShowCreateSquadForm] = useState(false)
@@ -95,23 +73,28 @@ export function Agent() {
   const [rawMCPTools, setRawMCPTools] = useState('')
   const [rawSkills, setRawSkills] = useState('')
 
-  const captainAgents = useMemo(
-    () => agents.filter((agent) => agent.kind === 'captain'),
-    [agents],
+  const squadPanels = useMemo(
+    () =>
+      squads
+        .map((squad) => ({
+          squad,
+          leadAgent: squad.lead_agent ?? squad.captain ?? null,
+        }))
+        .filter((item) => item.leadAgent != null),
+    [squads],
   )
 
   const metrics = useMemo(() => {
-    const enabledAgents = captainAgents.filter((agent) => agent.status === 'running').length
-    const totalCapabilities = captainAgents.reduce((sum, agent) => sum + countEnabledCapabilities(agent), 0)
+    const totalCapabilities = squadPanels.reduce((sum, item) => sum + countEnabledCapabilities(item.leadAgent!), 0)
     const providers = status?.providers?.filter((provider) => provider.status === 'enabled').length ?? 0
 
     return [
-      { label: t('agentsEnabled'), value: String(enabledAgents), subtext: t('agentsTotal', { count: captainAgents.length }) },
+      { label: t('squads'), value: String(squads.length), subtext: t('agentsTotal', { count: agents.length }) },
       { label: t('capabilitiesArmed'), value: String(totalCapabilities), subtext: t('acrossAllSpecialists') },
       { label: t('providersHealthy'), value: String(providers), subtext: t('providersTracked', { count: status?.providers?.length ?? 0 }) },
       { label: t('knowledgeFootprint'), value: String(status?.rag?.documents ?? 0), subtext: t('chunksIndexed', { count: status?.rag?.chunks ?? 0 }) },
     ]
-  }, [captainAgents, status, t])
+  }, [agents.length, squadPanels, squads.length, status, t])
 
   const handleCreateFormField =
     (field: 'name' | 'description' | 'instructions' | 'model') =>
@@ -177,18 +160,6 @@ export function Agent() {
       })
       setSquadForm({ name: '', description: '' })
       setShowCreateSquadForm(false)
-    } catch (mutationError) {
-      console.error(mutationError)
-    }
-  }
-
-  const handleLifecycle = async (mode: 'start' | 'stop', agent: AgentModel) => {
-    try {
-      if (mode === 'start') {
-        await startAgent.mutateAsync(agent.name)
-      } else {
-        await stopAgent.mutateAsync(agent.name)
-      }
     } catch (mutationError) {
       console.error(mutationError)
     }
@@ -280,6 +251,7 @@ export function Agent() {
               onChange={(event) => setCreateForm((current) => ({ ...current, kind: event.target.value as CreateAgentRequest['kind'] }))}
               className="dashboard-input"
             >
+              <option value="agent">{t('kindAgent')}</option>
               <option value="specialist">{t('kindSpecialist')}</option>
               <option value="captain">{t('kindCaptain')}</option>
             </select>
@@ -360,7 +332,7 @@ export function Agent() {
         {isLoading && <div className="glass-panel rounded-[28px] p-5 text-sm text-slate-500">{t('loadingAgents')}</div>}
         {error && <div className="glass-panel rounded-[28px] border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">{error.message}</div>}
 
-        {!isLoading && captainAgents.length === 0 && (
+        {!isLoading && squadPanels.length === 0 && (
           <div className="glass-panel rounded-[28px] border border-dashed border-sky-100 bg-sky-50/60 p-6 text-sm text-slate-500">
             {t('noAgentsRegistered')}
           </div>
@@ -376,7 +348,7 @@ export function Agent() {
                   <p className="mt-2 text-sm text-slate-600">{squad.description}</p>
                 </div>
                 <div className="text-right text-sm text-slate-500">
-                  <div>{t('captainLabel')}: {squad.captain?.name ?? t('unknown')}</div>
+                  <div>{t('captainLabel')}: {squad.lead_agent?.name ?? squad.captain?.name ?? t('unknown')}</div>
                   <div>{t('membersCount', { count: squad.members.length })}</div>
                 </div>
               </div>
@@ -385,61 +357,40 @@ export function Agent() {
         </section>
 
         <div className="grid gap-6 xl:grid-cols-2" data-testid="agent-captain-panels">
-          {captainAgents.map((agent) => (
-            <div key={agent.id} className="space-y-4">
-              <section className="glass-panel rounded-[32px] p-6" data-testid={`captain-card-${agent.name}`}>
+          {squadPanels.map(({ squad, leadAgent }) => (
+            <div key={squad.id} className="space-y-4">
+              <section className="glass-panel rounded-[32px] p-6" data-testid={`captain-card-${squad.id}`}>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-2xl font-semibold text-slate-900">{agent.name}</h3>
-                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs text-blue-800">{kindLabel(agent.kind, t)}</span>
-                      <span className={cn('rounded-full px-3 py-1 text-xs ring-1', statusTone(agent.status))}>{statusLabel(agent.status, t)}</span>
+                      <h3 className="text-2xl font-semibold text-slate-900">{squad.name}</h3>
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs text-blue-800">{kindLabel(leadAgent!.kind, t)}</span>
                     </div>
-                    <p className="mt-2 text-sm text-slate-600">{agent.description}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleLifecycle('start', agent)}
-                      disabled={startAgent.isPending}
-                      className="dashboard-button justify-center"
-                      data-testid={`agent-start-${agent.name}`}
-                    >
-                      {t('enableAgent')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleLifecycle('stop', agent)}
-                      disabled={stopAgent.isPending}
-                      className="dashboard-secondary-button text-sm font-medium"
-                      data-testid={`agent-stop-${agent.name}`}
-                    >
-                      {t('disableAgent')}
-                    </button>
+                    <p className="mt-2 text-sm text-slate-600">{squad.description}</p>
                   </div>
                 </div>
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="dashboard-muted-card rounded-[22px] p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('captainLabel')}</p>
+                    <p className="mt-2 text-sm text-slate-900">{leadAgent!.name}</p>
+                  </div>
+                  <div className="dashboard-muted-card rounded-[22px] p-4">
                     <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('model')}</p>
-                    <p className="mt-2 text-sm text-slate-900">{agent.model || t('defaultPool')}</p>
+                    <p className="mt-2 text-sm text-slate-900">{leadAgent!.model || t('defaultPool')}</p>
                   </div>
                   <div className="dashboard-muted-card rounded-[22px] p-4">
                     <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('created')}</p>
-                    <p className="mt-2 text-sm text-slate-900">{formatDate(agent.created_at, t)}</p>
+                    <p className="mt-2 text-sm text-slate-900">{formatDate(squad.created_at, t)}</p>
                   </div>
                   <div className="dashboard-muted-card rounded-[22px] p-4">
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('llmCapability')}</p>
-                    <p className="mt-2 text-sm text-slate-900">{agent.required_llm_capability || 0}</p>
-                  </div>
-                  <div className="dashboard-muted-card rounded-[22px] p-4">
-                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('skillAllowlist')}</p>
-                    <p className="mt-2 text-sm text-slate-900">{t('skillCountText', { count: agent.skills?.length || 0 })}</p>
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('members')}</p>
+                    <p className="mt-2 text-sm text-slate-900">{t('membersCount', { count: squad.members.length })}</p>
                   </div>
                 </div>
               </section>
 
-              <MultiAgentChatPanel captain={agent} />
+              <MultiAgentChatPanel squad={squad} leadAgent={leadAgent!} />
             </div>
           ))}
         </div>
@@ -470,9 +421,6 @@ export function Agent() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-lg font-medium text-slate-900">{agent.name}</span>
                         <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs text-sky-800">{kindLabel(agent.kind, t)}</span>
-                        {agent.kind === 'captain' && (
-                          <span className={cn('rounded-full px-2.5 py-1 text-xs ring-1', statusTone(agent.status))}>{statusLabel(agent.status, t)}</span>
-                        )}
                       </div>
                       <p className="mt-1 text-sm text-slate-600">{agent.description}</p>
                     </div>
@@ -502,7 +450,11 @@ export function Agent() {
                         <div className="dashboard-muted-card rounded-[20px] p-3">
                           <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{t('squads')}</p>
                           <p className="mt-2 text-sm text-slate-900">
-                            {squads.find((squad) => squad.id === agent.squad_id)?.name || t('defaultSquadOption')}
+                            {agent.squads?.length
+                              ? agent.squads
+                                  .map((membership) => squads.find((squad) => squad.id === membership.squad_id)?.name || membership.squad_id)
+                                  .join(', ')
+                              : t('unknown')}
                           </p>
                         </div>
                       </div>

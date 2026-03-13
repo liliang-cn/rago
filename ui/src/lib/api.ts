@@ -67,12 +67,16 @@ export interface AgentModel {
   id: string
   squad_id?: string
   name: string
-  kind: 'captain' | 'specialist'
+  kind: 'agent' | 'captain' | 'specialist'
+  squads?: Array<{
+    squad_id: string
+    squad_name?: string
+    role: 'captain' | 'specialist'
+  }>
   description: string
   instructions: string
   model?: string
   required_llm_capability?: number
-  status: 'running' | 'stopped' | 'error'
   mcp_tools?: string[]
   skills?: string[]
   enable_rag: boolean
@@ -89,7 +93,7 @@ export interface AgentsResponse {
 
 export interface CreateAgentRequest {
   squad_id?: string
-  kind?: 'captain' | 'specialist'
+  kind?: 'agent' | 'captain' | 'specialist'
   name: string
   description: string
   instructions: string
@@ -112,6 +116,7 @@ export interface Squad {
   id: string
   name: string
   description: string
+  lead_agent?: AgentModel
   captain?: AgentModel
   members: AgentModel[]
   created_at?: string
@@ -120,6 +125,22 @@ export interface Squad {
 
 export interface SquadsResponse {
   squads: Squad[]
+}
+
+export interface SquadTask {
+  id: string
+  squad_id?: string
+  captain_name?: string
+  lead_agent_name?: string
+  agent_names: string[]
+  prompt: string
+  ack_message: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  queued_ahead: number
+  result_text?: string
+  created_at: string
+  started_at?: string
+  finished_at?: string
 }
 
 export interface DispatchAgentTaskRequest {
@@ -515,16 +536,6 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  startAgent: (name: string) =>
-    fetchAPI<{ success: boolean; agent: AgentModel }>(`/agents/${encodeURIComponent(name)}/start`, {
-      method: 'POST',
-    }),
-
-  stopAgent: (name: string) =>
-    fetchAPI<{ success: boolean; agent: AgentModel }>(`/agents/${encodeURIComponent(name)}/stop`, {
-      method: 'POST',
-    }),
-
   dispatchAgentTask: (name: string, data: DispatchAgentTaskRequest) =>
     fetchAPI<DispatchAgentTaskResponse>(`/agents/${encodeURIComponent(name)}/dispatch`, {
       method: 'POST',
@@ -566,11 +577,7 @@ export interface UpdateConfigRequest {
   serverHost?: string
   serverPort?: number
   mcpEnabled?: boolean
-  mcpAllowedDirs?: string[]
-  skillsPaths?: string[]
-  ragDbPath?: string
   memoryStoreType?: string
-  memoryPath?: string
 }
 
 export interface SetupProvider {
@@ -601,13 +608,9 @@ export interface SetupState {
 
 export interface ApplySetupRequest {
   home: string
-  workingDirectory: string
   serverHost: string
   serverPort: number
   mcpEnabled: boolean
-  skillsPaths: string[]
-  ragDbPath: string
   memoryStoreType: string
-  memoryPath: string
   provider: SetupProvider
 }

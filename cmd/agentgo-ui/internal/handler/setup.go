@@ -44,16 +44,12 @@ type SetupState struct {
 }
 
 type ApplySetupRequest struct {
-	Home             string        `json:"home"`
-	WorkingDirectory string        `json:"workingDirectory"`
-	ServerHost       string        `json:"serverHost"`
-	ServerPort       int           `json:"serverPort"`
-	MCPEnabled       bool          `json:"mcpEnabled"`
-	SkillsPaths      []string      `json:"skillsPaths"`
-	RAGDBPath        string        `json:"ragDbPath"`
-	MemoryStoreType  string        `json:"memoryStoreType"`
-	MemoryPath       string        `json:"memoryPath"`
-	Provider         SetupProvider `json:"provider"`
+	Home            string        `json:"home"`
+	ServerHost      string        `json:"serverHost"`
+	ServerPort      int           `json:"serverPort"`
+	MCPEnabled      bool          `json:"mcpEnabled"`
+	MemoryStoreType string        `json:"memoryStoreType"`
+	Provider        SetupProvider `json:"provider"`
 }
 
 func NewSetupHandler(cfg *config.Config, configPath string) *SetupHandler {
@@ -72,13 +68,6 @@ func (h *SetupHandler) HandleSetup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SetupHandler) snapshot() SetupState {
-	workingDir := ""
-	if len(h.cfg.MCP.FilesystemDirs) > 0 {
-		workingDir = h.cfg.MCP.FilesystemDirs[0]
-	} else {
-		workingDir = h.cfg.WorkspaceDir()
-	}
-
 	providers := make([]SetupProvider, 0, len(h.cfg.LLM.Providers))
 	for _, p := range h.cfg.LLM.Providers {
 		providers = append(providers, SetupProvider{
@@ -94,12 +83,12 @@ func (h *SetupHandler) snapshot() SetupState {
 		Initialized:      h.isInitialized(),
 		ConfigPath:       h.configPath,
 		Home:             h.cfg.Home,
-		WorkingDirectory: workingDir,
+		WorkingDirectory: h.cfg.WorkspaceDir(),
 		ServerHost:       h.cfg.Server.Host,
 		ServerPort:       h.cfg.Server.Port,
 		MCPEnabled:       h.cfg.MCP.Enabled,
 		MCPAllowedDirs:   append([]string{}, h.cfg.MCP.FilesystemDirs...),
-		SkillsPaths:      append([]string{}, h.cfg.Skills.Paths...),
+		SkillsPaths:      h.cfg.SkillsPaths(),
 		RAGDBPath:        h.cfg.RAG.Storage.DBPath,
 		MemoryStoreType:  h.cfg.Memory.StoreType,
 		MemoryPath:       h.cfg.Memory.MemoryPath,
@@ -135,10 +124,6 @@ func (h *SetupHandler) apply(w http.ResponseWriter, r *http.Request) {
 		JSONError(w, "home is required", http.StatusBadRequest)
 		return
 	}
-	if req.WorkingDirectory == "" {
-		JSONError(w, "workingDirectory is required", http.StatusBadRequest)
-		return
-	}
 	if req.ServerHost == "" || req.ServerPort <= 0 {
 		JSONError(w, "server host and port are required", http.StatusBadRequest)
 		return
@@ -152,11 +137,8 @@ func (h *SetupHandler) apply(w http.ResponseWriter, r *http.Request) {
 	h.cfg.Server.Host = req.ServerHost
 	h.cfg.Server.Port = req.ServerPort
 	h.cfg.MCP.Enabled = req.MCPEnabled
-	h.cfg.MCP.FilesystemDirs = []string{req.WorkingDirectory}
-	h.cfg.Skills.Paths = append([]string{}, req.SkillsPaths...)
-	h.cfg.RAG.Storage.DBPath = req.RAGDBPath
 	h.cfg.Memory.StoreType = req.MemoryStoreType
-	h.cfg.Memory.MemoryPath = req.MemoryPath
+	h.cfg.ApplyHomeLayout()
 	h.cfg.LLM.Enabled = true
 	h.cfg.LLM.Strategy = pool.StrategyRoundRobin
 	h.cfg.LLM.Providers = []pool.Provider{{
@@ -211,11 +193,11 @@ func (h *SetupHandler) saveSetupConfig(req ApplySetupRequest) error {
 	setNested(data, []string{"server", "host"}, h.cfg.Server.Host)
 	setNested(data, []string{"server", "port"}, h.cfg.Server.Port)
 	setNested(data, []string{"mcp", "enabled"}, h.cfg.MCP.Enabled)
-	setNested(data, []string{"mcp", "filesystem_dirs"}, h.cfg.MCP.FilesystemDirs)
-	setNested(data, []string{"skills", "paths"}, h.cfg.Skills.Paths)
-	setNested(data, []string{"rag", "storage", "db_path"}, h.cfg.RAG.Storage.DBPath)
 	setNested(data, []string{"memory", "store_type"}, h.cfg.Memory.StoreType)
-	setNested(data, []string{"memory", "memory_path"}, h.cfg.Memory.MemoryPath)
+	deleteNested(data, []string{"mcp", "filesystem_dirs"})
+	deleteNested(data, []string{"rag", "storage", "db_path"})
+	deleteNested(data, []string{"memory", "memory_path"})
+	deleteNested(data, []string{"cache", "path"})
 	setNested(data, []string{"llm", "enabled"}, true)
 	setNested(data, []string{"llm", "strategy"}, string(pool.StrategyRoundRobin))
 	setNested(data, []string{"llm", "providers"}, []map[string]interface{}{{

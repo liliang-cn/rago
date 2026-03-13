@@ -229,6 +229,34 @@ func TestExpandAndEnsurePaths(t *testing.T) {
 	}
 }
 
+func TestApplyHomeLayout(t *testing.T) {
+	home := t.TempDir()
+	cfg := validConfig(home)
+	cfg.RAG.Storage.DBPath = "/tmp/override-agentgo.db"
+	cfg.Memory.StoreType = "file"
+	cfg.Memory.MemoryPath = "/tmp/override-memories"
+	cfg.Cache.Path = "/tmp/override-cache"
+	cfg.MCP.FilesystemDirs = []string{"/tmp"}
+
+	cfg.ApplyHomeLayout()
+
+	if got := cfg.RAG.Storage.DBPath; got != filepath.Join(home, "data", "agentgo.db") {
+		t.Fatalf("expected derived rag db path, got %s", got)
+	}
+	if got := cfg.Memory.MemoryPath; got != filepath.Join(home, "data", "memories") {
+		t.Fatalf("expected derived memory path, got %s", got)
+	}
+	if got := cfg.Cache.Path; got != filepath.Join(home, "data", "cache") {
+		t.Fatalf("expected derived cache path, got %s", got)
+	}
+	if len(cfg.MCP.FilesystemDirs) != 1 || cfg.MCP.FilesystemDirs[0] != filepath.Join(home, "workspace") {
+		t.Fatalf("expected workspace-only filesystem dir, got %v", cfg.MCP.FilesystemDirs)
+	}
+	if _, err := os.Stat(filepath.Join(home, "workspace")); err != nil {
+		t.Fatalf("expected workspace directory to exist: %v", err)
+	}
+}
+
 func TestUnmarshalProvidersAliases(t *testing.T) {
 	raw := []interface{}{
 		map[string]interface{}{

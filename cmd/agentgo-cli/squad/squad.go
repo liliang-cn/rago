@@ -26,8 +26,8 @@ import (
 
 var SquadCmd = &cobra.Command{
 	Use:   "squad",
-	Short: "Run squad tasks and manage captains or specialists",
-	Long: `Run squad tasks, inspect members, and control captain lifecycle.
+	Short: "Run squad tasks and manage squads or squad agents",
+	Long: `Run squad tasks, inspect squads, and manage squad agents.
 
 With no subcommand, 'agentgo squad' starts interactive squad chat.
 
@@ -37,11 +37,13 @@ Interactive controls:
   quit      exit interactive mode
   exit      exit interactive mode`,
 	Example: `  agentgo squad
-  agentgo squad go "@Assistant summarize the repo"
-  agentgo squad member add Writer --squad "Docs Squad" --description "Writes concise docs"`,
+  agentgo squad go "@Captain summarize the repo"
+  agentgo squad agent add Writer --squad "Docs Squad" --description "Writes concise docs"`,
 	Args: cobra.NoArgs,
 	RunE: runInteractiveSquad,
 }
+
+const builtInSquadID = "squad-default-001"
 
 type delegatedTask struct {
 	AgentName   string
@@ -54,19 +56,19 @@ var errInputCanceled = errors.New("input canceled")
 func init() {
 	SquadCmd.AddCommand(goCmd)
 	SquadCmd.AddCommand(addCmd)
+	SquadCmd.AddCommand(deleteCmd)
 	SquadCmd.AddCommand(listCmd)
+	SquadCmd.AddCommand(statusCmd)
 	SquadCmd.AddCommand(memberCmd)
 	memberCmd.AddCommand(memberAddCmd)
 	memberCmd.AddCommand(memberListCmd)
 	memberCmd.AddCommand(memberShowCmd)
-	memberCmd.AddCommand(memberStartCmd)
-	memberCmd.AddCommand(memberStopCmd)
 
 	addCmd.Flags().StringVar(&squadDescription, "description", "", "squad description")
 
-	memberAddCmd.Flags().StringVar(&memberDescription, "description", "", "member description")
-	memberAddCmd.Flags().StringVar(&memberInstructions, "instructions", "", "member system instructions")
-	memberAddCmd.Flags().StringVar(&memberKind, "kind", "specialist", "member kind: specialist or captain")
+	memberAddCmd.Flags().StringVar(&memberDescription, "description", "", "agent description")
+	memberAddCmd.Flags().StringVar(&memberInstructions, "instructions", "", "agent system instructions")
+	memberAddCmd.Flags().StringVar(&memberKind, "kind", "specialist", "agent role inside the squad: specialist or captain")
 	memberAddCmd.Flags().StringVar(&memberSquadID, "squad-id", "", "target squad ID (defaults to the default squad)")
 	memberAddCmd.Flags().StringVar(&memberSquadName, "squad", "", "target squad name (defaults to the default squad)")
 	memberAddCmd.Flags().StringVar(&memberModel, "model", "", "preferred provider or model")
@@ -85,7 +87,7 @@ var (
 var goCmd = &cobra.Command{
 	Use:   "go [task]",
 	Short: "Run a squad task",
-	Long:  `Run one squad task explicitly, for example: agentgo squad go "@Assistant summarize and implement".`,
+	Long:  `Run one squad task explicitly, for example: agentgo squad go "@Captain summarize and implement".`,
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		manager, err := getManager()
@@ -130,6 +132,32 @@ var addCmd = &cobra.Command{
 	},
 }
 
+var deleteCmd = &cobra.Command{
+	Use:     "delete [name]",
+	Aliases: []string{"remove", "rm"},
+	Short:   "Delete a squad",
+	Args:    cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		manager, err := getManager()
+		if err != nil {
+			return err
+		}
+
+		squad, err := resolveSquad(manager, args[0])
+		if err != nil {
+			return err
+		}
+		if squad.ID == builtInSquadID {
+			return fmt.Errorf("cannot delete the built-in AgentGo Squad")
+		}
+		if err := manager.DeleteSquad(context.Background(), squad.ID); err != nil {
+			return err
+		}
+		fmt.Printf("Deleted squad '%s'.\n", squad.Name)
+		return nil
+	},
+}
+
 func getManager() (*agent.SquadManager, error) {
 	cfg, err := config.Load("")
 	if err != nil {
@@ -153,33 +181,31 @@ var listCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		squads, err := manager.ListSquads()
-		if err != nil {
-			return err
-		}
-		members, err := manager.ListMembers()
+		statuses, err := manager.ListSquadStatuses()
 		if err != nil {
 			return err
 		}
 
 		type squadRow struct {
 			Name        string
-			Captain     string
-			Members     int
+			LeadAgent   string
+			Agents      int
+			Status      string
+			BuiltIn     bool
 			Description string
 		}
 
-		rows := make([]squadRow, 0, len(squads))
-		for _, squad := range squads {
-			row := squadRow{Name: squad.Name, Description: squad.Description}
-			for _, member := range members {
-				if member.TeamID != squad.ID {
-					continue
-				}
-				row.Members++
-				if member.Kind == agent.AgentKindCaptain && row.Captain == "" {
-					row.Captain = member.Name
-				}
+		rows := make([]squadRow, 0, len(statuses))
+		for _, squad := range statuses {
+			row := squadRow{
+				Name:        squad.Name,
+				Description: squad.Description,
+				BuiltIn:     squad.SquadID == builtInSquadID,
+				Status:      squad.Status,
+				Agents:      squad.AgentCount,
+			}
+			if len(squad.CaptainNames) > 0 {
+				row.LeadAgent = squad.CaptainNames[0]
 			}
 			rows = append(rows, row)
 		}
@@ -201,24 +227,42 @@ var listCmd = &cobra.Command{
 			return nil
 		}
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-		fmt.Fprintln(w, "NAME\tCAPTAIN\tMEMBERS\tDESCRIPTION")
+		fmt.Fprintln(w, "NAME\tCAPTAIN\tAGENTS\tSTATUS\tBUILT-IN\tDESCRIPTION")
 		for _, row := range rows {
-			fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", row.Name, valueOrDash(row.Captain), row.Members, row.Description)
+			fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\n", row.Name, valueOrDash(row.LeadAgent), row.Agents, row.Status, yesNo(row.BuiltIn), row.Description)
 		}
 		w.Flush()
 		return nil
 	},
 }
 
+var statusCmd = &cobra.Command{
+	Use:   "status [name]",
+	Short: "Show runtime status for one squad",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		manager, err := getManager()
+		if err != nil {
+			return err
+		}
+		squad, err := resolveSquad(manager, args[0])
+		if err != nil {
+			return err
+		}
+		return followSquadStatus(cmd.Context(), manager, squad.ID)
+	},
+}
+
 var memberCmd = &cobra.Command{
-	Use:   "member",
-	Short: "Manage squad members",
+	Use:     "agent",
+	Aliases: []string{"member"},
+	Short:   "Manage squad agents",
 }
 
 var memberAddCmd = &cobra.Command{
 	Use:     "add [name]",
 	Aliases: []string{"create"},
-	Short:   "Add a squad member",
+	Short:   "Add an agent directly into a squad",
 	Args:    cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		manager, err := getManager()
@@ -231,12 +275,9 @@ var memberAddCmd = &cobra.Command{
 			return fmt.Errorf("agent name is required")
 		}
 
-		kind := agent.AgentKind(strings.TrimSpace(memberKind))
-		if kind == "" {
-			kind = agent.AgentKindSpecialist
-		}
-		if kind != agent.AgentKindCaptain && kind != agent.AgentKindSpecialist {
-			return fmt.Errorf("invalid kind %q: use captain or specialist", kind)
+		kind, err := normalizeSquadRole(strings.TrimSpace(memberKind))
+		if err != nil {
+			return err
 		}
 
 		description := strings.TrimSpace(memberDescription)
@@ -264,14 +305,14 @@ var memberAddCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Added %s '%s'.\n", strings.ToLower(string(member.Kind)), member.Name)
+		fmt.Printf("Added %s '%s'.\n", kindDisplay(member.Kind), member.Name)
 		return nil
 	},
 }
 
 var memberListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all captains and specialists",
+	Short: "List all squad agents",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		manager, err := getManager()
 		if err != nil {
@@ -282,34 +323,34 @@ var memberListCmd = &cobra.Command{
 			return err
 		}
 
-		var captains []*agent.AgentModel
+		var leadAgents []*agent.AgentModel
 		var specialists []*agent.AgentModel
 		for _, a := range agentsList {
 			switch a.Kind {
 			case agent.AgentKindSpecialist:
 				specialists = append(specialists, a)
 			default:
-				captains = append(captains, a)
+				leadAgents = append(leadAgents, a)
 			}
 		}
 
-		slices.SortFunc(captains, func(a, b *agent.AgentModel) int {
+		slices.SortFunc(leadAgents, func(a, b *agent.AgentModel) int {
 			return compareAgentNames(a.Name, b.Name)
 		})
 		slices.SortFunc(specialists, func(a, b *agent.AgentModel) int {
 			return compareAgentNames(a.Name, b.Name)
 		})
 
-		printAgentSection("Captains", captains, true)
+		printAgentSection("Captains", leadAgents)
 		fmt.Println()
-		printAgentSection("Specialists", specialists, false)
+		printAgentSection("Specialists", specialists)
 		return nil
 	},
 }
 
 var memberShowCmd = &cobra.Command{
 	Use:   "show [name]",
-	Short: "Show detailed agent configuration",
+	Short: "Show detailed squad agent configuration",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		manager, err := getManager()
@@ -322,12 +363,7 @@ var memberShowCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Name: %s\n", a.Name)
-		fmt.Printf("Kind: %s\n", a.Kind)
-		if a.Kind == agent.AgentKindCaptain {
-			fmt.Printf("Status: %s\n", a.Status)
-		} else {
-			fmt.Println("Status: reusable specialist")
-		}
+		fmt.Printf("Kind: %s\n", kindDisplay(a.Kind))
 		fmt.Printf("Model: %s\n", valueOrDash(a.Model))
 		fmt.Printf("Description: %s\n", valueOrDash(a.Description))
 		fmt.Printf("RAG: %s\n", enabledState(a.EnableRAG))
@@ -345,47 +381,7 @@ var memberShowCmd = &cobra.Command{
 	},
 }
 
-var memberStartCmd = &cobra.Command{
-	Use:     "start [name]",
-	Short:   "Enable a captain by name",
-	Aliases: []string{"enable"},
-	Args:    cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		manager, err := getManager()
-		if err != nil {
-			return err
-		}
-		name := args[0]
-		err = manager.EnableCaptain(context.Background(), name)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Captain '%s' enabled.\n", name)
-		return nil
-	},
-}
-
-var memberStopCmd = &cobra.Command{
-	Use:     "stop [name]",
-	Short:   "Disable a captain by name",
-	Aliases: []string{"disable"},
-	Args:    cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		manager, err := getManager()
-		if err != nil {
-			return err
-		}
-		name := args[0]
-		err = manager.DisableCaptain(context.Background(), name)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Captain '%s' disabled.\n", name)
-		return nil
-	},
-}
-
-func printAgentSection(title string, agentsList []*agent.AgentModel, showStatus bool) {
+func printAgentSection(title string, agentsList []*agent.AgentModel) {
 	fmt.Println(title)
 	if len(agentsList) == 0 {
 		fmt.Println("  (none)")
@@ -393,16 +389,9 @@ func printAgentSection(title string, agentsList []*agent.AgentModel, showStatus 
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	if showStatus {
-		fmt.Fprintln(w, "NAME\tSTATUS\tDESCRIPTION")
-		for _, a := range agentsList {
-			fmt.Fprintf(w, "%s\t%s\t%s\n", a.Name, a.Status, a.Description)
-		}
-	} else {
-		fmt.Fprintln(w, "NAME\tDESCRIPTION")
-		for _, a := range agentsList {
-			fmt.Fprintf(w, "%s\t%s\n", a.Name, a.Description)
-		}
+	fmt.Fprintln(w, "NAME\tDESCRIPTION")
+	for _, a := range agentsList {
+		fmt.Fprintf(w, "%s\t%s\n", a.Name, a.Description)
 	}
 	w.Flush()
 }
@@ -437,6 +426,113 @@ func enabledState(v bool) string {
 		return "enabled"
 	}
 	return "disabled"
+}
+
+func yesNo(v bool) string {
+	if v {
+		return "yes"
+	}
+	return "no"
+}
+
+func normalizeSquadRole(input string) (agent.AgentKind, error) {
+	switch strings.ToLower(strings.TrimSpace(input)) {
+	case "", "specialist":
+		return agent.AgentKindSpecialist, nil
+	case "captain", "lead", "lead-agent", "leader":
+		return agent.AgentKindCaptain, nil
+	default:
+		return "", fmt.Errorf("invalid role %q: use specialist or captain", input)
+	}
+}
+
+func kindDisplay(kind agent.AgentKind) string {
+	switch kind {
+	case agent.AgentKindCaptain:
+		return "captain"
+	case agent.AgentKindSpecialist:
+		return "specialist"
+	case agent.AgentKindAgent:
+		return "agent"
+	default:
+		return strings.ToLower(string(kind))
+	}
+}
+
+func resolveSquad(manager *agent.SquadManager, input string) (*agent.Squad, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return nil, fmt.Errorf("squad name or id is required")
+	}
+	if squad, err := manager.GetSquadByName(input); err == nil {
+		return squad, nil
+	}
+	squads, err := manager.ListSquads()
+	if err != nil {
+		return nil, err
+	}
+	for _, squad := range squads {
+		if strings.EqualFold(strings.TrimSpace(squad.ID), input) {
+			return squad, nil
+		}
+	}
+	return nil, fmt.Errorf("unknown squad: %s", input)
+}
+
+func followSquadStatus(ctx context.Context, manager *agent.SquadManager, squadID string) error {
+	lastSnapshot := ""
+	lastTaskState := map[string]agent.SharedTaskStatus{}
+	printedResults := map[string]struct{}{}
+
+	for {
+		status, err := manager.GetSquadStatus(squadID)
+		if err != nil {
+			return err
+		}
+
+		snapshot := fmt.Sprintf("%s|%d|%d|%d", status.Status, status.RunningTasks, status.QueuedTasks, status.AgentCount)
+		if snapshot != lastSnapshot {
+			fmt.Printf("Squad: %s\n", status.Name)
+			fmt.Printf("Status: %s\n", status.Status)
+			fmt.Printf("Captains: %s\n", joinOrDash(status.CaptainNames))
+			fmt.Printf("Agents: %d\n", status.AgentCount)
+			fmt.Printf("Running Tasks: %d\n", status.RunningTasks)
+			fmt.Printf("Queued Tasks: %d\n\n", status.QueuedTasks)
+			lastSnapshot = snapshot
+		}
+
+		tasks := manager.ListSharedTasksForSquad(squadID, time.Time{}, 50)
+		for _, task := range tasks {
+			if lastTaskState[task.ID] != task.Status {
+				fmt.Printf("• %s [%s] %s\n", task.CaptainName, task.Status, trimForDisplay(task.Prompt, 100))
+				lastTaskState[task.ID] = task.Status
+			}
+			if (task.Status == agent.SharedTaskStatusCompleted || task.Status == agent.SharedTaskStatusFailed) && task.ResultText != "" {
+				if _, ok := printedResults[task.ID]; !ok {
+					fmt.Printf("\n%s\n\n", trimForDisplay(task.ResultText, 800))
+					printedResults[task.ID] = struct{}{}
+				}
+			}
+		}
+
+		if status.Status != "running" && status.Status != "queued" {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+}
+
+func trimForDisplay(text string, limit int) string {
+	text = strings.TrimSpace(text)
+	if limit <= 0 || len(text) <= limit {
+		return text
+	}
+	return text[:limit-3] + "..."
 }
 
 func formatTimestamp(ts time.Time) string {
@@ -481,8 +577,8 @@ func runInteractiveSquadChat(ctx context.Context, manager *agent.SquadManager) e
 	conversationKey := "cli-squad-" + uuid.NewString()
 
 	fmt.Println("🤝 AgentGo Squad Mode")
-	fmt.Println("💡 Direct requests go to Assistant by default")
-	fmt.Println("💡 Use @Assistant or any existing member name to delegate")
+	fmt.Println("💡 Direct requests go to Captain by default")
+	fmt.Println("💡 Use @Captain or any existing squad agent name to delegate")
 	fmt.Println("💡 Ctrl+C cancels the current input")
 	fmt.Println("💡 Ctrl+D exits when the input is empty")
 	fmt.Println("💡 Type 'quit' or 'exit' to end")
@@ -728,7 +824,7 @@ func runSquadMessage(ctx context.Context, manager *agent.SquadManager, conversat
 
 	if len(tasks) == 0 {
 		tasks = []delegatedTask{{
-			AgentName:   "Assistant",
+			AgentName:   "Captain",
 			Instruction: message,
 		}}
 	}
@@ -874,7 +970,7 @@ func parseDelegatedTasks(input string, isKnownAgent func(name string) bool) ([]d
 	}
 
 	// Support leading shared mentions like:
-	//   @Assistant @SomeMember summarize the repo and write a note
+	//   @Captain @SomeMember summarize the repo and write a note
 	// In this form every leading mention receives the same instruction.
 	leadingMentions := []string{firstName}
 	firstInstructionIndex := 1

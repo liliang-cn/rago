@@ -35,8 +35,10 @@ func SetSharedVariables(c *config.Config, v bool) {
 // AgentCmd is the main agent command
 var AgentCmd = &cobra.Command{
 	Use:   "agent",
-	Short: "Autonomous agent operations",
-	Long:  `Run autonomous agent tasks, planning, and execution.`,
+	Short: "Run agents and manage standalone agent profiles",
+	Long: `Run agent tasks, planning, and execution, or manage standalone agents.
+
+An agent can work independently, or it can join a squad with a captain or specialist role.`,
 }
 
 // runCmd runs an agent task
@@ -402,8 +404,16 @@ Example:
 func init() {
 	runCmd.Flags().BoolVarP(&Debug, "debug", "D", false, "Enable verbose debugging output (show full prompts)")
 	runCmd.Flags().BoolVar(&EnablePTC, "ptc", false, "Enable Programmatic Tool Calling (JS sandbox)")
+	runCmd.Flags().StringVar(&runAgentName, "agent", "", "run a stored agent by name")
 	executeCmd.Flags().BoolVar(&EnablePTC, "ptc", false, "Enable Programmatic Tool Calling (JS sandbox)")
 	AgentCmd.AddCommand(runCmd)
+	AgentCmd.AddCommand(agentListCmd)
+	AgentCmd.AddCommand(agentShowCmd)
+	AgentCmd.AddCommand(agentAddCmd)
+	AgentCmd.AddCommand(agentUpdateCmd)
+	AgentCmd.AddCommand(agentDeleteCmd)
+	AgentCmd.AddCommand(agentJoinCmd)
+	AgentCmd.AddCommand(agentLeaveCmd)
 	AgentCmd.AddCommand(planCmd)
 	planCmd.AddCommand(planCreateCmd)
 	planCmd.AddCommand(planListCmd)
@@ -414,6 +424,20 @@ func init() {
 	sessionCmd.AddCommand(sessionListCmd)
 	sessionCmd.AddCommand(sessionGetCmd)
 	AgentCmd.AddCommand(ptcChatCmd)
+
+	agentAddCmd.Flags().StringVar(&agentDescription, "description", "", "agent description")
+	agentAddCmd.Flags().StringVar(&agentInstructions, "instructions", "", "agent system instructions")
+	agentAddCmd.Flags().StringVar(&agentModel, "model", "", "preferred provider or model")
+
+	agentUpdateCmd.Flags().StringVar(&agentUpdateName, "name", "", "rename the agent")
+	agentUpdateCmd.Flags().StringVar(&agentDescription, "description", "", "new agent description")
+	agentUpdateCmd.Flags().StringVar(&agentInstructions, "instructions", "", "new agent system instructions")
+	agentUpdateCmd.Flags().StringVar(&agentModel, "model", "", "new preferred provider or model")
+	agentUpdateCmd.Flags().StringVar(&agentUpdateRole, "role", "", "set role to agent, captain, or specialist")
+
+	agentJoinCmd.Flags().StringVar(&agentUpdateRole, "role", "specialist", "role inside the squad: specialist or captain")
+	agentJoinCmd.Flags().StringVar(&agentUpdateSquadID, "squad-id", "", "target squad ID")
+	agentJoinCmd.Flags().StringVar(&agentUpdateSquadName, "squad", "", "target squad name")
 }
 
 // initAgentServices initializes RAG client and agent service
@@ -423,7 +447,7 @@ func initAgentServices(ctx context.Context) (*rag.Client, *agent.Service, error)
 	var buildErr error
 
 	b := agent.New("AgentGo Frontdesk").
-		WithSystemPrompt("You are the system Frontdesk and Captain. You can interact with users, and delegate tasks to specialized agents using the tools provided.").
+		WithSystemPrompt("You are the system Frontdesk and captain agent. You can interact with users, and delegate tasks to specialized agents using the tools provided.").
 		WithRAG().
 		WithMCP().
 		WithMemory().
@@ -520,7 +544,7 @@ func renderStreamEvent(w io.Writer, evt *agent.Event, state *streamRenderState) 
 func runStream(ctx context.Context, goal string) error {
 	fmt.Printf("🎯 Agent Goal: %s\n\n", goal)
 
-	ragClient, agentService, err := initAgentServices(ctx)
+	ragClient, agentService, err := initRunnableAgentService(ctx, strings.TrimSpace(runAgentName))
 	if err != nil {
 		return err
 	}
@@ -543,4 +567,19 @@ func runStream(ctx context.Context, goal string) error {
 	}
 
 	return nil
+}
+
+func initRunnableAgentService(ctx context.Context, selectedAgentName string) (*rag.Client, *agent.Service, error) {
+	if selectedAgentName == "" {
+		return initAgentServices(ctx)
+	}
+	manager, err := getManager()
+	if err != nil {
+		return nil, nil, err
+	}
+	svc, err := manager.GetAgentService(selectedAgentName)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, svc, nil
 }

@@ -8,7 +8,7 @@ import (
 func TestParseDelegatedTasks(t *testing.T) {
 	isKnown := func(name string) bool {
 		switch name {
-		case "Assistant", "Writer":
+		case "Captain", "Writer":
 			return true
 		default:
 			return false
@@ -27,21 +27,21 @@ func TestParseDelegatedTasks(t *testing.T) {
 func TestParseDelegatedTasksWithLeadingSharedMentions(t *testing.T) {
 	isKnown := func(name string) bool {
 		switch name {
-		case "Assistant", "Writer":
+		case "Captain", "Writer":
 			return true
 		default:
 			return false
 		}
 	}
 
-	tasks, err := parseDelegatedTasks("@Assistant @Writer 总结当前仓库的 UI 和后端关系，并在 workspace 里写一份说明", isKnown)
+	tasks, err := parseDelegatedTasks("@Captain @Writer 总结当前仓库的 UI 和后端关系，并在 workspace 里写一份说明", isKnown)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(tasks) != 2 {
 		t.Fatalf("expected 2 tasks, got %+v", tasks)
 	}
-	if tasks[0].AgentName != "Assistant" || tasks[1].AgentName != "Writer" {
+	if tasks[0].AgentName != "Captain" || tasks[1].AgentName != "Writer" {
 		t.Fatalf("unexpected agent order: %+v", tasks)
 	}
 	want := "总结当前仓库的 UI 和后端关系，并在 workspace 里写一份说明"
@@ -73,16 +73,29 @@ func TestSquadCommandHasGoSubcommand(t *testing.T) {
 	}
 }
 
-func TestSquadCommandHasMemberAddSubcommand(t *testing.T) {
+func TestSquadCommandHasAgentAddSubcommand(t *testing.T) {
+	if SquadCmd == nil {
+		t.Fatal("expected SquadCmd")
+	}
+	cmd, _, err := SquadCmd.Find([]string{"agent", "add"})
+	if err != nil {
+		t.Fatalf("expected agent add subcommand to be found: %v", err)
+	}
+	if cmd == nil || cmd.Name() != "add" {
+		t.Fatalf("unexpected command: %#v", cmd)
+	}
+}
+
+func TestSquadCommandKeepsMemberAlias(t *testing.T) {
 	if SquadCmd == nil {
 		t.Fatal("expected SquadCmd")
 	}
 	cmd, _, err := SquadCmd.Find([]string{"member", "add"})
 	if err != nil {
-		t.Fatalf("expected member add subcommand to be found: %v", err)
+		t.Fatalf("expected member alias to be found: %v", err)
 	}
 	if cmd == nil || cmd.Name() != "add" {
-		t.Fatalf("unexpected command: %#v", cmd)
+		t.Fatalf("unexpected command via member alias: %#v", cmd)
 	}
 }
 
