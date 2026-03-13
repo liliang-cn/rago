@@ -17,6 +17,7 @@ var (
 	runAgentName         string
 	agentDescription     string
 	agentInstructions    string
+	agentProvider        string
 	agentModel           string
 	agentUpdateName      string
 	agentUpdateRole      string
@@ -107,6 +108,8 @@ var agentShowCmd = &cobra.Command{
 		fmt.Printf("Kind: %s\n", kindDisplay(model.Kind))
 		fmt.Printf("Squads: %s\n", squadMembershipDisplay(model, squadNames))
 		fmt.Printf("Model: %s\n", effectiveModelDisplay(model, displayCfg))
+		fmt.Printf("Preferred Provider: %s\n", valueOrDash(strings.TrimSpace(model.PreferredProvider)))
+		fmt.Printf("Preferred Model: %s\n", valueOrDash(strings.TrimSpace(model.PreferredModel)))
 		fmt.Printf("Built-in: %s\n", boolFlag(isBuiltInAgent(model, squadNames)))
 		fmt.Printf("Description: %s\n", valueOrDash(model.Description))
 		fmt.Printf("RAG: %s\n", enabledState(model.EnableRAG))
@@ -149,11 +152,13 @@ var agentAddCmd = &cobra.Command{
 		}
 
 		model, err := manager.CreateAgent(context.Background(), &agent.AgentModel{
-			Name:         name,
-			Kind:         agent.AgentKindAgent,
-			Description:  description,
-			Instructions: instructions,
-			Model:        strings.TrimSpace(agentModel),
+			Name:              name,
+			Kind:              agent.AgentKindAgent,
+			Description:       description,
+			Instructions:      instructions,
+			PreferredProvider: strings.TrimSpace(agentProvider),
+			PreferredModel:    strings.TrimSpace(agentModel),
+			Model:             strings.TrimSpace(agentModel),
 		})
 		if err != nil {
 			return err
@@ -177,19 +182,21 @@ var agentUpdateCmd = &cobra.Command{
 			return err
 		}
 		updated := &agent.AgentModel{
-			ID:           current.ID,
-			Name:         current.Name,
-			Kind:         current.Kind,
-			TeamID:       current.TeamID,
-			Description:  current.Description,
-			Instructions: current.Instructions,
-			Model:        current.Model,
-			MCPTools:     current.MCPTools,
-			Skills:       current.Skills,
-			EnableRAG:    current.EnableRAG,
-			EnableMemory: current.EnableMemory,
-			EnablePTC:    current.EnablePTC,
-			EnableMCP:    current.EnableMCP,
+			ID:                current.ID,
+			Name:              current.Name,
+			Kind:              current.Kind,
+			TeamID:            current.TeamID,
+			Description:       current.Description,
+			Instructions:      current.Instructions,
+			PreferredProvider: current.PreferredProvider,
+			PreferredModel:    current.PreferredModel,
+			Model:             current.Model,
+			MCPTools:          current.MCPTools,
+			Skills:            current.Skills,
+			EnableRAG:         current.EnableRAG,
+			EnableMemory:      current.EnableMemory,
+			EnablePTC:         current.EnablePTC,
+			EnableMCP:         current.EnableMCP,
 		}
 		if strings.TrimSpace(agentUpdateName) != "" {
 			updated.Name = strings.TrimSpace(agentUpdateName)
@@ -200,7 +207,11 @@ var agentUpdateCmd = &cobra.Command{
 		if strings.TrimSpace(agentInstructions) != "" {
 			updated.Instructions = strings.TrimSpace(agentInstructions)
 		}
+		if strings.TrimSpace(agentProvider) != "" {
+			updated.PreferredProvider = strings.TrimSpace(agentProvider)
+		}
 		if strings.TrimSpace(agentModel) != "" {
+			updated.PreferredModel = strings.TrimSpace(agentModel)
 			updated.Model = strings.TrimSpace(agentModel)
 		}
 		if agentUpdateRole != "" {
@@ -396,8 +407,19 @@ func boolFlag(v bool) string {
 }
 
 func effectiveModelDisplay(model *agent.AgentModel, cfg *config.Config) string {
-	if model != nil && strings.TrimSpace(model.Model) != "" {
-		return model.Model
+	if model != nil {
+		preferredProvider := strings.TrimSpace(model.PreferredProvider)
+		preferredModel := strings.TrimSpace(model.PreferredModel)
+		switch {
+		case preferredProvider != "" && preferredModel != "":
+			return preferredModel + " via " + preferredProvider
+		case preferredModel != "":
+			return preferredModel
+		case preferredProvider != "":
+			return preferredProvider + " (provider)"
+		case strings.TrimSpace(model.Model) != "":
+			return model.Model
+		}
 	}
 	if cfg == nil || len(cfg.LLM.Providers) == 0 {
 		return "-"

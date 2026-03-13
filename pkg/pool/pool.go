@@ -160,8 +160,13 @@ func (p *Pool) Get() (*Client, error) {
 	return selected.client, nil
 }
 
-// GetByName 按名称获取
+// GetByName 按名称获取，兼容旧调用；名称指 provider 名称。
 func (p *Pool) GetByName(name string) (*Client, error) {
+	return p.GetByProvider(name)
+}
+
+// GetByProvider 按 provider 名称获取。
+func (p *Pool) GetByProvider(name string) (*Client, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -176,6 +181,40 @@ func (p *Pool) GetByName(name string) (*Client, error) {
 
 	atomic.AddInt32(&wrapper.activeRequests, 1)
 	return wrapper.client, nil
+}
+
+// GetByModel 按模型名获取。
+func (p *Pool) GetByModel(modelName string) (*Client, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return nil, fmt.Errorf("model name is required")
+	}
+
+	healthy := p.healthyClients()
+	if len(healthy) == 0 {
+		return nil, fmt.Errorf("no healthy clients available")
+	}
+
+	var preferred []*clientWrapper
+	for _, wrapper := range healthy {
+		if strings.EqualFold(wrapper.provider.ModelName, modelName) {
+			preferred = append(preferred, wrapper)
+		}
+	}
+	if len(preferred) == 0 {
+		return nil, fmt.Errorf("no client found for model %s", modelName)
+	}
+
+	selected := p.selectLeastLoad(preferred)
+	if selected == nil {
+		return nil, fmt.Errorf("no client selected for model %s", modelName)
+	}
+
+	atomic.AddInt32(&selected.activeRequests, 1)
+	return selected.client, nil
 }
 
 // GetByCapability 按能力等级获取（>=指定能力的最低负载）

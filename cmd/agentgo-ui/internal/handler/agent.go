@@ -161,6 +161,8 @@ func (h *Handler) HandleAgents(w http.ResponseWriter, r *http.Request) {
 			Description           string   `json:"description"`
 			Instructions          string   `json:"instructions"`
 			Model                 string   `json:"model"`
+			PreferredProvider     string   `json:"preferred_provider"`
+			PreferredModel        string   `json:"preferred_model"`
 			RequiredLLMCapability int      `json:"required_llm_capability"`
 			MCPTools              []string `json:"mcp_tools"`
 			Skills                []string `json:"skills"`
@@ -186,6 +188,8 @@ func (h *Handler) HandleAgents(w http.ResponseWriter, r *http.Request) {
 			Description:           strings.TrimSpace(req.Description),
 			Instructions:          strings.TrimSpace(req.Instructions),
 			Model:                 strings.TrimSpace(req.Model),
+			PreferredProvider:     strings.TrimSpace(req.PreferredProvider),
+			PreferredModel:        strings.TrimSpace(req.PreferredModel),
 			RequiredLLMCapability: req.RequiredLLMCapability,
 			MCPTools:              req.MCPTools,
 			Skills:                req.Skills,
@@ -215,6 +219,8 @@ func (h *Handler) HandleAgents(w http.ResponseWriter, r *http.Request) {
 			Detail:    agentModel.Description,
 			Metadata: map[string]interface{}{
 				"model":                   agentModel.Model,
+				"preferred_provider":      agentModel.PreferredProvider,
+				"preferred_model":         agentModel.PreferredModel,
 				"required_llm_capability": agentModel.RequiredLLMCapability,
 			},
 		})

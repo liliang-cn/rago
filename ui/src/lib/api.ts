@@ -76,6 +76,8 @@ export interface AgentModel {
   description: string
   instructions: string
   model?: string
+  preferred_provider?: string
+  preferred_model?: string
   required_llm_capability?: number
   mcp_tools?: string[]
   skills?: string[]
@@ -98,6 +100,8 @@ export interface CreateAgentRequest {
   description: string
   instructions: string
   model?: string
+  preferred_provider?: string
+  preferred_model?: string
   required_llm_capability?: number
   mcp_tools?: string[]
   skills?: string[]

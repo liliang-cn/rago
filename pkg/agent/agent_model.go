@@ -16,32 +16,34 @@ const (
 
 // AgentModel represents the configuration of a dynamic agent in the database.
 type AgentModel struct {
-	ID                    string      `json:"id"`
-	TeamID                string      `json:"squad_id,omitempty"`
-	Name                  string      `json:"name"`
-	Kind                  AgentKind   `json:"kind"`
+	ID                    string            `json:"id"`
+	TeamID                string            `json:"squad_id,omitempty"`
+	Name                  string            `json:"name"`
+	Kind                  AgentKind         `json:"kind"`
 	Squads                []SquadMembership `json:"squads,omitempty"`
-	Description           string      `json:"description"`
-	Instructions          string      `json:"instructions"`
-	Model                 string      `json:"model"`
-	RequiredLLMCapability int         `json:"required_llm_capability"`
-	MCPTools              []string    `json:"mcp_tools"`
-	Skills                []string    `json:"skills"`
-	EnableRAG             bool        `json:"enable_rag"`
-	EnableMemory          bool        `json:"enable_memory"`
-	EnablePTC             bool        `json:"enable_ptc"`
-	EnableMCP             bool        `json:"enable_mcp"`
-	CreatedAt             time.Time   `json:"created_at"`
-	UpdatedAt             time.Time   `json:"updated_at"`
+	Description           string            `json:"description"`
+	Instructions          string            `json:"instructions"`
+	Model                 string            `json:"model"`
+	PreferredProvider     string            `json:"preferred_provider,omitempty"`
+	PreferredModel        string            `json:"preferred_model,omitempty"`
+	RequiredLLMCapability int               `json:"required_llm_capability"`
+	MCPTools              []string          `json:"mcp_tools"`
+	Skills                []string          `json:"skills"`
+	EnableRAG             bool              `json:"enable_rag"`
+	EnableMemory          bool              `json:"enable_memory"`
+	EnablePTC             bool              `json:"enable_ptc"`
+	EnableMCP             bool              `json:"enable_mcp"`
+	CreatedAt             time.Time         `json:"created_at"`
+	UpdatedAt             time.Time         `json:"updated_at"`
 }
 
 type SquadMembership struct {
-	AgentID    string    `json:"agent_id,omitempty"`
-	SquadID    string    `json:"squad_id"`
-	SquadName  string    `json:"squad_name,omitempty"`
-	Role       AgentKind `json:"role"`
-	CreatedAt  time.Time `json:"created_at,omitempty"`
-	UpdatedAt  time.Time `json:"updated_at,omitempty"`
+	AgentID   string    `json:"agent_id,omitempty"`
+	SquadID   string    `json:"squad_id"`
+	SquadName string    `json:"squad_name,omitempty"`
+	Role      AgentKind `json:"role"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
 }
 
 type Squad struct {

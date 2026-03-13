@@ -58,3 +58,51 @@ func TestPoolGetWithHintFallsBackByCapabilityWhenPreferredBusy(t *testing.T) {
 		t.Fatalf("expected fallback provider model, got %s", got)
 	}
 }
+
+func TestPoolGetByProviderReturnsMatchingClient(t *testing.T) {
+	p, err := NewPool(PoolConfig{
+		Enabled:  true,
+		Strategy: StrategyLeastLoad,
+		Providers: []Provider{
+			{Name: "primary", BaseURL: "http://primary.example/v1", Key: "x", ModelName: "primary-model", MaxConcurrency: 2, Capability: 5},
+			{Name: "backup", BaseURL: "http://backup.example/v1", Key: "x", ModelName: "backup-model", MaxConcurrency: 2, Capability: 3},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewPool failed: %v", err)
+	}
+
+	client, err := p.GetByProvider("backup")
+	if err != nil {
+		t.Fatalf("GetByProvider failed: %v", err)
+	}
+	defer p.Release(client)
+
+	if got := client.GetModelName(); got != "backup-model" {
+		t.Fatalf("expected backup-model, got %s", got)
+	}
+}
+
+func TestPoolGetByModelReturnsMatchingClient(t *testing.T) {
+	p, err := NewPool(PoolConfig{
+		Enabled:  true,
+		Strategy: StrategyLeastLoad,
+		Providers: []Provider{
+			{Name: "primary", BaseURL: "http://primary.example/v1", Key: "x", ModelName: "primary-model", MaxConcurrency: 2, Capability: 5},
+			{Name: "backup", BaseURL: "http://backup.example/v1", Key: "x", ModelName: "backup-model", MaxConcurrency: 2, Capability: 3},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewPool failed: %v", err)
+	}
+
+	client, err := p.GetByModel("primary-model")
+	if err != nil {
+		t.Fatalf("GetByModel failed: %v", err)
+	}
+	defer p.Release(client)
+
+	if got := client.GetModelName(); got != "primary-model" {
+		t.Fatalf("expected primary-model, got %s", got)
+	}
+}

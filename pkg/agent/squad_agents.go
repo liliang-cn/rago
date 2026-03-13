@@ -90,6 +90,9 @@ func (m *SquadManager) CreateAgent(ctx context.Context, model *AgentModel) (*Age
 	if strings.TrimSpace(model.Instructions) == "" {
 		model.Instructions = model.Description
 	}
+	model.Model = strings.TrimSpace(model.Model)
+	model.PreferredProvider = strings.TrimSpace(model.PreferredProvider)
+	model.PreferredModel = strings.TrimSpace(model.PreferredModel)
 	if len(model.MCPTools) == 0 {
 		model.MCPTools = defaultMemberMCPTools(model.Name)
 	}
@@ -154,6 +157,12 @@ func (m *SquadManager) UpdateAgent(_ context.Context, model *AgentModel) (*Agent
 	}
 	if strings.TrimSpace(model.Model) != "" {
 		current.Model = strings.TrimSpace(model.Model)
+	}
+	if strings.TrimSpace(model.PreferredProvider) != "" {
+		current.PreferredProvider = strings.TrimSpace(model.PreferredProvider)
+	}
+	if strings.TrimSpace(model.PreferredModel) != "" {
+		current.PreferredModel = strings.TrimSpace(model.PreferredModel)
 	}
 	if model.RequiredLLMCapability > 0 {
 		current.RequiredLLMCapability = model.RequiredLLMCapability

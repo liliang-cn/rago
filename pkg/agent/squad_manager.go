@@ -16,7 +16,6 @@ import (
 
 	"github.com/liliang-cn/agent-go/pkg/config"
 	"github.com/liliang-cn/agent-go/pkg/domain"
-	"github.com/liliang-cn/agent-go/pkg/pool"
 	"github.com/liliang-cn/agent-go/pkg/services"
 )
 
@@ -633,11 +632,7 @@ func (m *SquadManager) getOrBuildService(name string) (*Service, error) {
 
 		globalPool := services.GetGlobalPoolService()
 		if initErr := globalPool.Initialize(context.Background(), agentgoCfg); initErr == nil {
-			if llmSvc, llmErr := globalPool.GetLLMServiceWithHint(pool.SelectionHint{
-				PreferredProvider: model.Model,
-				PreferredModel:    model.Model,
-				MinCapability:     model.RequiredLLMCapability,
-			}); llmErr == nil {
+			if llmSvc, llmErr := globalPool.GetLLMServiceWithHint(selectionHintForAgentModel(model)); llmErr == nil {
 				builder.WithLLM(llmSvc)
 			}
 		}
@@ -685,8 +680,8 @@ func (m *SquadManager) getOrBuildService(name string) (*Service, error) {
 		newSvc.agent.SetAllowedSkills([]string{}) // none allowed if empty
 	}
 
-	if model.Model != "" {
-		newSvc.agent.SetModel(model.Model)
+	if label := configuredModelLabel(model); label != "" {
+		newSvc.agent.SetModel(label)
 	}
 
 	m.mu.Lock()

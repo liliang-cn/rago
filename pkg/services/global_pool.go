@@ -93,8 +93,13 @@ func (s *GlobalPoolService) GetLLM() (*pool.Client, error) {
 	return s.llmPool.Get()
 }
 
-// GetLLMByName 按名称获取LLM client
+// GetLLMByName 按名称获取LLM client，兼容旧调用；名称指 provider 名称。
 func (s *GlobalPoolService) GetLLMByName(name string) (*pool.Client, error) {
+	return s.GetLLMByProvider(name)
+}
+
+// GetLLMByProvider 按 provider 名称获取LLM client。
+func (s *GlobalPoolService) GetLLMByProvider(name string) (*pool.Client, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -102,7 +107,19 @@ func (s *GlobalPoolService) GetLLMByName(name string) (*pool.Client, error) {
 		return nil, fmt.Errorf("pool service not initialized")
 	}
 
-	return s.llmPool.GetByName(name)
+	return s.llmPool.GetByProvider(name)
+}
+
+// GetLLMByModel 按模型名获取LLM client。
+func (s *GlobalPoolService) GetLLMByModel(modelName string) (*pool.Client, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if !s.initialized {
+		return nil, fmt.Errorf("pool service not initialized")
+	}
+
+	return s.llmPool.GetByModel(modelName)
 }
 
 // GetLLMByCapability 按能力等级获取LLM client
@@ -468,6 +485,14 @@ func (s *GlobalPoolService) GetLLMService() (domain.Generator, error) {
 		return nil, fmt.Errorf("pool service not initialized")
 	}
 	return &llmServiceWrapper{pool: s.llmPool}, nil
+}
+
+func (s *GlobalPoolService) GetLLMServiceByProvider(name string) (domain.Generator, error) {
+	return s.GetLLMServiceWithHint(pool.SelectionHint{PreferredProvider: name})
+}
+
+func (s *GlobalPoolService) GetLLMServiceByModel(modelName string) (domain.Generator, error) {
+	return s.GetLLMServiceWithHint(pool.SelectionHint{PreferredModel: modelName})
 }
 
 func (s *GlobalPoolService) GetLLMServiceWithHint(hint pool.SelectionHint) (domain.Generator, error) {

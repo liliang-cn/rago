@@ -427,12 +427,14 @@ func init() {
 
 	agentAddCmd.Flags().StringVar(&agentDescription, "description", "", "agent description")
 	agentAddCmd.Flags().StringVar(&agentInstructions, "instructions", "", "agent system instructions")
-	agentAddCmd.Flags().StringVar(&agentModel, "model", "", "preferred provider or model")
+	agentAddCmd.Flags().StringVar(&agentProvider, "provider", "", "preferred LLM provider")
+	agentAddCmd.Flags().StringVar(&agentModel, "model", "", "preferred LLM model")
 
 	agentUpdateCmd.Flags().StringVar(&agentUpdateName, "name", "", "rename the agent")
 	agentUpdateCmd.Flags().StringVar(&agentDescription, "description", "", "new agent description")
 	agentUpdateCmd.Flags().StringVar(&agentInstructions, "instructions", "", "new agent system instructions")
-	agentUpdateCmd.Flags().StringVar(&agentModel, "model", "", "new preferred provider or model")
+	agentUpdateCmd.Flags().StringVar(&agentProvider, "provider", "", "new preferred LLM provider")
+	agentUpdateCmd.Flags().StringVar(&agentModel, "model", "", "new preferred LLM model")
 	agentUpdateCmd.Flags().StringVar(&agentUpdateRole, "role", "", "set role to agent, captain, or specialist")
 
 	agentJoinCmd.Flags().StringVar(&agentUpdateRole, "role", "specialist", "role inside the squad: specialist or captain")
