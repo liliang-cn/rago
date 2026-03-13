@@ -8,8 +8,6 @@ import (
 	"os/signal"
 	"regexp"
 	"strings"
-	"sync"
-	"sync/atomic"
 
 	"github.com/liliang-cn/agent-go/pkg/agent"
 	"github.com/liliang-cn/agent-go/pkg/config"
@@ -35,6 +33,11 @@ var (
 type delegatedTask struct {
 	AgentName   string
 	Instruction string
+}
+
+type chatRequest struct {
+	Input string
+	Done  chan struct{}
 }
 
 var agentMentionPattern = regexp.MustCompile(`^@([^\s@]+)$`)
@@ -81,41 +84,20 @@ func runChat(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Initialize agent service
 	agentDBPath := chatCfg.DataDir() + "/agent.db"
 
-	// Create agent with full capabilities
-	builder := agent.New("AgentGo Frontdesk").
-		WithConfig(chatCfg).
-		WithSystemPrompt("You are the system Frontdesk and captain agent. You can interact with users, and delegate tasks to specialized agents using the tools provided.").
-		WithDBPath(agentDBPath).
-		WithMCP().
-		WithSkills().
-		WithRouter().
-		WithDebug(debug).
-		WithProgress(progressCallback)
-
-	// Memory is enabled by default unless --no-memory is set
-	if !chatNoMemory {
-		builder.WithMemory()
-	}
-
-	if chatWithPTC {
-		builder.WithPTC()
-	}
-
-	svc, err := builder.Build()
-	if err != nil {
-		return fmt.Errorf("failed to build agent service: %w", err)
-	}
-
-	// Initialize TeamManager
-	var agentManager *agent.TeamManager
+	var agentManager *agent.SquadManager
 	agentStore, storeErr := agent.NewStore(agentDBPath)
 	if storeErr == nil {
 		agentManager = agent.NewTeamManager(agentStore)
-		_ = agentManager.SeedDefaultMembers()
-		agentManager.RegisterCommanderTools(svc)
+		if err := agentManager.SeedDefaultMembers(); err != nil {
+			agentManager = nil
+		}
+	}
+
+	svc, err := buildChatConciergeService(chatCfg, agentDBPath, agentManager)
+	if err != nil {
+		return fmt.Errorf("failed to build concierge service: %w", err)
 	}
 	defer svc.Close()
 
@@ -141,7 +123,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 
 	if agentManager != nil {
 		tasks, parseErr := parseDelegatedTasks(message, func(name string) bool {
-			_, err := agentManager.GetMemberByName(name)
+			_, err := agentManager.GetAgentByName(name)
 			return err == nil
 		})
 		if parseErr != nil {
@@ -166,6 +148,47 @@ func runChat(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func buildChatConciergeService(chatCfg *config.Config, agentDBPath string, manager *agent.SquadManager) (*agent.Service, error) {
+	if manager != nil && !chatNoMemory && !chatWithPTC {
+		if svc, err := manager.GetAgentService(agent.BuiltInConciergeAgentName); err == nil {
+			svc.SetDebug(debug)
+			svc.SetProgressCallback(progressCallback)
+			manager.RegisterConciergeTools(svc)
+			return svc, nil
+		}
+	}
+
+	systemPrompt := "You are Concierge, the always-on intake agent for AgentGo. Accept user requests, clarify ambiguous asks, answer simple questions directly, inspect squad or agent status, and submit squad work when deeper execution is needed. Prefer lightweight orchestration over doing heavy work yourself, acknowledge queued work clearly, and never pretend background work is already finished."
+	if manager != nil {
+		if model, err := manager.GetAgentByName(agent.BuiltInConciergeAgentName); err == nil && strings.TrimSpace(model.Instructions) != "" {
+			systemPrompt = strings.TrimSpace(model.Instructions)
+		}
+	}
+
+	builder := agent.New(agent.BuiltInConciergeAgentName).
+		WithConfig(chatCfg).
+		WithSystemPrompt(systemPrompt).
+		WithDBPath(agentDBPath).
+		WithDebug(debug).
+		WithProgress(progressCallback)
+
+	if !chatNoMemory {
+		builder.WithMemory()
+	}
+	if chatWithPTC {
+		builder.WithPTC()
+	}
+
+	svc, err := builder.Build()
+	if err != nil {
+		return nil, err
+	}
+	if manager != nil {
+		manager.RegisterConciergeTools(svc)
+	}
+	return svc, nil
 }
 
 func displayResult(result *agent.ExecutionResult) {
@@ -195,11 +218,11 @@ func displayResult(result *agent.ExecutionResult) {
 	}
 
 	if result.PTCResult != nil && result.PTCResult.Type != agent.PTCResultTypeText {
-		fmt.Printf("\n🤖 AgentGo (PTC Mode):\n%s\n", result.PTCResult.FormatForLLM())
+		fmt.Printf("\n🛎 Concierge (PTC Mode):\n%s\n", result.PTCResult.FormatForLLM())
 	} else if result.FinalResult != nil {
-		fmt.Printf("\n🤖 AgentGo: %v\n", result.FinalResult)
+		fmt.Printf("\n🛎 Concierge: %v\n", result.FinalResult)
 	} else {
-		fmt.Println("\n🤖 AgentGo: (empty response)")
+		fmt.Println("\n🛎 Concierge: (empty response)")
 	}
 
 	if result != nil {
@@ -230,18 +253,18 @@ func truncateString(s string, maxLen int) string {
 func progressCallback(event agent.ProgressEvent) {
 	switch event.Type {
 	case "thinking":
-		fmt.Printf("  🤔 %s\n", event.Message)
+		fmt.Printf("  … %s\n", event.Message)
 	case "tool_call":
 		if event.Tool != "" {
-			fmt.Printf("  🔧 %s\n", event.Message)
+			fmt.Printf("  🛠 %s\n", event.Message)
 		}
 	case "tool_result":
 		fmt.Printf("  ✓ %s\n", event.Message)
 	}
 }
 
-func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.TeamManager) error {
-	fmt.Println("🤖 AgentGo Chat Mode")
+func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.SquadManager) error {
+	fmt.Println("🛎 AgentGo Concierge Chat")
 	if chatWithPTC {
 		fmt.Println("⚡ PTC Mode: Enabled (JS sandbox for complex logic)")
 	}
@@ -250,54 +273,47 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 	} else if chatShowMemory || verbose {
 		fmt.Println("🧠 Memory Mode: Enabled (Showing retrievals)")
 	}
+	fmt.Println("💡 This chat talks to Concierge, the always-on intake agent for AgentGo.")
 	fmt.Println("💡 Type 'quit' or 'exit' to end, 'clear' to reset session")
-	fmt.Println("💡 Tip: Use '@AgentName <instruction>' to run tasks in the background")
+	fmt.Println("💡 Tip: Use '@AgentName <instruction>' to run a saved agent in the background")
 	fmt.Println()
 
 	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
 
-	var wg sync.WaitGroup
 	quitChan := make(chan struct{})
-	requests := make(chan string, 32)
-	var pendingFrontdesk int32
+	requests := make(chan chatRequest)
 
 	// Use scanner for multi-word input
 	scanner := bufio.NewScanner(os.Stdin)
 
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		for {
 			select {
 			case <-quitChan:
 				return
-			case input, ok := <-requests:
+			case req, ok := <-requests:
 				if !ok {
 					return
 				}
-				queued := atomic.AddInt32(&pendingFrontdesk, -1)
 				fmt.Printf("\n🤔 Thinking...\n")
-				result, err := svc.Chat(ctx, input)
+				result, err := svc.Chat(ctx, req.Input)
 				if err != nil {
 					fmt.Printf("❌ Error: %v\n\n", err)
 				} else {
 					displayResult(result)
 					fmt.Println()
 				}
-				if queued > 0 {
-					fmt.Printf("⏳ %d message(s) still queued for Frontdesk.\n", queued)
+				if req.Done != nil {
+					close(req.Done)
 				}
-				fmt.Print("👤 You: ")
 			}
 		}
 	}()
 
 	// Input goroutine
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		for {
 			fmt.Print("👤 You: ")
 			if !scanner.Scan() {
@@ -325,7 +341,7 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 
 			if manager != nil {
 				tasks, parseErr := parseDelegatedTasks(input, func(name string) bool {
-					_, err := manager.GetMemberByName(name)
+					_, err := manager.GetAgentByName(name)
 					return err == nil
 				})
 				if parseErr != nil {
@@ -333,11 +349,11 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 					continue
 				}
 				if len(tasks) > 0 {
-					fmt.Printf("\n🚀 Delegating %d task(s) in background...\n\n👤 You: ", len(tasks))
+					fmt.Printf("\n🚀 Delegating %d task(s) in background...\n", len(tasks))
 
 					go func(parsedTasks []delegatedTask) {
 						if err := runDelegatedTaskChain(context.Background(), manager, parsedTasks, true); err != nil {
-							fmt.Printf("\n❌ %v\n\n👤 You: ", err)
+							fmt.Printf("\n❌ %v\n\n", err)
 						}
 					}(tasks)
 
@@ -345,12 +361,10 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 				}
 			}
 
-			// Process message normally (Frontdesk handling)
-			pending := atomic.AddInt32(&pendingFrontdesk, 1)
-			requests <- input
-			if pending > 1 {
-				fmt.Printf("⏳ Frontdesk busy, queued at position %d.\n", pending)
-			}
+			// Process message normally (Concierge handling)
+			done := make(chan struct{})
+			requests <- chatRequest{Input: input, Done: done}
+			<-done
 		}
 	}()
 
@@ -425,7 +439,7 @@ func parseMentionedAgent(word string) (string, bool) {
 	return matches[1], true
 }
 
-func runDelegatedTaskChain(ctx context.Context, manager *agent.TeamManager, tasks []delegatedTask, background bool) error {
+func runDelegatedTaskChain(ctx context.Context, manager *agent.SquadManager, tasks []delegatedTask, background bool) error {
 	if manager == nil {
 		return fmt.Errorf("agent manager is not initialized")
 	}
@@ -454,7 +468,7 @@ func runDelegatedTaskChain(ctx context.Context, manager *agent.TeamManager, task
 		res, err := manager.DispatchTask(ctx, task.AgentName, instruction)
 		if err != nil {
 			if background {
-				fmt.Printf("\n❌ Background task failed for @%s: %v\n\n👤 You: ", task.AgentName, err)
+				fmt.Printf("\n❌ Background task failed for @%s: %v\n\n", task.AgentName, err)
 				return nil
 			}
 			return fmt.Errorf("background task failed for @%s: %w", task.AgentName, err)
@@ -462,7 +476,7 @@ func runDelegatedTaskChain(ctx context.Context, manager *agent.TeamManager, task
 
 		if delegatedResultLooksFailed(res) {
 			if background {
-				fmt.Printf("\n❌ Background task failed for @%s:\n%v\n\n👤 You: ", task.AgentName, res)
+				fmt.Printf("\n❌ Background task failed for @%s:\n%v\n\n", task.AgentName, res)
 				return nil
 			}
 			fmt.Printf("\n❌ Task failed for @%s:\n%v\n\n", task.AgentName, res)
@@ -478,9 +492,7 @@ func runDelegatedTaskChain(ctx context.Context, manager *agent.TeamManager, task
 		previousResult = res
 	}
 
-	if background {
-		fmt.Printf("\n👤 You: ")
-	} else {
+	if !background {
 		fmt.Println()
 	}
 

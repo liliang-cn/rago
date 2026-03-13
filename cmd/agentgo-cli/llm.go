@@ -12,7 +12,6 @@ import (
 
 var (
 	llmProvider string
-	llmModel    string
 	llmPrompt   string
 	llmStream   bool
 )
@@ -47,12 +46,28 @@ var llmChatCmd = &cobra.Command{
 			Temperature: 0.7,
 		}
 
+		var (
+			err       error
+			generator domain.Generator
+		)
+		if strings.TrimSpace(llmProvider) != "" {
+			generator, err = poolService.GetLLMServiceByProvider(strings.TrimSpace(llmProvider))
+			if err != nil {
+				return fmt.Errorf("failed to get provider %s: %w", llmProvider, err)
+			}
+		} else {
+			generator, err = poolService.GetLLMService()
+			if err != nil {
+				return fmt.Errorf("failed to get default llm service: %w", err)
+			}
+		}
+
 		fmt.Println("🤖 LLM Response:")
 		fmt.Println("================")
 
 		// Execute generation (streaming or non-streaming)
 		if llmStream {
-			err := poolService.Stream(ctx, message, opts, func(chunk string) {
+			err := generator.Stream(ctx, message, opts, func(chunk string) {
 				fmt.Print(chunk)
 			})
 			if err != nil {
@@ -60,7 +75,7 @@ var llmChatCmd = &cobra.Command{
 			}
 			fmt.Println()
 		} else {
-			resp, err := poolService.Generate(ctx, message, opts)
+			resp, err := generator.Generate(ctx, message, opts)
 			if err != nil {
 				return fmt.Errorf("generation failed: %w", err)
 			}
@@ -105,6 +120,5 @@ func init() {
 
 	// Chat flags
 	llmChatCmd.Flags().StringVarP(&llmProvider, "provider", "p", "", "LLM provider to use")
-	llmChatCmd.Flags().StringVarP(&llmModel, "model", "m", "", "Model to use")
 	llmChatCmd.Flags().BoolVarP(&llmStream, "stream", "s", false, "Stream the response")
 }

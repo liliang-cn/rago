@@ -436,7 +436,10 @@ func isBuiltInAgent(model *agent.AgentModel, squadNames map[string]string) bool 
 		return false
 	}
 	switch strings.TrimSpace(model.ID) {
-	case "agent-assistant-001", "agent-captain-001", "agent-stakeholder-001":
+	case "agent-concierge-001", "agent-assistant-001", "agent-captain-001", "agent-stakeholder-001":
+		return true
+	}
+	if strings.EqualFold(model.Name, "Concierge") && len(model.Squads) == 0 {
 		return true
 	}
 	if strings.EqualFold(model.Name, "Assistant") && len(model.Squads) == 0 {

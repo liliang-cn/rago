@@ -93,7 +93,7 @@ func (m *SquadManager) CreateAgent(ctx context.Context, model *AgentModel) (*Age
 	model.Model = strings.TrimSpace(model.Model)
 	model.PreferredProvider = strings.TrimSpace(model.PreferredProvider)
 	model.PreferredModel = strings.TrimSpace(model.PreferredModel)
-	if len(model.MCPTools) == 0 {
+	if len(model.MCPTools) == 0 && !strings.EqualFold(model.Name, BuiltInConciergeAgentName) {
 		model.MCPTools = defaultMemberMCPTools(model.Name)
 	}
 	if len(model.MCPTools) > 0 {
