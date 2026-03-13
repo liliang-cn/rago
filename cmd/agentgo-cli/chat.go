@@ -1,14 +1,18 @@
 package main
 
 import (
-	"bufio"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"regexp"
 	"strings"
+	"sync"
 
+	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/internal/cliui"
+	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/internal/lineinput"
 	"github.com/liliang-cn/agent-go/pkg/agent"
 	"github.com/liliang-cn/agent-go/pkg/config"
 	"github.com/spf13/cobra"
@@ -41,6 +45,7 @@ type chatRequest struct {
 }
 
 var agentMentionPattern = regexp.MustCompile(`^@([^\s@]+)$`)
+var chatThinkBlockRe = regexp.MustCompile(`(?s)<think>.*?</think>`)
 
 var chatCmd = &cobra.Command{
 	Use:   "chat [message]",
@@ -109,7 +114,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 	// Get current session ID
 	currentSessionID := svc.CurrentSessionID()
 	if currentSessionID != "" {
-		fmt.Printf("📝 Session: %s\n", currentSessionID)
+		fmt.Printf("%s Session: %s\n", cliui.Session, currentSessionID)
 	}
 
 	// Interactive mode (no arguments)
@@ -119,7 +124,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 
 	// Single message mode
 	message := strings.Join(args, " ")
-	fmt.Printf("\n🤔 You: %s\n", message)
+	fmt.Printf("\n%s%s\n", cliui.UserPrompt, message)
 
 	if agentManager != nil {
 		tasks, parseErr := parseDelegatedTasks(message, func(name string) bool {
@@ -144,7 +149,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 	// Show session ID after first message
 	if currentSessionID == "" {
 		newSessionID := svc.CurrentSessionID()
-		fmt.Printf("\n💡 Session: %s (use --session %s to continue)\n", newSessionID, newSessionID)
+		fmt.Printf("\n%s Session: %s (use --session %s to continue)\n", cliui.Tip, newSessionID, newSessionID)
 	}
 
 	return nil
@@ -160,7 +165,7 @@ func buildChatConciergeService(chatCfg *config.Config, agentDBPath string, manag
 		}
 	}
 
-	systemPrompt := "You are Concierge, the always-on intake agent for AgentGo. Accept user requests, clarify ambiguous asks, answer simple questions directly, inspect squad or agent status, and submit squad work when deeper execution is needed. Prefer lightweight orchestration over doing heavy work yourself, acknowledge queued work clearly, and never pretend background work is already finished."
+	systemPrompt := "You are Concierge, the always-on intake agent for AgentGo. Accept user requests, clarify ambiguous asks, answer simple questions directly, inspect squad or agent status, and submit squad or agent work when deeper execution is needed. Prefer lightweight orchestration over doing heavy work yourself. For repository, filesystem, code generation, or web lookup tasks, submit the work to Assistant by default unless the user names a different target. Acknowledge queued work clearly and never pretend background work is already finished."
 	if manager != nil {
 		if model, err := manager.GetAgentByName(agent.BuiltInConciergeAgentName); err == nil && strings.TrimSpace(model.Instructions) != "" {
 			systemPrompt = strings.TrimSpace(model.Instructions)
@@ -194,7 +199,7 @@ func buildChatConciergeService(chatCfg *config.Config, agentDBPath string, manag
 func displayResult(result *agent.ExecutionResult) {
 	// Show memories if requested
 	if (chatShowMemory || verbose) && len(result.Memories) > 0 {
-		fmt.Printf("\n🧠 Retrieved Memories (%d):\n", len(result.Memories))
+		fmt.Printf("\n%s Retrieved Memories (%d):\n", cliui.Memory, len(result.Memories))
 		for i, mem := range result.Memories {
 			sourceTag := ""
 			if mem.SourceType != "" {
@@ -213,16 +218,16 @@ func displayResult(result *agent.ExecutionResult) {
 				truncateString(mem.Content, 100), mem.Score)
 		}
 		if result.MemoryLogic != "" {
-			fmt.Printf("  💡 Navigator reasoning: %s\n", truncateString(result.MemoryLogic, 200))
+			fmt.Printf("  %s Navigator reasoning: %s\n", cliui.Tip, truncateString(result.MemoryLogic, 200))
 		}
 	}
 
 	if result.PTCResult != nil && result.PTCResult.Type != agent.PTCResultTypeText {
-		fmt.Printf("\n🛎 Concierge (PTC Mode):\n%s\n", result.PTCResult.FormatForLLM())
+		fmt.Printf("\n%s (PTC Mode):\n%s\n", cliui.Concierge, result.PTCResult.FormatForLLM())
 	} else if result.FinalResult != nil {
-		fmt.Printf("\n🛎 Concierge: %v\n", result.FinalResult)
+		fmt.Printf("\n%s: %s\n", cliui.Concierge, sanitizeChatDisplayText(fmt.Sprint(result.FinalResult)))
 	} else {
-		fmt.Println("\n🛎 Concierge: (empty response)")
+		fmt.Printf("\n%s: (empty response)\n", cliui.Concierge)
 	}
 
 	if result != nil {
@@ -249,14 +254,19 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen] + "..."
 }
 
+func sanitizeChatDisplayText(text string) string {
+	text = chatThinkBlockRe.ReplaceAllString(text, "")
+	return strings.TrimSpace(text)
+}
+
 // progressCallback displays agent progress
 func progressCallback(event agent.ProgressEvent) {
 	switch event.Type {
 	case "thinking":
-		fmt.Printf("  … %s\n", event.Message)
+		fmt.Printf("  %s %s\n", cliui.Thinking, event.Message)
 	case "tool_call":
 		if event.Tool != "" {
-			fmt.Printf("  🛠 %s\n", event.Message)
+			fmt.Printf("  %s %s\n", cliui.Tool, event.Message)
 		}
 	case "tool_result":
 		fmt.Printf("  ✓ %s\n", event.Message)
@@ -264,18 +274,21 @@ func progressCallback(event agent.ProgressEvent) {
 }
 
 func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.SquadManager) error {
-	fmt.Println("🛎 AgentGo Concierge Chat")
+	chatCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	fmt.Printf("%s AgentGo Concierge Chat\n", cliui.Concierge)
 	if chatWithPTC {
-		fmt.Println("⚡ PTC Mode: Enabled (JS sandbox for complex logic)")
+		fmt.Printf("%s PTC Mode: Enabled (JS sandbox for complex logic)\n", cliui.PTC)
 	}
 	if chatNoMemory {
 		fmt.Println("🔇 Memory Mode: Disabled")
 	} else if chatShowMemory || verbose {
-		fmt.Println("🧠 Memory Mode: Enabled (Showing retrievals)")
+		fmt.Printf("%s Memory Mode: Enabled (Showing retrievals)\n", cliui.Memory)
 	}
-	fmt.Println("💡 This chat talks to Concierge, the always-on intake agent for AgentGo.")
-	fmt.Println("💡 Type 'quit' or 'exit' to end, 'clear' to reset session")
-	fmt.Println("💡 Tip: Use '@AgentName <instruction>' to run a saved agent in the background")
+	fmt.Printf("%s This chat talks to Concierge, the always-on intake agent for AgentGo.\n", cliui.Tip)
+	fmt.Printf("%s Type 'quit' or 'exit' to end, 'clear' to reset session\n", cliui.Tip)
+	fmt.Printf("%s Tip: Use '@AgentName <instruction>' to run a saved agent in the background\n", cliui.Tip)
 	fmt.Println()
 
 	// Setup signal handling for graceful shutdown
@@ -283,10 +296,14 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 	signal.Notify(sigChan, os.Interrupt)
 
 	quitChan := make(chan struct{})
+	var quitOnce sync.Once
+	closeQuit := func() {
+		quitOnce.Do(func() {
+			close(quitChan)
+		})
+	}
 	requests := make(chan chatRequest)
-
-	// Use scanner for multi-word input
-	scanner := bufio.NewScanner(os.Stdin)
+	taskFollower := newChatTaskFollower(manager)
 
 	go func() {
 		for {
@@ -297,12 +314,15 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 				if !ok {
 					return
 				}
-				fmt.Printf("\n🤔 Thinking...\n")
+				fmt.Printf("\n%s\n", cliui.Thinking)
 				result, err := svc.Chat(ctx, req.Input)
 				if err != nil {
-					fmt.Printf("❌ Error: %v\n\n", err)
+					fmt.Printf("%s Error: %v\n\n", cliui.Error, err)
 				} else {
 					displayResult(result)
+					if taskFollower != nil {
+						taskFollower.StartSessionTasks(chatCtx, svc.CurrentSessionID())
+					}
 					fmt.Println()
 				}
 				if req.Done != nil {
@@ -315,11 +335,23 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 	// Input goroutine
 	go func() {
 		for {
-			fmt.Print("👤 You: ")
-			if !scanner.Scan() {
-				return
+			input, err := lineinput.ReadInteractiveLine(cliui.UserPrompt)
+			if err != nil {
+				switch {
+				case errors.Is(err, lineinput.ErrInputCanceled):
+					fmt.Print("^C\r\n")
+					continue
+				case errors.Is(err, io.EOF):
+					closeQuit()
+					cancel()
+					fmt.Printf("\n%s Goodbye!\n", cliui.Goodbye)
+					return
+				default:
+					fmt.Printf("\n%s Input error: %v\n", cliui.Error, err)
+					continue
+				}
 			}
-			input := strings.TrimSpace(scanner.Text())
+			input = strings.TrimSpace(input)
 
 			if input == "" {
 				continue
@@ -327,8 +359,9 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 
 			// Exit commands
 			if input == "quit" || input == "exit" || input == "q" {
-				close(quitChan)
-				fmt.Println("\n👋 Goodbye!")
+				closeQuit()
+				cancel()
+				fmt.Printf("\n%s Goodbye!\n", cliui.Goodbye)
 				return
 			}
 
@@ -345,7 +378,7 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 					return err == nil
 				})
 				if parseErr != nil {
-					fmt.Printf("❌ %v\n\n", parseErr)
+					fmt.Printf("%s %v\n\n", cliui.Error, parseErr)
 					continue
 				}
 				if len(tasks) > 0 {
@@ -353,7 +386,7 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 
 					go func(parsedTasks []delegatedTask) {
 						if err := runDelegatedTaskChain(context.Background(), manager, parsedTasks, true); err != nil {
-							fmt.Printf("\n❌ %v\n\n", err)
+							fmt.Printf("\n%s %v\n\n", cliui.Error, err)
 						}
 					}(tasks)
 
@@ -374,7 +407,9 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 		// Normal exit
 	case <-sigChan:
 		// User pressed Ctrl+C
-		fmt.Println("\n\n👋 Interrupted. Goodbye!")
+		closeQuit()
+		cancel()
+		fmt.Printf("\n\n%s Interrupted. Goodbye!\n", cliui.Goodbye)
 	}
 
 	return nil
@@ -468,7 +503,7 @@ func runDelegatedTaskChain(ctx context.Context, manager *agent.SquadManager, tas
 		res, err := manager.DispatchTask(ctx, task.AgentName, instruction)
 		if err != nil {
 			if background {
-				fmt.Printf("\n❌ Background task failed for @%s: %v\n\n", task.AgentName, err)
+				fmt.Printf("\n%s Background task failed for @%s: %v\n\n", cliui.Error, task.AgentName, err)
 				return nil
 			}
 			return fmt.Errorf("background task failed for @%s: %w", task.AgentName, err)
@@ -476,17 +511,17 @@ func runDelegatedTaskChain(ctx context.Context, manager *agent.SquadManager, tas
 
 		if delegatedResultLooksFailed(res) {
 			if background {
-				fmt.Printf("\n❌ Background task failed for @%s:\n%v\n\n", task.AgentName, res)
+				fmt.Printf("\n%s Background task failed for @%s:\n%v\n\n", cliui.Error, task.AgentName, res)
 				return nil
 			}
-			fmt.Printf("\n❌ Task failed for @%s:\n%v\n\n", task.AgentName, res)
+			fmt.Printf("\n%s Task failed for @%s:\n%v\n\n", cliui.Error, task.AgentName, res)
 			return nil
 		}
 
 		if background {
-			fmt.Printf("\n✅ Background task completed by @%s:\n%v\n", task.AgentName, res)
+			fmt.Printf("\n%s Background task completed by @%s:\n%v\n", cliui.Success, task.AgentName, res)
 		} else {
-			fmt.Printf("\n✅ Task completed by @%s:\n%v\n", task.AgentName, res)
+			fmt.Printf("\n%s Task completed by @%s:\n%v\n", cliui.Success, task.AgentName, res)
 		}
 
 		previousResult = res

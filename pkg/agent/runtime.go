@@ -314,8 +314,10 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			// tool results to be silently dropped when matched back.
 			for i := range toolCalls {
 				if toolCalls[i].ID == "" {
-					toolCalls[i].ID = fmt.Sprintf("call_%s_%d", toolCalls[i].Function.Name, i)
+					toolCalls[i].ID = domain.NormalizeToolCallID(fmt.Sprintf("%s_%d", toolCalls[i].Function.Name, i))
+					continue
 				}
+				toolCalls[i].ID = domain.NormalizeToolCallID(toolCalls[i].ID)
 			}
 
 			// Add assistant's tool call message to history
@@ -433,7 +435,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 					code := r.svc.ptcIntegration.ExtractCode(content)
 					if code != "" {
 						tc := domain.ToolCall{
-							ID:   "ptc_fallback_" + uuid.New().String()[:8],
+							ID:   domain.NormalizeToolCallID("ptc_fallback_" + uuid.New().String()[:8]),
 							Type: "function",
 							Function: domain.FunctionCall{
 								Name:      "execute_javascript",

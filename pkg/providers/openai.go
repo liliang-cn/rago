@@ -147,7 +147,7 @@ func toOpenAIMessages(messages []domain.Message) ([]openai.ChatCompletionMessage
 		case "system":
 			openAIMessages[i] = openai.SystemMessage(msg.Content)
 		case "tool":
-			openAIMessages[i] = openai.ToolMessage(msg.ToolCallID, msg.Content)
+			openAIMessages[i] = openai.ToolMessage(msg.Content, domain.NormalizeToolCallID(msg.ToolCallID))
 		case "assistant":
 			assistantMsg := openai.ChatCompletionMessage{
 				Role:    "assistant",
@@ -161,7 +161,7 @@ func toOpenAIMessages(messages []domain.Message) ([]openai.ChatCompletionMessage
 						return nil, fmt.Errorf("failed to marshal tool call arguments: %w", err)
 					}
 					assistantMsg.ToolCalls[j] = openai.ChatCompletionMessageToolCallUnion{
-						ID:   tc.ID,
+						ID:   domain.NormalizeToolCallID(tc.ID),
 						Type: "function",
 						Function: openai.ChatCompletionMessageFunctionToolCallFunction{
 							Name:      tc.Function.Name,

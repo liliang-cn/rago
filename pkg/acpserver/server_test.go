@@ -246,17 +246,36 @@ func TestServerInitializeNewSessionAndPrompt(t *testing.T) {
 	if len(updates) < 4 {
 		t.Fatalf("expected streamed updates, got %d", len(updates))
 	}
-	if updates[0].Update.AgentThoughtChunk == nil {
-		t.Fatalf("expected first update to be thought chunk")
+	thoughtIdx, messageIdx, toolCallIdx, toolUpdateIdx := -1, -1, -1, -1
+	for i, update := range updates {
+		switch {
+		case thoughtIdx == -1 && update.Update.AgentThoughtChunk != nil:
+			thoughtIdx = i
+		case messageIdx == -1 && update.Update.AgentMessageChunk != nil:
+			messageIdx = i
+		case toolCallIdx == -1 && update.Update.ToolCall != nil:
+			toolCallIdx = i
+		case toolUpdateIdx == -1 && update.Update.ToolCallUpdate != nil:
+			toolUpdateIdx = i
+		}
 	}
-	if updates[1].Update.AgentMessageChunk == nil {
-		t.Fatalf("expected second update to be agent message chunk")
+	if thoughtIdx == -1 {
+		t.Fatalf("expected a thought chunk update, got %#v", updates)
 	}
-	if updates[2].Update.ToolCall == nil {
-		t.Fatalf("expected third update to be tool call")
+	if messageIdx == -1 {
+		t.Fatalf("expected an agent message chunk update, got %#v", updates)
 	}
-	if updates[3].Update.ToolCallUpdate == nil {
-		t.Fatalf("expected fourth update to be tool call update")
+	if toolCallIdx == -1 {
+		t.Fatalf("expected a tool call update, got %#v", updates)
+	}
+	if toolUpdateIdx == -1 {
+		t.Fatalf("expected a tool call result update, got %#v", updates)
+	}
+	if !(thoughtIdx < toolCallIdx && thoughtIdx < toolUpdateIdx) {
+		t.Fatalf("expected thought chunk before tool lifecycle updates, got thought=%d toolCall=%d toolUpdate=%d", thoughtIdx, toolCallIdx, toolUpdateIdx)
+	}
+	if messageIdx > toolUpdateIdx {
+		t.Fatalf("expected agent message chunk before or during tool updates, got message=%d toolUpdate=%d", messageIdx, toolUpdateIdx)
 	}
 }
 

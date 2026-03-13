@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -231,6 +232,50 @@ func TestToOpenAIMessages(t *testing.T) {
 				assert.Equal(t, len(tt.messages), len(result))
 			}
 		})
+	}
+}
+
+func TestToOpenAIMessagesNormalizesToolCallIDs(t *testing.T) {
+	messages := []domain.Message{
+		{
+			Role:    "assistant",
+			Content: "Let me call a tool",
+			ToolCalls: []domain.ToolCall{
+				{
+					ID:   "call_legacy_1",
+					Type: "function",
+					Function: domain.FunctionCall{
+						Name:      "lookup",
+						Arguments: map[string]interface{}{"q": "gold"},
+					},
+				},
+			},
+		},
+		{
+			Role:       "tool",
+			Content:    "ok",
+			ToolCallID: "call_legacy_1",
+		},
+	}
+
+	result, err := toOpenAIMessages(messages)
+	if err != nil {
+		t.Fatalf("toOpenAIMessages() error = %v", err)
+	}
+	if len(result) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(result))
+	}
+
+	serialized, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	got := string(serialized)
+	if !strings.Contains(got, "\"id\":\"fc_call_legacy_1\"") {
+		t.Fatalf("expected normalized assistant tool_call id, got %s", got)
+	}
+	if !strings.Contains(got, "\"tool_call_id\":\"fc_call_legacy_1\"") {
+		t.Fatalf("expected normalized tool message id, got %s", got)
 	}
 }
 

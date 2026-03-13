@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/liliang-cn/agent-go/pkg/domain"
 )
 
 func (m *SquadManager) RegisterConciergeTools(concierge *Service) {
 	if concierge == nil {
 		return
 	}
+	configureConciergeService(concierge)
 
 	register := func(name, description string, parameters map[string]interface{}, handler func(context.Context, map[string]interface{}) (interface{}, error)) {
 		if concierge.toolRegistry != nil && concierge.toolRegistry.Has(name) {
@@ -102,6 +105,41 @@ func (m *SquadManager) RegisterConciergeTools(concierge *Service) {
 		return m.GetAgentStatus(agentName)
 	})
 
+	register("submit_agent_task", "Submit work to a standalone or squad agent and return immediately with a task id.", map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"agent_name": map[string]interface{}{
+				"type":        "string",
+				"description": "The target agent name.",
+			},
+			"prompt": map[string]interface{}{
+				"type":        "string",
+				"description": "The task prompt to run in the background.",
+			},
+		},
+		"required": []string{"agent_name", "prompt"},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		agentName := getStringArg(args, "agent_name")
+		prompt := getStringArg(args, "prompt")
+		if agentName == "" {
+			return nil, fmt.Errorf("agent_name is required")
+		}
+		if prompt == "" {
+			return nil, fmt.Errorf("prompt is required")
+		}
+
+		task, err := m.SubmitAgentTask(ctx, concierge.CurrentSessionID(), agentName, prompt)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{
+			"task_id":     task.ID,
+			"agent_name":  task.AgentName,
+			"ack_message": task.AckMessage,
+			"status":      task.Status,
+		}, nil
+	})
+
 	register("submit_squad_task", "Queue a task for a squad and return an immediate acknowledgement.", map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -138,7 +176,7 @@ func (m *SquadManager) RegisterConciergeTools(concierge *Service) {
 			agentNames = []string{lead.Name}
 		}
 
-		task, err := m.EnqueueSharedTaskForSquad(ctx, squad.ID, lead.Name, agentNames, prompt)
+		task, err := m.SubmitSquadTask(ctx, concierge.CurrentSessionID(), squad.ID, prompt, agentNames)
 		if err != nil {
 			return nil, err
 		}
@@ -151,8 +189,59 @@ func (m *SquadManager) RegisterConciergeTools(concierge *Service) {
 			"agent_names":  append([]string(nil), task.AgentNames...),
 			"ack_message":  task.AckMessage,
 			"status":       task.Status,
-			"queued_ahead": task.QueuedAhead,
 		}, nil
+	})
+
+	register("get_task_status", "Get one background task status and latest result.", map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"task_id": map[string]interface{}{
+				"type":        "string",
+				"description": "The task id returned by submit_agent_task or submit_squad_task.",
+			},
+		},
+		"required": []string{"task_id"},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		taskID := getStringArg(args, "task_id")
+		if taskID == "" {
+			return nil, fmt.Errorf("task_id is required")
+		}
+		return m.GetTask(taskID)
+	})
+
+	register("list_session_tasks", "List recent background tasks created in the current Concierge conversation.", map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"limit": map[string]interface{}{
+				"type":        "number",
+				"description": "Optional maximum number of tasks to return.",
+			},
+		},
+	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		sessionID := strings.TrimSpace(concierge.CurrentSessionID())
+		if sessionID == "" {
+			return []map[string]interface{}{}, nil
+		}
+		limit := getIntArg(args, "limit", 10)
+		tasks := m.ListSessionTasks(sessionID, limit)
+		out := make([]map[string]interface{}, 0, len(tasks))
+		for _, task := range tasks {
+			out = append(out, map[string]interface{}{
+				"task_id":     task.ID,
+				"kind":        task.Kind,
+				"status":      task.Status,
+				"agent_name":  task.AgentName,
+				"agent_names": append([]string(nil), task.AgentNames...),
+				"squad_id":    task.SquadID,
+				"squad_name":  task.SquadName,
+				"result_text": task.ResultText,
+				"error":       task.Error,
+				"created_at":  task.CreatedAt,
+				"started_at":  task.StartedAt,
+				"finished_at": task.FinishedAt,
+			})
+		}
+		return out, nil
 	})
 
 	register("list_squad_tasks", "List recent tasks for a squad.", map[string]interface{}{
@@ -186,6 +275,57 @@ func (m *SquadManager) RegisterConciergeTools(concierge *Service) {
 		}
 		return out, nil
 	})
+}
+
+var conciergeAllowedToolNames = map[string]struct{}{
+	"task_complete":      {},
+	"llm":                {},
+	"memory_save":        {},
+	"memory_recall":      {},
+	"memory_update":      {},
+	"memory_delete":      {},
+	"list_squads":        {},
+	"get_squad_status":   {},
+	"list_agents":        {},
+	"get_agent_status":   {},
+	"submit_agent_task":  {},
+	"submit_squad_task":  {},
+	"get_task_status":    {},
+	"list_session_tasks": {},
+	"list_squad_tasks":   {},
+}
+
+func configureConciergeService(concierge *Service) {
+	if concierge == nil {
+		return
+	}
+
+	if concierge.toolRegistry != nil {
+		for _, name := range []string{
+			"delegate_to_subagent",
+			"search_available_tools",
+			"tool_search_tool_regex",
+			"tool_search_tool_bm25",
+		} {
+			concierge.toolRegistry.Unregister(name)
+		}
+	}
+
+	if concierge.agent != nil {
+		filteredTools := make([]domain.ToolDefinition, 0, len(concierge.agent.tools))
+		for _, tool := range concierge.agent.tools {
+			if _, ok := conciergeAllowedToolNames[tool.Function.Name]; ok {
+				filteredTools = append(filteredTools, tool)
+			}
+		}
+		concierge.agent.SetTools(filteredTools)
+
+		for name := range concierge.agent.handlers {
+			if _, ok := conciergeAllowedToolNames[name]; !ok {
+				delete(concierge.agent.handlers, name)
+			}
+		}
+	}
 }
 
 func (m *SquadManager) resolveSquadRef(squadID, squadName string) (*Squad, error) {

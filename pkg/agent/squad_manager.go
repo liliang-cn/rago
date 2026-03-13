@@ -31,6 +31,11 @@ type SquadManager struct {
 	taskQueues     map[string][]string
 	sharedTasks    map[string]*SharedTask
 	queueRunning   map[string]bool
+	taskMu         sync.RWMutex
+	asyncTasks     map[string]*AsyncTask
+	sessionTasks   map[string][]string
+	taskSubs       map[string]map[chan *TaskEvent]struct{}
+	taskCancels    map[string]context.CancelFunc
 }
 
 // TeamManager is kept as a compatibility alias for older call sites.
@@ -171,6 +176,10 @@ func NewSquadManager(s *Store) *SquadManager {
 		taskQueues:     make(map[string][]string),
 		sharedTasks:    make(map[string]*SharedTask),
 		queueRunning:   make(map[string]bool),
+		asyncTasks:     make(map[string]*AsyncTask),
+		sessionTasks:   make(map[string][]string),
+		taskSubs:       make(map[string]map[chan *TaskEvent]struct{}),
+		taskCancels:    make(map[string]context.CancelFunc),
 	}
 }
 
@@ -317,72 +326,7 @@ func (m *SquadManager) nextQueuedTask(squadID string) *SharedTask {
 }
 
 func (m *SquadManager) executeSharedTask(ctx context.Context, task *SharedTask) {
-	type dispatchResult struct {
-		AgentName string
-		Text      string
-		Err       error
-	}
-
-	results := make([]SharedTaskResult, 0, len(task.AgentNames))
-	resultTextParts := make([]string, 0, len(task.AgentNames))
-	resultCh := make(chan dispatchResult, len(task.AgentNames))
-	var wg sync.WaitGroup
-
-	for _, agentName := range task.AgentNames {
-		agentName := agentName
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			text, err := m.ChatWithMember(ctx, task.SquadID, agentName, task.Prompt)
-			resultCh <- dispatchResult{AgentName: agentName, Text: strings.TrimSpace(text), Err: err}
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		close(resultCh)
-	}()
-
-	failed := false
-	ordered := make(map[string]dispatchResult, len(task.AgentNames))
-	for result := range resultCh {
-		ordered[result.AgentName] = result
-		if result.Err != nil {
-			failed = true
-		}
-	}
-
-	for _, agentName := range task.AgentNames {
-		result := ordered[agentName]
-		item := SharedTaskResult{AgentName: agentName, Text: result.Text}
-		if result.Err != nil {
-			item.Error = result.Err.Error()
-			resultTextParts = append(resultTextParts, fmt.Sprintf("## %s\nError: %s", agentName, result.Err))
-		} else {
-			text := result.Text
-			if text == "" {
-				text = "No response returned."
-			}
-			resultTextParts = append(resultTextParts, fmt.Sprintf("## %s\n%s", agentName, text))
-		}
-		results = append(results, item)
-	}
-
-	now := time.Now()
-	m.queueMu.Lock()
-	defer m.queueMu.Unlock()
-	stored := m.sharedTasks[task.ID]
-	if stored == nil {
-		return
-	}
-	stored.Results = results
-	stored.ResultText = strings.Join(resultTextParts, "\n\n")
-	stored.FinishedAt = &now
-	if failed {
-		stored.Status = SharedTaskStatusFailed
-	} else {
-		stored.Status = SharedTaskStatusCompleted
-	}
+	m.executeSharedTaskStream(ctx, task)
 }
 
 func buildSharedTaskAck(captainName string, queuedAhead int) string {

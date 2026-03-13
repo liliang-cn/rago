@@ -101,3 +101,10 @@ func TestParseDelegatedTasks(t *testing.T) {
 		}
 	})
 }
+
+func TestSanitizeChatDisplayText(t *testing.T) {
+	got := sanitizeChatDisplayText("<think>internal reasoning</think>\n\nDone")
+	if got != "Done" {
+		t.Fatalf("expected think blocks to be removed, got %q", got)
+	}
+}

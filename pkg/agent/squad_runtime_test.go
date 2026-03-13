@@ -127,7 +127,41 @@ func TestRegisterConciergeToolsExposesStatusAndSubmission(t *testing.T) {
 		agent:        NewAgentWithConfig(BuiltInConciergeAgentName, "concierge", nil),
 		toolRegistry: NewToolRegistry(),
 	}
+	svc.toolRegistry.Register(domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "delegate_to_subagent",
+			Description: "delegation helper",
+			Parameters:  map[string]interface{}{"type": "object"},
+		},
+	}, nil, CategoryCustom)
+	svc.toolRegistry.Register(domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "search_available_tools",
+			Description: "search helper",
+			Parameters:  map[string]interface{}{"type": "object"},
+		},
+	}, nil, CategoryCustom)
+	svc.agent.AddTool("delegate_to_subagent", "delegation helper", map[string]interface{}{"type": "object"}, nil)
+	svc.agent.AddTool("search_available_tools", "search helper", map[string]interface{}{"type": "object"}, nil)
 	manager.RegisterConciergeTools(svc)
+
+	if svc.toolRegistry.Has("delegate_to_subagent") {
+		t.Fatal("expected delegate_to_subagent to be removed from Concierge tool registry")
+	}
+	if svc.toolRegistry.Has("search_available_tools") {
+		t.Fatal("expected search_available_tools to be removed from Concierge tool registry")
+	}
+	if svc.agent.HasTool("delegate_to_subagent") {
+		t.Fatal("expected delegate_to_subagent to be removed from Concierge agent tools")
+	}
+	if svc.agent.HasTool("search_available_tools") {
+		t.Fatal("expected search_available_tools to be removed from Concierge agent tools")
+	}
+	if !svc.agent.HasTool("submit_agent_task") {
+		t.Fatal("expected submit_agent_task to be available on Concierge")
+	}
 
 	rawSquads, err := svc.toolRegistry.Call(context.Background(), "list_squads", map[string]interface{}{})
 	if err != nil {
@@ -167,7 +201,7 @@ func TestRegisterConciergeToolsExposesStatusAndSubmission(t *testing.T) {
 	if taskInfo["squad_name"] != defaultSquadName {
 		t.Fatalf("unexpected squad task result: %#v", taskInfo)
 	}
-	if taskInfo["status"] != SharedTaskStatusQueued {
+	if taskInfo["status"] != AsyncTaskStatusQueued {
 		t.Fatalf("expected queued task, got %#v", taskInfo["status"])
 	}
 
