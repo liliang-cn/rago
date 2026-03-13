@@ -167,7 +167,7 @@ func TestBuildWebSearchPromptNote(t *testing.T) {
 		},
 	}
 
-	note := svc.buildWebSearchPromptNote()
+	note := svc.buildWebSearchPromptNote(nil)
 	if !strings.Contains(strings.ToLower(note), "native web search capability") {
 		t.Fatalf("expected native web search note, got %q", note)
 	}
@@ -176,8 +176,25 @@ func TestBuildWebSearchPromptNote(t *testing.T) {
 	}
 
 	svc.cfg.Tooling.WebSearch.Mode = "auto"
-	note = svc.buildWebSearchPromptNote()
+	note = svc.buildWebSearchPromptNote(nil)
 	if !strings.Contains(strings.ToLower(note), "fallback") {
 		t.Fatalf("expected auto-mode fallback note, got %q", note)
+	}
+}
+
+func TestBuildWebSearchPromptNoteSkipsConcierge(t *testing.T) {
+	svc := &Service{
+		cfg: &config.Config{
+			Tooling: config.ToolingConfig{
+				WebSearch: config.WebSearchConfig{
+					Mode: "auto",
+				},
+			},
+		},
+	}
+
+	note := svc.buildWebSearchPromptNote(NewAgentWithConfig(BuiltInConciergeAgentName, "concierge", nil))
+	if note != "" {
+		t.Fatalf("expected concierge to skip web search note, got %q", note)
 	}
 }

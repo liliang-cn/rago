@@ -135,7 +135,7 @@ func runChat(cmd *cobra.Command, args []string) error {
 			return parseErr
 		}
 		if len(tasks) > 0 {
-			return runDelegatedTaskChain(context.Background(), agentManager, tasks, false)
+			return runDelegatedTaskChainAsync(context.Background(), agentManager, svc.CurrentSessionID(), tasks, nil, false)
 		}
 	}
 
@@ -383,12 +383,9 @@ func runInteractiveChat(ctx context.Context, svc *agent.Service, manager *agent.
 				}
 				if len(tasks) > 0 {
 					fmt.Printf("\n🚀 Delegating %d task(s) in background...\n", len(tasks))
-
-					go func(parsedTasks []delegatedTask) {
-						if err := runDelegatedTaskChain(context.Background(), manager, parsedTasks, true); err != nil {
-							fmt.Printf("\n%s %v\n\n", cliui.Error, err)
-						}
-					}(tasks)
+					if err := runDelegatedTaskChainAsync(chatCtx, manager, svc.CurrentSessionID(), tasks, taskFollower, true); err != nil {
+						fmt.Printf("\n%s %v\n\n", cliui.Error, err)
+					}
 
 					continue
 				}
@@ -472,64 +469,4 @@ func parseMentionedAgent(word string) (string, bool) {
 		return "", false
 	}
 	return matches[1], true
-}
-
-func runDelegatedTaskChain(ctx context.Context, manager *agent.SquadManager, tasks []delegatedTask, background bool) error {
-	if manager == nil {
-		return fmt.Errorf("agent manager is not initialized")
-	}
-	if len(tasks) == 0 {
-		return nil
-	}
-
-	var previousResult string
-	for idx, task := range tasks {
-		if background {
-			fmt.Printf("\n🚀 Background delegation %d/%d -> %s...\n", idx+1, len(tasks), task.AgentName)
-		} else {
-			fmt.Printf("\n🚀 Delegating %d/%d to %s...\n", idx+1, len(tasks), task.AgentName)
-		}
-
-		instruction := task.Instruction
-		if previousResult != "" {
-			instruction = fmt.Sprintf(
-				"Previous result from @%s:\n%s\n\nYour task:\n%s",
-				tasks[idx-1].AgentName,
-				previousResult,
-				task.Instruction,
-			)
-		}
-
-		res, err := manager.DispatchTask(ctx, task.AgentName, instruction)
-		if err != nil {
-			if background {
-				fmt.Printf("\n%s Background task failed for @%s: %v\n\n", cliui.Error, task.AgentName, err)
-				return nil
-			}
-			return fmt.Errorf("background task failed for @%s: %w", task.AgentName, err)
-		}
-
-		if delegatedResultLooksFailed(res) {
-			if background {
-				fmt.Printf("\n%s Background task failed for @%s:\n%v\n\n", cliui.Error, task.AgentName, res)
-				return nil
-			}
-			fmt.Printf("\n%s Task failed for @%s:\n%v\n\n", cliui.Error, task.AgentName, res)
-			return nil
-		}
-
-		if background {
-			fmt.Printf("\n%s Background task completed by @%s:\n%v\n", cliui.Success, task.AgentName, res)
-		} else {
-			fmt.Printf("\n%s Task completed by @%s:\n%v\n", cliui.Success, task.AgentName, res)
-		}
-
-		previousResult = res
-	}
-
-	if !background {
-		fmt.Println()
-	}
-
-	return nil
 }

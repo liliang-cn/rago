@@ -331,7 +331,11 @@ func (s *Service) buildToolCatalogSummary(ctx context.Context) string {
 		strings.Join(lines, "\n")
 }
 
-func (s *Service) buildWebSearchPromptNote() string {
+func (s *Service) buildWebSearchPromptNote(currentAgent *Agent) string {
+	if isConciergeAgent(currentAgent) || (currentAgent == nil && isConciergeAgent(s.agent)) {
+		return ""
+	}
+
 	switch s.webSearchMode() {
 	case domain.WebSearchModeNative:
 		return "Web search capability:\n- Up-to-date web lookups are available through the model's native web search capability.\n- Do not search the tool catalog for mcp_websearch tools when you need current web information."

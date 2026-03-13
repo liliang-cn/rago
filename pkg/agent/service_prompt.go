@@ -12,9 +12,19 @@ import (
 // ctx is required when PTC is enabled so available callTool() names can be listed dynamically.
 func (s *Service) buildSystemPrompt(ctx context.Context, agent *Agent) string {
 	systemCtx := s.buildSystemContext()
+	operationalRules := strings.Join([]string{
+		"- Call task_complete as soon as you have the final answer. Never keep running after the task is done.",
+		"- For file operations use mcp_filesystem_* tools; for web search use mcp_websearch_* tools.",
+		"- Skills: calling a skill tool returns step-by-step instructions — follow them, then call task_complete.",
+		"- Never repeat the same tool call with identical arguments.",
+	}, "\n")
+	if isConciergeAgent(agent) {
+		operationalRules = ""
+	}
 
 	data := map[string]interface{}{
 		"AgentInstructions": agent.Instructions(),
+		"OperationalRules":  operationalRules,
 		"SystemContext":     systemCtx.FormatForPrompt(),
 	}
 
@@ -37,11 +47,20 @@ func (s *Service) buildSystemPrompt(ctx context.Context, agent *Agent) string {
 		rendered += "\n\n" + summary
 	}
 
-	if note := s.buildWebSearchPromptNote(); note != "" {
-		rendered += "\n\n" + note
+	if !isConciergeAgent(agent) {
+		if note := s.buildWebSearchPromptNote(agent); note != "" {
+			rendered += "\n\n" + note
+		}
 	}
 
 	return rendered
+}
+
+func isConciergeAgent(agent *Agent) bool {
+	if agent == nil {
+		return false
+	}
+	return strings.EqualFold(agent.Name(), BuiltInConciergeAgentName)
 }
 
 // buildEnrichedPrompt builds a prompt enriched with memory and RAG results
@@ -89,7 +108,7 @@ func (s *Service) buildPTCSystemPrompt(ctx context.Context) string {
 		sb.WriteString(summary)
 	}
 
-	if note := s.buildWebSearchPromptNote(); note != "" {
+	if note := s.buildWebSearchPromptNote(s.agent); note != "" {
 		sb.WriteString("\n\n")
 		sb.WriteString(note)
 	}

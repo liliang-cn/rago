@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/mattn/go-runewidth"
@@ -14,6 +15,18 @@ import (
 )
 
 var ErrInputCanceled = errors.New("input canceled")
+
+type editorState struct {
+	prompt   string
+	buf      []rune
+	cursor   int
+	lastCols int
+}
+
+var (
+	editorMu sync.Mutex
+	active   *editorState
+)
 
 // ReadInteractiveLine reads one editable terminal line with UTF-8 aware cursor
 // movement and deletion. When stdin/stdout are not terminals, it falls back to
@@ -29,31 +42,13 @@ func ReadInteractiveLine(prompt string) (string, error) {
 		return "", err
 	}
 	defer func() {
+		deactivateEditor()
 		_ = term.Restore(fd, oldState)
 	}()
 
-	fmt.Print(prompt)
+	activateEditor(prompt)
 
-	var (
-		buf      []rune
-		cursor   int
-		byteBuf  = make([]byte, 1)
-		lastCols int
-	)
-
-	render := func() {
-		line := string(buf)
-		displayWidth := runewidth.StringWidth(line)
-		if displayWidth < lastCols {
-			fmt.Print("\r", prompt, line, strings.Repeat(" ", lastCols-displayWidth), "\r", prompt)
-		} else {
-			fmt.Print("\r", prompt, line, "\r", prompt)
-		}
-		if cursor > 0 {
-			fmt.Print(renderCursorPrefix(string(buf[:cursor])))
-		}
-		lastCols = displayWidth
-	}
+	byteBuf := make([]byte, 1)
 
 	for {
 		if _, err := os.Stdin.Read(byteBuf); err != nil {
@@ -62,63 +57,50 @@ func ReadInteractiveLine(prompt string) (string, error) {
 
 		switch b := byteBuf[0]; b {
 		case '\r', '\n':
-			padding := max(0, lastCols-runewidth.StringWidth(string(buf)))
-			fmt.Print("\r", prompt, string(buf), strings.Repeat(" ", padding), "\r\n")
-			return string(buf), nil
+			return commitEditorLine(), nil
 		case 3:
 			return "", ErrInputCanceled
 		case 4:
-			if len(buf) == 0 {
+			if currentEditorLength() == 0 {
 				return "", io.EOF
 			}
 		case 127, 8:
-			if cursor > 0 {
-				buf = append(buf[:cursor-1], buf[cursor:]...)
-				cursor--
-				render()
-			}
+			backspaceEditor()
 		case 27:
 			seq, err := readEscapeSequence()
 			if err != nil {
 				return "", err
 			}
-			switch seq {
-			case "[D":
-				if cursor > 0 {
-					cursor--
-					render()
-				}
-			case "[C":
-				if cursor < len(buf) {
-					cursor++
-					render()
-				}
-			case "[3~":
-				if cursor < len(buf) {
-					buf = append(buf[:cursor], buf[cursor+1:]...)
-					render()
-				}
-			case "[H", "OH":
-				if cursor != 0 {
-					cursor = 0
-					render()
-				}
-			case "[F", "OF":
-				if cursor != len(buf) {
-					cursor = len(buf)
-					render()
-				}
-			}
+			handleEscapeSequence(seq)
 		default:
 			r, size := DecodeRuneFromReader(os.Stdin, b)
 			if size == 0 {
 				continue
 			}
-			buf = append(buf[:cursor], append([]rune{r}, buf[cursor:]...)...)
-			cursor++
-			render()
+			insertRune(r)
 		}
 	}
+}
+
+// WriteAsyncLine prints a background status line while preserving the currently
+// edited prompt line, if any.
+func WriteAsyncLine(line string) {
+	line = strings.TrimRight(line, "\n")
+	if line == "" {
+		return
+	}
+
+	editorMu.Lock()
+	defer editorMu.Unlock()
+
+	if active == nil {
+		fmt.Println(line)
+		return
+	}
+
+	clearActiveLineLocked()
+	fmt.Print(line, "\n")
+	renderActiveLocked()
 }
 
 func readLineFallback(prompt string) (string, error) {
@@ -133,6 +115,122 @@ func readLineFallback(prompt string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(line, "\r\n"), nil
+}
+
+func activateEditor(prompt string) {
+	editorMu.Lock()
+	defer editorMu.Unlock()
+	active = &editorState{prompt: prompt}
+	fmt.Print(prompt)
+}
+
+func deactivateEditor() {
+	editorMu.Lock()
+	defer editorMu.Unlock()
+	active = nil
+}
+
+func currentEditorLength() int {
+	editorMu.Lock()
+	defer editorMu.Unlock()
+	if active == nil {
+		return 0
+	}
+	return len(active.buf)
+}
+
+func commitEditorLine() string {
+	editorMu.Lock()
+	defer editorMu.Unlock()
+	if active == nil {
+		return ""
+	}
+	line := string(active.buf)
+	padding := max(0, active.lastCols-runewidth.StringWidth(line))
+	fmt.Print("\r", active.prompt, line, strings.Repeat(" ", padding), "\r\n")
+	return line
+}
+
+func backspaceEditor() {
+	editorMu.Lock()
+	defer editorMu.Unlock()
+	if active == nil || active.cursor <= 0 {
+		return
+	}
+	active.buf = append(active.buf[:active.cursor-1], active.buf[active.cursor:]...)
+	active.cursor--
+	renderActiveLocked()
+}
+
+func handleEscapeSequence(seq string) {
+	editorMu.Lock()
+	defer editorMu.Unlock()
+	if active == nil {
+		return
+	}
+	switch seq {
+	case "[D":
+		if active.cursor > 0 {
+			active.cursor--
+			renderActiveLocked()
+		}
+	case "[C":
+		if active.cursor < len(active.buf) {
+			active.cursor++
+			renderActiveLocked()
+		}
+	case "[3~":
+		if active.cursor < len(active.buf) {
+			active.buf = append(active.buf[:active.cursor], active.buf[active.cursor+1:]...)
+			renderActiveLocked()
+		}
+	case "[H", "OH":
+		if active.cursor != 0 {
+			active.cursor = 0
+			renderActiveLocked()
+		}
+	case "[F", "OF":
+		if active.cursor != len(active.buf) {
+			active.cursor = len(active.buf)
+			renderActiveLocked()
+		}
+	}
+}
+
+func insertRune(r rune) {
+	editorMu.Lock()
+	defer editorMu.Unlock()
+	if active == nil {
+		return
+	}
+	active.buf = append(active.buf[:active.cursor], append([]rune{r}, active.buf[active.cursor:]...)...)
+	active.cursor++
+	renderActiveLocked()
+}
+
+func clearActiveLineLocked() {
+	if active == nil {
+		return
+	}
+	totalWidth := runewidth.StringWidth(active.prompt) + active.lastCols
+	fmt.Print("\r", strings.Repeat(" ", max(0, totalWidth)), "\r")
+}
+
+func renderActiveLocked() {
+	if active == nil {
+		return
+	}
+	line := string(active.buf)
+	displayWidth := runewidth.StringWidth(line)
+	if displayWidth < active.lastCols {
+		fmt.Print("\r", active.prompt, line, strings.Repeat(" ", active.lastCols-displayWidth), "\r", active.prompt)
+	} else {
+		fmt.Print("\r", active.prompt, line, "\r", active.prompt)
+	}
+	if active.cursor > 0 {
+		fmt.Print(renderCursorPrefix(string(active.buf[:active.cursor])))
+	}
+	active.lastCols = displayWidth
 }
 
 func readEscapeSequence() (string, error) {

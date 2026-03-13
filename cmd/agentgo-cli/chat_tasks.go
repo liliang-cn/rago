@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/internal/cliui"
+	"github.com/liliang-cn/agent-go/cmd/agentgo-cli/internal/lineinput"
 	"github.com/liliang-cn/agent-go/pkg/agent"
 )
 
@@ -58,10 +59,32 @@ func (f *chatTaskFollower) StartSessionTasks(ctx context.Context, sessionID stri
 	}
 }
 
+func (f *chatTaskFollower) StartTask(ctx context.Context, taskID string) {
+	if f == nil || f.manager == nil {
+		return
+	}
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return
+	}
+
+	f.mu.Lock()
+	_, exists := f.seen[taskID]
+	if !exists {
+		f.seen[taskID] = struct{}{}
+	}
+	f.mu.Unlock()
+	if exists {
+		return
+	}
+
+	go f.followTask(ctx, taskID)
+}
+
 func (f *chatTaskFollower) followTask(ctx context.Context, taskID string) {
 	events, unsubscribe, err := f.manager.SubscribeTask(taskID)
 	if err != nil {
-		fmt.Printf("\n%s Task follow failed for %s: %v\n%s", cliui.Error, taskID, err, cliui.UserPrompt)
+		printChatTaskBlock(fmt.Sprintf("%s Task follow failed for %s: %v", cliui.Error, taskID, err))
 		return
 	}
 	defer unsubscribe()
@@ -87,32 +110,32 @@ func renderChatTaskEvent(evt *agent.TaskEvent) {
 	taskLabel := shortTaskID(evt.TaskID)
 	switch evt.Type {
 	case agent.TaskEventTypeCreated:
-		fmt.Printf("\n%s [%s] %s%s", cliui.TaskCreated, taskLabel, firstNonEmpty(evt.Message, "Task created."), chatPromptRestore())
+		printChatTaskLine("%s [%s] %s", cliui.TaskCreated, taskLabel, firstNonEmpty(evt.Message, "Task created."))
 	case agent.TaskEventTypeStarted:
-		fmt.Printf("\n%s [%s] %s%s", cliui.TaskStarted, taskLabel, firstNonEmpty(evt.Message, "Task started."), chatPromptRestore())
+		printChatTaskLine("%s [%s] %s", cliui.TaskStarted, taskLabel, firstNonEmpty(evt.Message, "Task started."))
 	case agent.TaskEventTypeRuntime:
 		if shouldRenderChatTaskRuntimeEvent() {
 			renderRuntimeTaskEvent(taskLabel, evt.Runtime)
 		}
 	case agent.TaskEventTypeCompleted:
-		fmt.Printf("\n%s [%s] Task completed", cliui.Success, taskLabel)
+		line := fmt.Sprintf("%s [%s] Task completed", cliui.Success, taskLabel)
 		if evt.AgentName != "" {
-			fmt.Printf(" by @%s", evt.AgentName)
+			line += fmt.Sprintf(" by @%s", evt.AgentName)
 		}
-		fmt.Println()
 		if text := strings.TrimSpace(evt.Message); text != "" {
-			fmt.Println(text)
+			printChatTaskBlock(line, text)
+		} else {
+			printChatTaskBlock(line)
 		}
-		fmt.Print(chatPromptRestore())
 	case agent.TaskEventTypeFailed:
-		fmt.Printf("\n%s [%s] Task failed", cliui.Error, taskLabel)
+		line := fmt.Sprintf("%s [%s] Task failed", cliui.Error, taskLabel)
 		if evt.AgentName != "" {
-			fmt.Printf(" in @%s", evt.AgentName)
+			line += fmt.Sprintf(" in @%s", evt.AgentName)
 		}
 		if text := strings.TrimSpace(evt.Message); text != "" {
-			fmt.Printf(": %s", text)
+			line += fmt.Sprintf(": %s", text)
 		}
-		fmt.Print(chatPromptRestore())
+		printChatTaskBlock(line)
 	}
 }
 
@@ -124,15 +147,15 @@ func renderRuntimeTaskEvent(taskLabel string, evt *agent.Event) {
 	switch evt.Type {
 	case agent.EventTypeStart, agent.EventTypeStateUpdate:
 		if msg := summarizeChatTaskStatus(strings.TrimSpace(evt.Content)); msg != "" {
-			fmt.Printf("\n… [%s] @%s %s%s", taskLabel, evt.AgentName, msg, chatPromptRestore())
+			printChatTaskLine("… [%s] @%s %s", taskLabel, evt.AgentName, msg)
 		}
 	case agent.EventTypeToolCall:
-		fmt.Printf("\n%s [%s] @%s %s%s", cliui.Tool, taskLabel, evt.AgentName, formatChatTaskToolCall(evt.ToolName), chatPromptRestore())
+		printChatTaskLine("%s [%s] @%s %s", cliui.Tool, taskLabel, evt.AgentName, formatChatTaskToolCall(evt.ToolName))
 	case agent.EventTypeToolResult:
 		if strings.TrimSpace(evt.Content) != "" {
-			fmt.Printf("\n%s [%s] @%s %s: %s%s", cliui.Error, taskLabel, evt.AgentName, evt.ToolName, strings.TrimSpace(evt.Content), chatPromptRestore())
+			printChatTaskLine("%s [%s] @%s %s: %s", cliui.Error, taskLabel, evt.AgentName, evt.ToolName, strings.TrimSpace(evt.Content))
 		} else {
-			fmt.Printf("\n%s [%s] @%s %s done%s", cliui.ToolDone, taskLabel, evt.AgentName, evt.ToolName, chatPromptRestore())
+			printChatTaskLine("%s [%s] @%s %s done", cliui.ToolDone, taskLabel, evt.AgentName, evt.ToolName)
 		}
 	}
 }
@@ -149,17 +172,18 @@ func printChatTaskSnapshot(task *agent.AsyncTask) {
 	taskLabel := shortTaskID(task.ID)
 	switch task.Status {
 	case agent.AsyncTaskStatusCompleted:
-		fmt.Printf("\n%s [%s] Task completed\n", cliui.Success, taskLabel)
+		line := fmt.Sprintf("%s [%s] Task completed", cliui.Success, taskLabel)
 		if text := strings.TrimSpace(task.ResultText); text != "" {
-			fmt.Println(text)
+			printChatTaskBlock(line, text)
+		} else {
+			printChatTaskBlock(line)
 		}
-		fmt.Print(chatPromptRestore())
 	case agent.AsyncTaskStatusFailed:
-		fmt.Printf("\n%s [%s] Task failed", cliui.Error, taskLabel)
+		line := fmt.Sprintf("%s [%s] Task failed", cliui.Error, taskLabel)
 		if text := strings.TrimSpace(task.Error); text != "" {
-			fmt.Printf(": %s", text)
+			line += fmt.Sprintf(": %s", text)
 		}
-		fmt.Print(chatPromptRestore())
+		printChatTaskBlock(line)
 	}
 }
 
@@ -189,18 +213,27 @@ func isTerminalTask(status agent.AsyncTaskStatus) bool {
 	}
 }
 
-func chatPromptRestore() string {
-	if isInteractive() {
-		return "\n" + cliui.UserPrompt
-	}
-	return "\n"
-}
-
 func formatChatTaskToolCall(name string) string {
 	if strings.TrimSpace(name) == "" {
 		return "starting tool"
 	}
 	return fmt.Sprintf("using %s", name)
+}
+
+func printChatTaskLine(format string, args ...interface{}) {
+	printChatTaskBlock(fmt.Sprintf(format, args...))
+}
+
+func printChatTaskBlock(lines ...string) {
+	text := strings.TrimSpace(strings.Join(lines, "\n"))
+	if text == "" {
+		return
+	}
+	if isInteractive() {
+		lineinput.WriteAsyncLine(text)
+		return
+	}
+	fmt.Println(text)
 }
 
 func summarizeChatTaskStatus(msg string) string {

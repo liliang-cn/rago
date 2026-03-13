@@ -99,13 +99,10 @@ Respond with JSON:
 }`
 
 	// 5. Agent System Prompt (Main Execution Loop)
-	m.defaults[AgentSystemPrompt] = `{{.AgentInstructions}}
+	m.defaults[AgentSystemPrompt] = `{{.AgentInstructions}}{{if .OperationalRules}}
 
 Rules:
-- Call task_complete as soon as you have the final answer. Never keep running after the task is done.
-- For file operations use mcp_filesystem_* tools; for web search use mcp_websearch_* tools.
-- Skills: calling a skill tool returns step-by-step instructions — follow them, then call task_complete.
-- Never repeat the same tool call with identical arguments.
+{{.OperationalRules}}{{end}}
 
 {{.SystemContext}}`
 
