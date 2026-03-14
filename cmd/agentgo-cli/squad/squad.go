@@ -127,7 +127,11 @@ var addCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Added squad '%s'.\n", squad.Name)
+		if lead, leadErr := manager.GetLeadAgentForSquad(squad.ID); leadErr == nil && strings.TrimSpace(lead.Name) != "" {
+			fmt.Printf("Added squad '%s' with default captain '%s'.\n", squad.Name, lead.Name)
+		} else {
+			fmt.Printf("Added squad '%s'.\n", squad.Name)
+		}
 		return nil
 	},
 }
@@ -363,7 +367,7 @@ var memberShowCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Name: %s\n", a.Name)
-		fmt.Printf("Kind: %s\n", kindDisplay(a.Kind))
+		fmt.Printf("Squad Role: %s\n", kindDisplay(a.Kind))
 		fmt.Printf("Model: %s\n", valueOrDash(a.Model))
 		fmt.Printf("Description: %s\n", valueOrDash(a.Description))
 		fmt.Printf("RAG: %s\n", enabledState(a.EnableRAG))

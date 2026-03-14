@@ -328,6 +328,28 @@ func configureConciergeService(concierge *Service) {
 	}
 }
 
+func configureCaptainService(captain *Service) {
+	if captain == nil {
+		return
+	}
+
+	if captain.toolRegistry != nil {
+		captain.toolRegistry.Unregister("delegate_to_subagent")
+	}
+
+	if captain.agent != nil {
+		filteredTools := make([]domain.ToolDefinition, 0, len(captain.agent.tools))
+		for _, tool := range captain.agent.tools {
+			if tool.Function.Name == "delegate_to_subagent" {
+				continue
+			}
+			filteredTools = append(filteredTools, tool)
+		}
+		captain.agent.SetTools(filteredTools)
+		delete(captain.agent.handlers, "delegate_to_subagent")
+	}
+}
+
 func (m *SquadManager) resolveSquadRef(squadID, squadName string) (*Squad, error) {
 	squadID = strings.TrimSpace(squadID)
 	squadName = strings.TrimSpace(squadName)

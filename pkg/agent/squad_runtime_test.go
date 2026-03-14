@@ -214,6 +214,54 @@ func TestRegisterConciergeToolsExposesStatusAndSubmission(t *testing.T) {
 	}
 }
 
+func TestRegisterCaptainToolsPrefersTeamAsyncAndRemovesSubAgentDelegation(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "agent.db"))
+	if err != nil {
+		t.Fatalf("new store failed: %v", err)
+	}
+	manager := NewSquadManager(store)
+	if err := manager.SeedDefaultMembers(); err != nil {
+		t.Fatalf("seed default members failed: %v", err)
+	}
+
+	svc := &Service{
+		agent:        NewAgentWithConfig("Captain", "captain", nil),
+		toolRegistry: NewToolRegistry(),
+	}
+	svc.SetSessionID("captain-session-1")
+	svc.toolRegistry.Register(domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "delegate_to_subagent",
+			Description: "delegation helper",
+			Parameters:  map[string]interface{}{"type": "object"},
+		},
+	}, nil, CategoryCustom)
+	svc.agent.AddTool("delegate_to_subagent", "delegation helper", map[string]interface{}{"type": "object"}, nil)
+
+	manager.RegisterCaptainTools(svc)
+	configureCaptainService(svc)
+
+	if svc.toolRegistry.Has("delegate_to_subagent") {
+		t.Fatal("expected delegate_to_subagent to be removed from captain tool registry")
+	}
+	if svc.agent.HasTool("delegate_to_subagent") {
+		t.Fatal("expected delegate_to_subagent to be removed from captain agent tools")
+	}
+	if !svc.agent.HasTool("submit_team_async") {
+		t.Fatal("expected submit_team_async to be available on captain")
+	}
+	if !svc.agent.HasTool("list_team_tasks") {
+		t.Fatal("expected list_team_tasks to be available on captain")
+	}
+	if !svc.agent.HasTool("get_task_status") {
+		t.Fatal("expected get_task_status to be available on captain")
+	}
+	if !svc.agent.HasTool("delegate_task") {
+		t.Fatal("expected synchronous delegate_task to remain available on captain")
+	}
+}
+
 func TestSquadHelpersExposeSquadStyleAPI(t *testing.T) {
 	store, err := NewStore(filepath.Join(t.TempDir(), "agent.db"))
 	if err != nil {
@@ -342,8 +390,11 @@ func TestBuildTeamMemberPrompt_IsAgentSpecific(t *testing.T) {
 	if !strings.Contains(coderPrompt, "MUST call a filesystem write or modify tool") {
 		t.Fatalf("coder prompt missing file-writing rule: %s", coderPrompt)
 	}
-	if !strings.Contains(coderPrompt, "they are not the only possible path") {
-		t.Fatalf("coder prompt missing current-runtime capability rule: %s", coderPrompt)
+	if !strings.Contains(coderPrompt, "Do not invent helper tools that are not present in the visible tool list") {
+		t.Fatalf("coder prompt missing visible-tool rule: %s", coderPrompt)
+	}
+	if !strings.Contains(coderPrompt, "fall back to individual read_file calls") {
+		t.Fatalf("coder prompt missing multi-read fallback rule: %s", coderPrompt)
 	}
 	if strings.Contains(coderPrompt, "Never recursively inspect large dependency or build directories") {
 		t.Fatalf("coder prompt should not include researcher repo-analysis rules: %s", coderPrompt)
@@ -359,14 +410,17 @@ func TestBuildTeamMemberPrompt_IsAgentSpecific(t *testing.T) {
 	if !strings.Contains(captainPrompt, "Delegate specialized implementation work to specialists") {
 		t.Fatalf("captain prompt missing coordinator guidance: %s", captainPrompt)
 	}
-	if !strings.Contains(captainPrompt, "Do not assume the work must go through MCP") {
-		t.Fatalf("captain prompt missing non-MCP capability rule: %s", captainPrompt)
+	if !strings.Contains(captainPrompt, "Do not invent helper tools that are not present in the visible tool list") {
+		t.Fatalf("captain prompt missing visible-tool rule: %s", captainPrompt)
 	}
 	if !strings.Contains(captainPrompt, "Never inspect blacklisted repository paths unless the user explicitly asks for them.") {
 		t.Fatalf("captain prompt missing repo-analysis rule: %s", captainPrompt)
 	}
 	if !strings.Contains(captainPrompt, "read those files first before calling list_directory") {
 		t.Fatalf("captain prompt missing direct-file-read rule: %s", captainPrompt)
+	}
+	if !strings.Contains(captainPrompt, "fall back to individual read_file calls") {
+		t.Fatalf("captain prompt missing multi-read fallback rule: %s", captainPrompt)
 	}
 	if strings.Contains(captainPrompt, "MUST call a filesystem write or modify tool") {
 		t.Fatalf("captain prompt should not include coder file-writing rules: %s", captainPrompt)
@@ -387,6 +441,178 @@ func TestBuildTeamMemberPrompt_IsAgentSpecific(t *testing.T) {
 	}
 	if !strings.Contains(teamPrompt, "captain for this squad") {
 		t.Fatalf("squad prompt missing captain guidance: %s", teamPrompt)
+	}
+}
+
+func TestBuildTeamSystemPromptForCaptainIncludesRosterAndResponsibilities(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "agent.db"))
+	if err != nil {
+		t.Fatalf("new store failed: %v", err)
+	}
+	manager := NewSquadManager(store)
+	if err := manager.SeedDefaultMembers(); err != nil {
+		t.Fatalf("seed default members failed: %v", err)
+	}
+
+	squad, err := manager.CreateSquad(context.Background(), &Squad{
+		Name:        "Delivery Squad",
+		Description: "Delivery squad.",
+	})
+	if err != nil {
+		t.Fatalf("create squad failed: %v", err)
+	}
+
+	captain, err := manager.GetLeadAgentForSquad(squad.ID)
+	if err != nil {
+		t.Fatalf("get lead failed: %v", err)
+	}
+	updatedCaptain, err := manager.UpdateAgent(context.Background(), &AgentModel{
+		ID:           captain.ID,
+		Name:         captain.Name,
+		Description:  "Coordinate the squad and own delivery decisions.",
+		Instructions: "Break work into specialist tracks, assign owners, and integrate outputs.",
+	})
+	if err != nil {
+		t.Fatalf("update captain failed: %v", err)
+	}
+	captain, err = manager.GetMemberByNameInSquad(updatedCaptain.Name, squad.ID)
+	if err != nil {
+		t.Fatalf("reload captain failed: %v", err)
+	}
+
+	if _, err := manager.CreateMember(context.Background(), &AgentModel{
+		Name:         "Delivery Frontend",
+		TeamID:       squad.ID,
+		Kind:         AgentKindSpecialist,
+		Description:  "Owns the web UI implementation.",
+		Instructions: "Build the browser UI and keep interaction flows simple.",
+	}); err != nil {
+		t.Fatalf("create frontend specialist failed: %v", err)
+	}
+	if _, err := manager.CreateMember(context.Background(), &AgentModel{
+		Name:         "Delivery Backend",
+		TeamID:       squad.ID,
+		Kind:         AgentKindSpecialist,
+		Description:  "Owns the API and persistence layer.",
+		Instructions: "Implement APIs, persistence, and server-side integration details.",
+		Skills:       []string{"api_design", "storage"},
+	}); err != nil {
+		t.Fatalf("create backend specialist failed: %v", err)
+	}
+
+	prompt := manager.buildTeamSystemPromptForModel(&config.Config{Home: t.TempDir()}, captain)
+	if !strings.Contains(prompt, "Captain responsibilities and squad roster:") {
+		t.Fatalf("expected captain roster header, got %s", prompt)
+	}
+	if !strings.Contains(prompt, "Your responsibility summary: Coordinate the squad and own delivery decisions.") {
+		t.Fatalf("expected captain responsibility summary, got %s", prompt)
+	}
+	if !strings.Contains(prompt, "Your operating responsibilities: Break work into specialist tracks, assign owners, and integrate outputs.") {
+		t.Fatalf("expected captain operating responsibilities, got %s", prompt)
+	}
+	if !strings.Contains(prompt, "Delivery Frontend [specialist]: Owns the web UI implementation.") {
+		t.Fatalf("expected frontend member roster entry, got %s", prompt)
+	}
+	if !strings.Contains(prompt, "Responsibilities: Build the browser UI and keep interaction flows simple.") {
+		t.Fatalf("expected frontend responsibilities, got %s", prompt)
+	}
+	if !strings.Contains(prompt, "Delivery Backend [specialist]: Owns the API and persistence layer.") {
+		t.Fatalf("expected backend member roster entry, got %s", prompt)
+	}
+	if !strings.Contains(prompt, "Skills: api_design, storage") {
+		t.Fatalf("expected backend skills in roster, got %s", prompt)
+	}
+}
+
+func TestCreateMemberClearsCaptainServiceCache(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "agent.db"))
+	if err != nil {
+		t.Fatalf("new store failed: %v", err)
+	}
+	manager := NewSquadManager(store)
+	if err := manager.SeedDefaultMembers(); err != nil {
+		t.Fatalf("seed default members failed: %v", err)
+	}
+
+	squad, err := manager.CreateSquad(context.Background(), &Squad{
+		Name:        "Cache Squad",
+		Description: "Cache squad.",
+	})
+	if err != nil {
+		t.Fatalf("create squad failed: %v", err)
+	}
+	captain, err := manager.GetLeadAgentForSquad(squad.ID)
+	if err != nil {
+		t.Fatalf("get lead failed: %v", err)
+	}
+
+	manager.mu.Lock()
+	manager.services[captain.Name] = &Service{}
+	manager.mu.Unlock()
+
+	if _, err := manager.CreateMember(context.Background(), &AgentModel{
+		Name:         "Cache Specialist",
+		TeamID:       squad.ID,
+		Kind:         AgentKindSpecialist,
+		Description:  "Handles specialist work.",
+		Instructions: "Do specialist work.",
+	}); err != nil {
+		t.Fatalf("create specialist failed: %v", err)
+	}
+
+	manager.mu.RLock()
+	_, exists := manager.services[captain.Name]
+	manager.mu.RUnlock()
+	if exists {
+		t.Fatal("expected captain service cache to be cleared after squad membership change")
+	}
+}
+
+func TestPersistedSharedTasksRestoreAcrossManagerInstances(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "agent.db"))
+	if err != nil {
+		t.Fatalf("new store failed: %v", err)
+	}
+	manager := NewSquadManager(store)
+	if err := manager.SeedDefaultMembers(); err != nil {
+		t.Fatalf("seed default members failed: %v", err)
+	}
+
+	task := &SharedTask{
+		ID:          "shared-task-1",
+		SessionID:   "session-restore-1",
+		SquadID:     defaultSquadID,
+		SquadName:   defaultSquadName,
+		CaptainName: BuiltInCaptainAgentName,
+		AgentNames:  []string{BuiltInCaptainAgentName},
+		Prompt:      "review persisted squad work",
+		AckMessage:  "Captain received that. Starting it now.",
+		Status:      SharedTaskStatusCompleted,
+		ResultText:  "done",
+		CreatedAt:   time.Now().Add(-time.Minute),
+	}
+	if err := store.SaveSharedTask(task); err != nil {
+		t.Fatalf("save shared task failed: %v", err)
+	}
+
+	restored := NewSquadManager(store)
+	tasks := restored.ListSharedTasksForSquad(defaultSquadID, time.Time{}, 10)
+	if len(tasks) != 1 {
+		t.Fatalf("expected restored shared task, got %+v", tasks)
+	}
+	if tasks[0].ID != task.ID || tasks[0].ResultText != "done" {
+		t.Fatalf("unexpected restored shared task: %+v", tasks[0])
+	}
+
+	asyncTask, err := restored.GetTask(task.ID)
+	if err != nil {
+		t.Fatalf("expected shared task to be visible via GetTask after restore: %v", err)
+	}
+	if asyncTask.SessionID != task.SessionID {
+		t.Fatalf("expected restored session id %q, got %q", task.SessionID, asyncTask.SessionID)
+	}
+	if asyncTask.Status != AsyncTaskStatusCompleted {
+		t.Fatalf("expected completed async status, got %q", asyncTask.Status)
 	}
 }
 

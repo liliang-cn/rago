@@ -163,6 +163,7 @@ func (s *Service) CallTool(ctx context.Context, toolName string, arguments map[s
 	if err := validateFilesystemToolArgs(toolName, arguments, s.mcpConfig.FilesystemIgnore); err != nil {
 		return nil, err
 	}
+	arguments = sanitizeFilesystemToolArgs(toolName, arguments)
 	result, err := s.manager.CallTool(ctx, toolName, arguments)
 	if err != nil {
 		return nil, err

@@ -64,7 +64,9 @@ type SharedTaskResult struct {
 // SharedTask is a queued squad task owned by one squad lead agent.
 type SharedTask struct {
 	ID          string             `json:"id"`
+	SessionID   string             `json:"session_id,omitempty"`
 	SquadID     string             `json:"squad_id"`
+	SquadName   string             `json:"squad_name,omitempty"`
 	CaptainName string             `json:"captain_name"`
 	AgentNames  []string           `json:"agent_names"`
 	Prompt      string             `json:"prompt"`
@@ -168,7 +170,7 @@ func (m *SquadManager) ensureDefaultSquad() (*Squad, error) {
 
 // NewSquadManager creates a new squad manager based on a store.
 func NewSquadManager(s *Store) *SquadManager {
-	return &SquadManager{
+	manager := &SquadManager{
 		store:          s,
 		runningAgents:  make(map[string]context.CancelFunc),
 		services:       make(map[string]*Service),
@@ -181,6 +183,8 @@ func NewSquadManager(s *Store) *SquadManager {
 		taskSubs:       make(map[string]map[chan *TaskEvent]struct{}),
 		taskCancels:    make(map[string]context.CancelFunc),
 	}
+	manager.restoreSharedTasks()
+	return manager
 }
 
 // NewTeamManager is kept as a compatibility alias for older call sites.
@@ -221,6 +225,7 @@ func (m *SquadManager) EnqueueSharedTaskForSquad(ctx context.Context, squadID, c
 	task := &SharedTask{
 		ID:          uuid.New().String(),
 		SquadID:     squad.ID,
+		SquadName:   squad.Name,
 		CaptainName: captain.Name,
 		AgentNames:  append([]string(nil), agentNames...),
 		Prompt:      strings.TrimSpace(prompt),
@@ -242,6 +247,28 @@ func (m *SquadManager) EnqueueSharedTaskForSquad(ctx context.Context, squadID, c
 		m.queueRunning[squad.ID] = true
 	}
 	m.queueMu.Unlock()
+
+	if err := m.store.SaveSharedTask(task); err != nil {
+		m.queueMu.Lock()
+		delete(m.sharedTasks, task.ID)
+		queue := m.taskQueues[squad.ID]
+		filtered := make([]string, 0, len(queue))
+		for _, id := range queue {
+			if id != task.ID {
+				filtered = append(filtered, id)
+			}
+		}
+		if len(filtered) == 0 {
+			delete(m.taskQueues, squad.ID)
+			if shouldStartWorker {
+				delete(m.queueRunning, squad.ID)
+			}
+		} else {
+			m.taskQueues[squad.ID] = filtered
+		}
+		m.queueMu.Unlock()
+		return nil, err
+	}
 
 	if shouldStartWorker {
 		go m.runSharedTaskQueue(context.WithoutCancel(ctx), squad.ID)
@@ -322,6 +349,7 @@ func (m *SquadManager) nextQueuedTask(squadID string) *SharedTask {
 	task.Status = SharedTaskStatusRunning
 	task.StartedAt = &now
 	task.QueuedAhead = 0
+	_ = m.store.SaveSharedTask(task)
 	return cloneSharedTask(task)
 }
 
@@ -334,6 +362,56 @@ func buildSharedTaskAck(captainName string, queuedAhead int) string {
 		return fmt.Sprintf("%s received that. It is queued behind %d task(s).", captainName, queuedAhead)
 	}
 	return fmt.Sprintf("%s received that. Starting it now.", captainName)
+}
+
+func (m *SquadManager) restoreSharedTasks() {
+	if m == nil || m.store == nil {
+		return
+	}
+
+	tasks, err := m.store.ListSharedTasksPersisted()
+	if err != nil {
+		return
+	}
+
+	queuedBySquad := make(map[string][]*SharedTask)
+	for _, task := range tasks {
+		if task == nil {
+			continue
+		}
+		if task.Status == SharedTaskStatusRunning {
+			task.Status = SharedTaskStatusQueued
+			task.StartedAt = nil
+			task.QueuedAhead = 0
+			_ = m.store.SaveSharedTask(task)
+		}
+		m.sharedTasks[task.ID] = cloneSharedTask(task)
+		if task.Status == SharedTaskStatusQueued {
+			queuedBySquad[task.SquadID] = append(queuedBySquad[task.SquadID], cloneSharedTask(task))
+		}
+		m.ensureAsyncTaskForSharedTask(task, task.SessionID, task.SquadName)
+	}
+
+	for squadID, squadTasks := range queuedBySquad {
+		slices.SortFunc(squadTasks, func(a, b *SharedTask) int {
+			return a.CreatedAt.Compare(b.CreatedAt)
+		})
+		queue := make([]string, 0, len(squadTasks))
+		for idx, task := range squadTasks {
+			task.QueuedAhead = idx
+			if stored := m.sharedTasks[task.ID]; stored != nil {
+				stored.QueuedAhead = idx
+				_ = m.store.SaveSharedTask(stored)
+			}
+			queue = append(queue, task.ID)
+		}
+		if len(queue) == 0 {
+			continue
+		}
+		m.taskQueues[squadID] = queue
+		m.queueRunning[squadID] = true
+		go m.runSharedTaskQueue(context.Background(), squadID)
+	}
 }
 
 func cloneSharedTask(task *SharedTask) *SharedTask {
@@ -548,6 +626,12 @@ func (m *SquadManager) getOrBuildService(name string) (*Service, error) {
 		return svc, nil
 	}
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if svc, exists := m.services[name]; exists {
+		return svc, nil
+	}
+
 	model, err := m.store.GetAgentModelByName(name)
 	if err != nil {
 		return nil, err
@@ -555,21 +639,22 @@ func (m *SquadManager) getOrBuildService(name string) (*Service, error) {
 
 	var agentgoCfg *config.Config
 	builder := New(model.Name)
+	systemPrompt := strings.TrimSpace(model.Instructions)
 
 	if cfg, cfgErr := config.Load(""); cfgErr == nil {
 		agentgoCfg = cfg
 		if len(model.Squads) > 0 {
-			builder.WithSystemPrompt(buildTeamSystemPrompt(cfg, model) + "\n\n" + buildTeamMemberPrompt(model))
+			systemPrompt = m.buildTeamSystemPromptForModel(cfg, model) + "\n\n" + buildTeamMemberPrompt(model)
 		} else {
-			builder.WithSystemPrompt(buildStandaloneAgentPrompt(cfg, model))
+			systemPrompt = buildStandaloneAgentPrompt(cfg, model)
 		}
 	} else {
 		if len(model.Squads) > 0 {
-			builder.WithSystemPrompt(buildTeamMemberPrompt(model))
-		} else {
-			builder.WithSystemPrompt(strings.TrimSpace(model.Instructions))
+			systemPrompt = m.buildTeamSystemPromptForModel(nil, model) + "\n\n" + buildTeamMemberPrompt(model)
 		}
 	}
+	systemPrompt = m.decorateDelegableBuiltInAgentPrompt(systemPrompt, model)
+	builder.WithSystemPrompt(systemPrompt)
 
 	if agentgoCfg != nil {
 		builder.WithConfig(agentgoCfg)
@@ -624,15 +709,50 @@ func (m *SquadManager) getOrBuildService(name string) (*Service, error) {
 		newSvc.agent.SetAllowedSkills([]string{}) // none allowed if empty
 	}
 
+	if hasMembershipRole(model.Squads, AgentKindCaptain) {
+		m.RegisterCaptainTools(newSvc)
+		configureCaptainService(newSvc)
+	}
+	m.registerBuiltInAgentDelegationTools(newSvc, model)
+	if strings.EqualFold(strings.TrimSpace(model.Name), defaultOperatorAgentName) {
+		registerOperatorTools(newSvc)
+	}
+
 	if label := configuredModelLabel(model); label != "" {
 		newSvc.agent.SetModel(label)
 	}
 
-	m.mu.Lock()
 	m.services[name] = newSvc
-	m.mu.Unlock()
 
 	return newSvc, nil
+}
+
+func (m *SquadManager) buildTeamSystemPromptForModel(cfg *config.Config, model *AgentModel) string {
+	base := buildTeamSystemPrompt(cfg, model)
+	if model == nil || !hasMembershipRole(model.Squads, AgentKindCaptain) {
+		return base
+	}
+
+	roster := strings.TrimSpace(m.buildCaptainRosterContext(model))
+	if roster == "" {
+		return base
+	}
+	return strings.TrimSpace(base + "\n\n" + roster)
+}
+
+func (m *SquadManager) decorateDelegableBuiltInAgentPrompt(base string, model *AgentModel) string {
+	base = strings.TrimSpace(base)
+	if model == nil || isBuiltInAgentModel(model) {
+		return base
+	}
+	context := strings.TrimSpace(m.buildDelegableBuiltInAgentsContext(model))
+	if context == "" {
+		return base
+	}
+	if base == "" {
+		return context
+	}
+	return strings.TrimSpace(base + "\n\n" + context)
 }
 
 func buildTeamSystemPrompt(cfg *config.Config, model *AgentModel) string {
@@ -662,9 +782,105 @@ func buildTeamSystemPrompt(cfg *config.Config, model *AgentModel) string {
 		lines = append(lines,
 			"- You are the captain for this squad.",
 			"- Handle direct user requests when possible and delegate specialist work only when that improves the result.",
+			"- Prefer assigning multi-step or implementation-heavy work to named squad members via async team tasks instead of doing it yourself.",
+			"- Use async team task submission first for coding, file-writing, research, and verification work. Only use synchronous delegation when you truly need an immediate inline sub-result.",
+			"- Do not use generic sub-agent delegation; coordinate through the squad members listed below.",
 		)
 	}
 	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+func (m *SquadManager) buildCaptainRosterContext(model *AgentModel) string {
+	if model == nil || !hasMembershipRole(model.Squads, AgentKindCaptain) {
+		return ""
+	}
+
+	lines := []string{
+		"Captain responsibilities and squad roster:",
+		"- Your role: captain / team lead.",
+	}
+	if desc := strings.TrimSpace(model.Description); desc != "" {
+		lines = append(lines, "- Your responsibility summary: "+desc)
+	}
+	if instr := strings.TrimSpace(model.Instructions); instr != "" {
+		lines = append(lines, "- Your operating responsibilities: "+singleLinePromptText(instr))
+	}
+
+	for _, membership := range model.Squads {
+		if membership.Role != AgentKindCaptain {
+			continue
+		}
+		squadLabel := strings.TrimSpace(membership.SquadName)
+		if squadLabel == "" {
+			squadLabel = strings.TrimSpace(membership.SquadID)
+		}
+		if squadLabel == "" {
+			squadLabel = "current squad"
+		}
+
+		lines = append(lines, "- Squad: "+squadLabel)
+		members, err := m.ListSquadAgentsForSquad(membership.SquadID)
+		if err != nil {
+			lines = append(lines, "  - Unable to load squad members: "+err.Error())
+			continue
+		}
+		slices.SortFunc(members, compareAgentModelsForRoster)
+		for _, member := range members {
+			if member == nil || strings.TrimSpace(member.Name) == "" || strings.EqualFold(member.Name, model.Name) {
+				continue
+			}
+			line := fmt.Sprintf("  - %s [%s]", member.Name, strings.ToLower(string(member.Kind)))
+			if desc := strings.TrimSpace(member.Description); desc != "" {
+				line += ": " + desc
+			}
+			if instr := strings.TrimSpace(member.Instructions); instr != "" {
+				line += " Responsibilities: " + singleLinePromptText(instr)
+			}
+			if len(member.Skills) > 0 {
+				line += " Skills: " + strings.Join(member.Skills, ", ")
+			}
+			lines = append(lines, line)
+		}
+	}
+
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+func compareAgentModelsForRoster(a, b *AgentModel) int {
+	if a == nil || b == nil {
+		switch {
+		case a == nil && b == nil:
+			return 0
+		case a == nil:
+			return 1
+		default:
+			return -1
+		}
+	}
+	if a.Kind != b.Kind {
+		if a.Kind == AgentKindCaptain {
+			return -1
+		}
+		if b.Kind == AgentKindCaptain {
+			return 1
+		}
+	}
+	switch {
+	case a.Name < b.Name:
+		return -1
+	case a.Name > b.Name:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func singleLinePromptText(text string) string {
+	text = strings.TrimSpace(strings.Join(strings.Fields(text), " "))
+	if len(text) > 240 {
+		return text[:237] + "..."
+	}
+	return text
 }
 
 func buildTeamMemberPrompt(model *AgentModel) string {
@@ -678,18 +894,20 @@ func buildTeamMemberPrompt(model *AgentModel) string {
 	switch strings.ToLower(strings.TrimSpace(model.Name)) {
 	case "coder":
 		extras = append(extras,
-			"- Use whichever capabilities are currently available in this runtime to complete the task. MCP filesystem tools are common here, but they are not the only possible path.",
+			"- Use only the tools and capabilities that are actually exposed in this runtime. Do not invent helper tools that are not present in the visible tool list.",
 			"- If the task says create/write/save/update a file, you MUST call a filesystem write or modify tool and actually change the file.",
 			"- Do not stop after listing files when the task clearly asks you to write or edit a file.",
 			"- Directory listing is only for confirmation or discovery. It is not a valid final action for a file-writing task.",
+			"- If a multi-file read result is incomplete, fall back to individual read_file calls before continuing.",
 			"- After writing a file, briefly state which file was changed and what was written.",
 			"- Return the exact file path(s) you changed.",
 		)
 	default:
 		extras = append(extras,
-			"- Use the capabilities that are actually available in the current runtime. Do not assume the work must go through MCP if another available path fits better.",
+			"- Use only the tools and capabilities that are actually exposed in the current runtime. Do not invent helper tools that are not present in the visible tool list.",
 			"- For repository or filesystem questions, prefer targeted file reads over broad directory traversal.",
 			"- If the task already names specific files such as Makefile, package.json, App.tsx, or main.go, read those files first before calling list_directory.",
+			"- If a multi-file read result is incomplete, fall back to individual read_file calls before continuing.",
 			"- Never inspect blacklisted repository paths unless the user explicitly asks for them. Blacklist: "+FormatRepositoryIgnoreList(),
 			"- Avoid full repository tree scans. Use directory listing only when you need quick structure confirmation, and do it on one narrow path at a time.",
 			"- Delegate specialized implementation work to specialists instead of carrying their detailed operating rules yourself.",
@@ -1007,6 +1225,17 @@ func dispatchRunOptions(agentName string) []RunOption {
 
 // RegisterCaptainTools adds the squad management tools to the frontdesk lead agent.
 func (m *SquadManager) RegisterCaptainTools(captain *Service) {
+	if captain == nil {
+		return
+	}
+
+	register := func(name, description string, parameters map[string]interface{}, handler func(context.Context, map[string]interface{}) (interface{}, error)) {
+		if captain.toolRegistry != nil && captain.toolRegistry.Has(name) {
+			return
+		}
+		captain.AddTool(name, description, parameters, handler)
+	}
+
 	// 1. discover_agents
 	discoverDef := domain.ToolDefinition{
 		Type: "function",
@@ -1019,7 +1248,7 @@ func (m *SquadManager) RegisterCaptainTools(captain *Service) {
 			},
 		},
 	}
-	captain.toolRegistry.Register(discoverDef, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	register(discoverDef.Function.Name, discoverDef.Function.Description, discoverDef.Function.Parameters, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 		agents, err := m.ListMembers()
 		if err != nil {
 			return nil, err
@@ -1032,14 +1261,134 @@ func (m *SquadManager) RegisterCaptainTools(captain *Service) {
 			})
 		}
 		return result, nil
-	}, CategoryCustom)
+	})
 
-	// 2. delegate_task
+	// 2. submit_team_async
+	submitAsyncDef := domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "submit_team_async",
+			Description: "Queue async work for one or more named squad members and return immediately with a task id. Prefer this for implementation, research, and verification work.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"agent_names": map[string]interface{}{
+						"type":        "array",
+						"items":       map[string]interface{}{"type": "string"},
+						"description": "The squad member names that should handle the async work.",
+					},
+					"prompt": map[string]interface{}{
+						"type":        "string",
+						"description": "The task prompt to queue.",
+					},
+				},
+				"required": []string{"agent_names", "prompt"},
+			},
+		},
+	}
+	register(submitAsyncDef.Function.Name, submitAsyncDef.Function.Description, submitAsyncDef.Function.Parameters, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		lead, squad, err := m.resolveCaptainServiceContext(captain)
+		if err != nil {
+			return nil, err
+		}
+		prompt := getStringArg(args, "prompt")
+		if prompt == "" {
+			return nil, fmt.Errorf("prompt is required")
+		}
+		agentNames := getStringSliceArg(args, "agent_names")
+		if len(agentNames) == 0 {
+			return nil, fmt.Errorf("agent_names is required")
+		}
+
+		task, err := m.SubmitSquadTask(ctx, captain.CurrentSessionID(), squad.ID, prompt, agentNames)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{
+			"task_id":      task.ID,
+			"squad_id":     task.SquadID,
+			"squad_name":   squad.Name,
+			"captain_name": lead.Name,
+			"agent_names":  append([]string(nil), task.AgentNames...),
+			"ack_message":  task.AckMessage,
+			"status":       task.Status,
+		}, nil
+	})
+
+	// 3. get_task_status
+	getTaskDef := domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "get_task_status",
+			Description: "Get the status of one async team task by id.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"task_id": map[string]interface{}{
+						"type":        "string",
+						"description": "The async team task id.",
+					},
+				},
+				"required": []string{"task_id"},
+			},
+		},
+	}
+	register(getTaskDef.Function.Name, getTaskDef.Function.Description, getTaskDef.Function.Parameters, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		taskID := getStringArg(args, "task_id")
+		if taskID == "" {
+			return nil, fmt.Errorf("task_id is required")
+		}
+		return m.GetTask(taskID)
+	})
+
+	// 4. list_team_tasks
+	listTasksDef := domain.ToolDefinition{
+		Type: "function",
+		Function: domain.ToolFunction{
+			Name:        "list_team_tasks",
+			Description: "List recent async tasks for the captain's current squad.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"limit": map[string]interface{}{
+						"type":        "number",
+						"description": "Optional maximum number of tasks to return.",
+					},
+				},
+			},
+		},
+	}
+	register(listTasksDef.Function.Name, listTasksDef.Function.Description, listTasksDef.Function.Parameters, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		_, squad, err := m.resolveCaptainServiceContext(captain)
+		if err != nil {
+			return nil, err
+		}
+		limit := getIntArg(args, "limit", 10)
+		tasks := m.ListSharedTasksForSquad(squad.ID, time.Time{}, limit)
+		out := make([]map[string]interface{}, 0, len(tasks))
+		for _, task := range tasks {
+			out = append(out, map[string]interface{}{
+				"task_id":      task.ID,
+				"captain_name": task.CaptainName,
+				"agent_names":  append([]string(nil), task.AgentNames...),
+				"prompt":       task.Prompt,
+				"status":       task.Status,
+				"ack_message":  task.AckMessage,
+				"result_text":  task.ResultText,
+				"created_at":   task.CreatedAt,
+				"started_at":   task.StartedAt,
+				"finished_at":  task.FinishedAt,
+			})
+		}
+		return out, nil
+	})
+
+	// 5. delegate_task
 	delegateDef := domain.ToolDefinition{
 		Type: "function",
 		Function: domain.ToolFunction{
 			Name:        "delegate_task",
-			Description: "Delegate a specific task to a squad agent.",
+			Description: "Synchronously delegate a short task to one squad agent and wait for the inline result. Prefer submit_team_async for longer implementation work.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -1056,14 +1405,34 @@ func (m *SquadManager) RegisterCaptainTools(captain *Service) {
 			},
 		},
 	}
-	captain.toolRegistry.Register(delegateDef, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	register(delegateDef.Function.Name, delegateDef.Function.Description, delegateDef.Function.Parameters, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 		agentName, _ := args["agent_name"].(string)
 		instruction, _ := args["instruction"].(string)
 		return m.DispatchTask(ctx, agentName, instruction)
-	}, CategoryCustom)
+	})
 }
 
 // RegisterCommanderTools is kept as a compatibility alias for older call sites.
 func (m *SquadManager) RegisterCommanderTools(commander *Service) {
 	m.RegisterCaptainTools(commander)
+}
+
+func (m *SquadManager) resolveCaptainServiceContext(captain *Service) (*AgentModel, *Squad, error) {
+	if captain == nil || captain.agent == nil {
+		return nil, nil, fmt.Errorf("captain service is not initialized")
+	}
+	member, err := m.GetMemberByName(captain.agent.Name())
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, membership := range member.Squads {
+		if membership.Role == AgentKindCaptain {
+			squad, squadErr := m.store.GetTeam(membership.SquadID)
+			if squadErr != nil {
+				return nil, nil, squadErr
+			}
+			return member, squad, nil
+		}
+	}
+	return nil, nil, fmt.Errorf("%s is not a squad captain", captain.agent.Name())
 }

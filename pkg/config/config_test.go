@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -167,6 +168,57 @@ func TestResolveMCPServerPaths(t *testing.T) {
 	}
 	if !foundUnified {
 		t.Fatalf("expected unified path to be present, got %v", cfg.MCP.Servers)
+	}
+}
+
+func TestLoadIsSafeForConcurrentCalls(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "agentgo.toml")
+	if err := os.WriteFile(configPath, []byte(`
+home = "`+tmpDir+`"
+
+[llm]
+enabled = true
+strategy = "round_robin"
+
+[[llm.providers]]
+name = "local"
+base_url = "http://localhost:8080"
+key = "test"
+model_name = "gpt-test"
+
+[rag]
+enabled = true
+`), 0o644); err != nil {
+		t.Fatalf("write config failed: %v", err)
+	}
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(oldWd) }()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, 32)
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, loadErr := Load("")
+			errCh <- loadErr
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+
+	for loadErr := range errCh {
+		if loadErr != nil {
+			t.Fatalf("concurrent load failed: %v", loadErr)
+		}
 	}
 }
 

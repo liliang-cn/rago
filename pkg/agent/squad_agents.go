@@ -75,7 +75,10 @@ func (m *SquadManager) CreateAgent(ctx context.Context, model *AgentModel) (*Age
 
 	now := time.Now()
 	requestedSquadID := strings.TrimSpace(model.TeamID)
-	requestedRole := model.Kind
+	requestedRole, err := m.resolveRequestedSquadRole(requestedSquadID, model.Kind)
+	if err != nil {
+		return nil, err
+	}
 
 	if strings.TrimSpace(model.ID) == "" {
 		model.ID = uuid.NewString()
@@ -122,14 +125,42 @@ func (m *SquadManager) CreateAgent(ctx context.Context, model *AgentModel) (*Age
 	}
 
 	if requestedSquadID != "" {
-		role := requestedRole
-		if role == "" || role == AgentKindAgent {
-			role = AgentKindSpecialist
+		if err := m.store.SaveSquadMembership(&SquadMembership{
+			AgentID: created.ID,
+			SquadID: requestedSquadID,
+			Role:    requestedRole,
+		}); err != nil {
+			_ = m.store.DeleteAgentModel(created.ID)
+			return nil, err
 		}
-		return m.JoinSquad(ctx, created.Name, requestedSquadID, role)
+		m.clearCachedAgent(created.Name)
+		m.clearSquadCaptainCache(requestedSquadID)
+		return m.GetMemberByNameInSquad(created.Name, requestedSquadID)
 	}
 
 	return created, nil
+}
+
+func (m *SquadManager) resolveRequestedSquadRole(squadID string, requestedRole AgentKind) (AgentKind, error) {
+	squadID = strings.TrimSpace(squadID)
+	if squadID == "" {
+		return "", nil
+	}
+	if _, err := m.store.GetTeam(squadID); err != nil {
+		return "", err
+	}
+
+	role := normalizeMembershipRole(requestedRole)
+	if role == "" || role == AgentKindAgent {
+		role = AgentKindSpecialist
+	}
+	if role != AgentKindCaptain && role != AgentKindSpecialist {
+		return "", fmt.Errorf("invalid squad role %q", role)
+	}
+	if err := m.ensureSingleLeadPerSquad("", squadID, role); err != nil {
+		return "", err
+	}
+	return role, nil
 }
 
 func (m *SquadManager) UpdateAgent(_ context.Context, model *AgentModel) (*AgentModel, error) {
@@ -227,6 +258,7 @@ func (m *SquadManager) JoinSquad(_ context.Context, name, squadID string, role A
 		return nil, err
 	}
 	m.clearCachedAgent(model.Name)
+	m.clearSquadCaptainCache(squadID)
 	return m.GetMemberByNameInSquad(model.Name, squadID)
 }
 
@@ -250,6 +282,7 @@ func (m *SquadManager) LeaveSquad(_ context.Context, name string, squadID ...str
 		return nil, err
 	}
 	m.clearCachedAgent(model.Name)
+	m.clearSquadCaptainCache(targetSquadID)
 	return m.store.GetAgentModel(model.ID)
 }
 
@@ -276,6 +309,7 @@ func (m *SquadManager) DeleteSquad(_ context.Context, squadID string) error {
 			return getErr
 		}
 		m.clearCachedAgent(model.Name)
+		m.clearSquadCaptainCache(squadID)
 		if err := m.store.DeleteSquadMembership(membership.AgentID, squadID); err != nil {
 			return err
 		}
@@ -355,4 +389,20 @@ func (m *SquadManager) clearCachedAgent(name string) {
 		delete(m.runningAgents, name)
 	}
 	delete(m.services, name)
+}
+
+func (m *SquadManager) clearSquadCaptainCache(squadID string) {
+	squadID = strings.TrimSpace(squadID)
+	if squadID == "" {
+		return
+	}
+	members, err := m.ListSquadAgentsForSquad(squadID)
+	if err != nil {
+		return
+	}
+	for _, member := range members {
+		if member != nil && member.Kind == AgentKindCaptain {
+			m.clearCachedAgent(member.Name)
+		}
+	}
 }

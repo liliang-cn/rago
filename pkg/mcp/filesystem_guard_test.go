@@ -60,3 +60,36 @@ func TestFilterFilesystemToolResult(t *testing.T) {
 		t.Fatalf("expected non-blacklisted entry to remain: %s", text)
 	}
 }
+
+func TestSanitizeFilesystemToolArgs_StripsControlCharsFromWrites(t *testing.T) {
+	args := map[string]interface{}{
+		"path":    "/repo/workspace/note.md",
+		"content": "hello\x02world\nnext\tline",
+	}
+
+	got := sanitizeFilesystemToolArgs("mcp_filesystem_write_file", args)
+	content, _ := got["content"].(string)
+	if strings.ContainsRune(content, '\x02') {
+		t.Fatalf("expected control character to be stripped, got %q", content)
+	}
+	if content != "helloworld\nnext\tline" {
+		t.Fatalf("unexpected sanitized content %q", content)
+	}
+}
+
+func TestSanitizeFilesystemToolArgs_StripsControlCharsFromModifyReplace(t *testing.T) {
+	args := map[string]interface{}{
+		"path":    "/repo/workspace/note.md",
+		"find":    "old",
+		"replace": "new\x02value",
+	}
+
+	got := sanitizeFilesystemToolArgs("mcp_filesystem_modify_file", args)
+	replace, _ := got["replace"].(string)
+	if strings.ContainsRune(replace, '\x02') {
+		t.Fatalf("expected control character to be stripped, got %q", replace)
+	}
+	if replace != "newvalue" {
+		t.Fatalf("unexpected sanitized replace %q", replace)
+	}
+}

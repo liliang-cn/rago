@@ -126,6 +126,9 @@ func (s *Store) initSchema() error {
 	if err := s.initMembershipSchema(); err != nil {
 		return err
 	}
+	if err := s.initSharedTaskSchema(); err != nil {
+		return err
+	}
 
 	// Sessions table (renamed to agent_sessions to avoid collision with core library)
 	_, err = s.db.Exec(`

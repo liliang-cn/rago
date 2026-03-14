@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 var defaultFilesystemIgnoreNames = []string{
@@ -112,6 +113,72 @@ func validateFilesystemToolArgs(toolName string, arguments map[string]interface{
 		}
 	}
 	return nil
+}
+
+func sanitizeFilesystemToolArgs(toolName string, arguments map[string]interface{}) map[string]interface{} {
+	if len(arguments) == 0 || !isFilesystemTool(toolName) {
+		return arguments
+	}
+
+	switch toolName {
+	case "mcp_filesystem_write_file":
+		return sanitizeFilesystemWriteArgs(arguments)
+	case "mcp_filesystem_modify_file":
+		return sanitizeFilesystemModifyArgs(arguments)
+	default:
+		return arguments
+	}
+}
+
+func sanitizeFilesystemWriteArgs(arguments map[string]interface{}) map[string]interface{} {
+	content, ok := arguments["content"].(string)
+	if !ok {
+		return arguments
+	}
+	sanitized := stripUnsupportedControlChars(content)
+	if sanitized == content {
+		return arguments
+	}
+	cloned := cloneToolArgs(arguments)
+	cloned["content"] = sanitized
+	return cloned
+}
+
+func sanitizeFilesystemModifyArgs(arguments map[string]interface{}) map[string]interface{} {
+	replace, ok := arguments["replace"].(string)
+	if !ok {
+		return arguments
+	}
+	sanitized := stripUnsupportedControlChars(replace)
+	if sanitized == replace {
+		return arguments
+	}
+	cloned := cloneToolArgs(arguments)
+	cloned["replace"] = sanitized
+	return cloned
+}
+
+func cloneToolArgs(arguments map[string]interface{}) map[string]interface{} {
+	cloned := make(map[string]interface{}, len(arguments))
+	for key, value := range arguments {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func stripUnsupportedControlChars(input string) string {
+	if input == "" {
+		return input
+	}
+	return strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' || r == '\t' {
+			return r
+		}
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, input)
 }
 
 func filterFilesystemToolResult(toolName string, result *ToolResult, ignoreNames []string) *ToolResult {

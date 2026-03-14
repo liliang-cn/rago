@@ -556,7 +556,7 @@ func runStream(ctx context.Context, goal string) error {
 	defer agentService.Close()
 
 	// Start streaming
-	events, err := agentService.RunStream(ctx, goal)
+	events, err := agentService.RunStreamWithOptions(ctx, goal, agent.WithDebug(Debug))
 	if err != nil {
 		return err
 	}
@@ -583,5 +583,6 @@ func initRunnableAgentService(ctx context.Context, selectedAgentName string) (*r
 	if err != nil {
 		return nil, nil, err
 	}
+	svc.SetDebug(Debug)
 	return nil, svc, nil
 }

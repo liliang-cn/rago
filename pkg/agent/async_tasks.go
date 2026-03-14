@@ -324,7 +324,16 @@ func (m *SquadManager) executeSharedTaskStream(ctx context.Context, task *Shared
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			events, err := m.ChatWithMemberStream(ctx, task.ID, agentName, task.Prompt)
+			instruction := task.Prompt
+			if strings.TrimSpace(agentName) != "" {
+				instruction = strings.TrimSpace(
+					"Assigned squad member: " + agentName + "\n" +
+						"You are responsible only for the work that fits your own role and the target agent label above.\n" +
+						"Do not complete work that belongs to other listed squad members.\n\n" +
+						task.Prompt,
+				)
+			}
+			events, err := m.ChatWithMemberStream(ctx, task.ID, agentName, instruction)
 			if err != nil {
 				resultCh <- dispatchResult{AgentName: agentName, Err: err}
 				return
@@ -376,6 +385,7 @@ func (m *SquadManager) executeSharedTaskStream(ctx context.Context, task *Shared
 		} else {
 			stored.Status = SharedTaskStatusCompleted
 		}
+		_ = m.store.SaveSharedTask(stored)
 	}
 	m.queueMu.Unlock()
 

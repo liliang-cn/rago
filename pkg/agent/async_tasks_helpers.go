@@ -18,6 +18,7 @@ func (m *SquadManager) ensureAsyncTaskForSharedTask(task *SharedTask, sessionID,
 	m.taskMu.RUnlock()
 	if existing != nil {
 		updated := false
+		sharedTaskUpdated := false
 		taskCopy := m.updateAsyncTask(task.ID, func(current *AsyncTask) {
 			if strings.TrimSpace(sessionID) != "" && strings.TrimSpace(current.SessionID) == "" {
 				current.SessionID = strings.TrimSpace(sessionID)
@@ -28,6 +29,22 @@ func (m *SquadManager) ensureAsyncTaskForSharedTask(task *SharedTask, sessionID,
 				updated = true
 			}
 		})
+		m.queueMu.Lock()
+		stored := m.sharedTasks[task.ID]
+		if stored != nil {
+			if strings.TrimSpace(sessionID) != "" && strings.TrimSpace(stored.SessionID) == "" {
+				stored.SessionID = strings.TrimSpace(sessionID)
+				sharedTaskUpdated = true
+			}
+			if strings.TrimSpace(squadName) != "" && strings.TrimSpace(stored.SquadName) == "" {
+				stored.SquadName = strings.TrimSpace(squadName)
+				sharedTaskUpdated = true
+			}
+			if sharedTaskUpdated {
+				_ = m.store.SaveSharedTask(stored)
+			}
+		}
+		m.queueMu.Unlock()
 		if updated && strings.TrimSpace(taskCopy.SessionID) != "" {
 			m.indexTaskSession(taskCopy.SessionID, taskCopy.ID)
 		}
@@ -57,6 +74,17 @@ func (m *SquadManager) ensureAsyncTaskForSharedTask(task *SharedTask, sessionID,
 		FinishedAt:  cloneTimePtr(task.FinishedAt),
 	}
 	m.upsertAsyncTask(asyncTask)
+	m.queueMu.Lock()
+	if stored := m.sharedTasks[task.ID]; stored != nil {
+		if asyncTask.SessionID != "" {
+			stored.SessionID = asyncTask.SessionID
+		}
+		if asyncTask.SquadName != "" {
+			stored.SquadName = asyncTask.SquadName
+		}
+		_ = m.store.SaveSharedTask(stored)
+	}
+	m.queueMu.Unlock()
 	return asyncTask
 }
 

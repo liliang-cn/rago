@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -65,6 +66,26 @@ func TestSeedDefaultMembersCreatesBuiltInsByDefault(t *testing.T) {
 	}
 	if len(assistant.Squads) != 0 {
 		t.Fatalf("expected Assistant to be standalone, got squads=%+v", assistant.Squads)
+	}
+
+	operator, err := manager.GetAgentByName("Operator")
+	if err != nil {
+		t.Fatalf("get standalone operator failed: %v", err)
+	}
+	if operator.Kind != AgentKindAgent {
+		t.Fatalf("expected Operator standalone kind, got %q", operator.Kind)
+	}
+	if len(operator.Squads) != 0 {
+		t.Fatalf("expected Operator to be standalone, got squads=%+v", operator.Squads)
+	}
+	if operator.Description != "An execution-focused standalone operator for file work, environment checks, and runnable validation steps." {
+		t.Fatalf("unexpected Operator description: %q", operator.Description)
+	}
+	if !strings.Contains(operator.Instructions, "execution-focused agent") || !strings.Contains(operator.Instructions, "operational work directly") {
+		t.Fatalf("expected Operator prompt to focus on direct execution, got %q", operator.Instructions)
+	}
+	if !operator.EnableMCP || len(operator.MCPTools) == 0 {
+		t.Fatalf("expected Operator to have MCP enabled with default tools, got enable_mcp=%v tools=%v", operator.EnableMCP, operator.MCPTools)
 	}
 
 	concierge, err := manager.GetAgentByName("Concierge")
@@ -178,6 +199,40 @@ func TestCreateMemberAppliesUsefulDefaults(t *testing.T) {
 	}
 }
 
+func TestCreateMemberCaptainConflictDoesNotLeaveStandaloneAgent(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "agent.db"))
+	if err != nil {
+		t.Fatalf("new store failed: %v", err)
+	}
+	manager := NewSquadManager(store)
+	if err := manager.SeedDefaultMembers(); err != nil {
+		t.Fatalf("seed default members failed: %v", err)
+	}
+
+	squad, err := manager.CreateSquad(context.Background(), &Squad{
+		Name:        "Docs Squad",
+		Description: "Documentation squad.",
+	})
+	if err != nil {
+		t.Fatalf("create squad failed: %v", err)
+	}
+
+	_, err = manager.CreateMember(context.Background(), &AgentModel{
+		Name:         "Docs PM",
+		TeamID:       squad.ID,
+		Kind:         AgentKindCaptain,
+		Description:  "duplicate lead",
+		Instructions: "duplicate lead",
+	})
+	if err == nil {
+		t.Fatal("expected duplicate squad captain creation to fail")
+	}
+
+	if _, getErr := manager.GetAgentByName("Docs PM"); getErr == nil {
+		t.Fatal("expected failed captain creation to not leave a standalone agent behind")
+	}
+}
+
 func TestCreateAgentCreatesStandaloneAgent(t *testing.T) {
 	store, err := NewStore(filepath.Join(t.TempDir(), "agent.db"))
 	if err != nil {
@@ -211,6 +266,110 @@ func TestCreateAgentCreatesStandaloneAgent(t *testing.T) {
 		if member.Name == "Writer" {
 			t.Fatalf("expected standalone agent to be excluded from squad members: %+v", member)
 		}
+	}
+}
+
+func TestCustomStandaloneAgentCanDelegateBuiltInAgents(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "agentgo.toml")
+	if err := os.WriteFile(configPath, []byte(`
+home = "`+tmpDir+`"
+
+[llm]
+enabled = true
+strategy = "round_robin"
+
+[[llm.providers]]
+name = "local"
+base_url = "http://localhost:8080"
+key = "test"
+model_name = "gpt-test"
+max_concurrency = 1
+capability = 1
+
+[rag]
+enabled = false
+
+[mcp]
+enabled = true
+`), 0o644); err != nil {
+		t.Fatalf("write config failed: %v", err)
+	}
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(oldWd) }()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+
+	store, err := NewStore(filepath.Join(tmpDir, "agent.db"))
+	if err != nil {
+		t.Fatalf("new store failed: %v", err)
+	}
+	manager := NewSquadManager(store)
+	if err := manager.SeedDefaultMembers(); err != nil {
+		t.Fatalf("seed default members failed: %v", err)
+	}
+
+	model, err := manager.CreateAgent(context.Background(), &AgentModel{
+		Name:         "Reviewer",
+		Description:  "Reviews outputs.",
+		Instructions: "Review outputs and escalate when needed.",
+	})
+	if err != nil {
+		t.Fatalf("create agent failed: %v", err)
+	}
+	if model.Kind != AgentKindAgent {
+		t.Fatalf("expected standalone kind agent, got %q", model.Kind)
+	}
+
+	svc, err := manager.GetAgentService(model.Name)
+	if err != nil {
+		t.Fatalf("get agent service failed: %v", err)
+	}
+
+	if !svc.agent.HasTool("delegate_builtin_agent") {
+		t.Fatal("expected custom agent to have delegate_builtin_agent")
+	}
+	if !svc.agent.HasTool("submit_builtin_agent_task") {
+		t.Fatal("expected custom agent to have submit_builtin_agent_task")
+	}
+	if !svc.agent.HasTool("get_delegated_task_status") {
+		t.Fatal("expected custom agent to have get_delegated_task_status")
+	}
+	if !svc.agent.HasTool("list_builtin_agents") {
+		t.Fatal("expected custom agent to have list_builtin_agents")
+	}
+
+	raw, err := svc.toolRegistry.Call(context.Background(), "list_builtin_agents", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("list_builtin_agents failed: %v", err)
+	}
+	agents, ok := raw.([]map[string]interface{})
+	if !ok {
+		t.Fatalf("unexpected list_builtin_agents result: %#v", raw)
+	}
+	names := map[string]bool{}
+	for _, item := range agents {
+		if name, ok := item["name"].(string); ok {
+			names[name] = true
+		}
+	}
+	if !names["Operator"] || !names["Assistant"] || !names["Stakeholder"] {
+		t.Fatalf("expected delegable built-in agents to include Operator, Assistant, Stakeholder, got %+v", names)
+	}
+	if names["Concierge"] {
+		t.Fatalf("did not expect Concierge to be delegable, got %+v", names)
+	}
+
+	prompt := svc.agent.Instructions()
+	if !strings.Contains(prompt, "Delegable system built-in agents you may use in addition to your own role and capabilities:") {
+		t.Fatalf("expected built-in agent delegation prompt context, got %q", prompt)
+	}
+	if !strings.Contains(prompt, "- Operator:") {
+		t.Fatalf("expected Operator in built-in delegation prompt, got %q", prompt)
 	}
 }
 

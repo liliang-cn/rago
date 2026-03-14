@@ -8,12 +8,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/liliang-cn/agent-go/pkg/mcp"
 	"github.com/liliang-cn/agent-go/pkg/pool"
 	"github.com/spf13/viper"
 )
+
+var configLoadMu sync.Mutex
 
 type Config struct {
 	Home    string        `mapstructure:"home"`
@@ -185,6 +188,9 @@ type GraphRAGConfig struct {
 }
 
 func Load(configPath string) (*Config, error) {
+	configLoadMu.Lock()
+	defer configLoadMu.Unlock()
+
 	config := &Config{}
 
 	// 1. Determine the source of truth for Home
