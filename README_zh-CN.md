@@ -23,6 +23,125 @@ go get github.com/liliang-cn/agent-go
 | **PTC** | LLM 写 JavaScript，工具在 Goja 沙箱中运行 — 减少模型往返次数 |
 | **Streaming** | 逐 Token 通道输出；完整事件流可见工具调用过程 |
 | **多 Provider** | OpenAI、Anthropic、Azure、DeepSeek、Ollama — 运行时可切换 |
+| **Squad** | 持久化 captain / specialist、异步团队任务队列、运行态状态与跨进程任务追踪 |
+| **Operator** | 内置执行型 Agent，带文件系统/网页工具以及 PTY / coding-agent 会话能力 |
+
+---
+
+## 概念模型
+
+理解 AgentGo，最简单的方法是把它看成 8 个协同子系统：
+
+### 1. LLM
+
+LLM 是执行核心，其他能力都围绕它组织。
+
+- 它提供统一的生成接口，Agent、RAG、PTC、工具选择都基于它工作。
+- Provider 通过全局 pool 在运行时切换。
+- standalone agent、captain、specialist、built-in agent 最终都跑在同一套 LLM 抽象上。
+
+可以理解为：`prompt + tools + policy -> model call`
+
+### 2. RAG
+
+RAG 是知识检索层。
+
+- 负责文档摄入、分块、embedding、向量存储和检索。
+- 查询时把相关上下文注入 Agent 或查询流程。
+- 它解决的是“外部知识/项目知识”，不是长期用户偏好。
+
+可以理解为：`documents -> retrieval context`
+
+### 3. Memory
+
+Memory 是系统内部的长期上下文层。
+
+- 存储事实、偏好、观察和长期可复用的信息。
+- 它和 cache 不同，也和 RAG 文档不同。
+- 没有 embedder 时，文件记忆模式仍然可用。
+
+可以理解为：`系统长期学到了什么`
+
+### 4. MCP
+
+MCP 是工具传输层。
+
+- 统一了内置工具和外部工具的接入方式。
+- AgentGo 默认始终带有内置 filesystem 和 websearch。
+- 它是 agent 与文件、网页、外部操作能力交互的主要方式。
+
+可以理解为：`agent 怎么接触外部世界`
+
+### 5. Skills
+
+Skills 是 Markdown/YAML 形式的可复用工作流。
+
+- 它比原始工具更高层。
+- 用来承载领域经验、步骤化流程和可复用操作规范。
+- 可以配置为用户调用，也可以允许模型调用。
+
+可以理解为：`可复用的专家工作流`
+
+### 6. PTC
+
+PTC（Programmatic Tool Calling）是程序化编排层。
+
+- 模型不再一次只给一个工具调用，而是直接写 JavaScript 来编排工具。
+- 它可以减少多步工具调用时的模型往返。
+- 非常适合工具密集、需要流程控制和数据整理的任务。
+
+可以理解为：`LLM 写出来的工具编排代码`
+
+### 7. Agent
+
+Agent 是基础运行单元。
+
+- 它有自己的 instructions、工具能力、可选的 RAG / Memory / PTC / Skills，以及会话执行循环。
+- Agent 可以是 built-in，也可以是用户自定义。
+- 内置 standalone agents 当前包括 `Concierge`、`Assistant`、`Operator`、`Stakeholder`。
+
+常见定位：
+
+- `Assistant`：通用直接执行
+- `Operator`：执行、验证、PTY 会话、coding-agent 调用
+- `Stakeholder`：产品/业务视角
+- `Concierge`：入口与编排
+
+### 8. Squad
+
+Squad 是建立在 Agent 之上的持久化团队层。
+
+- 一个 squad 有一个 `captain` 和多个 `specialists`
+- `captain` 本质上仍然是 agent，只是带有团队编排规则
+- captain 对实现类任务优先走异步 team work
+- squad task 状态会持久化，所以新的 CLI 进程也能继续查看和跟踪
+
+可以理解为：`带队列和状态的持久化多 Agent 协作`
+
+### API 形状
+
+从 API 的角度看，这 8 个概念大致映射为：
+
+- **LLM / Agent 运行时**
+  - `Ask`, `Chat`, `Run`, `RunStream`
+- **RAG**
+  - `WithRAG`, `rag_query`，以及文档摄入/查询流程
+- **Memory**
+  - `WithMemory`, `memory_save`, `memory_recall`
+- **MCP**
+  - `WithMCP`，内置 filesystem/websearch，以及外部 MCP server
+- **Skills**
+  - `WithSkills`，skill 注册与调用
+- **PTC**
+  - `WithPTC`, `execute_javascript`, `callTool()`
+- **Squad**
+  - `CreateSquad`, `JoinSquad`, `DispatchTask`, `SubmitSquadTask`, `GetTask`
+
+实际分层可以简单记成：
+
+`LLM -> tools/PTC -> Agent -> Squad`
+
+而 `RAG / Memory / MCP / Skills` 都是可以挂到 Agent 上的能力层。
 
 ---
 
@@ -96,7 +215,11 @@ agentgo agent update Scout --model openai/gpt-5-mini
 # 直接运行这个 Agent
 agentgo agent run --agent Scout "总结当前仓库结构"
 
-# 创建一个 squad
+# 内置 standalone agents 默认可用
+agentgo agent show Concierge
+agentgo agent show Operator
+
+# 创建一个 squad（会自动创建默认 captain）
 agentgo squad add "Docs Squad" --description "文档和发布说明"
 
 # 让独立 Agent 加入 squad
@@ -107,6 +230,9 @@ agentgo squad go "@Captain @Scout 总结 UI 和后端的关系，并写入 works
 
 # 查看 squad 当前运行态；有 running/queued 任务时会自动 follow
 agentgo squad status "Docs Squad"
+
+# 直接通过内置 Operator 执行操作型任务
+agentgo agent run --agent Operator "在 workspace/operator_probe.txt 写入文本：OPERATOR_OK"
 
 # 让 Agent 退出 squad
 agentgo agent leave Scout
@@ -153,7 +279,9 @@ svc, _ := agent.New("agent").
 
 ---
 
-## 调用 API
+## Agent APIs
+
+### 运行时调用
 
 | 方法 | 返回值 | 会话 | 适用场景 |
 |---|---|---|---|
@@ -176,6 +304,32 @@ result.Text()        // 最终回答（字符串）
 result.Err()         // 非 nil 表示 Agent 报告了错误
 result.HasSources()  // true 表示使用了 RAG 检索结果
 ```
+
+### Standalone Agent 管理
+
+在 manager 层，standalone agent 是持久化的命名运行单元：
+
+- `CreateAgent`, `UpdateAgent`, `DeleteAgent`
+- `GetAgentByName`, `ListAgents`, `ListStandaloneAgents`
+- `GetAgentService`
+- `GetAgentStatus`, `ListAgentStatuses`
+
+内置 standalone agents（`Concierge`、`Assistant`、`Operator`、`Stakeholder`）会自动 seed，也可以像普通命名 agent 一样直接运行和查看。
+
+### 内置 Agent 委派 APIs
+
+用户自定义的 standalone agent 默认会获得一组 built-in delegation 接口：
+
+- `list_builtin_agents`
+- `delegate_builtin_agent`
+- `submit_builtin_agent_task`
+- `get_delegated_task_status`
+
+这组接口的意义是：
+
+- 把执行类工作交给 `Operator`
+- 把通用工作交给 `Assistant`
+- 把业务/范围判断交给 `Stakeholder`
 
 ---
 
@@ -264,7 +418,71 @@ resultChan  := coordinator.RunAsync(ctx, subAgent)
 results     := coordinator.WaitAll(ctx)
 ```
 
-## Squad API
+### 内置 Standalone Agents
+
+AgentGo 默认会 seed 这些 standalone agents：
+
+- `Concierge` — `agentgo chat` 的 intake / orchestration agent
+- `Assistant` — 通用执行型 Agent
+- `Operator` — 执行导向 Agent，适合文件操作、验证、PTY 会话和 coding-agent 调用
+- `Stakeholder` — 产品 / 业务代表
+
+可以直接查看：
+
+```bash
+agentgo agent show Concierge
+agentgo agent show Assistant
+agentgo agent show Operator
+agentgo agent show Stakeholder
+```
+
+### Operator
+
+`Operator` 是内置的执行型 Agent。除了常规 filesystem / web / RAG / memory 能力外，它还暴露了：
+
+- 通用 PTY 会话工具：
+  - `start_pty_session`
+  - `send_pty_input`
+  - `get_pty_session`
+  - `list_pty_sessions`
+  - `interrupt_pty_session`
+  - `stop_pty_session`
+- 面向 coding-agent 的专用工具：
+  - `start_coding_agent_session`
+  - `send_coding_agent_prompt`
+  - `get_coding_agent_session`
+  - `list_coding_agent_sessions`
+  - `interrupt_coding_agent_session`
+  - `stop_coding_agent_session`
+  - `run_coding_agent_once`
+
+直接使用示例：
+
+```bash
+agentgo agent run --agent Operator "在 workspace/operator_probe.txt 写入文本：OPERATOR_OK"
+agentgo agent run --agent Operator "调用 codex，让它输出精确文本：RES_FROM_CODEX"
+```
+
+如果只是一次性拿结果，`run_coding_agent_once` 是最稳的入口。对于 `codex`，AgentGo 会优先走非交互式 `codex exec -`，而不是让模型自己猜 shell 命令。
+
+### 自定义 Agent 委派内置 Agent
+
+用户自定义的 standalone agent 默认会拿到一组“内置 Agent 委派工具”：
+
+- `list_builtin_agents`
+- `delegate_builtin_agent`
+- `submit_builtin_agent_task`
+- `get_delegated_task_status`
+
+当前可委派的 built-in agents：
+
+- `Assistant`
+- `Operator`
+- `Stakeholder`
+
+这样自定义 Agent 在保留自身角色和能力的同时，可以显式把执行型工作交给 `Operator`，把业务判断交给 `Stakeholder`。
+
+## Squad APIs
 
 AgentGo 也提供面向 `独立 Agent / Squad / Squad Agent` 的持久化管理 API。`captain` 只是 squad 内的一种 agent 角色。
 
@@ -309,7 +527,15 @@ if err != nil {
 fmt.Println(result)
 ```
 
-常用的 squad-manager 入口：
+Captain 的运行时行为：
+
+- `CreateSquad()` 或 `agentgo squad add` 创建自定义 squad 时，会自动生成一个默认 captain。
+- Captain 的 system prompt 会带上本 squad 的 roster 和成员职责摘要。
+- 对于实现类任务，Captain 优先使用异步团队任务（`submit_team_async`）。
+- Squad shared task 会持久化，新的 CLI 进程也能通过 `get_task_status` / `list_team_tasks` 查看。
+- Captain 默认不使用通用的 `delegate_to_subagent`。
+
+### 核心 Squad-Manager APIs
 
 - `CreateAgent`, `UpdateAgent`, `DeleteAgent`, `GetAgentByName`, `ListAgents`, `ListStandaloneAgents`
 - `JoinSquad`, `LeaveSquad`, `GetAgentService`
@@ -318,6 +544,25 @@ fmt.Println(result)
 - `AddCaptain`, `AddSpecialist`, `ListCaptains`, `ListSpecialists`（角色化辅助方法）
 - `DispatchTask`, `DispatchTaskStream`
 - `EnqueueSharedTask`, `ListSharedTasks`
+- `SubmitAgentTask`, `SubmitSquadTask`, `GetTask`, `ListSessionTasks`
+
+### Squad 运行态 / 状态 APIs
+
+面向编排和监控的常用入口：
+
+- `GetSquadStatus`, `ListSquadStatuses`
+- `GetAgentStatus`, `ListAgentStatuses`
+- `GetLeadAgentForSquad`
+- `SubscribeTask`
+- `DispatchTaskStreamWithOptions`
+- `ChatWithMemberStream`
+- `ChatWithMemberStreamWithOptions`
+
+从概念上可以把 API 分成三层：
+
+- **Standalone agent APIs**：创建、运行、查看、更新
+- **Squad APIs**：建队、入队、派活、追踪异步任务
+- **Built-in delegation APIs**：让自定义 agent 明确委派 `Assistant`、`Operator`、`Stakeholder`
 
 ---
 

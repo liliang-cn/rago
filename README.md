@@ -25,6 +25,125 @@ go get github.com/liliang-cn/agent-go
 | **PTC**       | LLM writes JavaScript; tools run in a Goja sandbox — cuts round-trips                                      |
 | **Streaming** | Token-by-token via channel; full event stream with tool call visibility                                    |
 | **Providers** | OpenAI, Anthropic, Azure, DeepSeek, Ollama — switchable at runtime                                         |
+| **Squads**    | Persistent captains + specialists, async team task queues, runtime status, and cross-process task tracking |
+| **Operator**  | Built-in execution agent with filesystem/web tools plus PTY and coding-agent session tooling               |
+
+---
+
+## Conceptual Model
+
+AgentGo is easiest to understand as eight collaborating subsystems:
+
+### 1. LLM
+
+LLM is the execution core. Everything else is built around it.
+
+- It provides the base generation interface used by agents, RAG answers, PTC, and tool selection.
+- Providers are runtime-selectable through the global pool.
+- Standalone agents, captains, specialists, and built-in agents all eventually run on the same LLM abstraction.
+
+Think of it as: `prompt + tools + policy -> model call`.
+
+### 2. RAG
+
+RAG is the knowledge retrieval layer.
+
+- It ingests documents, chunks them, embeds them, and stores them in SQLite/vector storage.
+- At query time it retrieves relevant context and injects it into the agent or query flow.
+- It is for external or project knowledge, not for durable user preferences.
+
+Think of it as: `documents -> retrieval context`.
+
+### 3. Memory
+
+Memory is the durable internal context layer.
+
+- It stores facts, preferences, observations, and other reusable knowledge learned from interaction.
+- It is separate from cache and separate from RAG documents.
+- File memory works even when no embedder is available.
+
+Think of it as: `what the system has learned over time`.
+
+### 4. MCP
+
+MCP is the tool transport layer.
+
+- It standardizes tool access, whether the tool is built-in or external.
+- AgentGo always includes built-in filesystem and websearch servers.
+- MCP is how agents interact with files, web pages, and other process-like capabilities without hardcoding every operation into the model prompt.
+
+Think of it as: `how agents touch the outside world`.
+
+### 5. Skills
+
+Skills are reusable workflows expressed as Markdown/YAML.
+
+- They are higher-level than raw tools.
+- They encode domain-specific procedures, instructions, and reusable operator playbooks.
+- They can be user-invocable or model-invocable depending on configuration.
+
+Think of them as: `portable expert workflows`.
+
+### 6. PTC
+
+PTC (Programmatic Tool Calling) is the structured orchestration layer.
+
+- Instead of emitting one tool call at a time, the model writes JavaScript to coordinate tools.
+- This reduces round-trips for multi-step logic and data shaping.
+- It is best for tool-heavy workflows where the model needs procedural control.
+
+Think of it as: `LLM-authored tool orchestration code`.
+
+### 7. Agent
+
+An Agent is the basic runtime unit.
+
+- It has instructions, tool access, optional RAG/memory/PTC/skills, and a session-aware execution loop.
+- Agents can be built-in or user-defined.
+- Built-in standalone agents include `Concierge`, `Assistant`, `Operator`, and `Stakeholder`.
+
+Key standalone patterns:
+
+- use `Assistant` for general-purpose direct work
+- use `Operator` for execution, validation, PTY sessions, and coding-agent invocation
+- use `Stakeholder` for product/business framing
+- use `Concierge` for intake and orchestration
+
+### 8. Squad
+
+A Squad is the persistent team layer on top of agents.
+
+- A squad has one `captain` and multiple `specialists`.
+- The captain is still an agent, but with team-oriented orchestration rules.
+- Captains prefer async team work for implementation-heavy tasks.
+- Squad task state is persisted, so new CLI processes can inspect or continue work.
+
+Think of it as: `persistent multi-agent coordination with queueing and status`.
+
+### API Shape
+
+At a high level the APIs map to those concepts like this:
+
+- **LLM / Agent runtime**
+  - `Ask`, `Chat`, `Run`, `RunStream`
+- **RAG**
+  - `WithRAG`, `rag_query`, document ingest/query flows
+- **Memory**
+  - `WithMemory`, `memory_save`, `memory_recall`
+- **MCP**
+  - `WithMCP`, built-in filesystem/websearch tools, external MCP servers
+- **Skills**
+  - `WithSkills`, skill registration and invocation
+- **PTC**
+  - `WithPTC`, `execute_javascript`, `callTool()`
+- **Squad**
+  - `CreateSquad`, `JoinSquad`, `DispatchTask`, `SubmitSquadTask`, `GetTask`
+
+The practical layering is:
+
+`LLM -> tools/PTC -> Agent -> Squad`
+
+with `RAG`, `Memory`, `MCP`, and `Skills` acting as capabilities that can be attached to an agent.
 
 ---
 
@@ -98,7 +217,11 @@ agentgo agent update Scout --model openai/gpt-5-mini
 # Run a stored agent directly
 agentgo agent run --agent Scout "Summarize the current repo structure"
 
-# Create a squad
+# Built-in standalone agents are always available
+agentgo agent show Concierge
+agentgo agent show Operator
+
+# Create a squad (a default captain is created automatically)
 agentgo squad add "Docs Squad" --description "Documentation and release notes"
 
 # Join the standalone agent to a squad
@@ -109,6 +232,9 @@ agentgo squad go "@Captain @Scout summarize the UI/backend relationship and writ
 
 # Inspect runtime task state; follows while tasks are still running or queued
 agentgo squad status "Docs Squad"
+
+# Run direct execution work through the built-in Operator
+agentgo agent run --agent Operator "Write workspace/operator_probe.txt with the text: OPERATOR_OK"
 
 # Leave the squad again
 agentgo agent leave Scout
@@ -156,7 +282,9 @@ svc, _ := agent.New("agent").
 
 ---
 
-## Invocation API
+## Agent APIs
+
+### Runtime Invocation
 
 | Method                    | Returns                     | Session         | Use case              |
 | ------------------------- | --------------------------- | --------------- | --------------------- |
@@ -179,6 +307,28 @@ result.Text()        // final answer as string
 result.Err()         // non-nil if agent reported an error
 result.HasSources()  // true when RAG chunks were used
 ```
+
+### Standalone Agent Management
+
+At the manager level, standalone agents are persistent named runtimes:
+
+- `CreateAgent`, `UpdateAgent`, `DeleteAgent`
+- `GetAgentByName`, `ListAgents`, `ListStandaloneAgents`
+- `GetAgentService`
+- `GetAgentStatus`, `ListAgentStatuses`
+
+Built-in standalone agents (`Concierge`, `Assistant`, `Operator`, `Stakeholder`) are seeded automatically and can be treated like normal named agents.
+
+### Built-in Agent Delegation APIs
+
+User-created standalone agents automatically receive a small built-in delegation surface:
+
+- `list_builtin_agents`
+- `delegate_builtin_agent`
+- `submit_builtin_agent_task`
+- `get_delegated_task_status`
+
+This is the primary way a custom agent can keep its own role while offloading execution to `Operator`, general work to `Assistant`, or business clarification to `Stakeholder`.
 
 ---
 
@@ -273,7 +423,87 @@ resultChan  := coordinator.RunAsync(ctx, subAgent)
 results     := coordinator.WaitAll(ctx)
 ```
 
-## Squad API
+### Agent Model
+
+AgentGo has three layers of agent concepts:
+
+- **Standalone agents**: long-lived named agents with their own role and tool budget
+- **Squads**: a persistent team with one `captain` and multiple `specialists`
+- **Built-in agents**: system-provided standalone agents that are always available
+
+The default built-ins are:
+
+- `Concierge`: intake/orchestration for `agentgo chat`
+- `Assistant`: general-purpose direct worker
+- `Operator`: execution/validation agent
+- `Stakeholder`: product/business representative
+
+Inspect them directly:
+
+```bash
+agentgo agent show Concierge
+agentgo agent show Assistant
+agentgo agent show Operator
+agentgo agent show Stakeholder
+```
+
+### Delegation Model
+
+AgentGo now supports two delegation axes:
+
+- **Squad delegation**
+  - `captain -> specialists`
+  - supports synchronous dispatch and persisted async team tasks
+- **Built-in delegation**
+  - `custom agent -> Assistant / Operator / Stakeholder`
+  - useful when the custom agent should keep its own role but offload execution or business clarification
+
+Conceptually:
+
+- use **Assistant** when you want a general-purpose built-in doer
+- use **Operator** when the task is about execution, validation, files, PTY-backed commands, or coding-agent invocation
+- use **Stakeholder** when the task is about requirements, scope, tradeoffs, or acceptance criteria
+
+### Operator Concept
+
+`Operator` is the built-in execution layer.
+
+At a concept level, it provides two API families:
+
+- **PTY session APIs**
+  - start a command session
+  - send more input
+  - inspect output/status
+  - interrupt or stop the session
+- **Coding-agent APIs**
+  - start or inspect provider-aware sessions for `claude`, `gemini`, `codex`, and `opencode`
+  - run one-shot coding-agent calls without forcing the model to guess shell commands
+
+In practice, `Operator` is what `QA`, `PM`, or custom agents should delegate to when they need actual execution instead of just reasoning.
+
+Simple CLI examples:
+
+```bash
+agentgo agent run --agent Operator "Write workspace/operator_probe.txt with the text: OPERATOR_OK"
+agentgo agent run --agent Operator "Call codex and make it output exactly: RES_FROM_CODEX"
+```
+
+### Custom Agents + Built-ins
+
+User-created standalone agents automatically get a small built-in delegation API:
+
+- `list_builtin_agents`
+- `delegate_builtin_agent`
+- `submit_builtin_agent_task`
+- `get_delegated_task_status`
+
+This means a custom agent can keep its own role and capabilities, but still delegate:
+
+- execution to `Operator`
+- general work to `Assistant`
+- product/business clarification to `Stakeholder`
+
+## Squad APIs
 
 AgentGo exposes a squad-oriented manager API for standalone agents and squad agents. A `captain` is just an agent role inside a squad.
 
@@ -318,7 +548,15 @@ if err != nil {
 fmt.Println(result)
 ```
 
-Useful squad-manager entry points:
+### Captain Runtime Model
+
+- A custom squad created via `CreateSquad()` or `agentgo squad add` automatically gets a default captain.
+- The captain receives squad roster and role summaries in its system prompt.
+- Captains prefer async team work for implementation-heavy tasks.
+- Shared squad tasks are persisted and can be inspected from new CLI processes.
+- Captains do not use generic `delegate_to_subagent` by default.
+
+### Core Squad-Manager APIs
 
 - `CreateAgent`, `UpdateAgent`, `DeleteAgent`, `GetAgentByName`, `ListAgents`, `ListStandaloneAgents`
 - `JoinSquad`, `LeaveSquad`, `GetAgentService`
@@ -327,6 +565,23 @@ Useful squad-manager entry points:
 - `AddCaptain`, `AddSpecialist`, `ListCaptains`, `ListSpecialists` (role-specific helpers)
 - `DispatchTask`, `DispatchTaskStream`
 - `EnqueueSharedTask`, `ListSharedTasks`
+- `SubmitAgentTask`, `SubmitSquadTask`, `GetTask`, `ListSessionTasks`
+
+### Squad Runtime / Status APIs
+
+For runtime orchestration and monitoring:
+
+- `GetSquadStatus`, `ListSquadStatuses`
+- `GetAgentStatus`, `ListAgentStatuses`
+- `GetLeadAgentForSquad`
+- `SubscribeTask` for async task progress streams
+- `DispatchTaskStreamWithOptions`, `ChatWithMemberStream`, `ChatWithMemberStreamWithOptions`
+
+In practice, the API layers look like this:
+
+- **Standalone agent APIs**: create, run, inspect, update
+- **Squad APIs**: create squads, join agents, dispatch tasks, track async work
+- **Built-in delegation APIs**: let a custom agent explicitly call `Assistant`, `Operator`, or `Stakeholder`
 
 ---
 
