@@ -106,7 +106,7 @@ type MemoryConfig struct {
 	DSN string `mapstructure:"dsn"`
 
 	// Options is free-form configuration handed to a registered memory store
-	// factory (`[memory.options]` in agentgo.toml). Never put secrets here that
+	// factory (set on the config.Config passed to WithConfig). Never put secrets here that
 	// you would not want on disk — prefer the backend's environment fallback.
 	Options map[string]string `mapstructure:"options"`
 }

@@ -69,10 +69,10 @@ unique per test — concurrent tests don't collide.
 Drop a YAML scenario into `eval/scenarios/` and `make eval` runs it:
 
 ```yaml
-# eval/scenarios/myapp_dispatch_routes_to_responder.yaml
-name: myapp_dispatch_routes_to_responder
-description: when user asks a factual question, dispatcher routes to Responder.
-agent: Dispatcher
+# eval/scenarios/myapp_answers_factual_question.yaml
+name: myapp_answers_factual_question
+description: a factual question gets a direct answer.
+agent: Assistant
 llm_replies:
   - "The capital of France is Paris."
 input: "what is the capital of France?"
@@ -104,8 +104,8 @@ func TestEvalSuite(t *testing.T) {
 go test -race ./internal/yourpkg -count=1
 ```
 
-Always race-test code that writes to TeamManager-managed state
-(custom tools that mutate shared maps, observers, etc.).
+Always race-test code that writes to state shared across runs
+(custom tools that mutate shared maps, observers, etc.). A `Service` runs many tasks at once.
 
 ## Common smoke commands
 
@@ -131,7 +131,7 @@ For agent runs, prefer asserting on **shape, not exact text**:
 - The final response status (`completed` / `blocked` / `error`).
 - Final text matches a regex pattern (`re:^Found \\d+ items`).
 - Lint X did or didn't fire (count via `EventTypeError` content).
-- Persisted state can be read from a fresh `TeamManager` (process-restart correctness).
+- Persisted state can be read from a fresh `Manager` over the same store (process-restart correctness).
 - Background tasks reach a terminal state.
 
 Avoid asserting on the model's exact wording — it changes per

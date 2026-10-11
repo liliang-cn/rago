@@ -1,18 +1,18 @@
 ---
 name: agent-go
-description: Use AgentGo (github.com/liliang-cn/agent-go/v3) as a Go library to build AI agents, RAG pipelines, and multi-agent teams. Use when the user is writing Go code that imports github.com/liliang-cn/agent-go/v3 and needs help with agent.New() / TeamManager / Tasks / TaskPlan / output lints / task checkpoints / memory / MCP / PTC, or when configuring providers in agentgo.toml or via the agentgo CLI.
+description: Use AgentGo (github.com/liliang-cn/agent-go/v3) as a Go library to build AI agents. Use when the user is writing Go code that imports github.com/liliang-cn/agent-go/v3 and needs help with agent.New() / tools / sub-agents / the run loop / output lints / checkpoints and long runs / memory / MCP / skills / the LLM provider pool.
 license: MIT
-compatibility: Go 1.21+ project that imports github.com/liliang-cn/agent-go/v3. SQLite via go-sqlite3 (CGO). Optional Goja for PTC. Optional embedding model for RAG.
+compatibility: Go 1.21+ project that imports github.com/liliang-cn/agent-go/v3. SQLite via pure-Go modernc.org/sqlite (no CGO). Optional Goja for PTC. Optional embedding model for RAG.
 metadata:
   project: agent-go
-  version: "2.0"
+  version: "3.0"
   homepage: https://github.com/liliang-cn/agent-go
   import: github.com/liliang-cn/agent-go/v3
 ---
 
-# AgentGo — Go library for AI agents
+# AgentGo: a Go library for building agents
 
-Use this skill when the user wants to **embed AgentGo in their Go project** — building an agent, calling tools, persisting memory, running multi-agent teams, or evaluating agent behavior. The skill covers the public API surface of `pkg/agent` and a few sibling packages most apps reach for.
+Use this skill when the user wants to **embed AgentGo in a Go program**: build an agent, give it tools, keep memory, run long tasks, or watch a run. AgentGo is a library. Your program owns the UI, the server and the storage.
 
 ## Install
 
@@ -20,25 +20,33 @@ Use this skill when the user wants to **embed AgentGo in their Go project** — 
 go get github.com/liliang-cn/agent-go/v3
 ```
 
-Pulls SQLite via `mattn/go-sqlite3` (needs CGO).
+SQLite comes from pure-Go `modernc.org/sqlite`, so `CGO_ENABLED=0` builds work.
 
-## 30-second mental model
+## Three main features
 
-- **Agent** = named runtime with prompt, LLM, tools, optional memory/RAG/PTC/skills. Build via `agent.New("name").With...().Build()`.
-- **Service** = what `Build()` returns. The thing you call `.Chat(ctx, msg)`, `.Ask(ctx, q)`, `.Run(ctx, goal)`, `.RunStream(ctx, goal)` on.
-- **TeamManager** = orchestrator over many agents, persistent task queue, event subscription. Built on a `*Store` (SQLite).
-- **Task** = first-class execution unit (`task_id`). Submit via `manager.Tasks().Submit(...)`. Subscribe events via `manager.SubscribeTask(taskID)`.
-- **TaskPlan** = lightweight coordination object (items with deps), submitted to real Tasks one at a time.
-- **OutputLint** = deterministic post-output check; on violation runtime re-prompts the model.
-- **TaskCheckpoint** = snapshot at every terminal `completeRun`/`blockRun`; `Tasks().ResumeFromCheckpoint(...)` re-runs from there.
+1. **LLM provider pool.** A pool client is one provider with one model. A run can ask for a model (`WithModel`), and the pool falls back to its own strategy when nothing matches. Transient errors are retried, and an optional parameter a provider rejects (`tool_choice`, `response_format`) is dropped and the call retried once.
+2. **One loop.** Every run goes through `Runtime.loop`: assemble context, call the model, run tools, check the answer, stop. `Run` is `RunStream` plus a collector.
+3. **MCP and Skills.** MCP tools sit beside built-in tools in one list. A skill is a `SKILL.md` with `when_to_use` and `paths`; each turn only the relevant few are surfaced.
 
-## Minimal one-shot agent
+## Mental model: seven concepts
+
+- **Agent**: a name, a system prompt, a model, a tool set, optional sub-agents. Build with `agent.New("name").With...().Build()`.
+- **Loop**: the one state machine. `Service.Run`, `RunStream`, `Ask`, `Chat` all enter it through `startRun`.
+- **Tool**: everything the agent can do. Built-ins, MCP, skills and sub-agents are all tools.
+- **Context**: message assembly, history filtering, compaction, skill reminders.
+- **Hooks + Lints**: the deterministic layer. Hooks bracket the run and each tool; lints reject a final answer and force a retry.
+- **Session + Checkpoint**: a session UUID owns the conversation; every terminal state writes a checkpoint.
+- **Events**: the single output channel.
+
+There is no team, dispatcher, router or handoff. To compose agents, use `WithSubagents(...)`, which adds a `task(agent_name, prompt)` tool.
+
+## Give it a model
 
 ```go
-import "github.com/liliang-cn/agent-go/v3/pkg/agent"
-
+llm, _ := pool.NewClient("main", baseURL, apiKey, "deepseek-v4-flash")
 svc, err := agent.New("assistant").
     WithPrompt("You are a concise Go assistant.").
+    WithLLM(llm).
     Build()
 if err != nil { return err }
 defer svc.Close()
@@ -46,125 +54,105 @@ defer svc.Close()
 reply, err := svc.Ask(ctx, "What is AgentGo?")
 ```
 
-The builder picks up its LLM from the global pool service (configured via `agentgo.toml` / SQLite store). Use `WithLLM(...)` to inject a custom `domain.Generator` instead.
+Without `WithLLM`, providers come from `agentgo.db` under `AGENTGO_HOME` (default `~/.agentgo`). `config.Load()` reads no config file, and the `agentgo.toml` at the repo root is not read by anything. With no provider configured, the first call fails with "no LLM provider is configured".
 
-See [references/api-patterns.md](references/api-patterns.md) for: memory, RAG, PTC, MCP, skills, custom tools, system prompt sections.
-
-## TeamManager + persistent tasks
+## Give it a tool
 
 ```go
-store, _ := agent.NewStore("agentgo.db")
-manager := agent.NewTeamManager(store)
-_ = manager.SeedDefaultMembers()  // Dispatcher, Operator, Responder, Archivist, ...
-
-submitted, _ := manager.Tasks().Submit(ctx, agent.TaskSubmitOptions{
-    SessionID: "demo-session",
-    AgentName: "Operator",
-    Input:     "Check the current repository status.",
-})
-
-// Either block:
-done, _ := manager.Tasks().Await(ctx, submitted.ID)
-// Or subscribe to live events:
-events, unsub, _ := manager.SubscribeTask(submitted.ID)
-defer unsub()
-for evt := range events {
-    // evt.Type == TaskEventTypeRuntime (model deltas / tool calls), TaskEventTypeCompleted, ...
+type RevenueArgs struct {
+    Month string `json:"month" desc:"Month as YYYY-MM" required:"true"`
 }
+
+revenue := agent.NewTool("store_revenue", "Revenue of each store in a month",
+    func(ctx context.Context, a *RevenueArgs) (any, error) {
+        return db.RevenueByStore(ctx, a.Month)
+    }).WithReadOnly(true)
+
+svc, _ := agent.New("analyst").WithTool(revenue).Build()
 ```
 
-See [references/api-patterns.md](references/api-patterns.md) `Team` section for: orchestrators, registering custom tools onto the dispatcher, A2A pipelines, follow-up agents.
+The struct's `json`, `desc`, `required` and `enum` tags generate the JSON Schema. Declare `ReadOnly`, `ConcurrencySafe`, `Destructive` and `InterruptBehavior` honestly: batching, permissioning and cancel depend on them.
 
-## Output lints — moving "please don't" out of prompts
+## Sub-agents
 
-When the model keeps making the same mistake, register a lint instead of adding another instruction sentence:
+```go
+svc, _ := agent.New("lead").
+    WithSubagents(agent.SubagentSpec{
+        Name:         "researcher",
+        Description:  "Looks things up and reports back",
+        Instructions: "Answer only from what you find.",
+        Tools:        []string{"fs_read"},
+    }).
+    Build()
+```
+
+The sub-agent runs through the same loop with its own session and a narrower tool surface, and returns only its final answer. `WithDelegation(false)` withholds the three generic delegation tools when `task` should be the only route.
+
+## Output lints: move "please don't" out of prompts
+
+When the model keeps making the same mistake, register a lint instead of adding another sentence to the prompt:
 
 ```go
 svc.RegisterOutputLint(agent.LintFunc{
     NameValue: "no_planning_only_finish",
     Fn: func(text string, ctx agent.LintContext) (bool, string) {
         if strings.HasSuffix(strings.TrimSpace(text), "Next steps:") {
-            return false, "response reads like a plan; deliver the work or call task_blocked"
+            return false, "the reply reads like a plan; deliver the work"
         }
         return true, ""
     },
-}, "Operator")  // empty agentNames = global lint
-```
-
-On violation the runtime appends structured feedback to history and re-prompts (bounded by `defaultLintRetryBudget=2`; exhausting → task blocks). Three built-ins ship in `pkg/agent/output_lints_builtin.go`:
-
-- `dispatcher_no_bounce_back` — auto-wired when TeamManager builds Dispatcher
-- `archivist_no_relative_time` — auto-wired for Archivist
-- `no_planning_only_finish` — opt-in via `agent.RegisterDefaultOutputLints(svc)`
-
-User-built services via `agent.New(...).Build()` skip auto-wire — opt in explicitly.
-
-## Task checkpoint + replay
-
-Every successful or blocked task writes a snapshot to SQLite (capped at `MaxCheckpointsPerTask=32`). Resume a crashed/cancelled run:
-
-```go
-resumed, err := manager.Tasks().ResumeFromCheckpoint(ctx, taskID, agent.CheckpointResumeOptions{
-    FollowUp: "and now also do X",  // optional
-    // CheckpointID: "<id>",          // pin to a specific checkpoint
 })
 ```
 
-Snapshot persistence is auto-wired when TeamManager builds a service. For `agent.New(...).Build()` services, you must call `svc.SetCheckpointSink(yourSink)` to persist.
+On a violation the runtime appends the reason and asks again, bounded by `defaultLintRetryBudget = 2`; after that the run blocks. Every service from `agent.New(...).Build()` already has the built-in set (`non_empty_final_answer`, `file_task_must_write`, `task_delivery_contract`, and others, listed in CLAUDE.md). Feedback to the model carries the reason only, never the lint's name.
+
+## Long tasks, checkpoints, and watching a run
+
+- `svc.RunSegments(ctx, goal, agent.LongRunConfig{...})` drives one task across many runs. Each segment gets a fresh session; the plan and the workspace carry continuity.
+- Every terminal state writes a checkpoint. `manager.Tasks().ResumeFromCheckpoint(ctx, taskID, agent.CheckpointResumeOptions{FollowUp: "..."})` resumes from the latest one. `agent.New(...).Build()` wires a default sink over the service's own store.
+- `agent.NewActivityLog(w)` is an Observer that narrates a run, one line per model turn, tool call and checkpoint. `svc.StatusSnapshot()` answers "what is it doing now" from outside the run.
+- `svc.Cancel()`, `CancelRun(runID)` and `CancelSession(id)` stop runs. A stop is an outcome (`Cancelled`), not an error.
 
 ## Behavioral eval (optional)
-
-If your project ships its own scenarios:
 
 ```go
 import evalrunner "github.com/liliang-cn/agent-go/v3/eval/runner"
 
-scenarios, _ := evalrunner.LoadScenariosFromDir("eval/scenarios")
 results, _ := evalrunner.RunAll(ctx, "eval/scenarios", evalrunner.RunOptions{
     Live: yourLiveBuilder, // nil → mock-only
 })
 fmt.Print(evalrunner.FormatSummary(results))
 ```
 
-Scenario YAML format and the live-builder contract are documented in [references/harness.md](references/harness.md).
-
-## Provider compatibility quirks
-
-- **DeepSeek's reasoner** (e.g. `deepseek-v4-flash`) rejects `tool_choice` entirely. agent-go's `pkg/pool/client.go` retries once with `tool_choice` stripped — you don't have to handle this.
-- **`tool_choice` JSON shape**: `"auto" / "required" / "none"` are plain strings; named-tool choice is `{"type":"function","function":{"name":"X"}}`.
-- **`web_search_options`** is similarly stripped + retried when an upstream rejects it.
-
-If you're integrating a new provider in your own code, follow `pkg/pool/client.go`'s pattern: detect "unsupported / does not support / invalid" + the param name, strip, retry once.
+Scenario format and the live-builder contract are in [references/harness.md](references/harness.md).
 
 ## Conventions to follow
 
-- **Identity = session UUID, not userID.** Use `github.com/google/uuid` for conversation keys.
-- **`task_id` is load-bearing.** Scope new state (history, memory entries, discovered tools) by task when possible.
-- **PTC is default-on.** Tools you expose to the sandbox should return stable structured shapes (`{ok, data, error}`-ish), not freeform strings.
-- **RAG is opt-in.** Don't gate basic features on embeddings being configured.
+- **Identity is the session UUID**, not a user id. Use `github.com/google/uuid`.
+- **`task_id` is load-bearing.** Scope new state (history, memory, discovered tools) by task.
+- **Never decide behavior by matching phrases in the user's request.** Extract a structured constraint, or add an explicit option.
+- **Anything that reaches the prompt prefix must be byte-stable across a run.** Sort tool lists; keep timestamps coarse.
+- **RAG is opt-in.** Do not gate basic features on embeddings being configured.
 - **Use random high ports** (3000+, e.g. 3076, 6759, 43510) for any dev server.
+- **The framework reports tokens, not money.** Multiply `ExecutionResult.Usage` by your own rates.
 
 ## Storage layout (default `~/.agentgo/`)
 
 ```
 ~/.agentgo/
 ├── data/
-│   ├── agentgo.db   # config, providers, agents, teams, tasks, plans, checkpoints
+│   ├── agentgo.db   # providers, agents, sessions, tasks, plans, checkpoints
 │   └── cortex.db    # optional memory/vector/graph
 ├── memories/        # file memory when enabled
 ├── skills/          # local skills (SKILL.md format)
 └── workspace/       # agent working directory
 ```
 
-Override with `AGENTGO_HOME=/path/to/home`. Each test should use `t.TempDir()` to keep state isolated.
+Override with `AGENTGO_HOME=/path/to/home`. Tests should use `t.TempDir()`.
 
-## CLI is also available
+## Key references
 
-The `agentgo` binary is an adapter around the same library — useful for ops, debugging, and one-shot tasks. See [references/cli.md](references/cli.md) for every subcommand: `chat`, `agent`, `team`, `task` (incl. `replay` and `checkpoints`), `eval`, `llm`, `mcp`, `skills`, `memory`, `ptc`, `rag`.
-
-## Key References
-
-- [API patterns](references/api-patterns.md) — code recipes for every public capability
-- [Harness engineering](references/harness.md) — lints, eval scenarios, checkpoint+replay in depth
-- [CLI usage](references/cli.md) — every `agentgo` subcommand with examples
-- [Testing your AgentGo app](references/testing.md) — `*testing.T` helpers, mock LLM, fixtures
+- [Getting started in a real host](../../docs/getting-started.md): the right way to wire model, memory, search and plans
+- [API patterns](references/api-patterns.md): code recipes for every public capability
+- [Harness engineering](references/harness.md): lints, eval scenarios, checkpoints in depth
+- [Testing your AgentGo app](references/testing.md): `*testing.T` helpers, mock LLM, fixtures

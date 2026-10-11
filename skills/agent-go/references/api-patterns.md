@@ -5,6 +5,7 @@
 ```go
 svc, err := agent.New("assistant").
 	WithPrompt("You are a concise assistant.").
+	WithLLM(llm). // llm from pool.NewClient(name, baseURL, apiKey, model)
 	Build()
 if err != nil {
 	return err
@@ -14,10 +15,13 @@ defer svc.Close()
 reply, err := svc.Ask(ctx, "What is AgentGo?")
 ```
 
+Without `WithLLM`, providers come from `agentgo.db` under `AGENTGO_HOME`. With none configured, the first call fails with "no LLM provider is configured".
+
 ## Chat With Memory
 
 ```go
 svc, err := agent.New("assistant").
+	WithLLM(llm).
 	WithMemory().
 	Build()
 if err != nil {
@@ -29,191 +33,175 @@ _, _ = svc.Chat(ctx, "My name is Alice.")
 result, err := svc.Chat(ctx, "What do you know about me?")
 ```
 
-## Team Manager
+`WithMemory(agent.WithMemoryStoreType("file"))` needs no embedder and no server. To say whose memory a run uses, pass `agent.WithMemoryUser(id)` to `Run`.
+
+## Custom Tools
+
+The tool's parameters are a Go struct. The `json`, `desc`, `required` and `enum` tags generate the JSON Schema.
+
+```go
+type StatusArgs struct {
+	Service string `json:"service" desc:"Service name" required:"true"`
+}
+
+status := agent.NewTool("fetch_status", "Fetch a service's status (read-only).",
+	func(ctx context.Context, a *StatusArgs) (any, error) {
+		return fetchStatus(ctx, a.Service)
+	}).
+	WithReadOnly(true)
+
+svc, _ := agent.New("ops").WithLLM(llm).WithTool(status).Build()
+```
+
+`agent.BuildTool(name)` is the builder form for tools whose schema is built by hand. Declare `ReadOnly`, `ConcurrencySafe`, `Destructive` and `InterruptBehavior` honestly: batching, permission prompts and cancel depend on them.
+
+## Sub-agents
+
+```go
+svc, _ := agent.New("lead").
+	WithLLM(llm).
+	WithSubagents(agent.SubagentSpec{
+		Name:         "researcher",
+		Description:  "Looks things up and reports back",
+		Instructions: "Answer only from what you find.",
+		Tools:        []string{"fs_read"},
+	}).
+	Build()
+```
+
+This registers one tool, `task(agent_name, prompt)`. The sub-agent runs through the same loop with its own session and returns only its final answer. `WithDelegation(false)` withholds the three generic delegation tools.
+
+## Streaming a run
+
+`RunStream` is the primary API; `Run` calls it and collects the events.
+
+```go
+events, err := svc.RunStream(ctx, "summarize the README in three bullets")
+if err != nil {
+	return err
+}
+for evt := range events {
+	switch evt.Type {
+	case agent.EventTypePartial:
+		fmt.Print(evt.Content) // streaming token
+	case agent.EventTypeToolCall:
+		log.Printf("tool: %s", evt.ToolName)
+	case agent.EventTypeComplete:
+		// final text in evt.Content
+	case agent.EventTypeBlocked, agent.EventTypeError, agent.EventTypeCancelled:
+		// the run ended without a normal completion
+	}
+}
+```
+
+## Persistent tasks (Manager)
+
+`agent.Manager` hosts named agents over a `Store` and exposes a task surface. It is an application-level host, not an orchestrator.
 
 ```go
 store, err := agent.NewStore("agentgo.db")
 if err != nil {
 	return err
 }
-
-manager := agent.NewTeamManager(store)
-if err := manager.SeedDefaultMembers(); err != nil {
-	return err
-}
+manager := agent.NewManager(store)
 
 task, err := manager.Tasks().Submit(ctx, agent.TaskSubmitOptions{
 	SessionID: "demo-session",
-	AgentName: "Operator",
+	AgentName: "assistant",
 	Input:     "Check the repository status.",
 })
 if err != nil {
 	return err
 }
-
 done, err := manager.Tasks().Await(ctx, task.ID)
 ```
 
-## Task Plans
-
-Task plans coordinate work. Tasks execute work.
+Subscribe to a task's live events instead of blocking:
 
 ```go
-plan, err := manager.Plans().Create(ctx, agent.TaskPlanCreateOptions{
-	SessionID: "demo-session",
-	Goal:      "Validate CLI task planning",
-	Items: []agent.TaskPlanItem{
-		{
-			ID:         "inspect",
-			Subject:    "Inspect CLI output",
-			OwnerAgent: "Operator",
-			Blocks:     []string{"summarize"},
-		},
-		{
-			ID:         "summarize",
-			Subject:    "Summarize result",
-			OwnerAgent: "Responder",
-			BlockedBy:  []string{"inspect"},
-		},
-	},
-})
-if err != nil {
-	return err
-}
-
-task, err := manager.Plans().SubmitItem(ctx, plan.ID, "inspect", agent.TaskPlanSubmitItemOptions{})
-```
-
-## Streaming a run
-
-Use `RunStream` when you want live tokens / tool events:
-
-```go
-events, err := svc.RunStream(ctx, "summarize the README in three bullets")
-if err != nil { return err }
-for evt := range events {
-    switch evt.Type {
-    case agent.EventTypePartial:
-        fmt.Print(evt.Content)             // streaming token
-    case agent.EventTypeToolCall:
-        log.Printf("tool: %s", evt.ToolName)
-    case agent.EventTypeComplete:
-        // final aggregated text in evt.Content
-    case agent.EventTypeBlocked, agent.EventTypeError:
-        // task ended without a normal completion
-    }
-}
-```
-
-For TeamManager-submitted tasks, subscribe at the task layer:
-
-```go
-events, unsub, _ := manager.SubscribeTask(submitted.ID)
+events, unsub, _ := manager.SubscribeTask(task.ID)
 defer unsub()
 for evt := range events {
-    if evt.Type == agent.TaskEventTypeRuntime && evt.Runtime != nil {
-        // evt.Runtime is the same *agent.Event as the per-Service stream
-    }
+	if evt.Type == agent.TaskEventTypeRuntime && evt.Runtime != nil {
+		// evt.Runtime is the same *agent.Event as the per-Service stream
+	}
 }
 ```
 
 ## Output lints
 
-Register a deterministic check that fires on the model's free-form
-final answer; failure re-prompts the model with structured feedback.
+Register a deterministic check on the model's free-form final answer. A failure re-prompts the model with the reason.
 
 ```go
 svc.RegisterOutputLint(agent.LintFunc{
-    NameValue: "must_cite_source",
-    Fn: func(text string, ctx agent.LintContext) (bool, string) {
-        if !strings.Contains(text, "source:") {
-            return false, "response must include 'source:' citation"
-        }
-        return true, ""
-    },
-}, "Researcher")  // empty agents... = global
+	NameValue: "must_cite_source",
+	Fn: func(text string, ctx agent.LintContext) (bool, string) {
+		if !strings.Contains(text, "source:") {
+			return false, "the answer must include a 'source:' citation"
+		}
+		return true, ""
+	},
+}, "researcher") // no agent names = global
 ```
 
-Use the three built-ins as a starting set:
+Every service from `agent.New(...).Build()` already carries the built-in set (see `harness.md`). The feedback carries the reason only; never put the lint's name in it.
 
-```go
-agent.RegisterDefaultOutputLints(svc)
-```
+## Checkpoints, resume, and long runs
 
-Built-ins covered: `dispatcher_no_bounce_back`,
-`archivist_no_relative_time`, `no_planning_only_finish`. See
-`harness.md` for details and discipline.
-
-## Task checkpoint + replay
-
-Every `completeRun` / `blockRun` writes a snapshot when a
-`CheckpointSink` is wired. TeamManager wires itself automatically;
-`agent.New(...).Build()` services need:
-
-```go
-svc.SetCheckpointSink(manager) // or any CheckpointSink implementation
-```
-
-Resume a crashed task from its latest snapshot:
+Every terminal state writes a checkpoint. `agent.New(...).Build()` wires a default sink over the service's own store; `Manager` wires itself in. Resume from the latest one:
 
 ```go
 resumed, err := manager.Tasks().ResumeFromCheckpoint(ctx, taskID,
-    agent.CheckpointResumeOptions{
-        FollowUp: "and now also do X", // optional
-    })
+	agent.CheckpointResumeOptions{FollowUp: "and now also do X"})
 ```
 
-## Custom tools
-
-Add a Go function as a tool the model can call:
+For a task that takes many rounds, `RunSegments` calls `Run` again and again, each segment in a fresh session:
 
 ```go
-svc.AddToolWithMetadata(
-    "fetch_status",
-    "Fetch the system status (read-only).",
-    map[string]interface{}{
-        "type":       "object",
-        "properties": map[string]interface{}{},
-    },
-    func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-        return fetchStatus(ctx)
-    },
-    agent.ToolMetadata{
-        ReadOnly:        true,
-        ConcurrencySafe: true,
-        InterruptBehavior: agent.InterruptBehaviorCancel,
-    },
-)
+res, err := svc.RunSegments(ctx, "port the module to the new API",
+	agent.LongRunConfig{MaxSegments: 20, RoundsPerSegment: 30})
+if res.Done() {
+	// only LongRunStopFinished means the work is done
+}
 ```
-
-Tool metadata flags (`ReadOnly`, `ConcurrencySafe`, `Destructive`,
-`InterruptBehavior`) drive runtime batching, permission prompts, and
-cancellation behavior. Set them honestly.
 
 ## Run options
 
-Pass to `RunStream` / `Run` to override defaults per call:
+Pass to `Run` to override defaults per call:
 
 ```go
-events, _ := svc.RunStreamWithOptions(ctx, "do the thing",
-    agent.WithSessionID("custom-session-id"),
-    agent.WithTaskID("custom-task-id"),
-    agent.WithParentTaskID("upstream-task-id"),
-    agent.WithMaxTurns(8),
-    agent.WithTemperature(0.1),
-    agent.WithPTCEnabled(false),                    // disable PTC for this run
-    agent.WithResumeMessages(savedHistory),         // start from a checkpoint
-    agent.WithInheritedMemoryScope(agentID, teamID, userID),
+result, err := svc.Run(ctx, "do the thing",
+	agent.WithSessionID("custom-session-id"),
+	agent.WithTaskID("custom-task-id"),
+	agent.WithMaxTurns(8),
+	agent.WithTemperature(0.1),
+	agent.WithModel("a-small-model"),   // a preference, not a guarantee
+	agent.WithMemoryUser("alice"),
+	agent.WithResumeMessages(saved),    // start from a snapshot
 )
+```
+
+`WithModel` is a preference: when nothing matches, the pool falls back to its strategy. `GenerationResult.Model` and `Provider` say what actually answered, and `ActiveRun.Model` shows it in the status snapshot.
+
+## Watching a run
+
+```go
+svc, _ := agent.New("assistant").
+	WithLLM(llm).
+	WithObserver(agent.NewActivityLog(os.Stderr)).
+	Build()
+
+snap := svc.StatusSnapshot() // what is running now, from outside the run
 ```
 
 ## Where to look in the codebase
 
-- Builder + Service public API: `pkg/agent/builder.go`, `pkg/agent/service.go`
-- Runtime loop, lint hook, checkpoint hook: `pkg/agent/runtime.go`
-- TaskService (Submit / Get / Await / Resume / ResumeFromCheckpoint): `pkg/agent/task_service.go`, `pkg/agent/task_checkpoint_manager.go`
-- TaskPlanService: `pkg/agent/task_plan.go`
+- Builder and Service public API: `pkg/agent/builder.go`, `pkg/agent/service.go`
+- The loop: `pkg/agent/runtime.go`, with `loop_context.go`, `tool_prep.go`, `tool_round.go`
+- Tools: `pkg/agent/tool.go`, `pkg/agent/tool_builder.go`
+- Sub-agents: `pkg/agent/subagent_tool.go`, `pkg/agent/subagent.go`
+- TaskService (Submit / Await / Resume / ResumeFromCheckpoint): `pkg/agent/task_service.go`, `pkg/agent/task_checkpoint_manager.go`
+- Long runs: `pkg/agent/long_run.go`
 - Output lints: `pkg/agent/output_lint.go`, `output_lints_builtin.go`
-- Provider compatibility (DeepSeek reasoner fallback): `pkg/pool/client.go`
-- Eval runner (library API): `eval/runner/`
-
+- Provider pool and compatibility fallbacks: `pkg/pool/`
+- Eval runner: `eval/runner/`

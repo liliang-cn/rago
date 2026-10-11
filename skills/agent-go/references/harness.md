@@ -9,10 +9,9 @@ mistakes, checkpoints to recover crashed runs, behavioral eval to measure
 
 ### Why they exist
 
-The model keeps making the same mistake (Dispatcher narrating "I will
-route this..." instead of doing it; Archivist storing 明天 / tomorrow
-instead of an absolute date; an agent ending with "Next steps:..."
-instead of finishing). The reflexive fix is to add another sentence to
+The model keeps making the same mistake (an agent ending with "Next
+steps:..." instead of finishing; a run that ends with no text at all; a
+task that asked for a file finishing without writing one). The reflexive fix is to add another sentence to
 the system prompt. That doesn't scale: prompts grow, instructions get
 ignored, and you have no signal when the rule fires.
 
@@ -21,7 +20,7 @@ model's free-form final answer, before the runtime emits the
 `EventTypeComplete` event. On violation, the runtime appends structured
 feedback as a system message and re-prompts the model — bounded by
 `defaultLintRetryBudget = 2`. Exhaust the budget → the task blocks
-with the lint name in the message.
+(the lint's name goes to observers and logs, never to the model).
 
 ### Registering one
 
@@ -36,29 +35,31 @@ svc.RegisterOutputLint(agent.LintFunc{
         }
         return true, ""
     },
-}, "Researcher")  // empty agents... → global
+}, "researcher")  // no agent names → global
 ```
 
 `LintContext` carries `AgentName / TaskID / SessionID / TurnIndex /
 ToolCalls / IsRetry / RetryCount` so a lint can be context-aware.
 
-### Built-ins (`pkg/agent/output_lints_builtin.go`)
+### Built-ins
 
-| Lint                          | Scope     | What it rejects                                                            |
-| ----------------------------- | --------- | -------------------------------------------------------------------------- |
-| `dispatcher_no_bounce_back`   | Dispatcher| "I will route this to ..." / "我会让 X 处理"                                |
-| `archivist_no_relative_time`  | Archivist | 明天 / tomorrow / next Monday without an absolute date in the response     |
-| `no_planning_only_finish`     | global    | endings like "Next steps:" / "我会..." / "I will ..."                      |
+Every service from `agent.New(...).Build()` gets these automatically. There
+are no agent-scoped or role-scoped lints in v3.
 
-Wire all three at once: `agent.RegisterDefaultOutputLints(svc)`.
+| Lint                              | What it rejects                                                                  |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| `no_planning_only_finish`         | a final text that reads like "Next steps:" / "I will ..."                        |
+| `file_task_must_write`            | a task that asked for a file finishing without producing one                     |
+| `non_empty_final_answer`          | a run terminating with no text at all (an image output counts as an answer)      |
+| `task_delivery_contract`          | a goal naming a delivery action finishing with no matching tool actually called  |
+| `requested_action_contract`       | a requested action (reminder, calendar entry, note) finishing with its tool unused |
+| `no_tool_scaffolding_answer`      | the framework's own plumbing ("No tools found matching the query.") as the answer |
+| `deliverable_block_must_carry_work` | a run blocked on a missing delivery tool that reports none of the work it could do |
+| `plan_ready_steps_done`           | finishing while the plan still has ready, unchecked steps                        |
 
-### Auto-wiring on built-in agents
-
-When `TeamManager.buildServiceForModel` constructs a Dispatcher or
-Archivist service, it calls `applyBuiltInOutputLints(svc, model)` which
-registers the matching agent-scoped lint. Services constructed
-directly via `agent.New(...).Build()` are NOT auto-wired — you opt in.
-This keeps user-controlled services backward-compatible.
+`LintContext` carries `ToolCalls` (what ran) and `AvailableTools` (what could
+have run), so a lint can tell "the agent skipped a capability it had" from
+"the agent never had it".
 
 ### Discipline
 
@@ -100,10 +101,10 @@ and re-runs through the normal streaming pipeline. The original
 
 ### Wiring for custom services
 
-`Service` exposes `SetCheckpointSink(sink CheckpointSink)`. TeamManager
-implements `CheckpointSink` and wires itself in
-`buildServiceForModel`. Direct `agent.New(...).Build()` services skip
-this — call `svc.SetCheckpointSink(myImpl)` if you want persistence.
+`Service` exposes `SetCheckpointSink(sink CheckpointSink)`. `Manager`
+wires itself in when it builds a service, and `agent.New(...).Build()`
+wires a default sink over the service's own store whenever it has one.
+Call `svc.SetCheckpointSink(myImpl)` only to persist somewhere else.
 
 A minimal sink:
 
@@ -119,13 +120,14 @@ func (s checkpointSink) WriteCheckpoint(taskID string, reason agent.CheckpointRe
 }
 ```
 
-### CLI surface
+### Listing and replaying from code
 
-```bash
-agentgo task checkpoints <task_id>             # list snapshots
-agentgo task replay <task_id>                  # rerun from latest
-agentgo task replay <task_id> --checkpoint X   # rerun from a specific snapshot
-agentgo task replay <task_id> --follow-up "..." # append a user instruction to the resumed history
+```go
+cps, _ := manager.Tasks().ListCheckpoints(ctx, taskID, 10)       // list snapshots
+_, _ = manager.Tasks().ResumeFromCheckpoint(ctx, taskID,         // rerun from latest
+    agent.CheckpointResumeOptions{FollowUp: "..."})              // append a user instruction
+_, _ = manager.Tasks().ResumeFromCheckpoint(ctx, taskID,         // or a specific snapshot
+    agent.CheckpointResumeOptions{CheckpointID: cps[0].ID})
 ```
 
 ## Behavioral eval
@@ -133,23 +135,22 @@ agentgo task replay <task_id> --follow-up "..." # append a user instruction to t
 ### Scenario YAML
 
 ```yaml
-# eval/scenarios/lint_dispatcher_no_bounce_back_self_heals.yaml
-name: lint_dispatcher_no_bounce_back_self_heals
-description: dispatcher first response narrates routing; lint rejects; second answer passes.
-agent: Dispatcher
+# eval/scenarios/gate_empty_final_answer_is_rejected.yaml
+name: gate_empty_final_answer_is_rejected
+description: a run that ends with no text is rejected; the second reply carries an answer.
+agent: Assistant
 register_lints:
-  - dispatcher_no_bounce_back
-input: "what's the current status?"
+  - non_empty_final_answer
+input: "what did you find?"
 llm_replies:
-  - "I will route this to Operator now."
-  - "Current status: all systems green."
+  - ""
+  - "I could not find a matching tool, so here is what I know directly: nothing was scheduled."
 expect:
   status: completed
-  final_text_match: "Current status"
-  final_text_must_not_match: "I will route"
+  final_text_match: "nothing was scheduled"
   llm_calls: 2
   lint_violations:
-    - lint: dispatcher_no_bounce_back
+    - lint: non_empty_final_answer
       count: 1
 ```
 
@@ -164,7 +165,7 @@ live), `expect.final_text_match` / `expect.final_text_must_not_match`
 - **mock** (default, CI-safe): `MockLLM` plays back `llm_replies` in
   order. Deterministic. `make eval` runs every mock scenario.
 - **live**: scenarios with `mode: live` use the configured provider
-  pool (`agentgo eval --profile=live`). Use `runs: 2` or `runs: 3`
+  pool (`make eval-live`, gated on `AGENTGO_EVAL_LIVE=1`). Use `runs: 2` or `runs: 3`
   to amortize non-determinism.
 
 ### Library API

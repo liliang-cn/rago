@@ -248,7 +248,7 @@ func (p *Pool) Get() (*Client, error) {
 	defer p.mu.RUnlock()
 
 	if len(p.clients) == 0 {
-		return nil, fmt.Errorf("no clients available")
+		return nil, errNoProvider
 	}
 
 	// Collect the healthy clients.
@@ -849,6 +849,14 @@ func (p *Pool) extractMetadataWithClient(ctx context.Context, hint SelectionHint
 	return &metadata, nil
 }
 
+// errNoProvider is what a pool with no clients at all answers. "No healthy
+// clients" alone sent a first-time user looking for a health problem when the
+// real situation is that nothing was ever configured. The original phrase stays
+// in the message for anything matching on it.
+var errNoProvider = errors.New("no healthy clients available: no LLM provider is configured — " +
+	"pass Builder.WithLLM(pool.NewClient(...)), or add a provider to agentgo.db under AGENTGO_HOME " +
+	"(default ~/.agentgo); see docs/getting-started.md")
+
 // errAllBusy says every healthy client is at its concurrency limit — a wait,
 // not a failure.
 var errAllBusy = errors.New("every healthy client is at its concurrency limit")
@@ -856,6 +864,9 @@ var errAllBusy = errors.New("every healthy client is at its concurrency limit")
 // unavailable explains an empty healthyClients: busy when some client is
 // healthy but full, unavailable when none is healthy at all.
 func (p *Pool) unavailable() error {
+	if len(p.clients) == 0 {
+		return errNoProvider
+	}
 	for _, w := range p.clients {
 		if w.healthy {
 			return fmt.Errorf("no healthy clients available: %w", errAllBusy)

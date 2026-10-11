@@ -28,7 +28,7 @@ type MemoryStoreConfig = domain.MemoryStoreConfig
 type MemoryStoreFactory = domain.MemoryStoreFactory
 
 // RegisterMemoryStore registers a memory backend under a store_type name.
-// Afterwards, `store_type = "<name>"` in agentgo.toml — or
+// Afterwards, `store_type = "<name>"` on the config.Config passed to WithConfig — or
 // WithMemory(WithMemoryStoreType("<name>")) — selects it.
 //
 // Registration is concurrency-safe and strict: a blank name, a nil factory, a

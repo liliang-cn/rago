@@ -6,9 +6,9 @@
 // and knowledge-graph library. It ships an in-process toolbox (db.GraphRAGTools)
 // whose definitions and dispatch this package adapts onto an *agent.Service.
 //
-// AgentGo uses a CGO SQLite driver and its own database file; CortexDB uses
-// pure-Go modernc.org/sqlite and its own file. They are independent and do not
-// conflict — open the CortexDB handle yourself and pass it in.
+// AgentGo and CortexDB both use the pure-Go modernc.org/sqlite driver, each
+// with its own database file. They are independent and do not conflict — open
+// the CortexDB handle yourself and pass it in.
 //
 // Basic use:
 //

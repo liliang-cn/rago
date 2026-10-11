@@ -146,8 +146,8 @@ var noEmbeddingHintOnce sync.Once
 func hintNoEmbeddingProvider() {
 	noEmbeddingHintOnce.Do(func() {
 		fmt.Fprintln(os.Stderr, "ℹ️  No embedding provider configured — vector memory/RAG are disabled "+
-			"(text chat, tools, and skills all work). To enable them, pass Builder.WithEmbedder(...), or add a\n"+
-			"    [[rag.embedding.providers]] entry (name, base_url, model_name) to agentgo.toml")
+			"(text chat, tools, and skills all work). To enable them, pass Builder.WithEmbedder(...); "+
+			"see docs/getting-started.md")
 	})
 }
 

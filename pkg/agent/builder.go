@@ -1110,7 +1110,8 @@ func (b *Builder) buildMemoryService(agentgoCfg *config.Config, embedSvc domain.
 	return b.assembleMemoryService(memStore, llmSvc, embedSvc, storeType)
 }
 
-// resolveMemoryDSN prefers the builder option, then agentgo.toml.
+// resolveMemoryDSN prefers the builder option, then the config.Config given to
+// WithConfig.
 func (b *Builder) resolveMemoryDSN(agentgoCfg *config.Config) string {
 	if b.memoryCfg.DSN != "" {
 		return b.memoryCfg.DSN
@@ -1121,8 +1122,8 @@ func (b *Builder) resolveMemoryDSN(agentgoCfg *config.Config) string {
 	return ""
 }
 
-// resolveMemoryOptions merges agentgo.toml `[memory.options]` with the builder
-// options; the builder wins on conflict.
+// resolveMemoryOptions merges the config.Config `Memory.Options` with the
+// builder options; the builder wins on conflict.
 func (b *Builder) resolveMemoryOptions(agentgoCfg *config.Config) map[string]string {
 	merged := map[string]string{}
 	if agentgoCfg != nil {
