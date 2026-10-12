@@ -101,6 +101,11 @@ type MemoryConfig struct {
 	MemoryPath  string          `mapstructure:"memory_path"`
 	MaxMemories int             `mapstructure:"max_memories"`
 
+	// RecallTimeoutMs bounds the memory lookup a turn makes before it starts:
+	// past it the turn goes ahead without recalled memory. 0 means the
+	// default (2s); negative waits as long as the lookup takes.
+	RecallTimeoutMs int `mapstructure:"recall_timeout_ms"`
+
 	// DSN is the connection string for networked memory backends registered
 	// through agent.RegisterMemoryStore. Ignored by the built-in store types.
 	DSN string `mapstructure:"dsn"`

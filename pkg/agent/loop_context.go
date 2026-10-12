@@ -8,6 +8,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 	"log/slog"
@@ -78,14 +79,19 @@ func (s *Service) prepareConversationContext(ctx context.Context, goal string, s
 	if s.memory() != nil {
 		g.Go(func() error {
 			memDone := trace.Step(ctx, "memory", "recall")
-			memoryContext, memoryMemories, memoryLogic, err := s.memory().RetrieveAndInjectWithContextAndLogic(trace.WithPurpose(groupCtx, "memory-pick"), goal, prepared.queryContext)
+			res, err := s.recallWithin(trace.WithPurpose(groupCtx, "memory-pick"), goal, prepared.queryContext)
 			memDone(err)
+			if errors.Is(err, errRecallTimeout) {
+				// Answering now without memory beats answering late with it.
+				s.logger.Warn("memory recall timed out; the turn goes ahead without it", slog.Duration("after", s.memoryRecallTimeout()))
+				return nil
+			}
 			if err != nil {
 				return err
 			}
-			prepared.memoryContext = memoryContext
-			prepared.memoryMemories = memoryMemories
-			prepared.memoryLogic = memoryLogic
+			prepared.memoryContext = res.context
+			prepared.memoryMemories = res.memories
+			prepared.memoryLogic = res.logic
 			return nil
 		})
 	}
