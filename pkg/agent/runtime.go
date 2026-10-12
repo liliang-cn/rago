@@ -2,8 +2,10 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 	"log/slog"
 	"sort"
 	"strings"
@@ -304,7 +306,13 @@ func (r *Runtime) forceFinalSynthesis(ctx context.Context, state *queryLoopState
 	synthStart := time.Now()
 
 	// tools=nil + no tool_choice → the provider must return plain text.
+	call := trace.Model(ctx, "final-synthesis")
 	res, err := r.svc.llmService.GenerateWithTools(ctx, sanitizeToolPairing(synth), nil, r.generationOptions(r.temperature(), r.maxTokens(), ""))
+	if res != nil {
+		call.End(res.Usage, err)
+	} else {
+		call.End(nil, err)
+	}
 	synthDur := time.Since(synthStart)
 	if err != nil || res == nil {
 		r.svc.emitObserver(func(o Observer) { o.OnModelEnd(ctx, modelInfo, nil, err) })
@@ -344,6 +352,7 @@ func (r *Runtime) RunStream(ctx context.Context, goal string) <-chan *Event {
 // loop is the core event loop
 func (r *Runtime) loop(ctx context.Context, goal string) {
 	r.startedAt = time.Now()
+	ctx = trace.WithRun(ctx, r.runID())
 	r.logger = r.log().With(
 		slog.String("run_id", r.runID()),
 		slog.String("session_id", r.sessionID()),
@@ -352,6 +361,14 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 	r.logger.Debug("run started", slog.String("agent", r.currentAgentName()))
 	defer func() {
 		r.dropSteers()
+		// The timeline goes out last, but before the channel closes: after
+		// that there is no one to hand it to.
+		trace.End(ctx, "end")
+		if steps, sum, ok := trace.Timeline(ctx); ok {
+			if b, err := json.Marshal(map[string]any{"summary": sum, "steps": steps}); err == nil {
+				r.emit(EventTypeTrace, string(b))
+			}
+		}
 		close(r.eventChan)
 	}()
 	ctx = withCurrentSession(ctx, r.session)
@@ -1896,7 +1913,9 @@ func (r *Runtime) executeAsyncTool(ctx context.Context, tc domain.ToolCall, wg *
 	r.trackToolCall(tc)
 
 	// 2. Execute
+	toolDone := trace.Step(ctx, "tool", tc.Function.Name)
 	res, err, _ := r.executeToolOrHandoff(ctx, tc)
+	toolDone(err)
 
 	// 3. Emit result
 	r.noteToolOutcome(tc.Function.Name, err)

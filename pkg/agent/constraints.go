@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 	"log/slog"
 	"sort"
 	"strings"
@@ -414,12 +415,18 @@ func (s *Service) extractRunConstraints(ctx context.Context, goal string) RunCon
 // callConstraintExtraction issues one extraction request and returns the raw
 // reply text.
 func (s *Service) callConstraintExtraction(ctx context.Context, prompt string) (string, error) {
+	call := trace.Model(ctx, "constraints")
+	call.Request(prompt)
 	res, err := s.llmService.GenerateStructured(
 		ctx,
 		prompt,
 		newConstraintExtractionSchema(),
 		&domain.GenerationOptions{Temperature: 0, MaxTokens: 400},
 	)
+	if res != nil {
+		call.Reply(res.Raw)
+	}
+	call.End(nil, err)
 	if err != nil {
 		return "", err
 	}

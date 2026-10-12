@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 	"strings"
 
 	"github.com/liliang-cn/agent-go/v3/pkg/domain"
@@ -327,6 +328,8 @@ func (s *Service) summarizeForCompaction(ctx context.Context, middle []domain.Me
 	budget := compactionSummaryMaxTokens
 	var lastErr error
 	for attempt := 0; attempt <= compactionSummaryEscalations; attempt++ {
+		call := trace.Model(ctx, "compaction")
+		defer func() { call.End(nil, nil) }()
 		summary, err := s.llmService.Generate(ctx, prompt, &domain.GenerationOptions{
 			Temperature: 0.2,
 			MaxTokens:   budget,

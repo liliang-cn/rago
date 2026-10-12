@@ -1,0 +1,437 @@
+// Package trace records where a run's time goes: every model call with what it
+// was for, how long before its first token and how long in all; memory
+// lookups; tool calls; and a summary when the run ends.
+//
+// Three ways to read it, all off by default:
+//
+//   - AGENTGO_TRACE=1 writes one line per step to stderr, prefixed
+//     "agentgo-trace", into whatever log the process already has:
+//
+//     agentgo-trace run=3f2a91c0 model purpose=memory-pick dur=1.12s ttft=- in=2210 out=40
+//     agentgo-trace run=3f2a91c0 memory recall dur=1.31s
+//     agentgo-trace run=3f2a91c0 model purpose=turn tools=38 msgs=6 dur=6.48s ttft=4.90s in=21544 out=402
+//     agentgo-trace run=3f2a91c0 run end total=8.02s first_model_call=1.40s first_answer_token=6.30s …
+//
+//   - AGENTGO_TRACE_FILE=/path/trace.jsonl appends the same records as JSON,
+//     one per line, for jq or a notebook. AGENTGO_TRACE_BODIES=1 adds what was
+//     sent to each model call and what came back, so a wrong answer can be
+//     read back from the exact prompt that produced it.
+//
+//   - Timeline(ctx) hands a run's records to the program itself; the agent
+//     runtime emits them as a "trace" event when a run ends, so an app can show
+//     a person where the time went.
+//
+// Setting either variable, or calling SetEnabled(true), turns recording on.
+// Off, each step costs one atomic load.
+package trace
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/liliang-cn/agent-go/v3/pkg/domain"
+)
+
+var (
+	enabled atomic.Bool
+	bodies  atomic.Bool
+	stderr  atomic.Bool
+)
+
+func init() {
+	on := func(k string) bool {
+		switch strings.ToLower(strings.TrimSpace(os.Getenv(k))) {
+		case "1", "true", "on", "yes":
+			return true
+		}
+		return false
+	}
+	if on("AGENTGO_TRACE") {
+		enabled.Store(true)
+		stderr.Store(true)
+	}
+	if p := strings.TrimSpace(os.Getenv("AGENTGO_TRACE_FILE")); p != "" {
+		if f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600); err == nil {
+			setFile(f)
+			enabled.Store(true)
+		} else {
+			log.Printf("agentgo-trace: cannot open %s: %v", p, err)
+		}
+	}
+	bodies.Store(on("AGENTGO_TRACE_BODIES"))
+}
+
+// Enabled reports whether recording is on.
+func Enabled() bool { return enabled.Load() }
+
+// SetEnabled turns recording on or off for the whole process. Lines go to
+// stderr only when AGENTGO_TRACE asked for them or SetLines(true) was called.
+func SetEnabled(on bool) { enabled.Store(on) }
+
+// SetLines turns the stderr lines on or off.
+func SetLines(on bool) { stderr.Store(on) }
+
+// SetBodies records what each model call sent and received.
+func SetBodies(on bool) { bodies.Store(on) }
+
+var (
+	outMu sync.Mutex
+	lines = log.New(os.Stderr, "agentgo-trace ", log.LstdFlags|log.Lmicroseconds)
+	file  io.Writer
+)
+
+// SetOutput sends the lines somewhere other than stderr (and turns them on).
+func SetOutput(w io.Writer) {
+	outMu.Lock()
+	defer outMu.Unlock()
+	lines = log.New(w, "agentgo-trace ", log.LstdFlags|log.Lmicroseconds)
+	stderr.Store(true)
+}
+
+// SetFile appends JSON records to w (and turns recording on).
+func SetFile(w io.Writer) {
+	setFile(w)
+	enabled.Store(true)
+}
+
+func setFile(w io.Writer) {
+	outMu.Lock()
+	defer outMu.Unlock()
+	file = w
+}
+
+// Record is one step of a run.
+type Record struct {
+	Time time.Time `json:"ts"`
+	Run  string    `json:"run,omitempty"`
+	// Kind is "model", "memory", "tool" or "run" (the summary).
+	Kind string `json:"kind"`
+	// Name is a model call's purpose, a tool's name, a memory step's name, or
+	// a run's outcome.
+	Name string `json:"name"`
+	// At is when the step started, after the run started.
+	AtMs    int64  `json:"at_ms"`
+	DurMs   int64  `json:"dur_ms"`
+	TTFTMs  int64  `json:"ttft_ms,omitempty"`
+	In      int    `json:"in,omitempty"`
+	Out     int    `json:"out,omitempty"`
+	Cached  int    `json:"cached,omitempty"`
+	Think   int    `json:"thinking,omitempty"`
+	Detail  string `json:"detail,omitempty"`
+	Err     string `json:"err,omitempty"`
+	Request any    `json:"request,omitempty"`
+	Reply   any    `json:"reply,omitempty"`
+}
+
+type ctxKey int
+
+const (
+	runKey ctxKey = iota
+	purposeKey
+	statsKey
+)
+
+// WithRun names the run a context belongs to and starts its timeline.
+func WithRun(ctx context.Context, id string) context.Context {
+	if !Enabled() {
+		return ctx
+	}
+	ctx = context.WithValue(ctx, runKey, id)
+	return context.WithValue(ctx, statsKey, &runStats{start: time.Now()})
+}
+
+// WithPurpose says what the model calls made with this context are for.
+func WithPurpose(ctx context.Context, purpose string) context.Context {
+	if !Enabled() || ctx == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, purposeKey, purpose)
+}
+
+func runOf(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	s, _ := ctx.Value(runKey).(string)
+	return s
+}
+
+func statsOf(ctx context.Context) *runStats {
+	if ctx == nil {
+		return nil
+	}
+	s, _ := ctx.Value(statsKey).(*runStats)
+	return s
+}
+
+// runStats is a run's timeline and its running totals.
+type runStats struct {
+	start   time.Time
+	mu      sync.Mutex
+	records []Record
+
+	model, memory, tool        time.Duration
+	modelCalls, toolCalls      int
+	firstModelAt, firstTokenAt time.Duration
+}
+
+// maxRecords bounds one run's timeline; a run that loops past it keeps its
+// first steps, which are the ones a slow start is made of.
+const maxRecords = 500
+
+func emit(ctx context.Context, r Record) {
+	r.Run = runOf(ctx)
+	if s := statsOf(ctx); s != nil {
+		r.AtMs = r.Time.Sub(s.start).Milliseconds()
+		if r.Kind == "run" {
+			r.AtMs = 0
+		}
+		s.mu.Lock()
+		if len(s.records) < maxRecords {
+			keep := r
+			keep.Request, keep.Reply = nil, nil // the timeline is for showing, not for bodies
+			s.records = append(s.records, keep)
+		}
+		s.mu.Unlock()
+	}
+	outMu.Lock()
+	l, f := lines, file
+	outMu.Unlock()
+	if stderr.Load() {
+		run := r.Run
+		if len(run) > 8 {
+			run = run[:8]
+		}
+		if run == "" {
+			run = "-"
+		}
+		l.Printf("run=%s %s", run, r.line())
+	}
+	if f != nil {
+		if b, err := json.Marshal(r); err == nil {
+			outMu.Lock()
+			_, _ = f.Write(append(b, '\n'))
+			outMu.Unlock()
+		}
+	}
+}
+
+func (r Record) line() string {
+	var b strings.Builder
+	switch r.Kind {
+	case "model":
+		fmt.Fprintf(&b, "model purpose=%s", r.Name)
+	case "run":
+		fmt.Fprintf(&b, "run %s total=%s", r.Name, ms(r.DurMs))
+	default:
+		fmt.Fprintf(&b, "%s %s", r.Kind, r.Name)
+	}
+	if r.Detail != "" {
+		b.WriteString(" " + r.Detail)
+	}
+	if r.Kind == "run" {
+		return b.String()
+	}
+	fmt.Fprintf(&b, " dur=%s", ms(r.DurMs))
+	if r.Kind == "model" {
+		ttft := "-" // no output came, or the call was not streamed
+		if r.TTFTMs > 0 {
+			ttft = ms(r.TTFTMs)
+		}
+		fmt.Fprintf(&b, " ttft=%s", ttft)
+		if r.In+r.Out > 0 {
+			fmt.Fprintf(&b, " in=%d out=%d", r.In, r.Out)
+		}
+		if r.Cached > 0 {
+			fmt.Fprintf(&b, " cached=%d", r.Cached)
+		}
+		if r.Think > 0 {
+			fmt.Fprintf(&b, " thinking=%d", r.Think)
+		}
+	}
+	if r.Err != "" {
+		fmt.Fprintf(&b, " err=%q", r.Err)
+	}
+	return b.String()
+}
+
+func ms(v int64) string {
+	return fmt.Sprintf("%.2fs", float64(v)/1000)
+}
+
+// Call times one model call. Get one from Model; it is nil when recording is
+// off, and every method on a nil Call does nothing.
+type Call struct {
+	ctx     context.Context
+	purpose string
+	detail  string
+	start   time.Time
+	first   atomic.Int64 // ns after start of the first output; 0 = none yet
+	request any
+	reply   any
+}
+
+// Model starts timing a model call. purpose overrides the context's; detail
+// is extra key=value text for the line.
+func Model(ctx context.Context, purpose string, detail ...string) *Call {
+	if !Enabled() {
+		return nil
+	}
+	if purpose == "" && ctx != nil {
+		purpose, _ = ctx.Value(purposeKey).(string)
+	}
+	if purpose == "" {
+		purpose = "other"
+	}
+	c := &Call{ctx: ctx, purpose: purpose, detail: strings.Join(detail, " "), start: time.Now()}
+	if s := statsOf(ctx); s != nil {
+		s.mu.Lock()
+		if s.modelCalls == 0 && s.firstModelAt == 0 {
+			s.firstModelAt = time.Since(s.start)
+		}
+		s.mu.Unlock()
+	}
+	return c
+}
+
+// Output marks that output arrived. Only the first call counts.
+func (c *Call) Output() {
+	if c == nil {
+		return
+	}
+	c.first.CompareAndSwap(0, int64(time.Since(c.start)))
+}
+
+// Request keeps what was sent, when bodies are being recorded.
+func (c *Call) Request(v any) {
+	if c != nil && bodies.Load() {
+		c.request = v
+	}
+}
+
+// Reply keeps what came back, when bodies are being recorded.
+func (c *Call) Reply(v any) {
+	if c != nil && bodies.Load() {
+		c.reply = v
+	}
+}
+
+// End records the call.
+func (c *Call) End(usage *domain.TokenUsage, err error) {
+	if c == nil {
+		return
+	}
+	dur := time.Since(c.start)
+	ttft := time.Duration(c.first.Load())
+	r := Record{Time: c.start, Kind: "model", Name: c.purpose, Detail: c.detail,
+		DurMs: dur.Milliseconds(), TTFTMs: ttft.Milliseconds(), Request: c.request, Reply: c.reply}
+	if usage != nil {
+		r.In, r.Out, r.Cached, r.Think = usage.PromptTokens, usage.CompletionTokens, usage.CachedPromptTokens, usage.ReasoningTokens
+	}
+	if err != nil {
+		r.Err = trim(err.Error())
+	}
+	emit(c.ctx, r)
+	if s := statsOf(c.ctx); s != nil {
+		s.mu.Lock()
+		s.model += dur
+		s.modelCalls++
+		if ttft > 0 && s.firstTokenAt == 0 && c.purpose == "turn" {
+			s.firstTokenAt = c.start.Sub(s.start) + ttft
+		}
+		s.mu.Unlock()
+	}
+}
+
+// Step times something that is not a model call: kind is "memory" or "tool",
+// name says which. Call the returned func when it is done.
+func Step(ctx context.Context, kind, name string) func(err error) {
+	if !Enabled() {
+		return func(error) {}
+	}
+	start := time.Now()
+	return func(err error) {
+		dur := time.Since(start)
+		r := Record{Time: start, Kind: kind, Name: name, DurMs: dur.Milliseconds()}
+		if err != nil {
+			r.Err = trim(err.Error())
+		}
+		emit(ctx, r)
+		if s := statsOf(ctx); s != nil {
+			s.mu.Lock()
+			switch kind {
+			case "memory":
+				s.memory += dur
+			case "tool":
+				s.tool += dur
+				s.toolCalls++
+			}
+			s.mu.Unlock()
+		}
+	}
+}
+
+// Summary is a run's totals.
+type Summary struct {
+	TotalMs            int64 `json:"total_ms"`
+	FirstModelCallMs   int64 `json:"first_model_call_ms"`
+	FirstAnswerTokenMs int64 `json:"first_answer_token_ms,omitempty"`
+	ModelMs            int64 `json:"model_ms"`
+	ModelCalls         int   `json:"model_calls"`
+	MemoryMs           int64 `json:"memory_ms"`
+	ToolMs             int64 `json:"tool_ms"`
+	ToolCalls          int   `json:"tool_calls"`
+}
+
+// Timeline is a run's records so far and its totals; ok is false when the
+// context carries no run being recorded.
+func Timeline(ctx context.Context) (records []Record, sum Summary, ok bool) {
+	s := statsOf(ctx)
+	if s == nil {
+		return nil, Summary{}, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	records = append([]Record(nil), s.records...)
+	return records, Summary{
+		TotalMs: time.Since(s.start).Milliseconds(), FirstModelCallMs: s.firstModelAt.Milliseconds(),
+		FirstAnswerTokenMs: s.firstTokenAt.Milliseconds(), ModelMs: s.model.Milliseconds(), ModelCalls: s.modelCalls,
+		MemoryMs: s.memory.Milliseconds(), ToolMs: s.tool.Milliseconds(), ToolCalls: s.toolCalls,
+	}, true
+}
+
+// End records the run's summary. Model and tool time can overlap, so the
+// parts may add up to more than the whole.
+func End(ctx context.Context, outcome string) {
+	_, sum, ok := Timeline(ctx)
+	if !ok {
+		return
+	}
+	emit(ctx, Record{Time: time.Now(), Kind: "run", Name: outcome, DurMs: sum.TotalMs,
+		Detail: fmt.Sprintf("first_model_call=%s first_answer_token=%s model=%s/%d memory=%s tool=%s/%d",
+			ms(sum.FirstModelCallMs), firstToken(sum.FirstAnswerTokenMs), ms(sum.ModelMs), sum.ModelCalls,
+			ms(sum.MemoryMs), ms(sum.ToolMs), sum.ToolCalls)})
+}
+
+func firstToken(v int64) string {
+	if v <= 0 {
+		return "-" // the answer never streamed
+	}
+	return ms(v)
+}
+
+func trim(s string) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	if len(s) > 160 {
+		return s[:160] + "…"
+	}
+	return s
+}

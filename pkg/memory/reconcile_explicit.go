@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 	"strings"
 
 	"github.com/liliang-cn/agent-go/v3/pkg/domain"
@@ -144,7 +145,9 @@ Also fill "graph_entities" and "graph_relations" with what the memory about to b
 	for name, spec := range graphSchemaFields() {
 		schema["properties"].(map[string]interface{})[name] = spec
 	}
+	call := trace.Model(ctx, "memory-reconcile")
 	result, err := s.llm.GenerateStructured(ctx, b.String(), schema, &domain.GenerationOptions{Temperature: 0})
+	call.End(nil, err)
 	if err != nil || result == nil || !result.Valid || strings.TrimSpace(result.Raw) == "" {
 		agentgolog.WithModule("memory.reconcile").Warn("explicit-save reconciliation unavailable; adding", "error", err)
 		return explicitVerdict{}, false

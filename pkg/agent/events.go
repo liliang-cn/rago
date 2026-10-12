@@ -41,8 +41,11 @@ const (
 	EventTypeCancelled EventType = "workflow_cancelled"
 
 	// Thinking & Streaming
-	EventTypeThinking  EventType = "thinking"  // Agent is processing
-	EventTypePartial   EventType = "partial"   // Streaming text output
+	EventTypeThinking EventType = "thinking" // Agent is processing
+	EventTypePartial  EventType = "partial"  // Streaming text output
+	// EventTypeTrace carries, when tracing is on (pkg/trace), where the run's
+	// time went: JSON {"summary": …, "steps": […]}, sent as the run ends.
+	EventTypeTrace     EventType = "trace"
 	EventTypeTombstone EventType = "tombstone" // Request to remove/clear partial content (e.g. after interruption)
 
 	// Tool Execution

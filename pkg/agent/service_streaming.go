@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
+	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 	"strings"
 
 	"github.com/liliang-cn/agent-go/v3/pkg/domain"
@@ -39,7 +41,12 @@ func (s *Service) streamToolTurnWithRecovery(ctx context.Context, messages []dom
 
 	llmCtx, cancel := withLLMTurnTimeout(ctx, s.cfg)
 	defer cancel()
+	call := trace.Model(ctx, "turn", fmt.Sprintf("tools=%d msgs=%d", len(tools), len(messages)))
+	call.Request(messages)
 	err := s.llmService.StreamWithTools(llmCtx, sanitizeToolPairing(messages), tools, opts, func(delta *domain.GenerationResult) error {
+		if delta.Content != "" || delta.ReasoningContent != "" || len(delta.ToolCalls) > 0 {
+			call.Output()
+		}
 		if delta.ID != "" {
 			lastResponseID = delta.ID
 		}
@@ -80,6 +87,12 @@ func (s *Service) streamToolTurnWithRecovery(ctx context.Context, messages []dom
 		}
 		return nil
 	})
+	call.Reply(map[string]any{"content": fullContent.String(), "tool_calls": toolCalls})
+	if errors.Is(err, errTaskTerminal) {
+		call.End(lastUsage, nil)
+	} else {
+		call.End(lastUsage, err)
+	}
 	if err != nil && !errors.Is(err, errTaskTerminal) {
 		// Check if error is withholdable and we haven't already retried
 		if attempt == 0 && IsWithholdable(err) {

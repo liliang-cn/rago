@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 	"strings"
 
 	"github.com/google/uuid"
@@ -201,7 +202,9 @@ func (s *Service) CompactSession(ctx context.Context, sessionID string) (string,
 	fullPrompt := fmt.Sprintf("%s\n\nConversation to summarize:\n%s\n\nPlease provide a concise summary of the key points:", compactPrompt, conversationText.String())
 
 	// Generate summary using LLM
+	call := trace.Model(ctx, "session-summary")
 	summary, err := s.llmService.Generate(ctx, fullPrompt, nil)
+	call.End(nil, err)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate summary: %w", err)
 	}

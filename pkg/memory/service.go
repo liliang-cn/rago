@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 	"strings"
 	"sync"
 	"time"
@@ -493,7 +494,9 @@ func (s *Service) storeIfWorthwhileSync(ctx context.Context, req *domain.MemoryS
 		}
 	}
 
+	call := trace.Model(ctx, "memory-extract")
 	result, err := s.llm.GenerateStructured(ctx, prompt, schema, &domain.GenerationOptions{Temperature: 0.1})
+	call.End(nil, err)
 	var summary *domain.MemorySummaryResult
 	if err == nil && result.Raw != "" && result.Valid {
 		summary, err = normalizeMemorySummary(result.Raw)
@@ -713,7 +716,9 @@ func (s *Service) Update(ctx context.Context, id string, newInfo string) error {
 	}
 
 	prompt := fmt.Sprintf("Existing Memory:\n%s\n\nNew Info: %s\n\nMerge and provide updated content.", oldMem.Content, newInfo)
+	call := trace.Model(ctx, "memory-update")
 	updated, err := s.llm.Generate(ctx, prompt, nil)
+	call.End(nil, err)
 	if err != nil {
 		return err
 	}

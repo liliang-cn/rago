@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 	"strings"
 	"sync"
 	"time"
@@ -121,7 +122,13 @@ Output valid JSON only:
 		}
 
 		// The turn waits on this pick, and the schema fixes its shape.
+		call := trace.Model(ctx, "memory-pick")
+		call.Request(promptText)
 		result, err := n.llm.GenerateStructured(ctx, promptText, schema, &domain.GenerationOptions{Temperature: 0.1, NoReasoning: true})
+		if result != nil {
+			call.Reply(result.Raw)
+		}
+		call.End(nil, err)
 		if err != nil {
 			return nil, fmt.Errorf("navigator LLM call failed: %w", err)
 		}

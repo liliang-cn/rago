@@ -9,6 +9,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 	"log/slog"
 	"path/filepath"
 	"slices"
@@ -61,7 +62,9 @@ func (s *Service) prepareConversationContext(ctx context.Context, goal string, s
 			if opts.emitProgress {
 				s.emitProgress("thinking", "🔍 Searching knowledge base...", 0, "")
 			}
+			ragDone := trace.Step(ctx, "memory", "rag")
 			ragContext, err := s.performRAGQuery(groupCtx, goal, !opts.dryRun)
+			ragDone(err)
 			if err == nil {
 				prepared.ragContext = ragContext
 				if opts.emitProgress && ragContext != "" {
@@ -74,7 +77,9 @@ func (s *Service) prepareConversationContext(ctx context.Context, goal string, s
 
 	if s.memory() != nil {
 		g.Go(func() error {
-			memoryContext, memoryMemories, memoryLogic, err := s.memory().RetrieveAndInjectWithContextAndLogic(groupCtx, goal, prepared.queryContext)
+			memDone := trace.Step(ctx, "memory", "recall")
+			memoryContext, memoryMemories, memoryLogic, err := s.memory().RetrieveAndInjectWithContextAndLogic(trace.WithPurpose(groupCtx, "memory-pick"), goal, prepared.queryContext)
+			memDone(err)
 			if err != nil {
 				return err
 			}
@@ -87,7 +92,9 @@ func (s *Service) prepareConversationContext(ctx context.Context, goal string, s
 
 	if s.skillsService != nil {
 		g.Go(func() error {
+			skillsDone := trace.Step(ctx, "memory", "skills")
 			prepared.skillReminder = s.buildRelevantSkillReminder(groupCtx, goal, session, opts.dryRun)
+			skillsDone(nil)
 			return nil
 		})
 	}
@@ -129,7 +136,9 @@ func (s *Service) CompactMessages(ctx context.Context, messages []domain.Message
 	fullPrompt := fmt.Sprintf("%s\n\nConversation to summarize:\n%s\n\nPlease provide a concise summary of the key points:", compactPrompt, conversationText.String())
 
 	// Generate summary using LLM
+	call := trace.Model(ctx, "summary")
 	summary, err := s.llmService.Generate(ctx, fullPrompt, nil)
+	call.End(nil, err)
 	if err != nil {
 		return nil, fmt.Errorf("compaction failed: %w", err)
 	}

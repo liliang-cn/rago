@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 	"strings"
 
 	"github.com/liliang-cn/agent-go/v3/pkg/domain"
@@ -126,7 +127,13 @@ func (s *Service) SearchAndExecute(ctx context.Context, query string, instructio
 
 		opts := s.toolGenerationOptions(0.1, 0, "auto")
 
+		call := trace.Model(ctx, "tool-round")
 		result, err := s.llmService.GenerateWithTools(ctx, sanitizeToolPairing(messages), matches, opts)
+		if result != nil {
+			call.End(result.Usage, err)
+		} else {
+			call.End(nil, err)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to map instruction to tool: %w", err)
 		}
