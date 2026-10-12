@@ -3,12 +3,7 @@ package agent
 import "strings"
 
 const FinishOrBlockContract = `Finish-Or-Block Contract:
-- Do not stop at planning when the task can be executed now.
-- Do not end with "next steps", "would do", "should do", or "I can do this next" unless external input is genuinely required.
-- Continue until the task is completed, blocked, failed, or yielded.
-- If completed, provide the verified result and concrete evidence when tools or filesystem/device actions were involved.
-- If blocked, call task_blocked with the concrete blocker and evidence of what was attempted.
-- Prefer verification over explanation.`
+- Do the task now; do not end on a plan or "next steps" unless you need input. Finish with the verified result (with evidence when you used tools), or call task_blocked with the concrete blocker and what you tried.`
 
 // defaultBlockedText is what a blocked run reports when neither the model's
 // task_blocked arguments nor its assistant text said anything. Silence is the

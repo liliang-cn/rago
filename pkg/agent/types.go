@@ -268,6 +268,12 @@ type RunConfig struct {
 	// session has no other way to know they exist.
 	resumedWorkspace string
 
+	// WorkspaceHandoff carries the workspace inventory and notes file into the
+	// prompt. They are how one segment of a long task picks up from the last;
+	// in a conversation they are a page of an old task's notes on every turn.
+	// RunSegments sets it with WithWorkspaceHandoff.
+	WorkspaceHandoff bool
+
 	// resumedNotes is filled at run start with the contents of the workspace
 	// notes file — the one file whose text, not just its name, is carried
 	// across segments. See notes_handoff.go.
@@ -479,6 +485,12 @@ func WithMaxBudgetTokens(n int) RunOption {
 // n <= 0 leaves the budget unset so the service or framework default applies.
 func WithMaxTurns(n int) RunOption {
 	return func(c *RunConfig) { c.MaxTurns = n }
+}
+
+// WithWorkspaceHandoff carries the workspace inventory and the notes file into
+// this run's prompt, for a segment picking up a long task.
+func WithWorkspaceHandoff() RunOption {
+	return func(c *RunConfig) { c.WorkspaceHandoff = true }
 }
 
 // WithPriorToolCalls tells this run which tools earlier stretches of the same

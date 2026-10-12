@@ -39,7 +39,7 @@ func TestSegmentIsToldWhatIsAlreadyInTheWorkspace(t *testing.T) {
 	}
 	defer svc.Close()
 
-	events, err := svc.RunStream(ctx, "Carry on with the kernel.")
+	events, err := svc.RunStreamWithOptions(ctx, "Carry on with the kernel.", WithWorkspaceHandoff())
 	if err != nil {
 		t.Fatalf("RunStream: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestNoWorkspaceMeansNoInventorySection(t *testing.T) {
 	}
 	defer svc.Close()
 
-	events, err := svc.RunStream(context.Background(), "Start fresh.")
+	events, err := svc.RunStreamWithOptions(context.Background(), "Start fresh.", WithWorkspaceHandoff())
 	if err != nil {
 		t.Fatalf("RunStream: %v", err)
 	}

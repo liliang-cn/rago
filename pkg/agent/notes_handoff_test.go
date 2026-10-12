@@ -21,9 +21,10 @@ func notesService(t *testing.T, name string, sb sandbox.Sandbox, llm *promptCapt
 	return svc
 }
 
+// runOnce runs one segment of a long task, which is what the handoff is for.
 func runOnce(t *testing.T, svc *Service, goal string) {
 	t.Helper()
-	events, err := svc.RunStream(context.Background(), goal)
+	events, err := svc.RunStreamWithOptions(context.Background(), goal, WithWorkspaceHandoff())
 	if err != nil {
 		t.Fatalf("RunStream: %v", err)
 	}
@@ -156,5 +157,31 @@ func TestWithNotesFileOverridesTheName(t *testing.T) {
 	out := svc.notesForRun(context.Background())
 	if !strings.Contains(out, "the port is 47821") {
 		t.Errorf("the custom notes file was not read: %q", out)
+	}
+}
+
+// A conversation is not a segment of a long task: an old task's notes do not
+// ride into every reply. They did, and a capacity audit from days before sat
+// in the prompt of every chat turn.
+func TestAPlainRunCarriesNoNotesOrWorkspace(t *testing.T) {
+	sb, err := sandbox.NewLocal(sandbox.WithWorkspace(t.TempDir()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sb.WriteFile(context.Background(), DefaultNotesFile, []byte("an old task's notes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	llm := &promptCapturingLLM{}
+	svc := notesService(t, "plain", sb, llm)
+	events, err := svc.RunStream(context.Background(), "hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range events {
+	}
+	for _, p := range llm.systemPrompts() {
+		if strings.Contains(p, "Notes carried across this task") || strings.Contains(p, "an old task's notes") || strings.Contains(p, "Files already in the workspace") {
+			t.Fatalf("a plain run carried the handoff:\n%s", p)
+		}
 	}
 }

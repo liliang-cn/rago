@@ -215,11 +215,9 @@ func (s *Service) addRAGSources(sources []domain.Chunk) {
 // web-search tool available (I ran a tool search and got nothing usable)".
 // Every native line therefore says there is no tool to call.
 const (
-	webSearchBuiltInNote = "- This model has built-in web search. The provider runs it for you: there is no tool to call for it and nothing to look for in the tool catalog. " +
-		"Search results reach your context with the request; treat them as live web content, cite them, and never tell the user you cannot access the web."
-	webSearchMaybeBuiltInNote = "- This model may have built-in web search, run by the provider with no tool to call. " +
-		"Web results that appear in your context came from it: treat them as live web content and cite them."
-	webSearchFallbackNote = "- If built-in results are missing or insufficient, use a web search tool from your tool list as a fallback, when one is listed."
+	webSearchBuiltInNote      = "- The model searches the web itself; there is no tool to call. Results in your context are live: cite them, and never tell the user you cannot access the web."
+	webSearchMaybeBuiltInNote = "- Web results in your context come from the model's own search (no tool to call): treat them as live and cite them."
+	webSearchFallbackNote     = "- As a fallback, use a web search tool from your list, if one is listed."
 )
 
 func (s *Service) buildWebSearchPromptNote(currentAgent *Agent) string {

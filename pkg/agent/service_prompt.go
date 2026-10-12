@@ -49,13 +49,10 @@ func (s *Service) buildMemoryPromptNote(ctx context.Context, agent *Agent) strin
 
 	lines := []string{"Memory tool usage:"}
 	if hasSave {
-		lines = append(lines, "- If the user explicitly asks you to remember or save information for future conversations, call `memory_save` with the distilled durable fact or preference.")
-		lines = append(lines, "- Also call `memory_save` for concise durable statements that are likely to matter later even without an explicit remember phrase, such as meeting times, deadlines, appointments, or planned events.")
-		lines = append(lines, "- Save concise normalized content, not the full transcript. Do not save transient task instructions, one-off meta requests, or duplicate content from the same run.")
+		lines = append(lines, "- `memory_save` durable facts, preferences and dates — when asked to remember, or unasked when they will matter later. One short fact each, no transcripts or one-off instructions.")
 	}
 	if hasRecall {
-		lines = append(lines, "- If the user asks what was previously remembered or asks you to answer from memory, call `memory_recall` before answering.")
-		lines = append(lines, "- If one user message asks for multiple remembered facts at once, break it into multiple focused `memory_recall` queries and merge the results before answering.")
+		lines = append(lines, "- Asked what you remember: `memory_recall` first, one focused query per fact.")
 	}
 
 	return strings.Join(lines, "\n")

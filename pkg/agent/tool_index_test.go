@@ -182,10 +182,8 @@ func TestALargeIndexIsGroupedDeduplicatedAndBounded(t *testing.T) {
 	if strings.Contains(got, "A long description") {
 		t.Fatal("a large index still carries every description")
 	}
-	if n := strings.Count(got, "tool_007"); n != 1 {
-		t.Fatalf("a tool registered twice is named %d times", n)
-	}
-	for _, want := range []string{"mcp_cortexdb_* (120)", "knowledge_* (30)", "- standalone", "tool_search_tool_bm25"} {
+	// Counted once each: 120, not the 240 the double registration listed.
+	for _, want := range []string{"mcp_cortexdb_* (120 tools)", "knowledge_* (30 tools)", "tool_search_tool_bm25"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("index lacks %q:\n%s", want, got)
 		}

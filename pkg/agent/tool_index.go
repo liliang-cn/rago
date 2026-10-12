@@ -116,10 +116,8 @@ func renderToolIndex(s *Service, all, sent []domain.ToolDefinition) string {
 
 	var b strings.Builder
 	b.WriteString("\n\n## Tools you have but cannot call yet\n")
-	b.WriteString("These exist and are not in your schema. To use one, search for it first " +
-		"(tool_search_tool_bm25 with a plain-language query, or tool_search_tool_regex with a name pattern); " +
-		"the search returns its parameters and makes it callable for the rest of this conversation. " +
-		"Do not tell the user a capability is missing because it is on this list — it is here precisely because it exists.\n\n")
+	b.WriteString("Each is not in your schema yet it exists: search first (tool_search_tool_bm25 by meaning, " +
+		"tool_search_tool_regex by name) to make it callable. Never report one as missing — it exists.\n\n")
 
 	if len(hidden) <= indexWithDescriptions {
 		for _, t := range hidden {
@@ -176,7 +174,7 @@ func renderToolIndex(s *Service, all, sent []domain.ToolDefinition) string {
 const indexWithDescriptions = 24
 
 // indexBudget is the most the grouped index may take, in bytes.
-const indexBudget = 6000
+const indexBudget = 1200
 
 // toolFamily is the prefix a tool shares with its siblings: an MCP tool's
 // "mcp_<server>_", otherwise its first word and the underscore after it, or ""

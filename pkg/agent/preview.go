@@ -109,10 +109,10 @@ func (s *Service) Preview(ctx context.Context, goal string, opts ...RunOption) (
 	if cfg.resumedTask == "" {
 		cfg.resumedTask = s.taskResumeForRun(ctx, taskID)
 	}
-	if cfg.resumedWorkspace == "" {
+	if cfg.WorkspaceHandoff && cfg.resumedWorkspace == "" {
 		cfg.resumedWorkspace = s.workspaceSummaryForRun(ctx)
 	}
-	if cfg.resumedNotes == "" {
+	if cfg.WorkspaceHandoff && cfg.resumedNotes == "" {
 		cfg.resumedNotes = s.notesForRun(ctx)
 	}
 	s.resolveProjectInstructions(cfg)

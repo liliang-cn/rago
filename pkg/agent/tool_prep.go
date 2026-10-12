@@ -816,9 +816,7 @@ func (s *Service) buildToolCatalogSummary(ctx context.Context) string {
 		return ""
 	}
 
-	return "Search-mode tool catalog:\n" +
-		"- Tool schemas are minimized to save tokens.\n" +
-		"- Use search tools when you need an exact callable name.\n" +
+	return "Search-mode tool catalog: schemas are minimized; search for an exact callable name.\n" +
 		strings.Join(lines, "\n")
 }
 

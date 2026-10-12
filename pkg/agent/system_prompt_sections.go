@@ -154,10 +154,10 @@ func (s *Service) ensureSystemPromptSectionRegistry() {
 		return prompt.Section{Name: "web_search", Content: data.service.buildWebSearchPromptNote(data.agent), Dynamic: true}, nil
 	})
 	s.promptManager.RegisterSection("frc", func(ctx context.Context, raw interface{}) (prompt.Section, error) {
-		return prompt.Section{Name: "frc", Content: "Do NOT provide a summary of the tool result in your response. Instead, immediately process the result and either make another tool call or provide the final answer."}, nil
+		return prompt.Section{Name: "frc", Content: "After a tool result, act on it — another call or the answer — without restating it."}, nil
 	})
 	s.promptManager.RegisterSection("numeric_length_anchors", func(ctx context.Context, raw interface{}) (prompt.Section, error) {
-		return prompt.Section{Name: "numeric_length_anchors", Content: "Length limits: keep text between tool calls to ≤25 words. Keep final responses to ≤100 words unless the task requires more detail."}, nil
+		return prompt.Section{Name: "numeric_length_anchors", Content: "Length limits: ≤25 words between tool calls; final answers ≤100 words unless the task needs more."}, nil
 	})
 }
 
@@ -175,14 +175,9 @@ func (s *Service) buildSystemPromptSections(ctx context.Context, agent *Agent, o
 		)
 	} else {
 		rules = append(rules,
-			"- Call task_complete as soon as you have the final answer. Call task_blocked only when a concrete blocker prevents completion.",
-			"- For file operations use fs_* tools (fs_read/fs_write/fs_edit/fs_list/...). How to search the web, if at all, is stated under Web search capability.",
-			"- Treat the visible callable tool list as the authoritative source of what can actually be executed in this runtime.",
-			"- Do not invent hidden tool or API names such as generic run/status/start methods when concrete callable tool names are already exposed.",
-			"- If you are unsure which exact tool fits a request, call `search_available_tools` before claiming the capability is unavailable.",
-			"- Tool discovery is bounded to one search per task. If that search returns nothing usable, stop searching: answer directly from your own knowledge, or call task_blocked naming the missing capability. Rewording a failed search does not make it a new search — the tool catalog does not change mid-task.",
-			"- If the conversation context includes a 'Relevant Skills For This Task' section and one of those skills clearly matches the request, call the corresponding `skill_*` tool before doing the task manually.",
-			"- Skills: calling a skill tool returns step-by-step instructions — follow them, then call task_complete or task_blocked.",
+			"- Call task_complete when you have the final answer, task_blocked only for a concrete blocker.",
+			"- Call only tools in your schema; never invent names. If none fits, search once (`search_available_tools`) — one search per task — then answer or block.",
+			"- If 'Relevant Skills For This Task' lists a matching skill, call its `skill_*` tool first and follow it.",
 			"- Never repeat a tool call that cannot return anything new.",
 		)
 	}

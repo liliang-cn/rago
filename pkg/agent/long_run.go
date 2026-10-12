@@ -341,6 +341,7 @@ func (s *Service) runSegments(ctx context.Context, goal string, cfg LongRunConfi
 		sort.Strings(prior)
 		segmentOpts = append(segmentOpts,
 			WithPriorToolCalls(prior),
+			WithWorkspaceHandoff(),
 			WithTaskID(taskID),
 			// A fresh session per segment is the whole point: the next
 			// segment's history starts empty and the hand-off carries the
