@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -53,6 +54,10 @@ type Provider struct {
 	// ("low", "medium", "high"…); empty sends nothing. See
 	// Client.SetReasoningEffort.
 	ReasoningEffort string `mapstructure:"reasoning_effort" json:"reasoning_effort,omitempty"`
+	// Thinking is sent as {"thinking": {"type": Thinking}} on every chat
+	// completion that does not set its own ("disabled" turns DeepSeek v4's
+	// reasoning off); empty sends nothing. See Client.SetThinking.
+	Thinking string `mapstructure:"thinking" json:"thinking,omitempty"`
 }
 
 type SelectionHint struct {
@@ -66,6 +71,14 @@ type PoolConfig struct {
 	Enabled   bool              `mapstructure:"enabled"`
 	Strategy  SelectionStrategy `mapstructure:"strategy"`
 	Providers []Provider        `mapstructure:"providers"`
+
+	// AttemptTimeout bounds each provider's turn under StrategyFailover, so a
+	// primary that hangs leaves the rest of the caller's deadline to the
+	// next one. Zero leaves only the caller's context.
+	AttemptTimeout time.Duration `mapstructure:"attempt_timeout"`
+	// FailoverCooldown is how long a provider that just failed is tried
+	// last rather than first under StrategyFailover. Zero means 30s.
+	FailoverCooldown time.Duration `mapstructure:"failover_cooldown"`
 }
 
 // clientWrapper pairs a client with its runtime state.
@@ -75,12 +88,20 @@ type clientWrapper struct {
 	activeRequests  int32
 	healthy         bool
 	lastHealthCheck time.Time
+	// failedUntil (unix nanos) puts a provider that just failed at the back
+	// of the failover order until then.
+	failedUntil atomic.Int64
 }
 
 // Pool LLM/Embedding Client Pool
 type Pool struct {
-	config        PoolConfig
-	clients       map[string]*clientWrapper // name -> wrapper
+	config  PoolConfig
+	clients map[string]*clientWrapper // name -> wrapper
+	// order is the provider names in the order they were configured or
+	// added. Selection walks this rather than the map, whose order Go
+	// randomises: StrategyFailover used to pick its "first" provider at
+	// random.
+	order         []string
 	strategy      SelectionStrategy
 	promptManager *prompt.Manager
 
@@ -99,6 +120,9 @@ type Pool struct {
 func NewPool(config PoolConfig) (*Pool, error) {
 	if !config.Enabled {
 		return &Pool{config: config, clients: make(map[string]*clientWrapper)}, nil
+	}
+	if config.FailoverCooldown <= 0 {
+		config.FailoverCooldown = 30 * time.Second
 	}
 
 	pool := &Pool{
@@ -121,6 +145,9 @@ func NewPool(config PoolConfig) (*Pool, error) {
 			return nil, fmt.Errorf("failed to create client %s: %w", p.Name, err)
 		}
 
+		if _, dup := pool.clients[p.Name]; !dup {
+			pool.order = append(pool.order, p.Name)
+		}
 		pool.clients[p.Name] = &clientWrapper{
 			client:          client,
 			provider:        p,
@@ -217,6 +244,7 @@ func newClientForProvider(prov Provider, model string, promptMgr *prompt.Manager
 		return nil, fmt.Errorf("provider %q: %w", prov.Name, err)
 	}
 	client.SetReasoningEffort(prov.ReasoningEffort)
+	client.SetThinking(prov.Thinking)
 	if promptMgr != nil {
 		client.SetPromptManager(promptMgr)
 	}
@@ -419,8 +447,9 @@ func (p *Pool) Release(client *Client) {
 // healthyClients returns the currently healthy clients.
 func (p *Pool) healthyClients() []*clientWrapper {
 	healthy := make([]*clientWrapper, 0, len(p.clients))
-	for _, w := range p.clients {
-		if w.healthy {
+	for _, name := range p.order {
+		w := p.clients[name]
+		if w != nil && w.healthy {
 			// Check the concurrency limit.
 			if w.provider.MaxConcurrency <= 0 ||
 				atomic.LoadInt32(&w.activeRequests) < int32(w.provider.MaxConcurrency) {
@@ -597,6 +626,17 @@ func (p *Pool) Close() error {
 
 // Generate is the pool-level Generate (acquires and releases a client automatically).
 func (p *Pool) Generate(ctx context.Context, prompt string, opts *domain.GenerationOptions) (string, error) {
+	if p.usesFailover(opts) {
+		var out string
+		err := p.failover(ctx, func(ctx context.Context, c *Client) error {
+			res, err := c.Generate(ctx, prompt, opts)
+			if err == nil {
+				out = res
+			}
+			return err
+		})
+		return out, err
+	}
 	client, err := p.acquire(ctx, func() (*Client, error) { return p.clientFor(opts) })
 	if err != nil {
 		return "", err
@@ -636,6 +676,17 @@ func stamp(res *domain.GenerationResult, c *Client) *domain.GenerationResult {
 
 // GenerateWithTools is the pool-level GenerateWithTools.
 func (p *Pool) GenerateWithTools(ctx context.Context, messages []domain.Message, tools []domain.ToolDefinition, opts *domain.GenerationOptions) (*domain.GenerationResult, error) {
+	if p.usesFailover(opts) {
+		var out *domain.GenerationResult
+		err := p.failover(ctx, func(ctx context.Context, c *Client) error {
+			res, err := c.GenerateWithTools(ctx, messages, tools, opts)
+			if err == nil {
+				out = stamp(res, c)
+			}
+			return err
+		})
+		return out, err
+	}
 	client, err := p.acquire(ctx, func() (*Client, error) { return p.clientFor(opts) })
 	if err != nil {
 		return nil, err
@@ -648,6 +699,17 @@ func (p *Pool) GenerateWithTools(ctx context.Context, messages []domain.Message,
 
 // GenerateStructured is the pool-level GenerateStructured.
 func (p *Pool) GenerateStructured(ctx context.Context, prompt string, schema interface{}, opts *domain.GenerationOptions) (*domain.StructuredResult, error) {
+	if p.usesFailover(opts) {
+		var out *domain.StructuredResult
+		err := p.failover(ctx, func(ctx context.Context, c *Client) error {
+			res, err := c.GenerateStructured(ctx, prompt, schema, opts)
+			if err == nil {
+				out = res
+			}
+			return err
+		})
+		return out, err
+	}
 	client, err := p.acquire(ctx, func() (*Client, error) { return p.clientFor(opts) })
 	if err != nil {
 		return nil, err
@@ -752,6 +814,7 @@ func (p *Pool) AddProvider(prov Provider) error {
 		healthy:         true,
 		lastHealthCheck: time.Now(),
 	}
+	p.order = append(p.order, prov.Name)
 	return nil
 }
 
@@ -767,6 +830,7 @@ func (p *Pool) RemoveProvider(name string) error {
 
 	w.client.Close()
 	delete(p.clients, name)
+	p.order = slices.DeleteFunc(p.order, func(n string) bool { return n == name })
 	return nil
 }
 
@@ -807,7 +871,8 @@ func (p *Pool) ListProviders() []Provider {
 	defer p.mu.RUnlock()
 
 	providers := make([]Provider, 0, len(p.clients))
-	for _, w := range p.clients {
+	for _, name := range p.order {
+		w := p.clients[name]
 		provider := w.provider
 		provider.Models = append([]string(nil), provider.Models...)
 		providers = append(providers, provider)

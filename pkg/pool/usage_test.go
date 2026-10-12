@@ -85,3 +85,14 @@ func TestParsePoolUsage(t *testing.T) {
 		})
 	}
 }
+
+func TestParsePoolUsageReasoningTokens(t *testing.T) {
+	t.Parallel()
+	u := parsePoolUsage([]byte(`{"usage":{"prompt_tokens":3000,"completion_tokens":900,"prompt_cache_hit_tokens":2944,"completion_tokens_details":{"reasoning_tokens":760}}}`))
+	if u == nil {
+		t.Fatal("usage = nil")
+	}
+	if u.ReasoningTokens != 760 || u.CompletionTokens != 900 || u.CachedPromptTokens != 2944 {
+		t.Fatalf("usage = %+v, want reasoning 760 of 900 completion, 2944 cached", *u)
+	}
+}

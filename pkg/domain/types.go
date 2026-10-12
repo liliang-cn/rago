@@ -344,6 +344,9 @@ type TokenUsage struct {
 	CompletionTokens   int `json:"completion_tokens"`
 	CachedPromptTokens int `json:"cached_prompt_tokens,omitempty"`
 	CacheWriteTokens   int `json:"cache_write_tokens,omitempty"`
+	// ReasoningTokens is the part of CompletionTokens the model spent
+	// thinking, when the provider reports it.
+	ReasoningTokens int `json:"reasoning_tokens,omitempty"`
 }
 
 type GenerationResult struct {

@@ -44,6 +44,10 @@ type Client struct {
 	// SetReasoningEffort. effortRejected is set once the upstream refuses it.
 	reasoningEffort string
 	effortRejected  atomic.Bool
+	// thinking is sent on every chat completion; see SetThinking.
+	// thinkingRejected is set once the upstream refuses it.
+	thinking         string
+	thinkingRejected atomic.Bool
 }
 
 // NewClient creates a new client.
@@ -326,7 +330,11 @@ func buildPoolGenerateWithToolsRequest(modelName string, messages []domain.Messa
 	reqBody := map[string]interface{}{
 		"model":    modelName,
 		"messages": apiMessages,
-		"tools":    apiTools,
+	}
+	// OpenAI answers 400 to an empty tools array; a call without tools
+	// leaves the field out.
+	if len(apiTools) > 0 {
+		reqBody["tools"] = apiTools
 	}
 
 	if opts != nil {
@@ -1072,6 +1080,16 @@ func (c *Client) Close() error {
 
 // doRequest performs the HTTP request.
 func (c *Client) doRequest(ctx context.Context, path string, body interface{}) ([]byte, error) {
+	withThinking, added := c.withThinking(path, body)
+	out, err := c.postWithEffort(ctx, path, withThinking)
+	if added && isThinkingRejection(err) {
+		c.thinkingRejected.Store(true)
+		return c.postWithEffort(ctx, path, body)
+	}
+	return out, err
+}
+
+func (c *Client) postWithEffort(ctx context.Context, path string, body interface{}) ([]byte, error) {
 	sent, added := c.withEffort(path, body)
 	out, err := c.post(ctx, path, sent)
 	if added && c.refusedEffort(err) {

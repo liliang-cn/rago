@@ -24,6 +24,11 @@ type poolUsage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 
+	// Reasoning tokens are part of completion_tokens.
+	CompletionTokensDetails *struct {
+		ReasoningTokens int `json:"reasoning_tokens"`
+	} `json:"completion_tokens_details"`
+
 	// OpenAI's nested form.
 	PromptTokensDetails *struct {
 		CachedTokens int `json:"cached_tokens"`
@@ -71,6 +76,9 @@ func parsePoolUsage(raw []byte) *domain.TokenUsage {
 		CompletionTokens:   u.CompletionTokens,
 		CachedPromptTokens: cached,
 		CacheWriteTokens:   u.CacheCreationInputTokens,
+	}
+	if u.CompletionTokensDetails != nil {
+		usage.ReasoningTokens = u.CompletionTokensDetails.ReasoningTokens
 	}
 	if usage.PromptTokens == 0 && usage.CompletionTokens == 0 &&
 		usage.CachedPromptTokens == 0 && usage.CacheWriteTokens == 0 {
