@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -158,4 +159,51 @@ func names(defs []domain.ToolDefinition) []string {
 		out = append(out, d.Function.Name)
 	}
 	return out
+}
+
+// A large catalogue — CortexDB's MCP server alone is over a hundred tools,
+// and was registered twice from two config files — must not become a page of
+// descriptions on every turn. Each tool is named once, grouped by family, and
+// the whole index stays within its budget.
+func TestALargeIndexIsGroupedDeduplicatedAndBounded(t *testing.T) {
+	s := &Service{cfg: &config.Config{}}
+	var all []domain.ToolDefinition
+	long := strings.Repeat("A long description that would cost tokens on every turn. ", 3)
+	for i := 0; i < 120; i++ {
+		d := def(fmt.Sprintf("mcp_cortexdb_tool_%03d", i), long)
+		all = append(all, d, d) // the same server, registered twice
+	}
+	for i := 0; i < 30; i++ {
+		all = append(all, def(fmt.Sprintf("knowledge_graph_op_%02d", i), long))
+	}
+	all = append(all, def("standalone", long))
+
+	got := renderToolIndex(s, all, nil)
+	if strings.Contains(got, "A long description") {
+		t.Fatal("a large index still carries every description")
+	}
+	if n := strings.Count(got, "tool_007"); n != 1 {
+		t.Fatalf("a tool registered twice is named %d times", n)
+	}
+	for _, want := range []string{"mcp_cortexdb_* (120)", "knowledge_* (30)", "- standalone", "tool_search_tool_bm25"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("index lacks %q:\n%s", want, got)
+		}
+	}
+	if len(got) > indexBudget+1000 {
+		t.Fatalf("index is %d bytes, budget %d", len(got), indexBudget)
+	}
+}
+
+// Past the budget even the names go: families and counts are what is left.
+func TestAnIndexPastItsBudgetKeepsFamiliesAndCounts(t *testing.T) {
+	s := &Service{cfg: &config.Config{}}
+	var all []domain.ToolDefinition
+	for i := 0; i < 900; i++ {
+		all = append(all, def(fmt.Sprintf("mcp_big_a_rather_long_operation_name_%04d", i), "x"))
+	}
+	got := renderToolIndex(s, all, nil)
+	if !strings.Contains(got, "mcp_big_* (900 tools)") || strings.Contains(got, "operation_name_0001") {
+		t.Fatalf("an over-budget index should list the family and its count only:\n%s", got)
+	}
 }
