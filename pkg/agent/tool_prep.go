@@ -194,6 +194,9 @@ func (s *Service) prepareTurnInputsWithPolicy(ctx context.Context, currentAgent 
 	if cfg != nil && cfg.resolvedConstraints != nil && cfg.resolvedConstraints.ForbidTools {
 		tools = nil
 	}
+	if s.cfg != nil && s.cfg.Tooling.CompactSchemas && len(tools) > 0 {
+		tools = compactToolSchemas(tools)
+	}
 
 	systemMsg := s.buildSystemPromptForRun(ctx, currentAgent, cfg)
 	if cfg != nil && strings.TrimSpace(cfg.SystemPromptOverride) != "" {

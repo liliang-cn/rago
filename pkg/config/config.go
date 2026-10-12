@@ -126,6 +126,11 @@ type ToolingConfig struct {
 	// the schema. Zero means the built-in default (agent.ToolDiscoveryThreshold).
 	DiscoveryThreshold int `mapstructure:"discovery_threshold"`
 
+	// CompactSchemas sends each tool as its signature: the first sentence of
+	// its description, short parameter descriptions, no examples. The
+	// parameters' structure is untouched. See agent/tool_compact.go.
+	CompactSchemas bool `mapstructure:"compact_schemas"`
+
 	// DisableToolSearch switches the discovery mechanism off entirely, so a
 	// catalogue of any size goes into the schema flat.
 	DisableToolSearch bool `mapstructure:"disable_tool_search"`
