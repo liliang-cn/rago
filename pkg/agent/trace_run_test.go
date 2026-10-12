@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/liliang-cn/agent-go/v3/pkg/trace"
@@ -62,5 +63,72 @@ func TestARunTracesItsModelCallsAndEndsWithATimeline(t *testing.T) {
 	}
 	if out := lines.String(); !strings.Contains(out, "model purpose=turn") || !strings.Contains(out, "run end total=") {
 		t.Fatalf("trace lines:\n%s", out)
+	}
+}
+
+type purposeObserver struct {
+	BaseObserver
+	mu     sync.Mutex
+	starts []string
+	ends   map[string]int
+}
+
+func (o *purposeObserver) OnModelStart(_ context.Context, info ModelInfo) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.starts = append(o.starts, info.Purpose)
+}
+
+func (o *purposeObserver) OnModelEnd(_ context.Context, info ModelInfo, _ *ModelResult, _ error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.ends == nil {
+		o.ends = map[string]int{}
+	}
+	o.ends[info.Purpose]++
+}
+
+// Observers hear the calls a run makes on its own behalf, named for what they
+// were for, with tracing off as much as on — that is where a slow start hid
+// from every exporter. Each one that starts also ends, and the answering
+// turn is reported once.
+func TestObserversHearEveryModelCallByPurpose(t *testing.T) {
+	trace.SetEnabled(false)
+	obs := &purposeObserver{}
+	svc, err := New("observed").
+		WithConfig(testAgentConfig(t.TempDir())).
+		WithLLM(chunkedAnswerLLM{}).
+		WithObserver(obs).
+		Build()
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	defer svc.Close()
+	events, err := svc.RunStream(context.Background(), "Report the disks.")
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	for range events {
+	}
+
+	obs.mu.Lock()
+	defer obs.mu.Unlock()
+	count := map[string]int{}
+	for _, p := range obs.starts {
+		if p == "" {
+			t.Fatalf("a model call reached the observer with no purpose: %v", obs.starts)
+		}
+		count[p]++
+	}
+	if count["turn"] != 1 {
+		t.Fatalf("the answering turn was reported %d times: %v", count["turn"], obs.starts)
+	}
+	if count["constraints"] == 0 {
+		t.Fatalf("constraint extraction never reached the observer: %v", obs.starts)
+	}
+	for p, n := range count {
+		if obs.ends[p] != n {
+			t.Fatalf("%s: %d starts, %d ends", p, n, obs.ends[p])
+		}
 	}
 }

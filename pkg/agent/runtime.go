@@ -301,6 +301,7 @@ func (r *Runtime) forceFinalSynthesis(ctx context.Context, state *queryLoopState
 		SpanID:    uuid.NewString(),
 		Messages:  len(synth),
 		Model:     r.svc.Info().Model,
+		Purpose:   "final-synthesis",
 	}
 	r.svc.emitObserver(func(o Observer) { o.OnModelStart(ctx, modelInfo) })
 	synthStart := time.Now()
@@ -353,6 +354,7 @@ func (r *Runtime) RunStream(ctx context.Context, goal string) <-chan *Event {
 func (r *Runtime) loop(ctx context.Context, goal string) {
 	r.startedAt = time.Now()
 	ctx = trace.WithRun(ctx, r.runID())
+	ctx = trace.WithSink(ctx, runtimeSink{r})
 	r.logger = r.log().With(
 		slog.String("run_id", r.runID()),
 		slog.String("session_id", r.sessionID()),
@@ -634,6 +636,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			Messages:  len(genMessages),
 			Tools:     len(tools),
 			Model:     r.svc.Info().Model,
+			Purpose:   "turn",
 		}
 		r.svc.emitObserver(func(o Observer) { o.OnModelStart(ctx, modelInfo) })
 

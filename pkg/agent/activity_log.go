@@ -80,6 +80,10 @@ func (l *ActivityLog) OnModelStart(_ context.Context, info ModelInfo) {
 	l.mu.Lock()
 	l.modelAt[info.SpanID] = time.Now()
 	l.mu.Unlock()
+	if info.Purpose != "" && info.Purpose != "turn" {
+		l.line("r%-3d model>   %s", info.Round, info.Purpose)
+		return
+	}
 	l.line("r%-3d model>   msgs=%d tools=%d", info.Round, info.Messages, info.Tools)
 }
 

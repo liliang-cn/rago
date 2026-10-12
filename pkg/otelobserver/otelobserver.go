@@ -132,6 +132,7 @@ package otelobserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"time"
 
@@ -339,9 +340,16 @@ func (o *Observer) OnModelStart(ctx context.Context, info agent.ModelInfo) {
 	rctx := root.childCtx
 	o.mu.Unlock()
 
-	_, span := o.tracer.Start(rctx, "llm."+nonEmpty(info.AgentName, "model"))
+	name := "llm." + nonEmpty(info.AgentName, "model")
+	if info.Purpose != "" && info.Purpose != "turn" {
+		// A call made on the run's behalf, named for what it was for: the
+		// spans that used to be missing from a slow run's trace.
+		name = "llm." + info.Purpose
+	}
+	_, span := o.tracer.Start(rctx, name)
 	span.SetAttributes(
 		attribute.String(attrSpanKind, spanKindLLM),
+		attribute.String("agentgo.llm.purpose", nonEmpty(info.Purpose, "turn")),
 		attribute.String(attrLLMModelName, nonEmpty(info.Model, info.AgentName)),
 		attribute.String(attrSessionID, info.SessionID),
 		attribute.String(attrAgentName, info.AgentName),
@@ -386,8 +394,36 @@ func (o *Observer) OnModelEnd(ctx context.Context, info agent.ModelInfo, res *ag
 			attribute.Int(attrLLMTokenCached, res.CachedTokens),
 			attribute.Int("llm.tool_calls", res.ToolCalls),
 		)
+		if res.TTFTMs > 0 {
+			span.SetAttributes(attribute.Int64("llm.ttft_ms", res.TTFTMs))
+		}
 	}
 	finish(span, err)
+}
+
+// OnStep records a memory lookup or another timed step as a finished span,
+// backdated to when it started.
+func (o *Observer) OnStep(ctx context.Context, info agent.StepInfo) {
+	if o == nil || o.tracer == nil {
+		return
+	}
+	o.mu.Lock()
+	root := o.rootForLocked(ctx, info.TaskID, info.SessionID)
+	rctx := root.childCtx
+	o.mu.Unlock()
+	end := time.Now()
+	_, span := o.tracer.Start(rctx, info.Kind+"."+info.Name,
+		trace.WithTimestamp(end.Add(-time.Duration(info.DurationMs)*time.Millisecond)))
+	span.SetAttributes(attribute.String(attrSessionID, info.SessionID))
+	var err error
+	if info.Err != "" {
+		err = errors.New(info.Err)
+	}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	span.End(trace.WithTimestamp(end))
 }
 
 // OnToolStart opens a TOOL span as a child of the task root.

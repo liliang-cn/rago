@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -80,6 +81,13 @@ func (s *Service) toolIndex(ctx context.Context, currentAgent *Agent, policy too
 
 // renderToolIndex is toolIndex once the two catalogues are in hand: everything
 // that exists, and everything this turn is sending.
+//
+// A few hidden tools are listed one per line with what each is for. Past
+// indexWithDescriptions that becomes a page on every turn — 239 lines and 30KB
+// on an install with CortexDB's MCP server, more than the schemas it was
+// saving, and some of it twice over when one server was registered from two
+// config files. So a large index names tools by family instead, without
+// descriptions: the search the model has to run anyway returns those.
 func renderToolIndex(s *Service, all, sent []domain.ToolDefinition) string {
 	if !s.shouldIndexDeferredTools() {
 		return ""
@@ -89,20 +97,22 @@ func renderToolIndex(s *Service, all, sent []domain.ToolDefinition) string {
 		present[t.Function.Name] = true
 	}
 
-	lines := make([]string, 0, len(all))
+	// Each hidden tool once. Sorted, so the same install produces the same
+	// prefix every turn and a provider's prompt cache can keep it.
+	seen := map[string]bool{}
+	var hidden []domain.ToolDefinition
 	for _, t := range all {
 		name := strings.TrimSpace(t.Function.Name)
-		if name == "" || present[name] {
+		if name == "" || present[name] || seen[name] {
 			continue
 		}
-		lines = append(lines, "- "+name+" — "+firstLineOfDescription(t.Function.Description))
+		seen[name] = true
+		hidden = append(hidden, t)
 	}
-	if len(lines) == 0 {
+	if len(hidden) == 0 {
 		return ""
 	}
-	// Sorted, so the same install produces the same prefix every turn and a
-	// provider's prompt cache can keep it.
-	sort.Strings(lines)
+	sort.Slice(hidden, func(i, j int) bool { return hidden[i].Function.Name < hidden[j].Function.Name })
 
 	var b strings.Builder
 	b.WriteString("\n\n## Tools you have but cannot call yet\n")
@@ -110,8 +120,77 @@ func renderToolIndex(s *Service, all, sent []domain.ToolDefinition) string {
 		"(tool_search_tool_bm25 with a plain-language query, or tool_search_tool_regex with a name pattern); " +
 		"the search returns its parameters and makes it callable for the rest of this conversation. " +
 		"Do not tell the user a capability is missing because it is on this list — it is here precisely because it exists.\n\n")
-	b.WriteString(strings.Join(lines, "\n"))
-	return b.String()
+
+	if len(hidden) <= indexWithDescriptions {
+		for _, t := range hidden {
+			b.WriteString("- " + strings.TrimSpace(t.Function.Name) + " — " + firstLineOfDescription(t.Function.Description) + "\n")
+		}
+		return strings.TrimRight(b.String(), "\n")
+	}
+
+	// By family: "mcp_cortexdb_*: aggregate_metadata, apply_inference, …".
+	type family struct {
+		prefix string
+		names  []string
+	}
+	var fams []*family
+	byPrefix := map[string]*family{}
+	for _, t := range hidden {
+		name := strings.TrimSpace(t.Function.Name)
+		prefix := toolFamily(name)
+		f := byPrefix[prefix]
+		if f == nil {
+			f = &family{prefix: prefix}
+			byPrefix[prefix] = f
+			fams = append(fams, f)
+		}
+		f.names = append(f.names, strings.TrimPrefix(name, prefix))
+	}
+	var full strings.Builder
+	for _, f := range fams {
+		if f.prefix == "" || len(f.names) == 1 {
+			for _, n := range f.names {
+				full.WriteString("- " + f.prefix + n + "\n")
+			}
+			continue
+		}
+		full.WriteString(fmt.Sprintf("- %s* (%d): %s\n", f.prefix, len(f.names), strings.Join(f.names, ", ")))
+	}
+	if full.Len() <= indexBudget {
+		b.WriteString(full.String())
+		return strings.TrimRight(b.String(), "\n")
+	}
+	// Still too much to carry every turn: families and counts only.
+	for _, f := range fams {
+		if f.prefix == "" {
+			b.WriteString(fmt.Sprintf("- %d more tools with single-word names\n", len(f.names)))
+			continue
+		}
+		b.WriteString(fmt.Sprintf("- %s* (%d tools)\n", f.prefix, len(f.names)))
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// indexWithDescriptions is how many hidden tools the index still describes
+// one by one.
+const indexWithDescriptions = 24
+
+// indexBudget is the most the grouped index may take, in bytes.
+const indexBudget = 6000
+
+// toolFamily is the prefix a tool shares with its siblings: an MCP tool's
+// "mcp_<server>_", otherwise its first word and the underscore after it, or ""
+// for a name with no underscore.
+func toolFamily(name string) string {
+	if strings.HasPrefix(name, "mcp_") {
+		if parts := strings.SplitN(name, "_", 3); len(parts) == 3 {
+			return "mcp_" + parts[1] + "_"
+		}
+	}
+	if i := strings.IndexByte(name, '_'); i > 0 {
+		return name[:i+1]
+	}
+	return ""
 }
 
 // firstLineOfDescription reduces a description to the sentence that says what

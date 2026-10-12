@@ -137,7 +137,36 @@ const (
 	runKey ctxKey = iota
 	purposeKey
 	statsKey
+	sinkKey
 )
+
+// Sink hears every model call and step made with a context, whether or not
+// recording is on. The agent runtime installs one per run to forward the calls
+// it does not make itself — constraint extraction, memory picks, compaction —
+// to its observers, so an OpenTelemetry exporter or a usage meter sees them.
+type Sink interface {
+	ModelStart(ctx context.Context, id, purpose string)
+	ModelEnd(ctx context.Context, id string, r Record)
+	Step(ctx context.Context, r Record)
+}
+
+// WithSink installs a sink for the model calls and steps made with ctx.
+func WithSink(ctx context.Context, s Sink) context.Context {
+	if s == nil || ctx == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, sinkKey, s)
+}
+
+func sinkOf(ctx context.Context) Sink {
+	if ctx == nil {
+		return nil
+	}
+	s, _ := ctx.Value(sinkKey).(Sink)
+	return s
+}
+
+var callSeq atomic.Int64
 
 // WithRun names the run a context belongs to and starts its timeline.
 func WithRun(ctx context.Context, id string) context.Context {
@@ -188,6 +217,9 @@ type runStats struct {
 const maxRecords = 500
 
 func emit(ctx context.Context, r Record) {
+	if !Enabled() {
+		return
+	}
 	r.Run = runOf(ctx)
 	if s := statsOf(ctx); s != nil {
 		r.AtMs = r.Time.Sub(s.start).Milliseconds()
@@ -270,6 +302,8 @@ func ms(v int64) string {
 // Call times one model call. Get one from Model; it is nil when recording is
 // off, and every method on a nil Call does nothing.
 type Call struct {
+	id      string
+	sink    Sink
 	ctx     context.Context
 	purpose string
 	detail  string
@@ -282,7 +316,8 @@ type Call struct {
 // Model starts timing a model call. purpose overrides the context's; detail
 // is extra key=value text for the line.
 func Model(ctx context.Context, purpose string, detail ...string) *Call {
-	if !Enabled() {
+	sink := sinkOf(ctx)
+	if !Enabled() && sink == nil {
 		return nil
 	}
 	if purpose == "" && ctx != nil {
@@ -291,7 +326,11 @@ func Model(ctx context.Context, purpose string, detail ...string) *Call {
 	if purpose == "" {
 		purpose = "other"
 	}
-	c := &Call{ctx: ctx, purpose: purpose, detail: strings.Join(detail, " "), start: time.Now()}
+	c := &Call{id: fmt.Sprintf("trace-%d", callSeq.Add(1)), sink: sink, ctx: ctx, purpose: purpose,
+		detail: strings.Join(detail, " "), start: time.Now()}
+	if sink != nil {
+		sink.ModelStart(ctx, c.id, purpose)
+	}
 	if s := statsOf(ctx); s != nil {
 		s.mu.Lock()
 		if s.modelCalls == 0 && s.firstModelAt == 0 {
@@ -339,6 +378,9 @@ func (c *Call) End(usage *domain.TokenUsage, err error) {
 	if err != nil {
 		r.Err = trim(err.Error())
 	}
+	if c.sink != nil {
+		c.sink.ModelEnd(c.ctx, c.id, r)
+	}
 	emit(c.ctx, r)
 	if s := statsOf(c.ctx); s != nil {
 		s.mu.Lock()
@@ -354,7 +396,8 @@ func (c *Call) End(usage *domain.TokenUsage, err error) {
 // Step times something that is not a model call: kind is "memory" or "tool",
 // name says which. Call the returned func when it is done.
 func Step(ctx context.Context, kind, name string) func(err error) {
-	if !Enabled() {
+	sink := sinkOf(ctx)
+	if !Enabled() && sink == nil {
 		return func(error) {}
 	}
 	start := time.Now()
@@ -363,6 +406,9 @@ func Step(ctx context.Context, kind, name string) func(err error) {
 		r := Record{Time: start, Kind: kind, Name: name, DurMs: dur.Milliseconds()}
 		if err != nil {
 			r.Err = trim(err.Error())
+		}
+		if sink != nil {
+			sink.Step(ctx, r)
 		}
 		emit(ctx, r)
 		if s := statsOf(ctx); s != nil {

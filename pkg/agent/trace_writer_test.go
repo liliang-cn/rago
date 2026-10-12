@@ -111,14 +111,25 @@ func TestTraceWriterEmitsParsableJSONLForAScriptedRun(t *testing.T) {
 	// one per round plus a final one, and they interleave with the agent's
 	// events by design. TestTraceAndActivityLogCarryResourceReadings covers
 	// their presence; this test is about the sequence of what the agent did.
+	// Model calls the run makes on its own behalf — constraint extraction
+	// runs beside the first turn — are in the trace too, named by purpose,
+	// but their place in the order is the scheduler's, so they are counted
+	// here and left out of the sequence.
 	var agentEvents []string
-	resourceLines := 0
-	for _, e := range events2 {
+	resourceLines, sideCalls := 0, 0
+	for i, e := range events2 {
 		if e == "resource" {
 			resourceLines++
 			continue
 		}
+		if p, _ := lines[i]["purpose"].(string); (e == "model_start" || e == "model_end") && p != "" && p != "turn" {
+			sideCalls++
+			continue
+		}
 		agentEvents = append(agentEvents, e)
+	}
+	if sideCalls == 0 {
+		t.Error("the run's own model calls (constraint extraction) are missing from the trace")
 	}
 	if resourceLines == 0 {
 		t.Error("the trace carried no resource readings")

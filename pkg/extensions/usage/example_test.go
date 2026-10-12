@@ -36,11 +36,13 @@ func ExampleNew() {
 		panic(err)
 	}
 
+	// Three calls: the two turns, and the constraint extraction the run makes
+	// first. A meter that left that one out under-reported what a run costs.
 	snap := meter.Snapshot()
 	fmt.Println("model calls:", snap.Total.Calls)
 	fmt.Println("retries:", snap.Retries)
 	// Output:
-	// model calls: 2
+	// model calls: 3
 	// retries: 0
 }
 

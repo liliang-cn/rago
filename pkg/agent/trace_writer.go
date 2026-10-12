@@ -85,7 +85,12 @@ type traceLine struct {
 	DurationMs int64 `json:"duration_ms,omitempty"`
 
 	// Model turns.
-	Model      string       `json:"model,omitempty"`
+	Model string `json:"model,omitempty"`
+	// Purpose is what a model call was for: "turn", or one the run made on
+	// its own behalf ("constraints", "memory-pick", …). TTFTMs is the wait
+	// for its first output, when streamed.
+	Purpose    string       `json:"purpose,omitempty"`
+	TTFTMs     int64        `json:"ttft_ms,omitempty"`
 	Messages   int          `json:"messages,omitempty"`
 	Tools      int          `json:"tools,omitempty"`
 	ToolCalls  int          `json:"tool_calls,omitempty"`
@@ -229,6 +234,7 @@ func (t *TraceWriter) OnModelStart(_ context.Context, info ModelInfo) {
 		Round:     info.Round,
 		SpanID:    info.SpanID,
 		Model:     info.Model,
+		Purpose:   info.Purpose,
 		Messages:  info.Messages,
 		Tools:     info.Tools,
 	}, time.Now())
@@ -262,6 +268,7 @@ func (t *TraceWriter) OnModelEnd(_ context.Context, info ModelInfo, res *ModelRe
 		Round:     info.Round,
 		SpanID:    info.SpanID,
 		Model:     info.Model,
+		Purpose:   info.Purpose,
 	}
 	if ok {
 		line.DurationMs = now.Sub(started).Milliseconds()
@@ -272,6 +279,7 @@ func (t *TraceWriter) OnModelEnd(_ context.Context, info ModelInfo, res *ModelRe
 	case res != nil:
 		line.ToolCalls = res.ToolCalls
 		line.TextLen = len(res.Content)
+		line.TTFTMs = res.TTFTMs
 		line.Tokens = &traceTokens{
 			Total:      res.TokensUsed,
 			Prompt:     res.PromptTokens,
@@ -280,6 +288,19 @@ func (t *TraceWriter) OnModelEnd(_ context.Context, info ModelInfo, res *ModelRe
 		}
 	}
 	t.write(line, now)
+}
+
+// OnStep writes a memory lookup or another timed step (StepObserver).
+func (t *TraceWriter) OnStep(_ context.Context, info StepInfo) {
+	t.write(traceLine{
+		Event:      "step",
+		TaskID:     info.TaskID,
+		RunID:      info.RunID,
+		SessionID:  info.SessionID,
+		Kind:       info.Kind + "." + info.Name,
+		DurationMs: info.DurationMs,
+		Error:      info.Err,
+	}, time.Now())
 }
 
 func (t *TraceWriter) OnToolStart(_ context.Context, info ToolInfo) {

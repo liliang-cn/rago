@@ -112,6 +112,11 @@ type ModelInfo struct {
 	// Model is the model name the turn was sent to, so an observer can
 	// attribute its tokens without asking the service.
 	Model string
+	// Purpose is what the call was for: "turn" for the model answering, or
+	// one made on the run's behalf — "constraints", "memory-pick",
+	// "compaction", "summary", "final-synthesis" and so on. Those used to be
+	// invisible to observers, which is where a slow start hid.
+	Purpose string
 }
 
 // ModelDelta carries a streamed fragment. Kind is "reasoning" or "partial".
@@ -134,6 +139,27 @@ type ModelResult struct {
 	// a host that bills by token needs them apart.
 	PromptTokens     int
 	CompletionTokens int
+	// TTFTMs is how long before the first output arrived, for a streamed
+	// call; 0 when unknown.
+	TTFTMs int64
+}
+
+// StepInfo is a timed step that is not a model or tool call: Kind is
+// "memory" (recall, rag, skills), Name says which.
+type StepInfo struct {
+	TaskID     string
+	RunID      string
+	SessionID  string
+	Kind       string
+	Name       string
+	DurationMs int64
+	Err        string
+}
+
+// StepObserver is an optional extension: an Observer that also implements it
+// hears the run's memory lookups and other timed steps.
+type StepObserver interface {
+	OnStep(ctx context.Context, info StepInfo)
 }
 
 // ToolInfo identifies a single tool call. CallID is a stable per-call id; the
