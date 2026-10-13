@@ -9,13 +9,16 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/liliang-cn/agent-go/v3/pkg/domain"
 )
 
 // Built-in `web_search` tool: real-time, grounded answers (news/finance/facts)
-// via a search-capable, OpenAI-compatible chat endpoint. It sends both
-// DashScope's enable_search and the OpenAI-style web_search_options, so a
-// provider that supports either will ground the reply; the model is asked to
-// answer concisely and cite sources.
+// via a search-capable, OpenAI-compatible chat endpoint. Undeclared, it sends
+// both DashScope's enable_search and the OpenAI-style web_search_options, so a
+// provider that supports either will ground the reply; Native names the one
+// field the endpoint actually honours. The model is asked to answer concisely
+// and cite sources.
 
 // WebSearchConfig configures the built-in web_search tool. All three fields are
 // required for the tool to be registered.
@@ -23,21 +26,43 @@ type WebSearchConfig struct {
 	BaseURL string // OpenAI-compatible base, e.g. https://dashscope.aliyuncs.com/compatible-mode/v1
 	APIKey  string
 	Model   string // a search-capable model, e.g. qwen-plus
+	// Native names the field that turns the endpoint's search on (see
+	// domain.NativeWebSearchFormat). Empty sends both enable_search and
+	// web_search_options. A Gemini gateway needs google_search: it accepts the
+	// other two and ignores them, so the call answers from the model's own
+	// knowledge — slowly, and "beyond my cutoff" — and the agent searches
+	// again some other way.
+	Native domain.NativeWebSearchFormat
+	// ReasoningEffort is passed through when set; a search answer needs little.
+	ReasoningEffort string
 }
 
 // buildWebSearchBody builds the chat-completions request body that triggers
 // grounded retrieval. Pure function (no I/O) so it is unit-testable.
-func buildWebSearchBody(model, query string) map[string]any {
-	return map[string]any{
-		"model": model,
+func buildWebSearchBody(cfg WebSearchConfig, query string) map[string]any {
+	body := map[string]any{
+		"model": cfg.Model,
 		"messages": []map[string]string{{
 			"role":    "user",
 			"content": "Search the web, then answer the question below concisely and list 1-3 source links at the end:\n" + query,
 		}},
-		"enable_search":      true,             // DashScope
-		"web_search_options": map[string]any{}, // OpenAI-style
-		"max_tokens":         700,
+		"max_tokens": 700,
 	}
+	switch cfg.Native {
+	case domain.NativeWebSearchGoogle:
+		body["tools"] = []map[string]any{{"google_search": map[string]any{}}}
+	case domain.NativeWebSearchDashScope:
+		body["enable_search"] = true
+	case domain.NativeWebSearchOpenAI:
+		body["web_search_options"] = map[string]any{}
+	default:
+		body["enable_search"] = true                  // DashScope
+		body["web_search_options"] = map[string]any{} // OpenAI-style
+	}
+	if e := strings.TrimSpace(cfg.ReasoningEffort); e != "" {
+		body["reasoning_effort"] = e
+	}
+	return body
 }
 
 // WebSearch performs a grounded web search via the configured endpoint and
@@ -46,7 +71,7 @@ func WebSearch(ctx context.Context, cfg WebSearchConfig, query string) (string, 
 	if strings.TrimSpace(cfg.BaseURL) == "" || strings.TrimSpace(cfg.APIKey) == "" || strings.TrimSpace(cfg.Model) == "" {
 		return "", fmt.Errorf("web search not configured")
 	}
-	body, _ := json.Marshal(buildWebSearchBody(cfg.Model, query))
+	body, _ := json.Marshal(buildWebSearchBody(cfg, query))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		strings.TrimRight(cfg.BaseURL, "/")+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
