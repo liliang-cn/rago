@@ -267,7 +267,9 @@ func (s *Service) RetrieveAndInjectWithContextAndLogic(ctx context.Context, quer
 		textMems []*domain.MemoryWithScore
 	)
 	if query != "" {
+		doneEmbed := trace.Step(ctx, "memory", "recall-embed")
 		vector, haveVec = s.embed(ctx, query)
+		doneEmbed(nil)
 	}
 	if haveVec {
 		var g errgroup.Group
@@ -278,12 +280,18 @@ func (s *Service) RetrieveAndInjectWithContextAndLogic(ctx context.Context, quer
 			})
 		}
 		g.Go(func() error {
-			scoped, _ = s.store.SearchByScope(ctx, vector, scopes.ToSlice(), s.maxMemories*2)
+			done := trace.Step(ctx, "memory", "recall-vector")
+			var err error
+			scoped, err = s.store.SearchByScope(ctx, vector, scopes.ToSlice(), s.maxMemories*2)
+			done(err)
 			return nil
 		})
 		if s.enableHybrid {
 			g.Go(func() error {
-				textMems, _ = s.store.SearchByText(ctx, query, s.maxMemories)
+				done := trace.Step(ctx, "memory", "recall-text")
+				var err error
+				textMems, err = s.store.SearchByText(ctx, query, s.maxMemories)
+				done(err)
 				return nil
 			})
 		}
@@ -316,7 +324,9 @@ func (s *Service) RetrieveAndInjectWithContextAndLogic(ctx context.Context, quer
 	// 3. Navigator Search (PageIndex-style, for file stores) — captures reasoning
 	var navResults []*domain.MemoryWithScore
 	if s.navigator != nil {
+		doneNav := trace.Step(ctx, "memory", "recall-navigate")
 		navResult, err := s.navigator.NavigateWithScopesAndReason(ctx, query, scopes.ToSlice(), s.maxMemories)
+		doneNav(err)
 		if err == nil && navResult != nil {
 			memoryLogic = navResult.Reasoning
 			for i, m := range navResult.Memories {
@@ -338,14 +348,18 @@ func (s *Service) RetrieveAndInjectWithContextAndLogic(ctx context.Context, quer
 	default:
 		// Final fallback: keyword search first, then plain list
 		if query != "" {
+			doneText := trace.Step(ctx, "memory", "recall-text")
 			textMems, err := s.store.SearchByText(ctx, query, s.maxMemories)
+			doneText(err)
 			if err == nil && len(textMems) > 0 {
 				textMems = filterMemoriesByScopes(textMems, scopes.ToSlice())
 				allMemories = append(allMemories, textMems...)
 				break
 			}
 		}
-		mems, _, _ := s.store.List(ctx, s.maxMemories, 0)
+		doneList := trace.Step(ctx, "memory", "recall-list")
+		mems, _, listErr := s.store.List(ctx, s.maxMemories, 0)
+		doneList(listErr)
 		mems = filterPlainMemoriesByScopes(mems, scopes.ToSlice())
 		for _, m := range mems {
 			allMemories = append(allMemories, &domain.MemoryWithScore{Memory: m, Score: 0.5})
