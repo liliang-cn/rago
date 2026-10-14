@@ -118,10 +118,19 @@ func (s *Service) buildSystemContext() *SystemContext {
 	return ctx
 }
 
+// buildUserContext is the line every turn carries about now: the date, the
+// weekday, the time and the offset, in the person's zone.
+//
+// It used to be the date alone, in the machine's zone. A model told only
+// "2026-10-14" cannot say what "this Friday" or "tonight at 8" is without a
+// tool round, so hosts told it to call resolve_datetime first — one or two
+// model calls, several seconds, on every question with a day in it. A system
+// prompt cannot carry this instead: it is built once and goes stale.
 func (s *Service) buildUserContext() *UserContext {
-	now := time.Now()
+	now := s.now()
 	return &UserContext{
-		CurrentDate: fmt.Sprintf("Today's date is %s.", now.Format("2006-01-02")),
+		CurrentDate: fmt.Sprintf("Now: %s %s, %s, UTC%s. Work out relative dates (tomorrow, this Friday, tonight at 8) from this.",
+			now.Format("2006-01-02"), now.Format("15:04"), now.Format("Monday"), now.Format("-07:00")),
 	}
 }
 
