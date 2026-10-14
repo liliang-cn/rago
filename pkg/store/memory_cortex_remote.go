@@ -168,7 +168,8 @@ func NewCortexRemoteMemoryStore(cfg CortexRemoteConfig) (*CortexRemoteMemoryStor
 		if cfg.TLS {
 			creds = credentials.NewClientTLSFromCert(nil, "")
 		}
-		conn, err := grpc.NewClient(cfg.Endpoint, grpc.WithTransportCredentials(creds))
+		conn, err := grpc.NewClient(cfg.Endpoint, grpc.WithTransportCredentials(creds),
+			grpc.WithDefaultServiceConfig(cortexRemoteServiceConfig))
 		if err != nil {
 			return nil, fmt.Errorf("cortex-remote memory store: dial %s: %w", cfg.Endpoint, err)
 		}
@@ -340,6 +341,19 @@ func (s *CortexRemoteMemoryStore) Get(ctx context.Context, id string) (*domain.M
 	}
 	return memoryFromRemoteRecord(rec), nil
 }
+
+// cortexRemoteServiceConfig retries the read RPCs once on UNAVAILABLE.
+//
+// The shared brain fails over between nodes behind a floating address; the
+// connection a client held to the old node is reset, and the first call on it
+// came back "connection reset by peer" — a recall that cost nothing to retry
+// was skipped instead, and that turn went without memory. Reads only: a write
+// that reached the server before the reset must not run twice.
+const cortexRemoteServiceConfig = `{"methodConfig":[{
+  "name":[{"service":"cortexdb.v1.MemoryService","method":"SearchMemory"},
+          {"service":"cortexdb.v1.MemoryService","method":"GetMemory"}],
+  "retryPolicy":{"maxAttempts":2,"initialBackoff":"0.05s","maxBackoff":"0.2s",
+                 "backoffMultiplier":2,"retryableStatusCodes":["UNAVAILABLE"]}}]}`
 
 // SearchByText runs the remote server's own memory search. This is the only
 // retrieval path that really reaches the shared brain: the server owns the
