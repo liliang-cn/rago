@@ -154,6 +154,17 @@ type ToolingConfig struct {
 	// makes this a lookup rather than an amputation.
 	DeferTools []string `mapstructure:"defer_tools"`
 
+	// EagerTools names MCP tools that stay in the schema when discovery hides
+	// the rest, as exact names or "prefix*" patterns. The opposite of
+	// DeferTools, for the dynamic side.
+	//
+	// Past DiscoveryThreshold every MCP tool goes behind search, the ones a
+	// conversation uses all day included. Measured on a hive worker asked
+	// "what's on tomorrow": four model calls, two of them only to find the
+	// calendar tool — ten of its twenty-five seconds. Naming the handful an
+	// install lives on keeps those one call away; the rest stay indexed.
+	EagerTools []string `mapstructure:"eager_tools"`
+
 	// IndexDeferredTools controls whether the turn carries a one-line index of
 	// everything discovery is holding back. Default on; set false only to
 	// reproduce the old behaviour, where deferred tools existed but nothing

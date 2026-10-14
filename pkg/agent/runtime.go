@@ -142,6 +142,7 @@ func (r *Runtime) runFinalLints(content string, turn int) *LintViolation {
 	if r.session != nil {
 		sessionID = r.session.GetID()
 	}
+	lintConstraints := r.runConstraintsWithin(constraintLintWait)
 	lintCtx := LintContext{
 		Workspace:        r.svc.workspaceRoot(),
 		AgentName:        agentName,
@@ -152,8 +153,8 @@ func (r *Runtime) runFinalLints(content string, turn int) *LintViolation {
 		ToolCalls:        r.toolNamesUsedForTask(),
 		StateChanges:     r.stateChangesSnapshot(),
 		AvailableTools:   r.availableToolNamesSnapshot(),
-		Deliverables:     r.runConstraints().Deliverables,
-		RequestedActions: r.runConstraints().RequestedActions,
+		Deliverables:     lintConstraints.Deliverables,
+		RequestedActions: lintConstraints.RequestedActions,
 		IsRetry:          r.lintRetryBudget < defaultLintRetryBudget,
 		RetryCount:       defaultLintRetryBudget - r.lintRetryBudget,
 		OutputParts:      r.outputParts,
@@ -2065,6 +2066,39 @@ func (r *Runtime) runID() string {
 		return ""
 	}
 	return r.cfg.RunID
+}
+
+// constraintLintWait bounds how long a finished answer waits for the
+// background constraint check before its lints run without it.
+//
+// The check is a model call of its own, 4–7s through a gateway, and it starts
+// with the run: a reply that takes less than that sat finished, waiting for a
+// verdict about deliverables it had nothing to do with. Measured on a hive
+// queen, "你好" was written at 6.0s and released at 7.1s. A refused tool call
+// still waits for the full answer (runConstraints); only the lints give up.
+const constraintLintWait = time.Second
+
+// runConstraintsWithin is runConstraints with a deadline: it waits up to d for
+// a check still under way and otherwise returns what has arrived, which may
+// be nothing. The check keeps running; a later caller can still adopt it.
+func (r *Runtime) runConstraintsWithin(d time.Duration) RunConstraints {
+	if r == nil {
+		return RunConstraints{}
+	}
+	if ready := r.constraintsReady; ready != nil && d > 0 {
+		t := time.NewTimer(d)
+		defer t.Stop()
+		select {
+		case <-ready:
+		case <-t.C:
+		case <-r.constraintsCtx.Done():
+		}
+	}
+	r.adoptConstraints(false)
+	if r.cfg == nil || r.cfg.resolvedConstraints == nil {
+		return RunConstraints{}
+	}
+	return *r.cfg.resolvedConstraints
 }
 
 // runConstraints returns the resolved constraints, waiting for a background

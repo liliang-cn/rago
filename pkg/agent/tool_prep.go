@@ -294,6 +294,15 @@ func (s *Service) toolDiscoveryThreshold() int {
 	return ToolDiscoveryThreshold
 }
 
+// eagerToolPatterns are the MCP tools kept in the schema even when discovery
+// defers the rest (Tooling.EagerTools).
+func (s *Service) eagerToolPatterns() []string {
+	if s == nil || s.cfg == nil {
+		return nil
+	}
+	return s.cfg.Tooling.EagerTools
+}
+
 // withoutToolSearchTools drops the discovery tools from a flat catalogue.
 func withoutToolSearchTools(tools []domain.ToolDefinition) []domain.ToolDefinition {
 	out := make([]domain.ToolDefinition, 0, len(tools))
@@ -358,13 +367,17 @@ func (s *Service) collectTools(ctx context.Context, currentAgent *Agent, policy 
 		activeMap := s.toolRegistry.sessionActivated[sessionID]
 		deferAllMCP := searchMode
 		hideNativeWebSearchTools := policy.HideNativeWebSearch
+		eager := s.eagerToolPatterns()
+		visible := func(name string) bool {
+			return !deferAllMCP || (activeMap != nil && activeMap[name]) || matchesAnyToolPattern(eager, name)
+		}
 
 		if currentAgent == nil || isAllAllowed(currentAgent.mcpTools) {
 			for _, tool := range allMCP {
 				if hideNativeWebSearchTools && isMCPWebSearchToolName(tool.Function.Name) {
 					continue
 				}
-				if !deferAllMCP || (activeMap != nil && activeMap[tool.Function.Name]) {
+				if visible(tool.Function.Name) {
 					// Set DeferLoading based on whether we're deferring
 					t := tool
 					if deferAllMCP {
@@ -379,7 +392,7 @@ func (s *Service) collectTools(ctx context.Context, currentAgent *Agent, policy 
 					continue
 				}
 				if containsStr(currentAgent.mcpTools, tool.Function.Name) {
-					if !deferAllMCP || (activeMap != nil && activeMap[tool.Function.Name]) {
+					if visible(tool.Function.Name) {
 						// Set DeferLoading based on whether we're deferring
 						t := tool
 						if deferAllMCP {

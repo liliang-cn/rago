@@ -136,3 +136,51 @@ func TestForbidToolsStillYieldsZeroToolsUnderStaticPolicy(t *testing.T) {
 		t.Errorf("forbid-tools run was offered %d tools under the static policy; want 0", got)
 	}
 }
+
+// Over the threshold, MCP tools named in EagerTools stay in the schema while
+// the rest go behind search: a worker asked about tomorrow should not spend
+// two model calls finding the calendar.
+func TestEagerMCPToolsStayInTheSchemaWhenTheRestAreDeferred(t *testing.T) {
+	t.Parallel()
+
+	cfg := testAgentConfig(t.TempDir())
+	cfg.Tooling.DiscoveryThreshold = 8
+	cfg.Tooling.EagerTools = []string{"mcp_noted_list_*", "mcp_noted_get_overview"}
+
+	svc, err := New("eager-mcp").
+		WithConfig(cfg).
+		WithLLM(&constraintLLM{replies: []string{"done"}}).
+		Build()
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	defer svc.Close()
+
+	registerNTools(t, svc, 20)
+	mcp := func(name string) domain.ToolDefinition {
+		var d domain.ToolDefinition
+		d.Type = "function"
+		d.Function.Name = name
+		d.Function.Description = name
+		return d
+	}
+	svc.mcpService = &stubMCP{tools: []domain.ToolDefinition{
+		mcp("mcp_noted_list_events"), mcp("mcp_noted_list_tasks"), mcp("mcp_noted_get_overview"),
+		mcp("mcp_noted_delete_note"), mcp("mcp_other_thing"),
+	}}
+
+	tools := svc.collectAllAvailableTools(context.Background(), svc.agent)
+	if !hasToolNamed(tools, "search_available_tools") {
+		t.Fatal("over the threshold the rest must still be behind search")
+	}
+	for _, want := range []string{"mcp_noted_list_events", "mcp_noted_list_tasks", "mcp_noted_get_overview"} {
+		if !hasToolNamed(tools, want) {
+			t.Errorf("%s was deferred though EagerTools names it", want)
+		}
+	}
+	for _, hidden := range []string{"mcp_noted_delete_note", "mcp_other_thing"} {
+		if hasToolNamed(tools, hidden) {
+			t.Errorf("%s reached the schema though nothing names it eager", hidden)
+		}
+	}
+}
