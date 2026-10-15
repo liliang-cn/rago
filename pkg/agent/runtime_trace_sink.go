@@ -21,7 +21,7 @@ func (s runtimeSink) info(id, purpose string) ModelInfo {
 		RunID:     r.runID(),
 		SessionID: r.sessionID(),
 		AgentName: r.currentAgentName(),
-		Round:     r.currentRound,
+		Round:     int(r.currentRound.Load()),
 		SpanID:    id,
 		Model:     r.svc.Info().Model,
 		Purpose:   purpose,

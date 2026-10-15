@@ -308,7 +308,7 @@ func (r *Runtime) reportToolOutputTruncations(ctx context.Context, cuts []ToolOu
 		cut.RunID = r.runID()
 		cut.SessionID = r.sessionID()
 		cut.AgentName = r.currentAgentName()
-		cut.Round = r.currentRound
+		cut.Round = int(r.currentRound.Load())
 		r.log().Info("tool output truncated for the model",
 			slog.String("tool", cut.ToolName),
 			slog.String("tool_call_id", cut.ToolCallID),

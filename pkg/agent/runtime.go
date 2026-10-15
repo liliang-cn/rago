@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 	"log/slog"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 
 	"github.com/google/uuid"
 	"github.com/liliang-cn/agent-go/v3/pkg/domain"
@@ -67,7 +69,9 @@ type Runtime struct {
 	logger *slog.Logger
 
 	// Observability: current round (1-indexed, set at loop start)
-	currentRound int
+	// currentRound is written by the loop and read by trace sinks on other
+	// goroutines (constraint extraction runs beside the first round).
+	currentRound atomic.Int64
 
 	// Output-lint retry budget. Decremented every time a final response is
 	// rejected by an OutputLint and re-prompted within the same task. When
@@ -233,7 +237,7 @@ func (r *Runtime) emitLintObserved(v *LintViolation, retrying bool) {
 		RunID:     r.runID(),
 		SessionID: r.sessionID(),
 		AgentName: r.currentAgentName(),
-		Round:     r.currentRound,
+		Round:     int(r.currentRound.Load()),
 		Lint:      v.LintName,
 		Reason:    v.Reason,
 		Retrying:  retrying,
@@ -298,7 +302,7 @@ func (r *Runtime) forceFinalSynthesis(ctx context.Context, state *queryLoopState
 		RunID:     r.runID(),
 		SessionID: r.sessionID(),
 		AgentName: r.currentAgentName(),
-		Round:     r.currentRound,
+		Round:     int(r.currentRound.Load()),
 		SpanID:    uuid.NewString(),
 		Messages:  len(synth),
 		Model:     r.svc.Info().Model,
@@ -580,7 +584,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 		r.applySteers(&messages, state)
 
 		state.beginRound()
-		r.currentRound = round + 1
+		r.currentRound.Store(int64(round + 1))
 		r.emit(EventTypeThinking, "Thinking...")
 		state.setStage(TurnStageAwaitingModel, "requesting model output", 0)
 		r.emitLoopState(state)
@@ -1132,7 +1136,7 @@ func (r *Runtime) persistTerminalCheckpoint(taskID string, reason CheckpointReas
 			SessionID: sessionID,
 			AgentName: agentName,
 			Reason:    string(reason),
-			Round:     r.currentRound,
+			Round:     int(r.currentRound.Load()),
 			Messages:  len(messages),
 			FinalText: finalText,
 		})
@@ -1146,7 +1150,7 @@ func (r *Runtime) persistTerminalCheckpoint(taskID string, reason CheckpointReas
 	// can recover the files this task produced. Only at terminal checkpoints,
 	// and only when a sandbox is configured. Best-effort: nil on any failure.
 	workspace := snapshotWorkspaceBytes(context.Background(), r.svc.Sandbox())
-	if err := sink.WriteCheckpoint(taskID, reason, r.currentRound, sessionID, agentName, finalText, string(reason), messages, workspace); err != nil {
+	if err := sink.WriteCheckpoint(taskID, reason, int(r.currentRound.Load()), sessionID, agentName, finalText, string(reason), messages, workspace); err != nil {
 		r.log().Debug("failed to write terminal task checkpoint", slog.String("task_id", taskID), slog.String("error", err.Error()))
 	}
 }
@@ -1609,7 +1613,7 @@ func (r *Runtime) emitToolCall(name string, args map[string]interface{}, interru
 		AgentName: r.currentAgent.Name(),
 		ToolName:  name,
 		ToolArgs:  args,
-		Round:     r.currentRound,
+		Round:     int(r.currentRound.Load()),
 		Timestamp: time.Now(),
 	}
 	if interruptBehavior == InterruptBehaviorBlock {
@@ -1638,7 +1642,7 @@ func (r *Runtime) emitToolResult(name string, res interface{}, err error, interr
 		AgentName:  r.currentAgent.Name(),
 		ToolName:   name,
 		ToolResult: res,
-		Round:      r.currentRound,
+		Round:      int(r.currentRound.Load()),
 		Timestamp:  time.Now(),
 	}
 	if err != nil {
