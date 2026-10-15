@@ -219,7 +219,7 @@ func (r *Runtime) lintGate(goal, content string, messages *[]domain.Message, sta
 	}
 	// Budget exhausted: this final attempt is itself a violation. Emit it as a
 	// (hard) error so observers/eval count every violation, then block.
-	r.emit(EventTypeError, fmt.Sprintf("output lint %s rejected response: %s", violation.LintName, violation.Reason))
+	r.emitMarked(EventTypeError, "lint_exhausted", fmt.Sprintf("output lint %s rejected response: %s", violation.LintName, violation.Reason))
 	r.blockRunWithStop(goal, lintExhaustedUserText(content), *messages, true, StopReasonLintExhausted)
 	return true
 }
@@ -1220,7 +1220,7 @@ func (r *Runtime) persistMessages(messages []domain.Message) {
 		seen[sessionMessageKey(m)] = true
 	}
 	added := 0
-	for _, msg := range messages {
+	for _, msg := range conversationMessages(messages) {
 		k := sessionMessageKey(msg)
 		if seen[k] {
 			continue

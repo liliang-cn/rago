@@ -101,6 +101,14 @@ func (s *Service) observeRunStream(session *Session, taskID, goal string, starte
 						finishedAt: evt.Timestamp,
 					})
 				case EventTypeError:
+					// A lint retry is the run correcting itself, marked as
+					// such; it goes on. Recording it as a failure put
+					// "Execution failed: output lint …" into the conversation.
+					// When retries run out the run is blocked next, and the
+					// blocked event carries the words meant for the person.
+					if evt.DebugType == "lint_retry" || evt.DebugType == "lint_exhausted" {
+						break
+					}
 					s.persistRunTaskState(session, taskID, taskRunStateOptions{
 						status:      taskpkg.StatusFailed,
 						input:       goal,

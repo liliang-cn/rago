@@ -236,6 +236,33 @@ func normalizeLintAgentKey(name string) string {
 // recurring mistakes, not to babysit a confused model into compliance.
 const defaultLintRetryBudget = 2
 
+// lintFeedbackHead opens every lint nudge; persistMessages knows a nudge by it.
+const lintFeedbackHead = "Your previous response failed an output check and was not delivered to the user."
+
+// isLintFeedback says whether m is a nudge the runtime wrote to the model, not
+// something the person said.
+func isLintFeedback(m domain.Message) bool {
+	return m.Role == "user" && strings.HasPrefix(strings.TrimSpace(m.Content), lintFeedbackHead)
+}
+
+// conversationMessages drops what a lint retry added: the nudge is the runtime
+// talking to the model, and the text draft it rejected was never delivered —
+// neither is part of the conversation. Stored, the nudge read back as
+// something the person had said.
+func conversationMessages(messages []domain.Message) []domain.Message {
+	out := make([]domain.Message, 0, len(messages))
+	for i, m := range messages {
+		if isLintFeedback(m) {
+			continue
+		}
+		if i+1 < len(messages) && isLintFeedback(messages[i+1]) && m.Role == "assistant" && len(m.ToolCalls) == 0 {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
 // FormatLintFeedback builds the system message appended to history when a
 // lint rejects a response and the runtime is about to retry.
 func FormatLintFeedback(violation *LintViolation) string {
@@ -251,7 +278,7 @@ func FormatLintFeedback(violation *LintViolation) string {
 	// the model spent a round on `grep -rn task_delivery_contract /` looking
 	// for the rule it was supposed to satisfy. The reason is the whole message.
 	return strings.TrimSpace(
-		"Your previous response failed an output check and was not delivered to the user.\n" +
+		lintFeedbackHead + "\n" +
 			"Reason: " + reason + "\n" +
 			"Revise your response to satisfy the rule above and reply with the corrected final answer. " +
 			"Do not acknowledge this message — produce only the revised final answer.",
