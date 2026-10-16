@@ -28,6 +28,10 @@ type OpenAIProviderConfig struct {
 	LLMModel           string `mapstructure:"llm_model"`
 	Organization       string `mapstructure:"organization,omitempty"`
 	Project            string `mapstructure:"project,omitempty"`
+	// ReasoningEffort is sent as reasoning_effort on every chat completion
+	// that does not say how to reason itself: "none", "minimal", "low",
+	// "medium", "high", or whatever the upstream accepts. Empty sends nothing.
+	ReasoningEffort string `mapstructure:"reasoning_effort,omitempty"`
 }
 
 // ProviderConfig is a union type for provider configurations

@@ -150,6 +150,9 @@ func NewOpenAILLMProvider(config *domain.OpenAIProviderConfig) (domain.LLMProvid
 	if config.BaseURL != "" {
 		opts = append(opts, option.WithBaseURL(config.BaseURL))
 	}
+	if effort := strings.TrimSpace(config.ReasoningEffort); effort != "" {
+		opts = append(opts, option.WithMiddleware((&reasoningEffort{level: effort}).add))
+	}
 
 	return &OpenAILLMProvider{
 		client:        openai.NewClient(opts...),
