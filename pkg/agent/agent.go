@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/liliang-cn/agent-go/v3/pkg/domain"
@@ -10,6 +11,9 @@ import (
 // Agent represents an autonomous agent with instructions and tools
 // Inspired by OpenAI Agents SDK: Agent = LLM + instructions + tools
 type Agent struct {
+	// mu guards tools, handlers and metadata: tools can be added while a
+	// turn (or a warm-up) is reading them.
+	mu           sync.RWMutex
 	id           string
 	name         string
 	instructions string
@@ -57,6 +61,8 @@ func (a *Agent) AddToolWithMetadata(name, description string, parameters map[str
 
 // AddToolWithHandler adds a pre-built tool definition and its handler
 func (a *Agent) AddToolWithHandler(def domain.ToolDefinition, handler func(context.Context, map[string]interface{}) (interface{}, error), metadata ...ToolMetadata) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.handlers == nil {
 		a.handlers = make(map[string]func(context.Context, map[string]interface{}) (interface{}, error))
 	}
@@ -72,6 +78,8 @@ func (a *Agent) AddToolWithHandler(def domain.ToolDefinition, handler func(conte
 
 // GetHandler returns the handler for a specific tool
 func (a *Agent) GetHandler(name string) (func(context.Context, map[string]interface{}) (interface{}, error), bool) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	if a.handlers == nil {
 		return nil, false
 	}
@@ -80,9 +88,11 @@ func (a *Agent) GetHandler(name string) (func(context.Context, map[string]interf
 }
 
 func (a *Agent) MetadataOf(name string) ToolMetadata {
-	if a == nil || a.metadata == nil {
+	if a == nil {
 		return ToolMetadata{}
 	}
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	return a.metadata[name]
 }
 
@@ -155,9 +165,11 @@ func (a *Agent) Instructions() string {
 	return a.instructions
 }
 
-// Tools returns the agent's available tools
+// Tools returns a copy of the agent's available tools.
 func (a *Agent) Tools() []domain.ToolDefinition {
-	return a.tools
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return append([]domain.ToolDefinition(nil), a.tools...)
 }
 
 // Model returns the model name
@@ -182,6 +194,8 @@ func (a *Agent) SetName(name string) {
 
 // SetTools sets the agent's available tools
 func (a *Agent) SetTools(tools []domain.ToolDefinition) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	a.tools = tools
 }
 
@@ -197,6 +211,8 @@ func (a *Agent) SetTemperature(temp float64) {
 
 // GetToolNames returns the names of available tools
 func (a *Agent) GetToolNames() []string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	names := make([]string, len(a.tools))
 	for i, tool := range a.tools {
 		names[i] = tool.Function.Name
@@ -206,6 +222,8 @@ func (a *Agent) GetToolNames() []string {
 
 // HasTool checks if the agent has a specific tool
 func (a *Agent) HasTool(toolName string) bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	for _, tool := range a.tools {
 		if tool.Function.Name == toolName {
 			return true
