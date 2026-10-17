@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -40,12 +41,9 @@ func (m *multiEngineSearcher) Search(ctx context.Context, query string, opts Sea
 		return nil, fmt.Errorf("no search engine available")
 	}
 
-	results, err := engine.Search(ctx, query, opts.MaxResults)
+	results, err := searchWithFallback(ctx, m.engines, engine, query, opts.MaxResults)
 	if err != nil {
-		results, err = m.fallbackSearch(ctx, query, opts.MaxResults, engine.Name())
-		if err != nil {
-			return nil, fmt.Errorf("all search engines failed: %w", err)
-		}
+		return nil, err
 	}
 
 	if opts.ExtractContent && len(results) > 0 {
@@ -129,23 +127,47 @@ func (m *multiEngineSearcher) selectEngine(preferred []string) SearchEngine {
 	return nil
 }
 
-func (m *multiEngineSearcher) fallbackSearch(ctx context.Context, query string, maxResults int, failedEngine string) ([]SearchResult, error) {
-	priorityOrder := enginePriority()
-
-	for _, name := range priorityOrder {
-		if name == failedEngine {
+// searchWithFallback asks the chosen engine, then every other engine in
+// priority order, and stops at the first that returns at least one result.
+//
+// "No results, no error" counts as a failure. A scraper whose selectors no
+// longer match the site's markup answers exactly that way, and a fallback that
+// only ran on err != nil took it at its word: the basic tool answered every
+// query with nothing while an engine further down the list would have
+// answered it fine (measured: bing returned 0, nil; duckduckgo returned 5).
+func searchWithFallback(ctx context.Context, engines map[string]SearchEngine, first SearchEngine, query string, maxResults int) ([]SearchResult, error) {
+	var errs []error
+	try := func(eng SearchEngine) ([]SearchResult, bool) {
+		results, err := eng.Search(ctx, query, maxResults)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", eng.Name(), err))
+			return nil, false
+		}
+		if len(results) == 0 {
+			errs = append(errs, fmt.Errorf("%s: no results", eng.Name()))
+			return nil, false
+		}
+		return results, true
+	}
+	if results, ok := try(first); ok {
+		return results, nil
+	}
+	for _, name := range enginePriority() {
+		if name == first.Name() {
 			continue
 		}
-
-		if engine, ok := m.engines[name]; ok {
-			results, err := engine.Search(ctx, query, maxResults)
-			if err == nil {
-				return results, nil
-			}
+		eng, ok := engines[name]
+		if !ok {
+			continue
+		}
+		if ctx.Err() != nil {
+			break
+		}
+		if results, ok := try(eng); ok {
+			return results, nil
 		}
 	}
-
-	return nil, fmt.Errorf("all fallback engines failed")
+	return nil, fmt.Errorf("all search engines failed: %w", errors.Join(errs...))
 }
 
 func (m *multiEngineSearcher) getEngines(names []string) []SearchEngine {

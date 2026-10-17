@@ -124,7 +124,7 @@ func TestMultiEngineSearcher_FallbackAllFail(t *testing.T) {
 		extractor: &mockContentExtractor{},
 	}
 
-	_, err := searcher.fallbackSearch(context.Background(), "test", 10, "primary")
+	_, err := searchWithFallback(context.Background(), searcher.engines, failingEngine, "test", 10)
 	if err == nil {
 		t.Error("expected error when all engines fail")
 	}

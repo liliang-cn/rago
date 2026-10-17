@@ -39,13 +39,9 @@ func (h *HybridMultiEngineSearcher) Search(ctx context.Context, query string, op
 	}
 
 	// Get search results using goquery (fast)
-	results, err := engine.Search(ctx, query, opts.MaxResults)
+	results, err := searchWithFallback(ctx, h.engines, engine, query, opts.MaxResults)
 	if err != nil {
-		// Try fallback engines
-		results, err = h.fallbackSearch(ctx, query, opts.MaxResults, engine.Name())
-		if err != nil {
-			return nil, fmt.Errorf("all search engines failed: %w", err)
-		}
+		return nil, err
 	}
 
 	// Extract content if requested (using chromedp)
@@ -195,25 +191,6 @@ func (h *HybridMultiEngineSearcher) selectEngine(preferred []string) SearchEngin
 	}
 
 	return nil
-}
-
-func (h *HybridMultiEngineSearcher) fallbackSearch(ctx context.Context, query string, maxResults int, failedEngine string) ([]SearchResult, error) {
-	priorityOrder := enginePriority()
-
-	for _, name := range priorityOrder {
-		if name == failedEngine {
-			continue
-		}
-
-		if engine, ok := h.engines[name]; ok {
-			results, err := engine.Search(ctx, query, maxResults)
-			if err == nil {
-				return results, nil
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("all fallback engines failed")
 }
 
 func (h *HybridMultiEngineSearcher) getEngines(names []string) []SearchEngine {

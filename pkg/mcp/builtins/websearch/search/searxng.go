@@ -117,10 +117,13 @@ func defaultEngines() map[string]SearchEngine {
 
 // enginePriority is the order engines are tried in: the configured SearXNG
 // instance first — a stable JSON API beats parsing someone else's HTML —
-// then the scrapers.
+// then the scrapers. DuckDuckGo's lite page leads the scrapers because it is
+// the one whose markup still parses: measured 2026-10-17, bing returned no
+// results and brave returned breadcrumbs glued to titles, while duckduckgo
+// returned five clean results with snippets.
 func enginePriority() []string {
 	if searxngBaseURL() != "" {
-		return []string{"searxng", "bing", "brave", "duckduckgo"}
+		return []string{"searxng", "duckduckgo", "bing", "brave"}
 	}
-	return []string{"bing", "brave", "duckduckgo"}
+	return []string{"duckduckgo", "bing", "brave"}
 }

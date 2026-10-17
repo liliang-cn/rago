@@ -53,8 +53,8 @@ func TestSearXNGConfigurationShapesEngineSet(t *testing.T) {
 	if _, ok := defaultEngines()["searxng"]; ok {
 		t.Fatal("searxng engine present without configuration")
 	}
-	if p := enginePriority(); p[0] != "bing" {
-		t.Fatalf("unconfigured priority starts with %q, want bing", p[0])
+	if p := enginePriority(); p[0] != "duckduckgo" {
+		t.Fatalf("unconfigured priority starts with %q, want duckduckgo", p[0])
 	}
 
 	t.Setenv(searxngBaseURLEnv, "http://192.0.2.1:43877/")

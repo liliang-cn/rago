@@ -189,14 +189,14 @@ func TestMultiEngineSearcher_SelectEngine(t *testing.T) {
 			expectedName: "brave",
 		},
 		{
-			name:         "no preference uses bing",
+			name:         "no preference uses duckduckgo",
 			preferred:    []string{},
-			expectedName: "bing",
+			expectedName: "duckduckgo",
 		},
 		{
 			name:         "non-existent preference falls back",
 			preferred:    []string{"google"},
-			expectedName: "bing",
+			expectedName: "duckduckgo",
 		},
 	}
 
@@ -260,7 +260,7 @@ func TestMultiEngineSearcher_FallbackSearch(t *testing.T) {
 		extractor: &mockContentExtractor{content: "content"},
 	}
 
-	results, err := searcher.fallbackSearch(context.Background(), "test", 10, "failing")
+	results, err := searchWithFallback(context.Background(), searcher.engines, failingEngine, "test", 10)
 	if err != nil {
 		t.Errorf("expected fallback to succeed, got error: %v", err)
 	}
