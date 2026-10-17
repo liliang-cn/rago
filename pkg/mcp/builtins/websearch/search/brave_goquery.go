@@ -11,15 +11,26 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
+// Brave's result page, as served 2026-10-17: every organic hit is a
+// `div.snippet[data-type="web"]`; the first `a[href]` inside it is the
+// destination, `.title` is the title, and the description sits in
+// `.generic-snippet .content` (older markup: `.snippet-description`). Other
+// `.snippet` blocks on the page are clusters, news carousels and a divider,
+// which is what the previous scraper was reading when it returned
+// "Disclaimer | https://./help/finance-disclaimer" as the first result and
+// breadcrumbs glued to titles for the rest.
+
+const braveDefaultBaseURL = "https://search.brave.com"
+
 type braveGoQueryEngine struct {
-	client *http.Client
+	baseURL string
+	client  *http.Client
 }
 
 func NewBraveGoQueryEngine() SearchEngine {
 	return &braveGoQueryEngine{
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		baseURL: braveDefaultBaseURL,
+		client:  &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
@@ -28,16 +39,17 @@ func (b *braveGoQueryEngine) Name() string {
 }
 
 func (b *braveGoQueryEngine) Search(ctx context.Context, query string, maxResults int) ([]SearchResult, error) {
-	searchURL := fmt.Sprintf("https://search.brave.com/search?q=%s", url.QueryEscape(query))
+	if maxResults <= 0 {
+		maxResults = 10
+	}
+	searchURL := fmt.Sprintf("%s/search?q=%s&source=web", strings.TrimRight(b.baseURL, "/"), url.QueryEscape(query))
 
-	req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	// Set headers to appear more like a real browser
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
 
 	resp, err := b.client.Do(req)
@@ -45,6 +57,9 @@ func (b *braveGoQueryEngine) Search(ctx context.Context, query string, maxResult
 		return nil, fmt.Errorf("failed to fetch Brave results: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("brave returned %d", resp.StatusCode)
+	}
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
@@ -52,88 +67,35 @@ func (b *braveGoQueryEngine) Search(ctx context.Context, query string, maxResult
 	}
 
 	var results []SearchResult
-
-	// Try multiple selectors for Brave results
-	doc.Find(".snippet, .result-card, article[data-type='web']").Each(func(i int, s *goquery.Selection) {
-		if i >= maxResults {
-			return
+	doc.Find(`.snippet[data-type="web"]`).EachWithBreak(func(_ int, s *goquery.Selection) bool {
+		if len(results) >= maxResults {
+			return false
 		}
-
-		// Extract title and link
-		var title, link string
-
-		// Try different title selectors
-		titleElem := s.Find(".snippet-title").First()
-		if titleElem.Length() == 0 {
-			titleElem = s.Find("h3 a").First()
+		link, _ := s.Find("a[href]").First().Attr("href")
+		link = strings.TrimSpace(link)
+		title := strings.TrimSpace(s.Find(".title").First().Text())
+		if title == "" {
+			title = strings.TrimSpace(s.Find("a[href]").First().AttrOr("title", ""))
 		}
-		if titleElem.Length() == 0 {
-			titleElem = s.Find("a[data-testid='result-title']").First()
-		}
-		if titleElem.Length() == 0 {
-			titleElem = s.Find("a").First()
-		}
-
-		title = strings.TrimSpace(titleElem.Text())
-		link, _ = titleElem.Attr("href")
-
-		// If link is from a parent element
-		if link == "" {
-			link, _ = s.Find("a[href]").First().Attr("href")
-		}
-
-		// Extract snippet
-		snippet := strings.TrimSpace(s.Find(".snippet-description").Text())
+		snippet := strings.TrimSpace(s.Find(".generic-snippet .content").First().Text())
 		if snippet == "" {
-			snippet = strings.TrimSpace(s.Find("[data-testid='result-description']").Text())
+			snippet = strings.TrimSpace(s.Find(".snippet-description").First().Text())
 		}
-		if snippet == "" {
-			snippet = strings.TrimSpace(s.Find(".desc").Text())
+		if !strings.HasPrefix(link, "http") || title == "" {
+			return true
 		}
-		if snippet == "" {
-			snippet = strings.TrimSpace(s.Find("p").First().Text())
-		}
-
-		if link != "" && title != "" {
-			// Ensure link has protocol
-			if !strings.HasPrefix(link, "http") {
-				link = "https://" + link
-			}
-
-			results = append(results, SearchResult{
-				Title:   title,
-				URL:     link,
-				Snippet: snippet,
-				Engine:  b.Name(),
-			})
-		}
-	})
-
-	// If no results with primary selectors, try backup approach
-	if len(results) == 0 {
-		doc.Find("#results a[href]").Each(func(i int, s *goquery.Selection) {
-			if i >= maxResults {
-				return
-			}
-
-			title := strings.TrimSpace(s.Text())
-			link, _ := s.Attr("href")
-
-			// Skip navigation/internal links
-			if link != "" && title != "" && strings.Contains(link, "http") {
-				if !strings.HasPrefix(link, "http") {
-					link = "https://" + link
-				}
-
-				results = append(results, SearchResult{
-					Title:   title,
-					URL:     link,
-					Snippet: "",
-					Engine:  b.Name(),
-				})
-			}
+		results = append(results, SearchResult{
+			Title:   title,
+			URL:     link,
+			Snippet: collapseSpaces(snippet),
+			Engine:  b.Name(),
 		})
-	}
-
+		return true
+	})
 	return results, nil
+}
+
+// collapseSpaces folds the whitespace runs that fall out of nested markup.
+func collapseSpaces(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
