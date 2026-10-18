@@ -259,13 +259,7 @@ func (c *Client) handshake(ctx context.Context, transport mcp.Transport) (*mcp.C
 	}
 	c.mu.Unlock()
 
-	// Apply timeout for initialize handshake
-	timeout := c.config.DefaultTimeout
-	if timeout == 0 {
-		timeout = 30 * time.Second
-	}
-
-	connectCtx, cancel := context.WithTimeout(ctx, timeout)
+	connectCtx, cancel := context.WithTimeout(ctx, c.setupTimeout())
 	defer cancel()
 
 	session, err := client.Connect(connectCtx, transport, nil)
@@ -275,8 +269,24 @@ func (c *Client) handshake(ctx context.Context, transport mcp.Transport) (*mcp.C
 	return session, nil
 }
 
+// setupTimeout bounds each step of bringing a server up: the initialize
+// handshake, and listing what it offers afterwards.
+func (c *Client) setupTimeout() time.Duration {
+	if c.config.DefaultTimeout > 0 {
+		return c.config.DefaultTimeout
+	}
+	return 30 * time.Second
+}
+
 // loadAll loads tools, resources and prompts over session, logging failures.
+//
+// Bounded like the handshake: a server that completed it and then never
+// answers tools/list would otherwise hold its caller forever, and the
+// caller's ctx usually has no deadline at all.
 func (c *Client) loadAll(ctx context.Context, session *mcp.ClientSession) {
+	ctx, cancel := context.WithTimeout(ctx, c.setupTimeout())
+	defer cancel()
+
 	if err := c.loadToolsFrom(ctx, session); err != nil {
 		log.Printf("[WARN] Failed to load tools from %s: %v", c.config.Name, err)
 	}
@@ -968,10 +978,18 @@ func (c *Client) GetServerInfo() *mcp.Implementation {
 }
 
 // Manager manages multiple MCP clients
+//
+// mutex guards the maps only. Nothing slow — connecting, listing, closing —
+// happens while it is held: every model round of every run reads the tool list
+// under it, so one server taking its time would stall them all.
 type Manager struct {
 	clients map[string]*Client
 	config  *Config
 	mutex   sync.RWMutex
+
+	// starting holds one channel per server being connected, closed when the
+	// attempt ends, so concurrent starts of the same server share one connect.
+	starting map[string]chan struct{}
 }
 
 // NewManager creates a new MCP manager
@@ -982,35 +1000,52 @@ func NewManager(config *Config) *Manager {
 	}
 
 	return &Manager{
-		clients: make(map[string]*Client),
-		config:  config,
+		clients:  make(map[string]*Client),
+		config:   config,
+		starting: make(map[string]chan struct{}),
 	}
 }
 
 // StartServer starts an MCP server and creates a client connection
 func (m *Manager) StartServer(ctx context.Context, serverName string) (*Client, error) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	// Check if client already exists
-	if client, exists := m.clients[serverName]; exists {
-		if client.IsConnected() {
+	for {
+		m.mutex.Lock()
+		if client, exists := m.clients[serverName]; exists && client.IsConnected() {
+			m.mutex.Unlock()
 			return client, nil
 		}
-		// Remove disconnected client (Close also stops its reconnect loop)
-		_ = client.Close()
-		delete(m.clients, serverName)
-	}
-
-	// Find server config
-	var serverConfig *ServerConfig
-	loadedServers := m.config.GetLoadedServers()
-	for _, config := range loadedServers {
-		if config.Name == serverName {
-			cfg := config // Create a copy to get a stable address
-			serverConfig = &cfg
-			break
+		wait, busy := m.starting[serverName]
+		if !busy {
+			break // still locked: this call does the connecting
 		}
+		m.mutex.Unlock()
+		// Someone else is connecting it; take their result.
+		select {
+		case <-wait:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	done := make(chan struct{})
+	if m.starting == nil {
+		m.starting = make(map[string]chan struct{})
+	}
+	m.starting[serverName] = done
+	stale := m.clients[serverName]
+	delete(m.clients, serverName)
+	serverConfig := m.findServerConfig(serverName)
+	m.mutex.Unlock()
+
+	defer func() {
+		m.mutex.Lock()
+		delete(m.starting, serverName)
+		m.mutex.Unlock()
+		close(done)
+	}()
+
+	// Remove disconnected client (Close also stops its reconnect loop)
+	if stale != nil {
+		_ = stale.Close()
 	}
 
 	if serverConfig == nil {
@@ -1027,8 +1062,22 @@ func (m *Manager) StartServer(ctx context.Context, serverName string) (*Client, 
 		return nil, fmt.Errorf("failed to connect to %s: %w", serverName, err)
 	}
 
+	m.mutex.Lock()
 	m.clients[serverName] = client
+	m.mutex.Unlock()
 	return client, nil
+}
+
+// findServerConfig is the loaded config named serverName, or nil. Called with
+// m.mutex held.
+func (m *Manager) findServerConfig(serverName string) *ServerConfig {
+	for _, config := range m.config.GetLoadedServers() {
+		if config.Name == serverName {
+			cfg := config // Create a copy to get a stable address
+			return &cfg
+		}
+	}
+	return nil
 }
 
 // GetClient returns an existing client by server name
@@ -1055,31 +1104,29 @@ func (m *Manager) ListClients() map[string]*Client {
 // StopServer stops an MCP server and closes its client connection
 func (m *Manager) StopServer(serverName string) error {
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
 	client, exists := m.clients[serverName]
+	delete(m.clients, serverName)
+	m.mutex.Unlock()
+
 	if !exists {
 		return fmt.Errorf("server not found: %s", serverName)
 	}
-
-	err := client.Close()
-	delete(m.clients, serverName)
-	return err
+	return client.Close()
 }
 
 // Close closes all MCP clients
 func (m *Manager) Close() error {
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	clients := m.clients
+	m.clients = make(map[string]*Client)
+	m.mutex.Unlock()
 
 	var lastError error
-	for name, client := range m.clients {
+	for name, client := range clients {
 		if err := client.Close(); err != nil {
 			lastError = fmt.Errorf("failed to close client %s: %w", name, err)
 		}
 	}
-
-	m.clients = make(map[string]*Client)
 	return lastError
 }
 
