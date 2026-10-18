@@ -94,6 +94,18 @@ func NewMCPToolWrapper(client *Client, serverName string, tool *mcp.Tool) *MCPTo
 	}
 }
 
+// live returns the tool definition as the server last reported it, so a
+// reconnect that changed a schema is seen by the next call. It falls back to the
+// definition the wrapper was built with.
+func (w *MCPToolWrapper) live() *mcp.Tool {
+	if w.client != nil {
+		if t := w.client.toolByName(w.toolName); t != nil {
+			return t
+		}
+	}
+	return w.tool
+}
+
 func (w *MCPToolWrapper) Name() string {
 	if w.customTool != nil {
 		return w.customTool.Name()
@@ -105,7 +117,7 @@ func (w *MCPToolWrapper) Description() string {
 	if w.customTool != nil {
 		return w.customTool.Description()
 	}
-	return fmt.Sprintf("[MCP:%s] %s", w.serverName, w.tool.Description)
+	return fmt.Sprintf("[MCP:%s] %s", w.serverName, w.live().Description)
 }
 
 func (w *MCPToolWrapper) ServerName() string {
@@ -121,10 +133,10 @@ func (w *MCPToolWrapper) Annotations() *ToolAnnotations {
 	if w.customTool != nil {
 		return w.customTool.Annotations()
 	}
-	if w.tool == nil || w.tool.Annotations == nil {
+	if w.live() == nil || w.live().Annotations == nil {
 		return nil
 	}
-	a := w.tool.Annotations
+	a := w.live().Annotations
 	return &ToolAnnotations{
 		Title: a.Title,
 		// The SDK models readOnlyHint and idempotentHint as plain bools,
@@ -154,9 +166,9 @@ func (w *MCPToolWrapper) Schema() map[string]interface{} {
 		return w.customTool.Schema()
 	}
 	// Try to convert the actual InputSchema to our format
-	if w.tool.InputSchema != nil {
+	if w.live().InputSchema != nil {
 		// Use JSON marshaling/unmarshaling to convert any to map[string]interface{}
-		schemaBytes, err := json.Marshal(w.tool.InputSchema)
+		schemaBytes, err := json.Marshal(w.live().InputSchema)
 		if err == nil {
 			var schemaMap map[string]interface{}
 			if err := json.Unmarshal(schemaBytes, &schemaMap); err == nil {

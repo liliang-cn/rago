@@ -263,7 +263,13 @@ type Client struct {
 	cmd             *exec.Cmd          // Process for Stdio servers
 	procCancel      context.CancelFunc // Cancels the stdio subprocess; tied to the client lifetime, not the connect ctx
 	stopHealthCheck chan struct{}      // Channel to stop health check goroutine
-	mu              sync.Mutex         // Protects connected state
+	mu              sync.Mutex         // Protects connected state, session, and the cached tool/resource/prompt maps
+	reconnecting    bool               // A reconnect attempt is in flight (guarded by mu)
+
+	// Timings of the HTTP heartbeat; zero values mean the defaults. Tests shorten them.
+	pingInterval     time.Duration
+	reconnectBackoff time.Duration // first retry delay, doubled up to reconnectMax
+	reconnectMax     time.Duration
 
 	// SDK client (for adding roots dynamically)
 	mcpClient *mcp.Client
