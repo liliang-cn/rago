@@ -128,7 +128,7 @@ func NewClient(config *ServerConfig, opts *ClientOptions) (*Client, error) {
 // For stdio servers: starts the subprocess and monitors process exit
 // For HTTP servers: initiates SSE connection and starts ping heartbeat
 func (c *Client) Connect(ctx context.Context) error {
-	if c.connected {
+	if c.IsConnected() {
 		return nil
 	}
 
@@ -203,38 +203,63 @@ func (c *Client) createConfiguredTransport(ctx context.Context) (mcp.Transport, 
 // connectOver performs the initialize handshake on a ready transport and loads
 // the server's tools, resources and prompts.
 func (c *Client) connectOver(ctx context.Context, transport mcp.Transport) error {
-	// Create MCP client with implementation info
-	clientImpl := &mcp.Implementation{
-		Name:    "agentgo",
-		Version: "1.0.0",
+	session, err := c.handshake(ctx, transport)
+	if err != nil {
+		return err
 	}
 
-	// Build SDK client options from our ClientOptions
-	sdkOpts := &mcp.ClientOptions{}
-	if c.options != nil {
-		if c.options.CreateMessageHandler != nil {
-			sdkOpts.CreateMessageHandler = c.options.CreateMessageHandler
+	c.mu.Lock()
+	c.session = session
+	c.connected = true
+	c.mu.Unlock()
+
+	// Start health monitoring based on server type
+	c.startHealthMonitoring()
+
+	c.loadAll(ctx, session)
+	return nil
+}
+
+// handshake creates (or reuses) the SDK client and performs the initialize
+// handshake over transport. The server is only "ready" after it succeeds.
+func (c *Client) handshake(ctx context.Context, transport mcp.Transport) (*mcp.ClientSession, error) {
+	c.mu.Lock()
+	client := c.mcpClient
+	if client == nil {
+		// Create MCP client with implementation info
+		clientImpl := &mcp.Implementation{
+			Name:    "agentgo",
+			Version: "1.0.0",
 		}
-		if c.options.ElicitationHandler != nil {
-			sdkOpts.ElicitationHandler = c.options.ElicitationHandler
+
+		// Build SDK client options from our ClientOptions
+		sdkOpts := &mcp.ClientOptions{}
+		if c.options != nil {
+			if c.options.CreateMessageHandler != nil {
+				sdkOpts.CreateMessageHandler = c.options.CreateMessageHandler
+			}
+			if c.options.ElicitationHandler != nil {
+				sdkOpts.ElicitationHandler = c.options.ElicitationHandler
+			}
+			if c.options.LoggingMessageHandler != nil {
+				sdkOpts.LoggingMessageHandler = c.options.LoggingMessageHandler
+			}
 		}
-		if c.options.LoggingMessageHandler != nil {
-			sdkOpts.LoggingMessageHandler = c.options.LoggingMessageHandler
+
+		client = mcp.NewClient(clientImpl, sdkOpts)
+
+		// Add roots if provided
+		if c.options != nil && len(c.options.Roots) > 0 {
+			client.AddRoots(c.options.Roots...)
 		}
+
+		// Store client reference for dynamic root additions. A reconnect reuses
+		// it, so roots added after the first connect survive.
+		c.mcpClient = client
 	}
-
-	client := mcp.NewClient(clientImpl, sdkOpts)
-
-	// Add roots if provided
-	if c.options != nil && len(c.options.Roots) > 0 {
-		client.AddRoots(c.options.Roots...)
-	}
-
-	// Store client reference for dynamic root additions
-	c.mcpClient = client
+	c.mu.Unlock()
 
 	// Apply timeout for initialize handshake
-	// This is the key step - the server is only "ready" after successful initialize
 	timeout := c.config.DefaultTimeout
 	if timeout == 0 {
 		timeout = 30 * time.Second
@@ -243,41 +268,27 @@ func (c *Client) connectOver(ctx context.Context, transport mcp.Transport) error
 	connectCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Connect and perform initialize handshake
-	// This is where we actually determine if the server is ready/healthy
 	session, err := client.Connect(connectCtx, transport, nil)
 	if err != nil {
-		return fmt.Errorf("failed to connect to MCP server %s (initialize handshake failed): %w", c.config.Name, err)
+		return nil, fmt.Errorf("failed to connect to MCP server %s (initialize handshake failed): %w", c.config.Name, err)
 	}
+	return session, nil
+}
 
-	c.session = session
-	c.connected = true
-
-	// Start health monitoring based on server type
-	c.startHealthMonitoring()
-
-	// Load tools
-	if err := c.loadTools(ctx); err != nil {
+// loadAll loads tools, resources and prompts over session, logging failures.
+func (c *Client) loadAll(ctx context.Context, session *mcp.ClientSession) {
+	if err := c.loadToolsFrom(ctx, session); err != nil {
 		log.Printf("[WARN] Failed to load tools from %s: %v", c.config.Name, err)
 	}
 
-	// Load resources (optional, may not be supported by all servers)
-	if err := c.loadResources(ctx); err != nil {
-		// Method not found is expected for servers that don't support resources
-		if !isOptionalCapabilityError(err) {
-			log.Printf("[DEBUG] Failed to load resources from %s: %v", c.config.Name, err)
-		}
+	// Resources and prompts are optional; "method not found" is expected for
+	// servers that do not support them.
+	if err := c.loadResourcesFrom(ctx, session); err != nil && !isOptionalCapabilityError(err) {
+		log.Printf("[DEBUG] Failed to load resources from %s: %v", c.config.Name, err)
 	}
-
-	// Load prompts (optional, may not be supported by all servers)
-	if err := c.loadPrompts(ctx); err != nil {
-		// Method not found is expected for servers that don't support prompts
-		if !isOptionalCapabilityError(err) {
-			log.Printf("[DEBUG] Failed to load prompts from %s: %v", c.config.Name, err)
-		}
+	if err := c.loadPromptsFrom(ctx, session); err != nil && !isOptionalCapabilityError(err) {
+		log.Printf("[DEBUG] Failed to load prompts from %s: %v", c.config.Name, err)
 	}
-
-	return nil
 }
 
 func isOptionalCapabilityError(err error) bool {
@@ -424,39 +435,185 @@ func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 // - For Stdio servers: monitors process exit
 // - For HTTP servers: starts ping heartbeat
 func (c *Client) startHealthMonitoring() {
-	c.stopHealthCheck = make(chan struct{})
+	c.mu.Lock()
+	if c.stopHealthCheck != nil {
+		close(c.stopHealthCheck)
+	}
+	stop := make(chan struct{})
+	c.stopHealthCheck = stop
+	c.mu.Unlock()
 
 	switch c.config.Type {
 	case ServerTypeHTTP:
-		go c.startPingHeartbeat()
+		go c.startPingHeartbeat(stop)
 	}
 }
 
-// startPingHeartbeat starts periodic ping requests for HTTP servers
-// This is the recommended approach for HTTP servers per MCP best practices
-func (c *Client) startPingHeartbeat() {
-	ticker := time.NewTicker(30 * time.Second) // Ping every 30 seconds
+const (
+	defaultPingInterval     = 30 * time.Second
+	defaultReconnectBackoff = 2 * time.Second
+	defaultReconnectMax     = 60 * time.Second
+)
+
+func orDefault(d, def time.Duration) time.Duration {
+	if d <= 0 {
+		return def
+	}
+	return d
+}
+
+// canReconnect reports whether the client can rebuild its own transport. A
+// caller-supplied transport is single-use, so it cannot be redialled.
+func (c *Client) canReconnect() bool {
+	if c.config.Type != ServerTypeHTTP {
+		return false
+	}
+	return c.options == nil || c.options.Transport == nil
+}
+
+// startPingHeartbeat pings an HTTP server periodically. A failed ping marks the
+// client disconnected and keeps retrying a reconnect, with exponential backoff,
+// until it succeeds or stop is closed (Close).
+func (c *Client) startPingHeartbeat(stop <-chan struct{}) {
+	interval := orDefault(c.pingInterval, defaultPingInterval)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-c.stopHealthCheck:
+		case <-stop:
 			return
 		case <-ticker.C:
-			if !c.doPing() {
-				c.mu.Lock()
-				c.connected = false
-				c.mu.Unlock()
+			if c.IsConnected() && c.doPing() {
+				continue
+			}
+			if c.IsConnected() {
 				log.Printf("[WARN] MCP server %s ping failed, marking as disconnected", c.config.Name)
+				c.markDisconnected()
+			}
+			if !c.canReconnect() {
 				return
 			}
+			if !c.reconnectLoop(stop) {
+				return
+			}
+			ticker.Reset(interval)
 		}
 	}
 }
 
+// markDisconnected drops the dead session and flags the client as disconnected.
+func (c *Client) markDisconnected() {
+	c.mu.Lock()
+	old := c.session
+	c.connected = false
+	c.session = nil
+	c.mu.Unlock()
+	if old != nil {
+		go old.Close()
+	}
+}
+
+// reconnectLoop retries reconnectOnce with backoff. It returns true once
+// reconnected and false when stop was closed first.
+func (c *Client) reconnectLoop(stop <-chan struct{}) bool {
+	delay := orDefault(c.reconnectBackoff, defaultReconnectBackoff)
+	maxDelay := orDefault(c.reconnectMax, defaultReconnectMax)
+	if maxDelay < delay {
+		maxDelay = delay
+	}
+	for {
+		timer := time.NewTimer(delay)
+		select {
+		case <-stop:
+			timer.Stop()
+			return false
+		case <-timer.C:
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			select {
+			case <-stop:
+				cancel()
+			case <-ctx.Done():
+			}
+		}()
+		err := c.reconnectOnce(ctx)
+		cancel()
+		if err == nil {
+			log.Printf("[INFO] MCP server %s reconnected", c.config.Name)
+			return true
+		}
+		select {
+		case <-stop:
+			return false
+		default:
+		}
+		log.Printf("[DEBUG] MCP server %s reconnect failed (retry in %s): %v", c.config.Name, delay*2, err)
+		if delay *= 2; delay > maxDelay {
+			delay = maxDelay
+		}
+	}
+}
+
+// reconnectOnce redials an HTTP server: new transport, initialize handshake,
+// fresh tool/resource/prompt lists, then swaps the session in. Only one attempt
+// runs at a time, and a client that was closed meanwhile discards the result.
+func (c *Client) reconnectOnce(ctx context.Context) error {
+	c.mu.Lock()
+	if c.connected {
+		c.mu.Unlock()
+		return nil
+	}
+	if c.stopHealthCheck == nil {
+		c.mu.Unlock()
+		return fmt.Errorf("client closed")
+	}
+	if c.reconnecting {
+		c.mu.Unlock()
+		return fmt.Errorf("reconnect already in progress")
+	}
+	c.reconnecting = true
+	stop := c.stopHealthCheck
+	c.mu.Unlock()
+
+	defer func() {
+		c.mu.Lock()
+		c.reconnecting = false
+		c.mu.Unlock()
+	}()
+
+	transport, err := c.createConfiguredTransport(ctx)
+	if err != nil {
+		return err
+	}
+	session, err := c.handshake(ctx, transport)
+	if err != nil {
+		return err
+	}
+	// Refresh the caches from the new session before it is visible as connected.
+	c.loadAll(ctx, session)
+
+	c.mu.Lock()
+	if c.stopHealthCheck != stop {
+		// Closed (or restarted) while we were dialling.
+		c.mu.Unlock()
+		session.Close()
+		return fmt.Errorf("client closed")
+	}
+	c.session = session
+	c.connected = true
+	c.mu.Unlock()
+	return nil
+}
+
 // doPing sends a ping request to the server
 func (c *Client) doPing() bool {
-	if c.session == nil {
+	c.mu.Lock()
+	session := c.session
+	c.mu.Unlock()
+	if session == nil {
 		return false
 	}
 
@@ -464,133 +621,189 @@ func (c *Client) doPing() bool {
 	defer cancel()
 
 	// Use the SDK's Ping method
-	err := c.session.Ping(ctx, &mcp.PingParams{})
+	err := session.Ping(ctx, &mcp.PingParams{})
 	return err == nil
+}
+
+// activeSession returns the live session. For a dropped HTTP server it makes one
+// immediate reconnect attempt before failing with "client not connected".
+func (c *Client) activeSession(ctx context.Context) (*mcp.ClientSession, error) {
+	c.mu.Lock()
+	session, connected := c.session, c.connected
+	c.mu.Unlock()
+	if connected && session != nil {
+		return session, nil
+	}
+	if c.canReconnect() {
+		rctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		err := c.reconnectOnce(rctx)
+		cancel()
+		if err == nil {
+			c.mu.Lock()
+			session, connected = c.session, c.connected
+			c.mu.Unlock()
+			if connected && session != nil {
+				return session, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("client not connected")
 }
 
 // Ping sends a ping request to the server (public method)
 func (c *Client) Ping(ctx context.Context) error {
-	if !c.connected || c.session == nil {
+	c.mu.Lock()
+	session, connected := c.session, c.connected
+	c.mu.Unlock()
+	if !connected || session == nil {
 		return fmt.Errorf("client not connected")
 	}
 
-	return c.session.Ping(ctx, &mcp.PingParams{})
+	return session.Ping(ctx, &mcp.PingParams{})
 }
 
 // AddRoots adds filesystem roots that the server should focus on
 // Roots define filesystem boundaries for server operations
 // This can be called before or after Connect
 func (c *Client) AddRoots(roots ...*mcp.Root) {
-	if c.mcpClient != nil {
-		c.mcpClient.AddRoots(roots...)
+	c.mu.Lock()
+	client := c.mcpClient
+	c.mu.Unlock()
+	if client != nil {
+		client.AddRoots(roots...)
 	}
 }
 
 // loadTools fetches and caches the available tools from the server
 func (c *Client) loadTools(ctx context.Context) error {
-	if !c.connected || c.session == nil {
+	c.mu.Lock()
+	session, connected := c.session, c.connected
+	c.mu.Unlock()
+	if !connected || session == nil {
 		return fmt.Errorf("client not connected")
 	}
+	return c.loadToolsFrom(ctx, session)
+}
 
-	toolsResponse, err := c.session.ListTools(ctx, &mcp.ListToolsParams{})
+func (c *Client) loadToolsFrom(ctx context.Context, session *mcp.ClientSession) error {
+	toolsResponse, err := session.ListTools(ctx, &mcp.ListToolsParams{})
 	if err != nil {
 		return fmt.Errorf("failed to list tools: %w", err)
 	}
 
-	// Clear existing tools and load new ones
-	c.tools = make(map[string]*mcp.Tool)
+	// Replace the cache wholesale so tools the server dropped disappear
+	tools := make(map[string]*mcp.Tool, len(toolsResponse.Tools))
 	for _, tool := range toolsResponse.Tools {
-		c.tools[tool.Name] = tool
+		tools[tool.Name] = tool
 	}
+	c.mu.Lock()
+	c.tools = tools
+	c.mu.Unlock()
 
 	return nil
 }
 
 // loadResources fetches and caches the available resources from the server
-func (c *Client) loadResources(ctx context.Context) error {
-	if !c.connected || c.session == nil {
-		return fmt.Errorf("client not connected")
-	}
-
-	// Load resources
-	resourcesResponse, err := c.session.ListResources(ctx, &mcp.ListResourcesParams{})
+func (c *Client) loadResourcesFrom(ctx context.Context, session *mcp.ClientSession) error {
+	resourcesResponse, err := session.ListResources(ctx, &mcp.ListResourcesParams{})
 	if err != nil {
 		return fmt.Errorf("failed to list resources: %w", err)
 	}
 
-	c.resources = make(map[string]*mcp.Resource)
+	resources := make(map[string]*mcp.Resource, len(resourcesResponse.Resources))
 	for _, resource := range resourcesResponse.Resources {
-		c.resources[resource.URI] = resource
+		resources[resource.URI] = resource
 	}
+	c.mu.Lock()
+	c.resources = resources
+	c.mu.Unlock()
 
 	// Load resource templates
-	templatesResponse, err := c.session.ListResourceTemplates(ctx, &mcp.ListResourceTemplatesParams{})
+	templatesResponse, err := session.ListResourceTemplates(ctx, &mcp.ListResourceTemplatesParams{})
 	if err != nil {
 		// Templates are optional, don't fail
 		return nil
 	}
 
-	c.resourceTemplates = make(map[string]*mcp.ResourceTemplate)
+	templates := make(map[string]*mcp.ResourceTemplate, len(templatesResponse.ResourceTemplates))
 	for _, template := range templatesResponse.ResourceTemplates {
-		c.resourceTemplates[template.URITemplate] = template
+		templates[template.URITemplate] = template
 	}
+	c.mu.Lock()
+	c.resourceTemplates = templates
+	c.mu.Unlock()
 
 	return nil
 }
 
 // loadPrompts fetches and caches the available prompts from the server
-func (c *Client) loadPrompts(ctx context.Context) error {
-	if !c.connected || c.session == nil {
-		return fmt.Errorf("client not connected")
-	}
-
-	promptsResponse, err := c.session.ListPrompts(ctx, &mcp.ListPromptsParams{})
+func (c *Client) loadPromptsFrom(ctx context.Context, session *mcp.ClientSession) error {
+	promptsResponse, err := session.ListPrompts(ctx, &mcp.ListPromptsParams{})
 	if err != nil {
 		return fmt.Errorf("failed to list prompts: %w", err)
 	}
 
-	c.prompts = make(map[string]*mcp.Prompt)
+	prompts := make(map[string]*mcp.Prompt, len(promptsResponse.Prompts))
 	for _, prompt := range promptsResponse.Prompts {
-		c.prompts[prompt.Name] = prompt
+		prompts[prompt.Name] = prompt
 	}
+	c.mu.Lock()
+	c.prompts = prompts
+	c.mu.Unlock()
 
 	return nil
 }
 
+// toolByName returns the cached definition of one tool, or nil.
+func (c *Client) toolByName(name string) *mcp.Tool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.tools[name]
+}
+
 // GetTools returns the available tools from this server
 func (c *Client) GetTools() map[string]*mcp.Tool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.tools
 }
 
 // GetResources returns the available resources from this server
 func (c *Client) GetResources() map[string]*mcp.Resource {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.resources
 }
 
 // GetResourceTemplates returns the available resource templates from this server
 func (c *Client) GetResourceTemplates() map[string]*mcp.ResourceTemplate {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.resourceTemplates
 }
 
 // GetPrompts returns the available prompts from this server
 func (c *Client) GetPrompts() map[string]*mcp.Prompt {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.prompts
 }
 
 // CallTool calls a tool on the MCP server
 func (c *Client) CallTool(ctx context.Context, toolName string, arguments map[string]interface{}) (*ToolResult, error) {
-	if !c.connected || c.session == nil {
-		return nil, fmt.Errorf("client not connected")
+	session, err := c.activeSession(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Check if tool exists
-	tool, exists := c.tools[toolName]
-	if !exists {
+	tool := c.toolByName(toolName)
+	if tool == nil {
 		return nil, fmt.Errorf("tool '%s' not found on server '%s'", toolName, c.config.Name)
 	}
 
 	// Call the tool
-	response, err := c.session.CallTool(ctx, &mcp.CallToolParams{
+	response, err := session.CallTool(ctx, &mcp.CallToolParams{
 		Name:      tool.Name,
 		Arguments: arguments,
 	})
@@ -623,11 +836,12 @@ func (c *Client) CallTool(ctx context.Context, toolName string, arguments map[st
 
 // ReadResource reads a resource from the MCP server
 func (c *Client) ReadResource(ctx context.Context, uri string) (*ResourceContent, error) {
-	if !c.connected || c.session == nil {
-		return nil, fmt.Errorf("client not connected")
+	session, err := c.activeSession(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	response, err := c.session.ReadResource(ctx, &mcp.ReadResourceParams{
+	response, err := session.ReadResource(ctx, &mcp.ReadResourceParams{
 		URI: uri,
 	})
 	if err != nil {
@@ -659,11 +873,12 @@ func (c *Client) ReadResource(ctx context.Context, uri string) (*ResourceContent
 
 // GetPrompt retrieves a prompt from the MCP server
 func (c *Client) GetPrompt(ctx context.Context, name string, arguments map[string]string) (*PromptContent, error) {
-	if !c.connected || c.session == nil {
-		return nil, fmt.Errorf("client not connected")
+	session, err := c.activeSession(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	response, err := c.session.GetPrompt(ctx, &mcp.GetPromptParams{
+	response, err := session.GetPrompt(ctx, &mcp.GetPromptParams{
 		Name:      name,
 		Arguments: arguments,
 	})
@@ -692,11 +907,11 @@ func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if !c.connected {
+	if !c.connected && c.stopHealthCheck == nil {
 		return nil
 	}
 
-	// Stop health monitoring
+	// Stop health monitoring (also ends a reconnect loop of a dropped client)
 	if c.stopHealthCheck != nil {
 		close(c.stopHealthCheck)
 		c.stopHealthCheck = nil
@@ -743,8 +958,11 @@ func (c *Client) IsConnected() bool {
 
 // GetServerInfo returns information about the connected server
 func (c *Client) GetServerInfo() *mcp.Implementation {
-	if c.session != nil {
-		return c.session.InitializeResult().ServerInfo
+	c.mu.Lock()
+	session := c.session
+	c.mu.Unlock()
+	if session != nil {
+		return session.InitializeResult().ServerInfo
 	}
 	return nil
 }
@@ -779,7 +997,8 @@ func (m *Manager) StartServer(ctx context.Context, serverName string) (*Client, 
 		if client.IsConnected() {
 			return client, nil
 		}
-		// Remove disconnected client
+		// Remove disconnected client (Close also stops its reconnect loop)
+		_ = client.Close()
 		delete(m.clients, serverName)
 	}
 
