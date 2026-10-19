@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/liliang-cn/agent-go/v3/pkg/sandbox"
 )
 
 // StopHookConfig configures a shell-command stop hook. Stop hooks run at the
@@ -46,7 +48,8 @@ func runStopShellHook(ctx context.Context, cfg StopHookConfig, data HookData) Ho
 		defer cancel()
 	}
 
-	cmd := exec.CommandContext(cmdCtx, "/bin/sh", "-c", cfg.Command)
+	name, argv := sandbox.HostShellCommand(cfg.Command)
+	cmd := exec.CommandContext(cmdCtx, name, argv...)
 	env := []string{
 		fmt.Sprintf("AGENTGO_SESSION_ID=%s", data.SessionID),
 		fmt.Sprintf("AGENTGO_AGENT_ID=%s", data.AgentID),

@@ -277,6 +277,8 @@ github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80 h1:6Yzfa6GP0rIo/kUL
 github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80/go.mod h1:imJHygn/1yfhB7XSJJKlFZKl/J+dCPAknuiaGOshXAs=
 github.com/liliang-cn/agentexec v0.5.0 h1:cTdZF/ccLQOFbx6qdUOrknHe9zRkFErQchDeQzviZvY=
 github.com/liliang-cn/agentexec v0.5.0/go.mod h1:Lt1DVrf3IX0u/2B4YokbMOfQElXKN4bd1xgKNI4acIo=
+github.com/liliang-cn/agentexec v0.6.0 h1:AdCAUb+8EeYNR5333V04/MN1G7RQLAQkbZdpTHNCwBE=
+github.com/liliang-cn/agentexec v0.6.0/go.mod h1:Lt1DVrf3IX0u/2B4YokbMOfQElXKN4bd1xgKNI4acIo=
 github.com/liliang-cn/cortexdb/v2 v2.98.0 h1:okXKYnslIz1RxCjiiPr30tqdbsNQeuUpgXh91WiWQ3Q=
 github.com/liliang-cn/cortexdb/v2 v2.98.0/go.mod h1:O4EPYRbBsEpEsRisT2Hs2jhKVoEMPuRm87xAXpwLMwc=
 github.com/liliang-cn/mcp-swagger-server v1.3.0 h1:PFnm9mSbjVoFv4AelRzmHuxuuJXI8QRUYVeYmjkpsPw=
