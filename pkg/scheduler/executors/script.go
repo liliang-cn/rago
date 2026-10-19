@@ -7,10 +7,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/liliang-cn/agent-go/v3/pkg/config"
+	"github.com/liliang-cn/agent-go/v3/pkg/sandbox"
 	"github.com/liliang-cn/agent-go/v3/pkg/scheduler"
 )
 
@@ -63,11 +65,6 @@ func (e *ScriptExecutor) Execute(ctx context.Context, parameters map[string]stri
 	workDir := parameters["workdir"]
 	shell := parameters["shell"]
 
-	// Default shell
-	if shell == "" {
-		shell = "/bin/sh"
-	}
-
 	// Set working directory
 	if workDir == "" {
 		workDir, _ = os.Getwd()
@@ -87,10 +84,25 @@ func (e *ScriptExecutor) Execute(ctx context.Context, parameters map[string]stri
 		if !filepath.IsAbs(script) {
 			script = filepath.Join(workDir, script)
 		}
-		cmd = exec.CommandContext(ctx, shell, script)
-	} else {
+		switch {
+		case shell != "":
+			cmd = exec.CommandContext(ctx, shell, script)
+		case runtime.GOOS == "windows":
+			cmd = exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-File", script)
+		default:
+			cmd = exec.CommandContext(ctx, "/bin/sh", script)
+		}
+	} else if shell != "" {
 		// Treat as inline script/command
 		cmd = exec.CommandContext(ctx, shell, "-c", script)
+	} else {
+		// This machine's shell: sh, or PowerShell on Windows, which has no sh.
+		name, argv := sandbox.HostShellCommand(script)
+		cmd = exec.CommandContext(ctx, name, argv...)
+	}
+
+	if shell == "" {
+		shell = cmd.Args[0]
 	}
 
 	// Set working directory

@@ -62,6 +62,9 @@ func TestLocalPathJailRejectsEscapes(t *testing.T) {
 }
 
 func TestLocalExecCapturesOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("runs sh")
+	}
 	sb := newTestLocal(t)
 	ctx := context.Background()
 
@@ -81,6 +84,9 @@ func TestLocalExecCapturesOutput(t *testing.T) {
 }
 
 func TestLocalExecStdinAndWorkdir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("runs sh")
+	}
 	sb := newTestLocal(t)
 	ctx := context.Background()
 	if err := sb.Mkdir(ctx, "wd"); err != nil {

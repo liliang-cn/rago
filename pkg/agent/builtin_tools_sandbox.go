@@ -542,11 +542,11 @@ func RegisterSandboxTools(svc *Service, sb sandbox.Sandbox) {
 	if !has("bash") {
 		svc.AddToolWithMetadata(
 			"bash",
-			"Run one shell command in the sandbox workspace (via sh -c) and return stdout/stderr/exit_code. Optional timeout_seconds (default 120).",
+			"Run one shell command in the sandbox workspace (via "+sandbox.ShellName(sb)+") and return stdout/stderr/exit_code. Optional timeout_seconds (default 120).",
 			map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"command":         map[string]interface{}{"type": "string", "description": "Shell command to run"},
+					"command":         map[string]interface{}{"type": "string", "description": sandbox.ShellName(sb) + " command to run"},
 					"timeout_seconds": map[string]interface{}{"type": "integer", "description": "Timeout in seconds, default 120"},
 				},
 				"required": []string{"command"},
@@ -560,9 +560,10 @@ func RegisterSandboxTools(svc *Service, sb sandbox.Sandbox) {
 				if timeout <= 0 {
 					timeout = 120
 				}
+				name, argv := sandbox.ShellCommand(sb, command)
 				res, err := sb.Exec(ctx, sandbox.ExecRequest{
-					Command: "sh",
-					Args:    []string{"-c", command},
+					Command: name,
+					Args:    argv,
 					Timeout: time.Duration(timeout) * time.Second,
 				})
 				if err != nil {
@@ -591,6 +592,14 @@ func RegisterSandboxTools(svc *Service, sb sandbox.Sandbox) {
 			},
 			destMeta,
 		)
+	}
+
+	// A session runs on a PTY, and creack/pty has none on Windows (a Docker
+	// sandbox there would need one on the host as well). Over plain pipes
+	// Windows PowerShell holds its output until it exits, so rather than
+	// tools that only ever fail, the model gets bash, which runs PowerShell.
+	if !sandbox.HasSessions() {
+		return
 	}
 
 	// --- shell_start ---
