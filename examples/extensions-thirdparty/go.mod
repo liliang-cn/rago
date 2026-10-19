@@ -71,7 +71,7 @@ require (
 	github.com/jackc/pgx/v5 v5.10.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/json-iterator/go v0.0.0-20171115153421-f7279a603ede // indirect
-	github.com/liliang-cn/agentexec v0.5.0 // indirect
+	github.com/liliang-cn/agentexec v0.6.0 // indirect
 	github.com/liliang-cn/cortexdb/v2 v2.98.0 // indirect
 	github.com/liliang-cn/mcp-swagger-server v1.3.0 // indirect
 	github.com/liliang-cn/pipeit v0.1.0 // indirect
