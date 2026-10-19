@@ -50,6 +50,10 @@
 //	          llm.token_count.prompt_details.cache_read, llm.tool_calls;
 //	          with agent.WithObserverPayloads also input.value,
 //	          llm.input_messages.<i>.message.*, llm.tools.<i>.tool.json_schema
+//
+// Every llm, tool and agent span also carries the OpenTelemetry GenAI
+// semantic conventions (gen_ai.*) beside the OpenInference set; see genai.go.
+//
 //	tool      openinference.span.kind, tool.name, tool.parameters,
 //	          input.value, output.value, session.id, agentgo.agent_name,
 //	          agentgo.tool.inner
@@ -358,6 +362,7 @@ func (o *Observer) OnModelStart(ctx context.Context, info agent.ModelInfo) {
 		attribute.String(attrAgentName, info.AgentName),
 		attribute.Int(attrRound, info.Round),
 	)
+	span.SetAttributes(genAIModelStartAttrs(info)...)
 	o.track(info.SpanID, span)
 }
 
@@ -402,6 +407,7 @@ func (o *Observer) OnModelEnd(ctx context.Context, info agent.ModelInfo, res *ag
 			span.SetAttributes(attribute.Int64("llm.ttft_ms", res.TTFTMs))
 		}
 	}
+	span.SetAttributes(genAIModelEndAttrs(info, res, err)...)
 	finish(span, err)
 }
 
@@ -451,6 +457,7 @@ func (o *Observer) OnToolStart(ctx context.Context, info agent.ToolInfo) {
 		attribute.String(attrAgentName, info.AgentName),
 		attribute.Bool("agentgo.tool.inner", info.Inner),
 	)
+	span.SetAttributes(genAIToolAttrs(info, argsJSON)...)
 	o.track("tool:"+info.CallID, span)
 }
 
@@ -465,7 +472,11 @@ func (o *Observer) OnToolEnd(ctx context.Context, info agent.ToolInfo, result an
 		return
 	}
 	if result != nil {
-		span.SetAttributes(attribute.String(attrOutputValue, toJSON(result)))
+		out := toJSON(result)
+		span.SetAttributes(
+			attribute.String(attrOutputValue, out),
+			attribute.String(genAIToolCallResult, out),
+		)
 	}
 	finish(span, err)
 }
@@ -488,6 +499,7 @@ func (o *Observer) OnSubAgentStart(ctx context.Context, info agent.SubAgentInfo)
 		attribute.String(attrGoal, info.Goal),
 		attribute.String(attrInputValue, info.Goal),
 	)
+	span.SetAttributes(genAIAgentAttrs(info)...)
 	o.track("sub:"+info.SubAgentID, span)
 }
 

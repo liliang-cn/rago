@@ -167,6 +167,11 @@ type ModelResult struct {
 	// TTFTMs is how long before the first output arrived, for a streamed
 	// call; 0 when unknown.
 	TTFTMs int64
+	// Model and Provider are what actually answered, when the provider said
+	// (a routed run or a pool fallback can differ from ModelInfo.Model, which
+	// is what was asked for). Empty when unknown.
+	Model    string
+	Provider string
 }
 
 // StepInfo is a timed step that is not a model or tool call: Kind is

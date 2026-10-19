@@ -251,6 +251,21 @@ content when a trace is for sizes rather than words.
 
 `examples/observer-payloads` prints what each turn was sent.
 
+The spans speak two dialects on purpose. OpenInference (`llm.*`, `tool.*`,
+`input.value`) is what Phoenix and Langfuse read; the OpenTelemetry GenAI
+conventions (`gen_ai.operation.name`, `gen_ai.request.model`,
+`gen_ai.usage.input_tokens`, `gen_ai.tool.name`, `gen_ai.input.messages`…)
+are what Grafana, Datadog LLM Observability, Honeycomb and the Collector's
+GenAI processors key on, and a backend built on them had received every span
+without recognising one as a model call. `pkg/otelobserver/genai.go` writes
+the second set beside the first, plus the two semconv metrics
+`gen_ai.client.token.usage` and `gen_ai.client.operation.duration`. The keys
+are string constants, not a semconv import: the conventions are still marked
+development and otel-go ships only the stable ones, so a renamed key is a
+deliberate edit here rather than a dependency bump. `ModelResult.Model` /
+`.Provider` carry what actually answered, so `gen_ai.response.model` can
+differ from `gen_ai.request.model` on a routed or fallen-back run.
+
 ### Asking a run what it is doing, without being its caller
 
 `Service.StatusSnapshot()` (`status.go`). Everything in it existed somewhere;

@@ -760,6 +760,8 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 					CachedTokens:     cachedTokens,
 					PromptTokens:     promptTokens,
 					CompletionTokens: completionTokens,
+					Model:            result.Model,
+					Provider:         result.Provider,
 				}
 			}
 			modelErr := err

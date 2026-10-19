@@ -59,6 +59,11 @@ type instruments struct {
 	completionTokens metric.Int64Counter
 	cachedTokens     metric.Int64Counter
 
+	// The two OpenTelemetry GenAI semconv metrics, beside the agentgo.* set:
+	// what a Grafana or Datadog LLM dashboard built on the spec reads.
+	genAITokenUsage        metric.Int64Histogram
+	genAIOperationDuration metric.Float64Histogram
+
 	// Process gauges. These are observable: the meter pulls them on its own
 	// collection interval rather than waiting for a callback, so a process
 	// that is leaking between runs — the interesting case, since a run's own
@@ -105,6 +110,13 @@ func newInstruments(mp metric.MeterProvider) *instruments {
 	i.cachedTokens, _ = m.Int64Counter("agentgo.tokens.cached",
 		metric.WithDescription("The cache-hit share of the prompt tokens."),
 		metric.WithUnit("{token}"))
+
+	i.genAITokenUsage, _ = m.Int64Histogram(genAIMetricTokenUsage,
+		metric.WithDescription("Number of input and output tokens used (OpenTelemetry GenAI semconv)."),
+		metric.WithUnit("{token}"))
+	i.genAIOperationDuration, _ = m.Float64Histogram(genAIMetricOperationDuration,
+		metric.WithDescription("GenAI operation duration (OpenTelemetry GenAI semconv)."),
+		metric.WithUnit("s"))
 
 	i.registerProcessGauges(m)
 
@@ -189,12 +201,16 @@ func (o *Observer) recordModelEnd(ctx context.Context, info agent.ModelInfo, res
 		seconds = float64(res.DurationMs) / 1000.0
 	}
 	recordFloat(ctx, m.modelDuration, seconds, base...)
+	genAttrs := genAIMetricAttrs(info, res, err)
+	recordFloat(ctx, m.genAIOperationDuration, seconds, genAttrs...)
 	if res == nil {
 		return
 	}
 	addInt(ctx, m.promptTokens, int64(res.PromptTokens), base...)
 	addInt(ctx, m.completionTokens, int64(res.CompletionTokens), base...)
 	addInt(ctx, m.cachedTokens, int64(res.CachedTokens), base...)
+	recordInt(ctx, m.genAITokenUsage, int64(res.PromptTokens), withAttr(genAttrs, attribute.String(genAITokenType, "input"))...)
+	recordInt(ctx, m.genAITokenUsage, int64(res.CompletionTokens), withAttr(genAttrs, attribute.String(genAITokenType, "output"))...)
 }
 
 // recordToolEnd counts a finished tool call and how long it took.
@@ -286,6 +302,21 @@ func addInt(ctx context.Context, c metric.Int64Counter, v int64, attrs ...attrib
 		return
 	}
 	c.Add(ctx, v, metric.WithAttributes(attrs...))
+}
+
+// withAttr returns a fresh slice: appending to a shared base twice would let
+// the second append overwrite the first's tail.
+func withAttr(base []attribute.KeyValue, extra attribute.KeyValue) []attribute.KeyValue {
+	out := make([]attribute.KeyValue, 0, len(base)+1)
+	out = append(out, base...)
+	return append(out, extra)
+}
+
+func recordInt(ctx context.Context, h metric.Int64Histogram, v int64, attrs ...attribute.KeyValue) {
+	if h == nil || v < 0 {
+		return
+	}
+	h.Record(ctx, v, metric.WithAttributes(attrs...))
 }
 
 func recordFloat(ctx context.Context, h metric.Float64Histogram, v float64, attrs ...attribute.KeyValue) {
