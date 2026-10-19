@@ -3,7 +3,9 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	"github.com/liliang-cn/agent-go/v3/pkg/domain"
 	"github.com/liliang-cn/agent-go/v3/pkg/trace"
 )
 
@@ -32,6 +34,37 @@ func reportedElsewhere(purpose string) bool {
 	return purpose == "turn" || purpose == "final-synthesis"
 }
 
+// WantBodies asks pkg/trace to keep each call's request and reply even when
+// AGENTGO_TRACE_BODIES is off, so WithObserverPayloads reaches the calls the
+// runtime does not make itself. Without this, the constraint and memory calls
+// were the one kind of model call whose input no observer could ever see.
+func (s runtimeSink) WantBodies() bool { return s.r.svc.observerPayloads }
+
+// modelRequest is the ModelInfo.Request for a call the runtime makes itself:
+// nil unless WithObserverPayloads.
+func (s *Service) modelRequest(messages []domain.Message, tools []domain.ToolDefinition) *ModelRequest {
+	if s == nil || !s.observerPayloads {
+		return nil
+	}
+	return &ModelRequest{Messages: messages, Tools: tools}
+}
+
+// requestFromRecord turns what pkg/trace kept of a call's request into a
+// ModelRequest: a structured call hands it a prompt string, a chat call the
+// message list.
+func requestFromRecord(v any) *ModelRequest {
+	switch req := v.(type) {
+	case nil:
+		return nil
+	case string:
+		return &ModelRequest{Prompt: req}
+	case []domain.Message:
+		return &ModelRequest{Messages: req}
+	default:
+		return &ModelRequest{Prompt: fmt.Sprint(req)}
+	}
+}
+
 func (s runtimeSink) ModelStart(ctx context.Context, id, purpose string) {
 	if reportedElsewhere(purpose) {
 		return
@@ -45,9 +78,15 @@ func (s runtimeSink) ModelEnd(ctx context.Context, id string, rec trace.Record) 
 		return
 	}
 	info := s.info(id, rec.Name)
+	if s.r.svc.observerPayloads {
+		info.Request = requestFromRecord(rec.Request)
+	}
 	res := &ModelResult{
 		DurationMs: rec.DurMs, TTFTMs: rec.TTFTMs,
 		PromptTokens: rec.In, CompletionTokens: rec.Out, TokensUsed: rec.In + rec.Out, CachedTokens: rec.Cached,
+	}
+	if reply, ok := rec.Reply.(string); ok {
+		res.Content = reply
 	}
 	var err error
 	if rec.Err != "" {

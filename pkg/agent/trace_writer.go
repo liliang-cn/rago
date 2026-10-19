@@ -47,6 +47,13 @@ type TraceWriter struct {
 	// lint's reason, a final answer. A file write carries the whole file, and
 	// a trace is a record of what happened, not a copy of what moved.
 	MaxTextLen int
+
+	// MaxPayloadLen bounds each message's content in the request written on a
+	// model_end line, when the service was built with WithObserverPayloads.
+	// 0, the default, keeps it whole: a service that asked for the request
+	// asked to read it back, and MaxTextLen's 512 would leave a prompt
+	// unreadable. Set it when the trace is for sizes rather than words.
+	MaxPayloadLen int
 }
 
 // NewTraceWriter returns an Observer that writes a machine-readable JSONL
@@ -97,6 +104,11 @@ type traceLine struct {
 	TextLen    int          `json:"text_len,omitempty"`
 	Tokens     *traceTokens `json:"tokens,omitempty"`
 	FinishText string       `json:"text,omitempty"`
+	// Request is what the model was sent, on model_end, only with
+	// WithObserverPayloads. It sits on model_end rather than model_start so
+	// the one line holds both sides of the exchange: request here, reply in
+	// text_len / tool_calls / tokens beside it.
+	Request *traceRequest `json:"request,omitempty"`
 
 	// Tool calls.
 	Tool   string         `json:"tool,omitempty"`
@@ -252,6 +264,52 @@ func (t *TraceWriter) OnModelDelta(_ context.Context, delta ModelDelta) {
 	}, time.Now())
 }
 
+// traceRequest is ModelRequest as written to the trace: messages with their
+// tool calls, tool names rather than schemas (a schema is the same bytes on
+// every round), or the prompt of a structured call.
+type traceRequest struct {
+	Prompt   string         `json:"prompt,omitempty"`
+	Messages []traceMessage `json:"messages,omitempty"`
+	Tools    []string       `json:"tools,omitempty"`
+}
+
+type traceMessage struct {
+	Role       string          `json:"role"`
+	Content    string          `json:"content,omitempty"`
+	ToolCallID string          `json:"tool_call_id,omitempty"`
+	ToolCalls  []traceToolCall `json:"tool_calls,omitempty"`
+}
+
+type traceToolCall struct {
+	ID   string         `json:"id,omitempty"`
+	Name string         `json:"name"`
+	Args map[string]any `json:"args,omitempty"`
+}
+
+func (t *TraceWriter) requestLine(req *ModelRequest) *traceRequest {
+	if req == nil {
+		return nil
+	}
+	clip := func(s string) string {
+		if t.MaxPayloadLen > 0 && len(s) > t.MaxPayloadLen {
+			return s[:t.MaxPayloadLen] + "…"
+		}
+		return s
+	}
+	out := &traceRequest{Prompt: clip(req.Prompt)}
+	for _, m := range req.Messages {
+		tm := traceMessage{Role: m.Role, Content: clip(m.Content), ToolCallID: m.ToolCallID}
+		for _, tc := range m.ToolCalls {
+			tm.ToolCalls = append(tm.ToolCalls, traceToolCall{ID: tc.ID, Name: tc.Function.Name, Args: tc.Function.Arguments})
+		}
+		out.Messages = append(out.Messages, tm)
+	}
+	for _, tool := range req.Tools {
+		out.Tools = append(out.Tools, tool.Function.Name)
+	}
+	return out
+}
+
 func (t *TraceWriter) OnModelEnd(_ context.Context, info ModelInfo, res *ModelResult, err error) {
 	now := time.Now()
 	t.mu.Lock()
@@ -269,6 +327,7 @@ func (t *TraceWriter) OnModelEnd(_ context.Context, info ModelInfo, res *ModelRe
 		SpanID:    info.SpanID,
 		Model:     info.Model,
 		Purpose:   info.Purpose,
+		Request:   t.requestLine(info.Request),
 	}
 	if ok {
 		line.DurationMs = now.Sub(started).Milliseconds()

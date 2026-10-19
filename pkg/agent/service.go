@@ -146,6 +146,9 @@ type Service struct {
 	// Nil-safe: no observers means zero overhead.
 	observersMu sync.RWMutex
 	observers   []Observer
+	// observerPayloads puts the model's input on ModelInfo.Request for every
+	// observer. Set by WithObserverPayloads; read by modelRequest.
+	observerPayloads bool
 
 	// checkpointSink, when non-nil, is called by the runtime at every
 	// round boundary so the message history can be persisted for

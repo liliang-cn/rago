@@ -47,7 +47,9 @@
 //	llm       openinference.span.kind, llm.model_name, session.id,
 //	          agentgo.agent_name, agentgo.round, output.value,
 //	          llm.token_count.total, .prompt, .completion,
-//	          llm.token_count.prompt_details.cache_read, llm.tool_calls
+//	          llm.token_count.prompt_details.cache_read, llm.tool_calls;
+//	          with agent.WithObserverPayloads also input.value,
+//	          llm.input_messages.<i>.message.*, llm.tools.<i>.tool.json_schema
 //	tool      openinference.span.kind, tool.name, tool.parameters,
 //	          input.value, output.value, session.id, agentgo.agent_name,
 //	          agentgo.tool.inner
@@ -133,6 +135,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -385,6 +388,7 @@ func (o *Observer) OnModelEnd(ctx context.Context, info agent.ModelInfo, res *ag
 	if span == nil {
 		return
 	}
+	setRequestAttributes(span, info.Request)
 	if res != nil {
 		span.SetAttributes(
 			attribute.String(attrOutputValue, res.Content),
@@ -614,6 +618,56 @@ func finish(span trace.Span, err error) {
 		span.SetStatus(codes.Ok, "")
 	}
 	span.End()
+}
+
+// setRequestAttributes puts a model call's input on its span in the
+// OpenInference shape Phoenix renders as a conversation: input.value (the
+// whole request as JSON), one llm.input_messages.<i>.message.* group per
+// message, and one llm.tools.<i>.tool.json_schema per tool offered. req is
+// nil unless the service was built with agent.WithObserverPayloads, and then
+// nothing here runs — the span keeps carrying counts and output only.
+//
+// Nothing is clipped. The point of carrying the request is reading it back
+// whole; a collector that wants a ceiling sets one in its SDK limits.
+func setRequestAttributes(span trace.Span, req *agent.ModelRequest) {
+	if req == nil {
+		return
+	}
+	if req.Prompt != "" && len(req.Messages) == 0 {
+		span.SetAttributes(
+			attribute.String(attrInputValue, req.Prompt),
+			attribute.String("llm.input_messages.0.message.role", "user"),
+			attribute.String("llm.input_messages.0.message.content", req.Prompt),
+		)
+		return
+	}
+	attrs := make([]attribute.KeyValue, 0, 2+3*len(req.Messages)+len(req.Tools))
+	attrs = append(attrs,
+		attribute.String(attrInputValue, toJSON(map[string]any{"messages": req.Messages, "tools": req.Tools})),
+		attribute.String("input.mime_type", "application/json"),
+	)
+	for i, m := range req.Messages {
+		p := fmt.Sprintf("llm.input_messages.%d.message.", i)
+		attrs = append(attrs, attribute.String(p+"role", m.Role))
+		if m.Content != "" || len(m.ToolCalls) == 0 {
+			attrs = append(attrs, attribute.String(p+"content", m.Content))
+		}
+		if m.ToolCallID != "" {
+			attrs = append(attrs, attribute.String(p+"tool_call_id", m.ToolCallID))
+		}
+		for j, tc := range m.ToolCalls {
+			tp := fmt.Sprintf("%stool_calls.%d.tool_call.", p, j)
+			attrs = append(attrs,
+				attribute.String(tp+"id", tc.ID),
+				attribute.String(tp+"function.name", tc.Function.Name),
+				attribute.String(tp+"function.arguments", toJSON(tc.Function.Arguments)),
+			)
+		}
+	}
+	for i, t := range req.Tools {
+		attrs = append(attrs, attribute.String(fmt.Sprintf("llm.tools.%d.tool.json_schema", i), toJSON(t)))
+	}
+	span.SetAttributes(attrs...)
 }
 
 func nonEmpty(s, fallback string) string {

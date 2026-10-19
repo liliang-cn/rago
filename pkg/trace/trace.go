@@ -150,6 +150,15 @@ type Sink interface {
 	Step(ctx context.Context, r Record)
 }
 
+// BodySink is a Sink that also wants each model call's request and reply
+// in the Records it receives, whether or not AGENTGO_TRACE_BODIES is set. The
+// agent runtime's sink implements it when the service was built with
+// WithObserverPayloads.
+type BodySink interface {
+	Sink
+	WantBodies() bool
+}
+
 // WithSink installs a sink for the model calls and steps made with ctx.
 func WithSink(ctx context.Context, s Sink) context.Context {
 	if s == nil || ctx == nil {
@@ -349,18 +358,28 @@ func (c *Call) Output() {
 	c.first.CompareAndSwap(0, int64(time.Since(c.start)))
 }
 
-// Request keeps what was sent, when bodies are being recorded.
+// Request keeps what was sent, when bodies are being recorded or the
+// call's sink asked for them.
 func (c *Call) Request(v any) {
-	if c != nil && bodies.Load() {
+	if c != nil && c.keepBodies() {
 		c.request = v
 	}
 }
 
-// Reply keeps what came back, when bodies are being recorded.
+// Reply keeps what came back, when bodies are being recorded or the call's
+// sink asked for them.
 func (c *Call) Reply(v any) {
-	if c != nil && bodies.Load() {
+	if c != nil && c.keepBodies() {
 		c.reply = v
 	}
+}
+
+func (c *Call) keepBodies() bool {
+	if bodies.Load() {
+		return true
+	}
+	bs, ok := c.sink.(BodySink)
+	return ok && bs.WantBodies()
 }
 
 // End records the call.
@@ -371,15 +390,26 @@ func (c *Call) End(usage *domain.TokenUsage, err error) {
 	dur := time.Since(c.start)
 	ttft := time.Duration(c.first.Load())
 	r := Record{Time: c.start, Kind: "model", Name: c.purpose, Detail: c.detail,
-		DurMs: dur.Milliseconds(), TTFTMs: ttft.Milliseconds(), Request: c.request, Reply: c.reply}
+		DurMs: dur.Milliseconds(), TTFTMs: ttft.Milliseconds()}
 	if usage != nil {
 		r.In, r.Out, r.Cached, r.Think = usage.PromptTokens, usage.CompletionTokens, usage.CachedPromptTokens, usage.ReasoningTokens
 	}
 	if err != nil {
 		r.Err = trim(err.Error())
 	}
+	// The sink gets the bodies whenever it asked for them; the trace file
+	// and the stderr lines only when AGENTGO_TRACE_BODIES did. A service
+	// that turned payloads on for its observers has not thereby agreed to
+	// write every prompt into a file on disk.
 	if c.sink != nil {
-		c.sink.ModelEnd(c.ctx, c.id, r)
+		rs := r
+		if c.keepBodies() {
+			rs.Request, rs.Reply = c.request, c.reply
+		}
+		c.sink.ModelEnd(c.ctx, c.id, rs)
+	}
+	if bodies.Load() {
+		r.Request, r.Reply = c.request, c.reply
 	}
 	emit(c.ctx, r)
 	if s := statsOf(c.ctx); s != nil {

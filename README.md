@@ -87,7 +87,7 @@ Wiring memory, a knowledge graph, web search and plans into a host: [docs/gettin
 | `WithSubagents(specs...)` | a `task(agent_name, prompt)` tool |
 | `WithSandbox(sb)` / `WithAutonomy(profile)` | where tools run; round budget |
 | `WithPlanStore(ps)` / `WithTaskStore(ts)` / `WithRunMemory(rm)` | persistence for plans, tasks, run memory |
-| `WithExtensions(...)` / `WithObserver(...)` | seams: logging, pii, usage, bashguard, exec; ActivityLog, TraceWriter, OTel |
+| `WithExtensions(...)` / `WithObserver(...)` / `WithObserverPayloads()` | seams: logging, pii, usage, bashguard, exec; ActivityLog, TraceWriter, OTel; the request each model call was sent, opt-in |
 | `WithPromptCache(...)` / `WithToolOutputLimit(n)` | prompt cache breakpoints; cap on one tool result |
 | `WithMaxConcurrentRuns(n)` / `WithMaxRunsPerTenant(n)` / `WithBackgroundTasks(max)` | capacity |
 | `WithDecisionEngine(e, conf)` / `WithTimezone(loc)` / `WithOptions(agent.Options{...})` | the rest |

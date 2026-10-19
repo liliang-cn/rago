@@ -307,6 +307,7 @@ func (r *Runtime) forceFinalSynthesis(ctx context.Context, state *queryLoopState
 		Messages:  len(synth),
 		Model:     r.svc.Info().Model,
 		Purpose:   "final-synthesis",
+		Request:   r.svc.modelRequest(synth, nil),
 	}
 	r.svc.emitObserver(func(o Observer) { o.OnModelStart(ctx, modelInfo) })
 	synthStart := time.Now()
@@ -642,6 +643,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 			Tools:     len(tools),
 			Model:     r.svc.Info().Model,
 			Purpose:   "turn",
+			Request:   r.svc.modelRequest(genMessages, tools),
 		}
 		r.svc.emitObserver(func(o Observer) { o.OnModelStart(ctx, modelInfo) })
 

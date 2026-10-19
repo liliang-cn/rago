@@ -223,6 +223,34 @@ detector in a log a human greps. `Doctor` reports `process.resources`
 informationally: in the CLI the numbers are dull, in a host that has been up
 for days they are the first thing worth pasting into a bug report.
 
+### What an observer sees of a model call, and the half it did not
+
+Every observer callback carried a model call's output and its numbers — text,
+tokens, duration, first-token latency — and of the input exactly two
+integers: how many messages, how many tools. A Phoenix trace showed every
+answer and no prompt, so "what did the model see in round 7" meant
+reproducing round 7. `WithObserverPayloads()` fills `ModelInfo.Request`: the
+message list and the tool definitions of a turn, or the prompt of a
+structured call (constraints, memory picks, compaction — those arrive via the
+trace sink, so their request is only known by `OnModelEnd`; read it there to
+get every call). `otelobserver` turns it into OpenInference
+`llm.input_messages.<i>.message.*` and `llm.tools.<i>.tool.json_schema`,
+which is what Phoenix renders as the conversation; `TraceWriter` writes it on
+the `model_end` line so one line holds both sides of the exchange.
+
+Off by default, and the reasons are not ceremony. A 60k-token context
+repeated every round is most of a trace's bytes. And a request holds the
+user's own words and whatever a tool read: a host that exports it owns where
+it goes, and the PII extension runs on the model's output, not on this. Two
+places were made to respect the switch rather than the environment:
+`pkg/trace`'s `BodySink` lets the runtime's sink ask for bodies without
+`AGENTGO_TRACE_BODIES`, and `Call.End` hands them to the sink while still
+keeping them out of `AGENTGO_TRACE_FILE` unless that variable asked. Nothing
+is clipped on the OTel side; `TraceWriter.MaxPayloadLen` clips message
+content when a trace is for sizes rather than words.
+
+`examples/observer-payloads` prints what each turn was sent.
+
 ### Asking a run what it is doing, without being its caller
 
 `Service.StatusSnapshot()` (`status.go`). Everything in it existed somewhere;

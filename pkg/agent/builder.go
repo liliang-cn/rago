@@ -110,6 +110,7 @@ type Builder struct {
 	maxConcurrentRuns  int
 	maxRunsPerTenant   int
 	noConstraints      bool
+	observerPayloads   bool
 	timeLocation       *time.Location
 	backgroundTasks    bool
 	maxBackgroundTasks int
@@ -503,6 +504,18 @@ func (b *Builder) WithConstraintExtraction(enabled bool) *Builder {
 	return b
 }
 
+// WithObserverPayloads makes every ModelInfo an observer receives carry the
+// request the model was sent — ModelInfo.Request: the messages and tools of a
+// turn, or the prompt of a structured call. Off by default: the request is
+// the bulk of a trace and holds the user's own words, so sending it to an
+// exporter is the host's decision. With it on, otelobserver fills
+// llm.input_messages / llm.tools on each LLM span (what Phoenix shows as the
+// prompt) and TraceWriter writes the request on each model_end line.
+func (b *Builder) WithObserverPayloads() *Builder {
+	b.observerPayloads = true
+	return b
+}
+
 func (b *Builder) WithObserver(obs ...Observer) *Builder {
 	for _, o := range obs {
 		if o != nil {
@@ -830,6 +843,7 @@ func (b *Builder) build() (*Service, error) {
 	svc.maxConcurrentRuns = b.maxConcurrentRuns
 	svc.maxRunsPerTenant = b.maxRunsPerTenant
 	svc.noConstraintExtraction = b.noConstraints
+	svc.observerPayloads = b.observerPayloads
 	svc.maxBackgroundTasks = b.maxBackgroundTasks
 	if b.backgroundTasks {
 		RegisterBackgroundTaskTools(svc)

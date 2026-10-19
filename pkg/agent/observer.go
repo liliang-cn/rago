@@ -117,6 +117,31 @@ type ModelInfo struct {
 	// "compaction", "summary", "final-synthesis" and so on. Those used to be
 	// invisible to observers, which is where a slow start hid.
 	Purpose string
+	// Request is what the model was sent, when the service was built with
+	// WithObserverPayloads(); nil otherwise. Messages and Tools above are
+	// counts and are always filled. For the answering turn and the final
+	// synthesis it is set on OnModelStart; for a call made on the run's
+	// behalf (constraints, memory picks, compaction) it is only known by
+	// OnModelEnd, so an observer that wants every request reads it there.
+	// It is shared with the runtime, not copied: read it, do not change it.
+	Request *ModelRequest
+}
+
+// ModelRequest is the content of one model call: the message list of a
+// chat turn with the tools offered beside it, or the prompt of a structured
+// call. Exactly one of Messages and Prompt is set.
+//
+// Observers see counts and output by default and never the input, which was
+// the one thing missing when a run went wrong: a Phoenix trace showed every
+// answer and no prompt, so "what did the model see in round 7" meant
+// reproducing round 7. This carries it. It is off by default because a
+// 60k-token context repeated on every round is most of a trace's bytes, and
+// because a request holds whatever the user typed and whatever a tool read:
+// a host that exports it owns where it goes.
+type ModelRequest struct {
+	Messages []domain.Message
+	Tools    []domain.ToolDefinition
+	Prompt   string
 }
 
 // ModelDelta carries a streamed fragment. Kind is "reasoning" or "partial".
