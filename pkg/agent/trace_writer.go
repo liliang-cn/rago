@@ -109,6 +109,10 @@ type traceLine struct {
 	// the one line holds both sides of the exchange: request here, reply in
 	// text_len / tool_calls / tokens beside it.
 	Request *traceRequest `json:"request,omitempty"`
+	// Response is what the model answered, on model_end, only with
+	// WithObserverPayloads: its text, its reasoning, the tool calls it asked
+	// for and why it stopped. text_len and tool_calls stay the sizes.
+	Response *traceResponse `json:"response,omitempty"`
 
 	// Tool calls.
 	Tool   string         `json:"tool,omitempty"`
@@ -286,16 +290,48 @@ type traceToolCall struct {
 	Args map[string]any `json:"args,omitempty"`
 }
 
+// traceResponse is ModelResult.Content and Response as written to the trace.
+type traceResponse struct {
+	Content   string          `json:"content,omitempty"`
+	Reasoning string          `json:"reasoning,omitempty"`
+	ToolCalls []traceToolCall `json:"tool_calls,omitempty"`
+	Finish    string          `json:"finish_reason,omitempty"`
+}
+
+// responseLine is the model's answer for the trace, when the service carries
+// payloads: a request on the info or a response on the result says it does.
+// A call made on the run's behalf has no Response but its text is the reply.
+func (t *TraceWriter) responseLine(info ModelInfo, res *ModelResult) *traceResponse {
+	if res == nil || (info.Request == nil && res.Response == nil) {
+		return nil
+	}
+	out := &traceResponse{Content: t.clipPayload(res.Content)}
+	if r := res.Response; r != nil {
+		out.Reasoning = t.clipPayload(r.Reasoning)
+		out.Finish = r.FinishReason
+		for _, tc := range r.ToolCalls {
+			out.ToolCalls = append(out.ToolCalls, traceToolCall{ID: tc.ID, Name: tc.Function.Name, Args: tc.Function.Arguments})
+		}
+	}
+	if out.Content == "" && out.Reasoning == "" && out.Finish == "" && len(out.ToolCalls) == 0 {
+		return nil
+	}
+	return out
+}
+
+// clipPayload bounds a payload's text by MaxPayloadLen; 0 keeps it whole.
+func (t *TraceWriter) clipPayload(s string) string {
+	if t.MaxPayloadLen > 0 && len(s) > t.MaxPayloadLen {
+		return s[:t.MaxPayloadLen] + "…"
+	}
+	return s
+}
+
 func (t *TraceWriter) requestLine(req *ModelRequest) *traceRequest {
 	if req == nil {
 		return nil
 	}
-	clip := func(s string) string {
-		if t.MaxPayloadLen > 0 && len(s) > t.MaxPayloadLen {
-			return s[:t.MaxPayloadLen] + "…"
-		}
-		return s
-	}
+	clip := t.clipPayload
 	out := &traceRequest{Prompt: clip(req.Prompt)}
 	for _, m := range req.Messages {
 		tm := traceMessage{Role: m.Role, Content: clip(m.Content), ToolCallID: m.ToolCallID}
@@ -338,6 +374,7 @@ func (t *TraceWriter) OnModelEnd(_ context.Context, info ModelInfo, res *ModelRe
 	case res != nil:
 		line.ToolCalls = res.ToolCalls
 		line.TextLen = len(res.Content)
+		line.Response = t.responseLine(info, res)
 		line.TTFTMs = res.TTFTMs
 		line.Tokens = &traceTokens{
 			Total:      res.TokensUsed,

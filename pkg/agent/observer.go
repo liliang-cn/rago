@@ -172,6 +172,20 @@ type ModelResult struct {
 	// is what was asked for). Empty when unknown.
 	Model    string
 	Provider string
+	// Response is the rest of what the model answered, when the service was
+	// built with WithObserverPayloads; nil otherwise. Content above is the
+	// text, always filled; ToolCalls above is only a count.
+	Response *ModelResponse
+}
+
+// ModelResponse is the model's side of one call beyond its text: the tool
+// calls it asked for with their arguments, what it reasoned, and why it
+// stopped. With ModelRequest it is the whole exchange, so a trace can say not
+// only what the model saw in round 7 but what it decided there.
+type ModelResponse struct {
+	Reasoning    string
+	ToolCalls    []domain.ToolCall
+	FinishReason string
 }
 
 // StepInfo is a timed step that is not a model or tool call: Kind is

@@ -345,6 +345,7 @@ func (r *Runtime) forceFinalSynthesis(ctx context.Context, state *queryLoopState
 			TokensUsed:       inputTokens + outputTokens,
 			PromptTokens:     inputTokens,
 			CompletionTokens: outputTokens,
+			Response:         r.svc.modelResponse(res),
 		}, nil)
 	})
 	return strings.TrimSpace(res.Content)
@@ -762,6 +763,7 @@ func (r *Runtime) loop(ctx context.Context, goal string) {
 					CompletionTokens: completionTokens,
 					Model:            result.Model,
 					Provider:         result.Provider,
+					Response:         r.svc.modelResponse(result),
 				}
 			}
 			modelErr := err

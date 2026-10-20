@@ -49,6 +49,15 @@ func (s *Service) modelRequest(messages []domain.Message, tools []domain.ToolDef
 	return &ModelRequest{Messages: messages, Tools: tools}
 }
 
+// modelResponse is the ModelResult.Response for a call the runtime makes
+// itself: nil unless WithObserverPayloads.
+func (s *Service) modelResponse(res *domain.GenerationResult) *ModelResponse {
+	if s == nil || !s.observerPayloads || res == nil {
+		return nil
+	}
+	return &ModelResponse{Reasoning: res.ReasoningContent, ToolCalls: res.ToolCalls, FinishReason: res.FinishReason}
+}
+
 // requestFromRecord turns what pkg/trace kept of a call's request into a
 // ModelRequest: a structured call hands it a prompt string, a chat call the
 // message list.

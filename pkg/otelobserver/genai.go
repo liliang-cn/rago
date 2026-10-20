@@ -92,11 +92,10 @@ func genAIModelEndAttrs(info agent.ModelInfo, res *agent.ModelResult, err error)
 		if res.Provider != "" {
 			attrs = append(attrs, attribute.String(genAIProviderName, strings.ToLower(res.Provider)))
 		}
-		if info.Request != nil && res.Content != "" {
-			attrs = append(attrs, attribute.String(genAIOutputMessages, toJSON([]genAIMessage{{
-				Role:  "assistant",
-				Parts: []genAIPart{{Type: "text", Content: res.Content}},
-			}})))
+		if info.Request != nil || res.Response != nil {
+			if msg := genAIOutput(res); len(msg.Parts) > 0 {
+				attrs = append(attrs, attribute.String(genAIOutputMessages, toJSON([]genAIMessage{msg})))
+			}
 		}
 	}
 	if err != nil {
@@ -160,6 +159,8 @@ func genAIMetricAttrs(info agent.ModelInfo, res *agent.ModelResult, err error) [
 type genAIMessage struct {
 	Role  string      `json:"role"`
 	Parts []genAIPart `json:"parts"`
+	// FinishReason is set on an output message only.
+	FinishReason string `json:"finish_reason,omitempty"`
 }
 
 type genAIPart struct {
@@ -169,6 +170,25 @@ type genAIPart struct {
 	Name      string `json:"name,omitempty"`
 	Arguments any    `json:"arguments,omitempty"`
 	Response  string `json:"response,omitempty"`
+}
+
+// genAIOutput is the model's answer as the spec's assistant message: its
+// reasoning, its text and the tool calls it asked for, with why it stopped.
+func genAIOutput(res *agent.ModelResult) genAIMessage {
+	msg := genAIMessage{Role: "assistant", Parts: []genAIPart{}}
+	if r := res.Response; r != nil && r.Reasoning != "" {
+		msg.Parts = append(msg.Parts, genAIPart{Type: "reasoning", Content: r.Reasoning})
+	}
+	if res.Content != "" {
+		msg.Parts = append(msg.Parts, genAIPart{Type: "text", Content: res.Content})
+	}
+	if r := res.Response; r != nil {
+		for _, tc := range r.ToolCalls {
+			msg.Parts = append(msg.Parts, genAIPart{Type: "tool_call", ID: tc.ID, Name: tc.Function.Name, Arguments: tc.Function.Arguments})
+		}
+		msg.FinishReason = r.FinishReason
+	}
+	return msg
 }
 
 // genAIMessagesJSON renders a ModelRequest in the spec's message format: text

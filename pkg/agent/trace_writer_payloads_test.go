@@ -52,6 +52,9 @@ func TestTraceWriterWritesRequestOnlyWithPayloads(t *testing.T) {
 		if _, ok := l["request"]; ok {
 			t.Fatal("request written without WithObserverPayloads")
 		}
+		if _, ok := l["response"]; ok {
+			t.Fatal("response written without WithObserverPayloads")
+		}
 	}
 
 	on := modelEnds(run(true, 0))
@@ -95,6 +98,20 @@ func TestTraceWriterWritesRequestOnlyWithPayloads(t *testing.T) {
 		t.Fatal("second turn's request should show the ping tool call")
 	}
 
+	// Each line has the model's side too: the call it asked for in round
+	// one, with its arguments, and the answer in round two.
+	resp, ok := on[0]["response"].(map[string]any)
+	if !ok {
+		t.Fatalf("first model_end has no response: %v", on[0])
+	}
+	calls, _ := resp["tool_calls"].([]any)
+	if len(calls) != 1 || calls[0].(map[string]any)["name"] != "ping" {
+		t.Fatalf("first response should ask for ping: %v", resp)
+	}
+	if final, _ := on[len(on)-1]["response"].(map[string]any); final["content"] != "all done" {
+		t.Fatalf("last response should be the answer: %v", on[len(on)-1])
+	}
+
 	// MaxPayloadLen clips message content, nothing else.
 	clipped := modelEnds(run(true, 4))
 	creq := clipped[0]["request"].(map[string]any)
@@ -102,5 +119,8 @@ func TestTraceWriterWritesRequestOnlyWithPayloads(t *testing.T) {
 	last := cmsgs[len(cmsgs)-1].(map[string]any)["content"].(string)
 	if last != "plea…" {
 		t.Fatalf("clipped content %q", last)
+	}
+	if got := clipped[len(clipped)-1]["response"].(map[string]any)["content"]; got != "all …" {
+		t.Fatalf("clipped answer %q", got)
 	}
 }

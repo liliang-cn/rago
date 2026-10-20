@@ -238,6 +238,15 @@ get every call). `otelobserver` turns it into OpenInference
 which is what Phoenix renders as the conversation; `TraceWriter` writes it on
 the `model_end` line so one line holds both sides of the exchange.
 
+The other side came second. `ModelResult.Content` always had the answer's
+text, but `TraceWriter` wrote only its length and the tool calls only as a
+count, so a trace said what the model saw in round 7 and not what it decided
+there. With payloads on, `ModelResult.Response` carries the tool calls it
+asked for with their arguments, its reasoning and its finish reason;
+`TraceWriter` writes `response: {content, reasoning, tool_calls, finish_reason}`
+on `model_end` (clipped by `MaxPayloadLen` like the request), and
+`gen_ai.output.messages` gets reasoning, text and tool_call parts.
+
 Off by default, and the reasons are not ceremony. A 60k-token context
 repeated every round is most of a trace's bytes. And a request holds the
 user's own words and whatever a tool read: a host that exports it owns where

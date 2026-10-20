@@ -30,7 +30,9 @@ func TestSpansCarryGenAISemconv(t *testing.T) {
 	}
 	mi := agent.ModelInfo{TaskID: "t", SessionID: "sess", AgentName: "bot", Model: "qwen-plus", Round: 1, SpanID: "m1", Purpose: "turn", Request: req}
 	obs.OnModelStart(ctx, mi)
-	obs.OnModelEnd(ctx, mi, &agent.ModelResult{Content: "done", PromptTokens: 120, CompletionTokens: 7, CachedTokens: 100, Model: "qwen-plus-2025", Provider: "DashScope"}, nil)
+	obs.OnModelEnd(ctx, mi, &agent.ModelResult{Content: "done", PromptTokens: 120, CompletionTokens: 7, CachedTokens: 100, Model: "qwen-plus-2025", Provider: "DashScope",
+		Response: &agent.ModelResponse{Reasoning: "check again", FinishReason: "tool_calls",
+			ToolCalls: []domain.ToolCall{{ID: "c2", Function: domain.FunctionCall{Name: "ping", Arguments: map[string]any{"msg": "again"}}}}}}, nil)
 
 	failed := agent.ModelInfo{TaskID: "t", SessionID: "sess", AgentName: "bot", Model: "qwen-plus", SpanID: "m2", Purpose: "constraints"}
 	obs.OnModelStart(ctx, failed)
@@ -88,8 +90,11 @@ func TestSpansCarryGenAISemconv(t *testing.T) {
 			t.Errorf("gen_ai.input.messages missing %s: %s", want, in)
 		}
 	}
-	if !strings.Contains(llm[genAIOutputMessages], `"content":"done"`) {
-		t.Errorf("gen_ai.output.messages: %q", llm[genAIOutputMessages])
+	out := llm[genAIOutputMessages]
+	for _, want := range []string{`"type":"reasoning","content":"check again"`, `"content":"done"`, `"type":"tool_call","id":"c2","name":"ping"`, `"finish_reason":"tool_calls"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("gen_ai.output.messages missing %s: %s", want, out)
+		}
 	}
 	if !strings.Contains(llm[genAIToolDefinitions], `"ping"`) {
 		t.Errorf("gen_ai.tool.definitions: %q", llm[genAIToolDefinitions])
